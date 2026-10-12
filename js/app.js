@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -194,7 +194,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile];
   function stampChanges(prev, cur) {
     const now = Date.now();
     cur.deleted = cur.deleted || {};
@@ -265,7 +265,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile] = settingsOf(R); out.smt = R.smt; }
     // Uniones: cartas secretas (fecha más antigua), retos superados, rutinas completadas y minutos de temporizador
     out.secrets = { ...(R.secrets || {}), ...(L.secrets || {}) };
     for (const [id, d] of Object.entries(R.secrets || {})) if (out.secrets[id] > d) out.secrets[id] = d;
@@ -406,7 +406,8 @@
     if (isQuit(h)) { const end = addDays(todayKey(), -1); let n = 0; for (let k = firstKey(h); k <= end; k = addDays(k, 1)) if (!cnt(h, k)) n++; return n; }
     const L = state.logs[h.id] || {}; const g = dayGoal(h); let n = 0; for (const k in L) if (L[k] >= g) n++; return n;
   }
-  function totalEntries(h, from, to) { if (isQuit(h)) return 0; const L = state.logs[h.id] || {}; let s = 0; for (const k in L) if ((!from || k >= from) && (!to || k <= to)) s += L[k]; return s; }
+  // Registros: veces marcadas (en hábitos con cantidad, cada día registrado cuenta como 1)
+  function totalEntries(h, from, to) { if (isQuit(h)) return 0; const L = state.logs[h.id] || {}; let s = 0; for (const k in L) if ((!from || k >= from) && (!to || k <= to)) s += isAmount(h) ? (L[k] > 0 ? 1 : 0) : L[k]; return s; }
   // Puntuación de un día (0..1) o null si ese día no cuenta — para gráficos
   function dayScore(h, k) {
     if (k < firstKey(h) || k > todayKey()) return null;
@@ -529,6 +530,7 @@
   let minWeeks = 20;
 
   function render() {
+    if (publicMode) return;
     applyTheme();
     document.documentElement.lang = state.lang;
     hideTip();
@@ -619,6 +621,7 @@
       meta.push(esc(streak === 1 ? t('quitDay1') : t('quitDays', { n: streak })));
       if (best > streak) meta.push(esc(t('bestStreak')) + ' ' + best);
       if (h.challenge && !h.challenge.done) meta.push(`🏁 ${challengeProgress(h)}/${h.challenge.days}`);
+      if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">👥</span>`);
       const ring = `<button class="ring quit ${slip ? 'slipped' : 'full'}" data-ring="${h.id}" aria-label="${esc(t('relapse'))}"><svg viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="23" fill="none" stroke="var(--h)" stroke-opacity=".4" stroke-width="3.5"/></svg><span class="ring-in">${slip ? ico('x') : streak}</span></button>`;
       return `<article class="habit clay" data-id="${h.id}" style="${habitVars(c)}">
         <div class="habit-head">
@@ -638,6 +641,8 @@
     if (streak) meta.push(`<span class="flame">${ico('flame')}</span>${streak}`);
     const sh = shieldInfo(h).available; if (sh) meta.push(`🛡️${sh}`);
     if (h.challenge && !h.challenge.done) meta.push(`🏁 ${challengeProgress(h)}/${h.challenge.days}`);
+    if (h.reminder && h.reminder.on) meta.push(`🔔${esc(h.reminder.time)}`);
+    if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">👥</span>`);
     // En hábitos con cantidad, el anillo muestra el porcentaje del objetivo
     const ring = isAmount(h)
       ? ringHtml(Math.min(sum, h.target), h.target, `data-ring="${h.id}" aria-label="${esc(t('today'))}: ${fmtNum(sum)}/${fmtNum(h.target)}"`).replace(/<span class="ring-in">.*<\/span><\/button>$/, `<span class="ring-in" style="font-size:12px">${sum >= h.target ? ico('check') : Math.round(sum / h.target * 100) + '%'}</span></button>`)
@@ -718,6 +723,7 @@
     f.days = [...(f.days || [0, 1, 2, 3, 4, 5, 6])];
     f.measure = f.measure || 'count'; f.timeOfDay = f.timeOfDay || 'any'; f.duration = +f.duration || 0; f.step = +f.step || 1; f.unit = f.unit || '';
     f.chDays = h && h.challenge && !h.challenge.done ? h.challenge.days : 0;
+    f.remOn = !!(h && h.reminder && h.reminder.on); f.remTime = (h && h.reminder && h.reminder.time) || ''; f.share = false;
     const draw = w => {
       const b = $('#hf', w); const forcedMulti = f.freq === 'daily' && f.target > 1;
       const period = f.freq === 'daily' ? t('periodDay') : f.freq === 'weekly' ? t('periodWeek') : t('periodMonth');
@@ -766,6 +772,11 @@
         <div class="field"><span>${esc(t('timeOfDay'))}</span><div class="seg" style="flex-wrap:wrap">${TOD.map(x => `<button type="button" data-tod="${x}" class="${f.timeOfDay === x ? 'on' : ''}">${TOD_ICON[x]} ${esc(t('tod_' + x))}</button>`).join('')}</div></div>
         <label class="field"><span>🏁 ${esc(t('habitChallenge'))}</span><input class="input" id="hf-ch" type="number" min="0" max="1000" inputmode="numeric" value="${f.chDays || ''}" placeholder="${esc(t('habitChallengePh'))}" style="max-width:200px">
           ${h && h.challenge && !h.challenge.done ? `<span class="muted small">${esc(t('challengeProgressTxt', { a: challengeProgress(h), b: h.challenge.days, d: fmtShort(h.challenge.start) }))}</span>` : ''}</label>
+        ${!quit ? `<div class="field"><span>🔔 ${esc(t('remindTitle'))}</span>
+          <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-rem" ${f.remOn ? 'checked' : ''}><span></span></span><span class="grow muted small">${esc(t('remindHint'))}</span></label>
+          <input class="input ${f.remOn ? '' : 'hidden'}" id="hf-rem-time" type="time" value="${esc(f.remTime)}" style="max-width:160px"></div>` : ''}
+        ${h && h.groupId ? `<button type="button" class="chip" data-hm="group">👥 ${esc(t('groupOpen'))}</button>`
+          : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareWithFriendsHint' : 'groupNeedLogin'))}</span></span></label>`}
         <label class="field"><span>${esc(t('habitDesc'))}</span><textarea class="input" id="hf-note" maxlength="300" placeholder="${esc(t('habitDescPh'))}">${esc(f.note || '')}</textarea></label>
         ${!isNew ? `<div class="row wrap">
           <button type="button" class="chip" data-hm="up">${ico('up')} ${esc(t('moveUp'))}</button>
@@ -785,6 +796,8 @@
       if ($('#hf-unit', w)) { f.unit = $('#hf-unit', w).value.trim(); f.step = Math.max(.01, parseFloat($('#hf-stepv', w).value) || 1); }
       f.duration = Math.max(0, parseInt($('#hf-dur', w).value, 10) || 0);
       f.chDays = Math.max(0, parseInt($('#hf-ch', w).value, 10) || 0);
+      if ($('#hf-rem', w)) { f.remOn = $('#hf-rem', w).checked; f.remTime = $('#hf-rem-time', w).value; }
+      if ($('#hf-share', w)) f.share = $('#hf-share', w).checked;
     };
     openModal({
       title: esc(isNew ? t('newHabit') : t('editHabit')),
@@ -794,6 +807,7 @@
       onInput: (e, w) => {
         if (e.target.id === 'hf-color') { f.color = e.target.value; $$('.sw', w).forEach(s => s.classList.remove('on')); }
         if (e.target.id === 'hf-icon') { $$('[data-emoji]', w).forEach(b => b.classList.toggle('on', b.dataset.emoji === e.target.value.trim())); }
+        if (e.target.id === 'hf-rem') $('#hf-rem-time', w).classList.toggle('hidden', !e.target.checked);
       },
       onClick: async (e, close, w) => {
         const q = s => e.target.closest(s);
@@ -816,6 +830,7 @@
           if (act === 'up' && i > 0) { [state.habits[i - 1], state.habits[i]] = [state.habits[i], state.habits[i - 1]]; save(); render(); }
           if (act === 'down' && i < state.habits.length - 1) { [state.habits[i + 1], state.habits[i]] = [state.habits[i], state.habits[i + 1]]; save(); render(); }
           if (act === 'archive') { h.archived = !h.archived; save(); close(); render(); }
+          if (act === 'group') { close(); openGroup(h.groupId); return; }
           if (act === 'link') {
             const url = `${APP_URL}?check=${h.id}`;
             openModal({
@@ -838,13 +853,16 @@
           readInputs(w);
           if (!f.name) { toast(t('habitNeedName')); $('#hf-name', w).focus(); return; }
           if (f.kind === 'quit') Object.assign(f, { freq: 'daily', target: 1, multi: false, measure: 'count', duration: 0 });
-          const props = { kind: f.kind, name: f.name, icon: f.icon, color: f.color, freq: f.freq, target: f.target, multi: f.multi, note: f.note, days: f.days, measure: f.measure, unit: f.unit, step: f.step, timeOfDay: f.timeOfDay, duration: f.duration };
+          if (f.remOn && !f.remTime) { toast(t('remindNeedTime')); return; }
+          const props = { kind: f.kind, name: f.name, icon: f.icon, color: f.color, freq: f.freq, target: f.target, multi: f.multi, note: f.note, days: f.days, measure: f.measure, unit: f.unit, step: f.step, timeOfDay: f.timeOfDay, duration: f.duration, reminder: { on: !!f.remOn && f.kind !== 'quit', time: f.remTime || '' } };
           // Reto: se conserva la fecha de inicio si solo cambian los días
           const oldCh = h && h.challenge;
           if (f.chDays > 0) props.challenge = oldCh && !oldCh.done ? { ...oldCh, days: f.chDays } : { tid: 'custom', days: f.chDays, start: todayKey() };
           else props.challenge = oldCh && oldCh.done ? oldCh : undefined;
+          let target = h;
           if (isNew) {
-            state.habits.push({ id: uid(), ...props, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], createdAt: todayKey(), archived: false });
+            target = { id: uid(), ...props, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], createdAt: todayKey(), archived: false };
+            state.habits.push(target);
           } else {
             Object.assign(h, props);
             if (!props.challenge) delete h.challenge;
@@ -853,6 +871,9 @@
           save(); close();
           if (state.ui.tab !== 'habits') state.ui.tab = 'habits';
           render(); toast(t('saved'));
+          // Recordatorio: si aún no hay notificaciones en este dispositivo, se piden ahora (el toque de Guardar lo permite)
+          if (props.reminder.on && (await pushStatus()) !== 'on') enablePush();
+          if (f.share && !target.groupId) shareAsGroup('habit', target);
         }
       }
     });
@@ -978,7 +999,7 @@
       return `<button class="proj clay" data-act="proj-open" data-id="${p.id}" style="--h:${c}">
         <div class="proj-top">
           <div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div>
-          <div class="grow"><h3>${esc(p.name)}</h3><div class="muted small" style="font-weight:700">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</div></div>
+          <div class="grow"><h3>${esc(p.name)}${p.groupId ? ' <span class="grp-chip" data-group="' + p.groupId + '">👥</span>' : ''}</h3><div class="muted small" style="font-weight:700">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</div></div>
           <div class="prob-badge"><b>${s.P}%</b><span>${esc(t('probability').split(' ')[0])}</span></div>
         </div>
         <div class="bar ${s.G ? '' : 'zero'}" style="margin-top:14px"><i style="width:${Math.round(s.G * 100)}%"></i></div>
@@ -1036,10 +1057,12 @@
           <div class="muted small">${esc(t('projectHabitsHint'))}</div>
           <div class="sug-list" style="margin-top:6px">${avail.length ? avail.map(h => `<button type="button" class="chip ${f.habitIds.includes(h.id) ? 'on' : ''}" data-link="${h.id}">${esc(h.icon)} ${esc(h.name)}</button>`).join('') : `<span class="muted small">${esc(t('noHabitsYet'))}</span>`}</div>
         </div>
+        ${f.groupId ? '' : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareProjectHint' : 'groupNeedLogin'))}</span></span></label>`}
       </div>`;
     };
     const readInputs = w => {
       f.name = $('#pf-name', w).value.trim(); f.desc = $('#pf-desc', w).value.trim();
+      if ($('#pf-share', w)) f.share = $('#pf-share', w).checked;
       if ($('#pf-start', w)) { f.goal.start = parseFloat($('#pf-start', w).value) || 0; f.goal.target = parseFloat($('#pf-target', w).value) || 0; f.goal.unit = $('#pf-unit', w).value.trim(); }
       if ($('#pf-deadline', w)) f.deadline = $('#pf-deadline', w).value || f.deadline;
     };
@@ -1062,10 +1085,12 @@
         if (q('[data-m="save"]')) {
           readInputs(w);
           if (!f.name) { toast(t('projectNeedName')); $('#pf-name', w).focus(); return; }
+          const share = f.share; delete f.share;
           if (isNew) { f.id = uid(); f.createdAt = todayKey(); state.projects.push(f); }
           else Object.assign(p, f);
           save(); close(); state.ui.tab = 'projects'; render();
-          openProject(isNew ? f : p);
+          const obj = isNew ? f : p;
+          if (share && !obj.groupId) shareAsGroup('project', obj); else openProject(obj);
         }
       }
     });
@@ -1137,7 +1162,7 @@
       title: `${esc(p.icon || '🎯')} ${esc(p.name)}`,
       cls: 'wide',
       body: '<div id="pd"></div>',
-      foot: `<button class="btn" data-pd="delete">${ico('trash')} ${esc(t('delete'))}</button><button class="btn" data-pd="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
+      foot: `<button class="btn" data-pd="delete">${ico('trash')} ${esc(t('delete'))}</button>${p.groupId ? `<button class="btn" data-pd="group">👥 ${esc(t('groupOpen'))}</button>` : ''}<button class="btn" data-pd="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
       onMount: w => {
         wref = w; draw();
         w.addEventListener('input', e => {
@@ -1169,6 +1194,7 @@
           case 'del-entry': g.entries = g.entries.filter(x => x.d !== el.dataset.d); break;
           case 'achieve': g.achieved = !g.achieved; break;
           case 'edit': close(); openProjectEditor(p); return;
+          case 'group': openGroup(p.groupId); return;
           case 'delete':
             if (await confirmDialog(t('deleteProjectQ', { name: p.name }))) { state.projects = state.projects.filter(x => x !== p); save(); close(); render(); toast(t('deleted')); }
             return;
@@ -1305,7 +1331,7 @@
     {
       const mode = n <= 31 ? 'day' : n <= 200 ? 'week' : 'month';
       const buckets = new Map();
-      days.forEach(k => { const b = mode === 'day' ? k : mode === 'week' ? weekStart(k) : monthKey(k) + '-01'; buckets.set(b, (buckets.get(b) || 0) + H.reduce((a, h) => a + (isQuit(h) ? 0 : cnt(h, k)), 0)); });
+      days.forEach(k => { const b = mode === 'day' ? k : mode === 'week' ? weekStart(k) : monthKey(k) + '-01'; buckets.set(b, (buckets.get(b) || 0) + H.reduce((a, h) => a + (isQuit(h) ? 0 : isAmount(h) ? (cnt(h, k) > 0 ? 1 : 0) : cnt(h, k)), 0)); });
       const pts = [...buckets].map(([k, v]) => ({ label: mode === 'month' ? fmtDate(k, { month: 'short' }) : dShort(k), v, tip: String(v), sub: mode === 'month' ? fmtDate(k, { month: 'long', year: 'numeric' }) : fmtDate(k) }));
       const unit = mode === 'day' ? t('periodDay') : mode === 'week' ? t('periodWeek') : t('periodMonth');
       cards.push(`<section class="chart-card clay"><h3>${ico('chart')}<span class="grow">${esc(t('chartEntries', { unit }))}</span></h3>${barChart(pts, { color })}</section>`);
@@ -1420,9 +1446,9 @@
     }
     return { cx: l + w / 2, cy: tp + h / 2, W, HH, size };
   }
-  function cardFields(h, i, side) {
+  function cardFields(h, i, side, meta = null) {
     const [r, th] = RANKS[i], L = CARD_LAYOUT[r];
-    const m = (state.mastery[h.id] || {})[r] || { date: todayKey(), serial: 0 };
+    const m = meta || (state.mastery[h.id] || {})[r] || { date: todayKey(), serial: 0 };
     if (side !== 'front') return [{ spec: L.back, text: h.name, o: { min: 460 } }];
     return [
       { spec: L.name, text: h.name, kind: 'name' },
@@ -1437,9 +1463,9 @@
     const b = textBox(f.spec, f.text, f.kind, f.o);
     return `<div class="ktxt${f.kind === 'name' ? ' name' : ''}" style="left:${(b.cx / CARD_W * 100).toFixed(2)}%;top:${(b.cy / CARD_H * 100).toFixed(2)}%;width:${(b.W / CARD_W * 100).toFixed(2)}%;height:${(b.HH / CARD_H * 100).toFixed(2)}%;font-size:${(b.size / CARD_W * 100).toFixed(2)}cqw;color:${f.spec[5]}">${esc(f.text)}</div>`;
   }
-  function cardFace(h, i, side, cls = '') {
+  function cardFace(h, i, side, cls = '', meta = null) {
     const r = RANKS[i][0];
-    return `<div class="kcard ${cls}"><div class="kcard-face" style="background-image:url('cards/${r}-${side}.jpg')">${cardFields(h, i, side).map(ktxt).join('')}</div></div>`;
+    return `<div class="kcard ${cls}"><div class="kcard-face" style="background-image:url('cards/${r}-${side}.jpg')">${cardFields(h, i, side, meta).map(ktxt).join('')}</div></div>`;
   }
   function cardLocked(i) {
     const [r, th] = RANKS[i];
@@ -1631,8 +1657,9 @@
       cls: 'card-view',
       body: `<div class="flip ${celebrate ? 'unlock-burst' : ''}" style="cursor:default"><div class="flip-inner">${contractCardHtml(cc)}</div></div>
         <div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:900;margin-bottom:4px">${esc(t('contractDone'))}!</div><small>${esc(t('contractDoneMsg'))}</small>` : `${esc(t('tier_' + cc.tier))} · ${esc(fmtDate(cc.end))}`}</div>
-        <div class="row wrap" style="justify-content:center;margin-top:16px">${celebrate && ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
+        <div class="row wrap" style="justify-content:center;margin-top:16px">${celebrate && ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}${c && c.witness ? `<button class="btn" data-m="witness">📧 ${esc(t('witnessSendResult'))}</button>` : ''}<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
       onClick: (e, close) => {
+        if (e.target.closest('[data-m="witness"]')) witnessMail(state.contract, 'result', cc);
         if (e.target.closest('[data-m="share"]')) shareCanvas(() => contractCanvas(cc), `keepgoing-contrato-${cc.end}.png`, t('contractDone'));
         if (e.target.closest('[data-m="renew"]')) { close(); renewContract(); }
       }
@@ -1654,7 +1681,8 @@
   function contractDoc(c) {
     return `<div class="contract clay"><h3>${esc(t('contractTitle'))}</h3><p>${contractText(c.name, c.signedAt, c.endsAt)}</p>
       <div class="sig-line"><div><div class="muted small">${esc(t('contractSigned', { date: fmtDate(c.signedAt) }))}</div>${c.renewals ? `<div class="muted small">${esc(t('contractRenewals', { n: c.renewals }))}</div>` : ''}</div>
-      <div class="center">${c.sig ? `<img class="sig-img" src="${c.sig}" alt="">` : ''}<div class="sig-name">${esc(c.name)}</div></div></div></div>`;
+      <div class="center">${c.sig ? `<img class="sig-img" src="${c.sig}" alt="">` : ''}<div class="sig-name">${esc(c.name)}</div></div></div>
+      ${c.witness ? `<p class="muted small" style="margin:14px 0 0">👀 ${esc(t('witnessIs', { w: c.witness.name || c.witness.email }))}</p>` : ''}</div>`;
   }
   // Formulario de firma (onboarding y modal); devuelve getters
   function contractFormHtml(name = '') {
@@ -1663,6 +1691,7 @@
       <div class="stack" style="margin-top:18px">
         <label class="field"><span>${esc(t('contractName'))}</span><input class="input" id="ct-name" maxlength="80" autocomplete="name" value="${esc(name)}" placeholder="${esc(t('contractNamePh'))}"></label>
         <div class="field"><span>${esc(t('contractSign'))}</span><canvas class="sig-pad" id="ct-sig"></canvas><div><button type="button" class="chip" id="ct-clear">${esc(t('contractClear'))}</button></div></div>
+        ${witnessFormHtml(state.contract && state.contract.witness)}
       </div>`;
   }
   function mountContractForm(root) {
@@ -1679,12 +1708,14 @@
     cv.addEventListener('pointermove', ev => { if (!drawing) return; const p = pos(ev); ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...p); ctx.stroke(); last = p; dirty = true; });
     ['pointerup', 'pointercancel'].forEach(n => cv.addEventListener(n, () => { drawing = false; }));
     $('#ct-clear', root).addEventListener('click', () => { ctx.clearRect(0, 0, cv.width, cv.height); dirty = false; });
-    return { name: () => name.value.trim(), sig: () => dirty ? cv.toDataURL('image/png') : null, focus: () => name.focus() };
+    const wit = $('#ct-wit', root); if (wit) wit.addEventListener('change', () => $('#ct-wit-box', root).classList.toggle('hidden', !wit.checked));
+    return { name: () => name.value.trim(), sig: () => dirty ? cv.toDataURL('image/png') : null, focus: () => name.focus(), witness: () => readWitness(root) };
   }
-  function signContract(name, sig) {
+  function signContract(name, sig, witness = null) {
     const s = todayKey();
-    state.contract = { name, signedAt: s, endsAt: addMonths(s, 1), sig, renewals: 0 };
+    state.contract = { name, signedAt: s, endsAt: addMonths(s, 1), sig, renewals: 0, ...(witness ? { witness } : {}) };
     save();
+    if (witness) setTimeout(() => witnessMail(state.contract, 'sign'), 300);
   }
   function renewContract() {
     const c = state.contract; if (!c) return;
@@ -1699,15 +1730,32 @@
         title: esc(t('setContract')), body: contractFormHtml(''),
         foot: `<button class="btn primary block" data-m="sign">${ico('doc')} ${esc(t('contractSignBtn'))}</button>`,
         onMount: w => { form = mountContractForm(w); },
-        onClick: (e, close) => { if (e.target.closest('[data-m="sign"]')) { if (!form.name()) { toast(t('contractNeedName')); form.focus(); return; } signContract(form.name(), form.sig()); close(); render(); toast(t('saved')); } }
+        onClick: (e, close) => { if (e.target.closest('[data-m="sign"]')) { if (!form.name()) { toast(t('contractNeedName')); form.focus(); return; } const w = form.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return; } signContract(form.name(), form.sig(), w); close(); render(); toast(t('saved')); } }
       });
       return;
     }
     const ended = diffDays(todayKey(), c.endsAt) < 0;
     openModal({
       title: esc(t('setContract')), body: contractDoc(c),
-      foot: `${ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button>`,
-      onClick: (e, close) => { if (e.target.closest('[data-m="renew"]')) { close(); renewContract(); } }
+      foot: `${ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}<button class="btn" data-m="witness">👀 ${esc(t(c.witness ? 'witnessEdit' : 'witnessAdd'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button>`,
+      onClick: (e, close) => {
+        if (e.target.closest('[data-m="renew"]')) { close(); renewContract(); }
+        if (e.target.closest('[data-m="witness"]')) {
+          close();
+          openModal({
+            title: `👀 ${esc(t('witnessTitle'))}`, body: witnessFormHtml(c.witness || { name: '', email: '' }),
+            foot: `<button class="btn primary block" data-m="wsave">📧 ${esc(t('witnessSaveSend'))}</button>`,
+            onMount: w => { const cb = $('#ct-wit', w); cb.addEventListener('change', () => $('#ct-wit-box', w).classList.toggle('hidden', !cb.checked)); },
+            onClick: (ev, cl, w) => {
+              if (!ev.target.closest('[data-m="wsave"]')) return;
+              const wit = readWitness(w);
+              if (wit === 'bad') { toast(t('witnessBadEmail')); return; }
+              if (wit) c.witness = wit; else delete c.witness;
+              save(); cl(); if (wit) witnessMail(c, 'sign'); else toast(t('saved'));
+            }
+          });
+        }
+      }
     });
   }
 
@@ -1810,12 +1858,13 @@
       if (state.obStep === 2) {
         if (!obForm.name()) { toast(t('contractNeedName')); obForm.focus(); return true; }
         const prev = state.contract;
-        if (!prev || prev.name !== obForm.name() || obForm.sig()) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null);
+        const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
+        if (!prev || prev.name !== obForm.name() || obForm.sig() || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w);
       }
       if (state.obStep === 3) {
         const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 });
         obPending.forEach(p => state.habits.push({ id: uid(), name: p.name, icon: p.icon, color: null, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], freq: p.freq, target: p.target, multi: false, note: '', createdAt: todayKey(), archived: false }));
-        obPending = []; state.onboarded = true; state.ui.tab = 'habits'; save(); render(); return true;
+        obPending = []; state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
       }
       state.obStep++; save(); render(); return true;
     }
@@ -1888,6 +1937,9 @@
         body: JSON.stringify({ user_id: auth.uid, data: { ...state, ui: undefined }, updated_at: new Date().toISOString() })
       });
       sync.last = Date.now(); sync.error = null;
+      // Perfil público y progreso de retos compartidos (no bloquean la sincronización)
+      publishProfile().catch(() => {});
+      pushGroupProgress();
       if (changed && !$('#modal-root').children.length) render();
       return changed;
     } catch (e) {
@@ -1930,6 +1982,7 @@
       toast(t('syncing'));
       await syncNow(true);
       onDone && onDone(); render(); toast(t('syncDone'));
+      setTimeout(processJoin, 600);
     } catch (e) { toast(t('accError', { e: e.message })); }
   }
   function openLogin() {
@@ -1957,6 +2010,9 @@
           <div class="row wrap"><span class="grow muted small" style="font-weight:700">${c ? esc(diffDays(todayKey(), c.endsAt) < 0 ? t('contractEnded') : t('contractActive', { n: diffDays(todayKey(), c.endsAt) })) : esc(t('contractNone'))}</span>
           <button class="chip" data-s="contract">${esc(c ? t('contractView') : t('contractSignNow'))}</button>${c ? `<button class="chip" data-s="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}</div></section>
         <section><h3 class="section-title row">⭐ ${esc(t('commitTitle'))}</h3><div id="st-commit">${commitSegHtml()}</div></section>
+        <section><h3 class="section-title row">🐈 ${esc(t('petTitle'))}</h3><div id="st-pet">${petSettingsHtml()}</div></section>
+        <section><h3 class="section-title row">${ico('bell')} ${esc(t('pushTitle'))}</h3><div id="st-push"><p class="muted small">${esc(t('loading'))}</p></div></section>
+        <section><h3 class="section-title row">🔒 ${esc(t('privacyTitle'))}</h3><div id="st-priv">${privacyHtml()}</div></section>
         <section><h3 class="section-title row">🏖️ ${esc(t('vacTitle'))}</h3>
           <div class="row wrap"><span class="grow muted small" style="font-weight:700">${esc(activeVacation() ? t('vacActive', { date: fmtDate(activeVacation().to) }) : t('vacHintShort'))}</span><button class="chip" data-s="vacations">${esc(t('vacManage'))}</button></div></section>
         <section><h3 class="section-title row">🔔 ${esc(t('promptsTitle'))}</h3><p class="muted small" style="margin-top:0">${esc(t('promptsHint'))}</p>${promptsSettingsHtml()}</section>
@@ -1981,15 +2037,24 @@
           if (tg) { state.prompts[tg] = { ...(state.prompts[tg] || {}), off: !e.target.checked }; save(); toast(t(e.target.checked ? 'promptOnToast' : 'promptOffToast')); }
           const nt = e.target.dataset && e.target.dataset.promptNote;
           if (nt) { state.prompts[nt] = { ...(state.prompts[nt] || {}), note: e.target.value.trim() }; save(); toast(t('saved')); }
+          if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); toast(t('saved')); }
+          if (e.target.closest && e.target.closest('#st-priv')) privacyChange(e, w);
         });
+        const refreshPush = async () => { const el = $('#st-push', w); if (el) el.innerHTML = notifSettingsHtml(await pushStatus()); };
+        w._refreshPush = refreshPush; refreshPush();
       },
       onClick: async (e, close, w) => {
         const q = s => e.target.closest(s); let el;
         if ((el = q('[data-s-lang]'))) { state.lang = el.dataset.sLang; save(); render(); draw(); $('.sheet-head h2', w).textContent = t('settings'); return; }
         if ((el = q('[data-commit]'))) { setCommitment(el.dataset.commit); $('#st-commit', w).innerHTML = commitSegHtml(); render(); return; }
+        if (petSettingsClick(e, w)) return;
         if (!(el = q('[data-s]'))) return;
         switch (el.dataset.s) {
           case 'vacations': openVacations(); break;
+          case 'push-on': await enablePush(); w._refreshPush(); break;
+          case 'push-off': await disablePush(); w._refreshPush(); break;
+          case 'push-test': await testPush(); break;
+          case 'pf-copy': try { await navigator.clipboard.writeText(profileUrl(profileOf().slug)); toast(t('copied')); } catch (err) { /* nada */ } break;
           case 'sync-now': case 'sign-in': case 'sign-up': case 'sign-out':
             await accountAction(el.dataset.s, w, () => { $('#st-acc', w).innerHTML = accountHtml(); });
             if ($('#st-acc', w)) $('#st-acc', w).innerHTML = accountHtml();
@@ -2287,7 +2352,7 @@
     const pending = items.filter(h => !todayStatus(h).done || isQuit(h));
     const done = items.filter(h => todayStatus(h).done && !isQuit(h));
     const di = dayInfo(todayKey());
-    let html = energyHtml();
+    let html = petCardHtml() + energyHtml();
     if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span></div>`;
     if (di.perfect && items.length) html += `<div class="perfect-banner clay">🎉 <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${COMMIT[commitOn(todayKey())].bonus} ⭐</span></div>`;
     const routs = state.routines.filter(r => r.habitIds.some(id => { const h = getHabit(id); return h && !h.archived && todayStatus(h).due; }));
@@ -2538,14 +2603,14 @@
       if (!silent) setTimeout(() => whenFree(() => openTrophy(secretCardHtml(id, icon), t('secretUnlocked'), t('secd_' + id), () => trophyCanvas('secret', { id, icon }))), 450);
     }
   }
-  function secretCardHtml(id, icon) {
-    const on = !!state.secrets[id];
+  function secretCardHtml(id, icon, date = null) {
+    const when = date || state.secrets[id], on = !!when;
     return `<div class="ccard scard ${on ? '' : 'locked'}" style="--t:#c4b5fd;--t2:#2e1065"><div class="cc-in">
       <div class="cc-top">${esc(t('secretCard'))}</div>
       <div class="cc-seal" style="font-size:12cqw">${on ? icon : '?'}</div>
       <div class="cc-title">${on ? esc(t('sec_' + id)) : '???'}</div>
       <div class="cc-name" style="font-size:3.6cqw;text-transform:none;line-height:1.3">${on ? esc(t('secd_' + id)) : esc(t('secretHidden'))}</div>
-      <div class="cc-dates">${on ? esc(fmtShort(state.secrets[id])) : '· · ·'}</div>
+      <div class="cc-dates">${on ? esc(fmtShort(when)) : '· · ·'}</div>
     </div></div>`;
   }
   function challengeCardHtml(c) {
@@ -2806,6 +2871,360 @@
     }).join('')}${placed ? '' : todayItem}</div>`;
   }
 
+  /* =========================================================
+     FASE 2 — testigo, mascota, perfil público, recordatorios y retos con amigos
+     ========================================================= */
+  const VAPID_PUBLIC = 'BLmyC7BbfuxW4GX0i2kFInHfYEeJ0AkodsU3xAnpudE76_bPuOESuaTZfN9XUrnKgI9UVPrOXC_aeK473pLxMDM';
+  let publicMode = false; // vista de perfil público: no se pinta la app
+  const stripHtml = s => String(s).replace(/<[^>]+>/g, '');
+  const firstName = () => ((state.contract && state.contract.name) || (auth && auth.email) || '').split(/[\s@]/)[0];
+
+  /* ---------- testigo del contrato (el email sale desde tu correo) ---------- */
+  function witnessMail(c, kind, cc) {
+    const w = c && c.witness; if (!w || !w.email) return;
+    const subject = t(kind === 'result' ? 'witnessResultSubject' : 'witnessSubject', { name: c.name });
+    const body = kind === 'result'
+      ? t('witnessResultBody', { w: w.name || '', name: c.name, tier: t('tier_' + cc.tier), rate: cc.rate == null ? '—' : cc.rate + '%', start: fmtDate(cc.start), end: fmtDate(cc.end), url: APP_URL })
+      : t('witnessBody', { w: w.name || '', name: c.name, start: fmtDate(c.signedAt), end: fmtDate(c.endsAt), text: stripHtml(contractText(c.name, c.signedAt, c.endsAt)), url: APP_URL });
+    location.href = `mailto:${encodeURIComponent(w.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+  const witnessFormHtml = (w = null) => `<label class="check" style="margin-top:4px"><input type="checkbox" id="ct-wit" ${w ? 'checked' : ''}> 👀 ${esc(t('witnessCheck'))}</label>
+    <div id="ct-wit-box" class="stack ${w ? '' : 'hidden'}" style="gap:10px">
+      <input class="input" id="ct-wit-name" maxlength="60" placeholder="${esc(t('witnessName'))}" value="${esc(w ? w.name : '')}">
+      <input class="input" id="ct-wit-email" type="email" inputmode="email" maxlength="120" placeholder="${esc(t('witnessEmail'))}" value="${esc(w ? w.email : '')}">
+      <p class="muted small" style="margin:0">${esc(t('witnessHint'))}</p></div>`;
+  function readWitness(root) {
+    const c = $('#ct-wit', root); if (!c || !c.checked) return null;
+    const email = $('#ct-wit-email', root).value.trim();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? { name: $('#ct-wit-name', root).value.trim(), email } : 'bad';
+  }
+
+  /* ---------- mascota: gato de plastilina (sin IA por ahora) ---------- */
+  const CAT_COLORS = [['negro', '#1c1c1e'], ['blanco', '#f4f1ea'], ['gris', '#8b9097'], ['naranja', '#e8892b'], ['crema', '#efd0a0'], ['marron', '#6b4428']];
+  const petOf = () => ({ kind: 'cat', name: '', fur: true, colors: ['#1c1c1e'], ...(state.pet || {}) });
+  function catSvg(pet, mood = 'neutral', size = 120) {
+    const [c1, c2raw, c3] = pet.colors;
+    const c2 = c2raw || mix(c1, '#ffffff', lum(c1) > .5 ? .35 : .18);
+    const line = mix(ink(c1), c1, .15), dark = lum(c1) > .5 ? '#3a3a3a' : '#0b0b0b';
+    const gid = 'cg' + uid();
+    const ear = pet.fur ? 0 : 6; // los gatos sin pelo tienen orejas más grandes
+    const eyes = {
+      happy: `<path d="M74 80 Q83 70 92 80 M108 80 Q117 70 126 80" stroke="${line}" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+      excited: `<circle cx="83" cy="78" r="11" fill="#ffd54a"/><circle cx="117" cy="78" r="11" fill="#ffd54a"/><circle cx="83" cy="79" r="6" fill="${dark}"/><circle cx="117" cy="79" r="6" fill="${dark}"/><circle cx="86" cy="75" r="3" fill="#fff"/><circle cx="120" cy="75" r="3" fill="#fff"/><path d="M60 52 l4 -8 l4 8 l8 4 l-8 4 l-4 8 l-4 -8 l-8 -4z" fill="#ffd54a"/><path d="M140 46 l3 -6 l3 6 l6 3 l-6 3 l-3 6 l-3 -6 l-6 -3z" fill="#ffd54a"/>`,
+      sad: `<ellipse cx="83" cy="82" rx="8" ry="9" fill="#9ad15b"/><ellipse cx="117" cy="82" rx="8" ry="9" fill="#9ad15b"/><ellipse cx="83" cy="84" rx="3.5" ry="6" fill="${dark}"/><ellipse cx="117" cy="84" rx="3.5" ry="6" fill="${dark}"/><path d="M72 70 L92 75 M128 70 L108 75" stroke="${line}" stroke-width="4" stroke-linecap="round"/>`,
+      sleepy: `<path d="M74 82 Q83 88 92 82 M108 82 Q117 88 126 82" stroke="${line}" stroke-width="5" fill="none" stroke-linecap="round"/><text x="140" y="44" font-size="22" font-weight="900" fill="${mix(c1, '#ffffff', .6)}" font-family="sans-serif">z</text><text x="154" y="28" font-size="15" font-weight="900" fill="${mix(c1, '#ffffff', .6)}" font-family="sans-serif">z</text>`,
+      neutral: `<ellipse cx="83" cy="80" rx="9" ry="10" fill="#9ad15b"/><ellipse cx="117" cy="80" rx="9" ry="10" fill="#9ad15b"/><ellipse cx="83" cy="81" rx="3.5" ry="7.5" fill="${dark}"/><ellipse cx="117" cy="81" rx="3.5" ry="7.5" fill="${dark}"/><circle cx="86" cy="76" r="2.5" fill="#fff"/><circle cx="120" cy="76" r="2.5" fill="#fff"/>`
+    };
+    const mouth = mood === 'sad' ? `<path d="M92 110 Q100 103 108 110" stroke="${line}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`
+      : `<path d="M100 101 v4 M100 105 Q94 112 88 107 M100 105 Q106 112 112 107" stroke="${line}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+    const blush = mood === 'happy' || mood === 'excited' ? `<ellipse cx="70" cy="96" rx="8" ry="5" fill="#ff7aa2" opacity=".45"/><ellipse cx="130" cy="96" rx="8" ry="5" fill="#ff7aa2" opacity=".45"/>` : '';
+    const whiskers = pet.fur ? `<path d="M78 100 L50 96 M78 105 L52 108 M122 100 L150 96 M122 105 L148 108" stroke="${mix(line, c1, .3)}" stroke-width="2" stroke-linecap="round"/>` : '';
+    const wrinkles = pet.fur ? '' : `<path d="M88 52 Q100 47 112 52 M90 59 Q100 55 110 59" stroke="${mix(c1, '#000000', .25)}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+    // mechones en las mejillas si tiene pelo
+    const fluff = pet.fur ? `<path d="M56 92 l-8 4 l8 2 M144 92 l8 4 l-8 2" stroke="${c1}" stroke-width="5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>` : '';
+    const patches = c3 ? `<ellipse cx="128" cy="134" rx="18" ry="14" fill="${c3}"/><ellipse cx="70" cy="150" rx="12" ry="10" fill="${c3}"/><path d="M58 60 Q66 42 84 48 Q74 62 62 70z" fill="${c3}"/>` : '';
+    return `<svg viewBox="0 0 200 200" width="${size}" height="${size}" aria-hidden="true">
+      <defs><radialGradient id="${gid}" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="${mix(c1, '#ffffff', .22)}"/><stop offset=".55" stop-color="${c1}"/><stop offset="1" stop-color="${mix(c1, '#000000', .25)}"/></radialGradient></defs>
+      <ellipse cx="100" cy="188" rx="58" ry="8" fill="#000" opacity=".25"/>
+      <path d="M146 160 Q186 150 176 112 Q172 98 162 104" stroke="${c1}" stroke-width="15" fill="none" stroke-linecap="round"/>
+      <ellipse cx="100" cy="146" rx="54" ry="42" fill="url(#${gid})"/>
+      <ellipse cx="100" cy="154" rx="28" ry="28" fill="${c2}"/>
+      ${patches}
+      <ellipse cx="78" cy="182" rx="15" ry="8" fill="${c2}"/><ellipse cx="122" cy="182" rx="15" ry="8" fill="${c2}"/>
+      <path d="M${62 - ear} 62 L${56 - ear} ${16 - ear} Q${59 - ear} ${11 - ear} ${66} ${17} L94 44 Z" fill="${c1}"/><path d="M${138 + ear} 62 L${144 + ear} ${16 - ear} Q${141 + ear} ${11 - ear} ${134} ${17} L106 44 Z" fill="${c1}"/>
+      <path d="M66 54 L63 26 L85 44 Z" fill="#f4a7b9" opacity=".9"/><path d="M134 54 L137 26 L115 44 Z" fill="#f4a7b9" opacity=".9"/>
+      <circle cx="100" cy="82" r="46" fill="url(#${gid})"/>
+      ${c3 ? `<path d="M118 40 Q146 48 144 78 Q128 66 112 64z" fill="${c3}"/>` : ''}
+      <ellipse cx="100" cy="102" rx="22" ry="15" fill="${c2}"/>
+      ${wrinkles}${eyes[mood] || eyes.neutral}${blush}
+      <path d="M94 95 h12 l-6 7z" fill="#f28aa3"/>
+      ${mouth}${whiskers}${fluff}
+    </svg>`;
+  }
+  function petMood() {
+    const today = todayKey(), hour = new Date().getHours(), di = dayInfo(today);
+    const active = state.habits.filter(h => !h.archived);
+    if (!active.length) return 'neutral';
+    if (di.perfect && di.due > 0) return 'excited';
+    if (hour >= 23 || hour < 6) return 'sleepy';
+    const y = addDays(today, -1);
+    const missedY = active.some(h => !isQuit(h) && h.freq === 'daily' && y >= firstKey(h) && periodState(h, y) === 'miss');
+    if (missedY && di.done === 0) return 'sad';
+    return di.due && di.done / di.due >= .5 ? 'happy' : 'neutral';
+  }
+  function petMessages() {
+    const out = [], today = todayKey(), y = addDays(today, -1), hour = new Date().getHours(), name = firstName();
+    const active = state.habits.filter(h => !h.archived), di = dayInfo(today);
+    out.push(t(hour < 13 ? 'petMorning' : hour < 20 ? 'petAfternoon' : 'petNight', { name: name ? ', ' + name : '' }));
+    if (di.perfect && di.due) out.unshift(t('petPerfect'));
+    const pending = active.filter(h => !isQuit(h) && todayStatus(h).due && !todayStatus(h).done);
+    if (pending.length) out.push(t('petPending', { n: pending.length, h: pending[0].name }));
+    const missed = active.filter(h => !isQuit(h) && h.freq === 'daily' && y >= firstKey(h) && periodState(h, y) === 'miss' && !todayStatus(h).done);
+    if (missed.length) out.unshift(t('petNeverTwice', { h: missed[0].name }));
+    const best = active.filter(h => !isQuit(h)).map(h => [h, currentStreak(h)]).sort((a, b) => b[1] - a[1])[0];
+    if (best && best[1] >= 3) out.push(t('petStreak', { h: best[0].name, n: best[1] }));
+    let near = null;
+    for (const h of active) { const n = successDays(h), u = unlockedCount(h); if (u < RANKS.length) { const k = RANKS[u][1] - n; if (!near || k < near.k) near = { k, h, r: RANKS[u][0] }; } }
+    if (near && near.k <= 7) out.push(t('petNextCard', { k: near.k, rank: t('rank_' + near.r), h: near.h.name }));
+    const q = active.filter(isQuit).map(h => [h, currentStreak(h)]).sort((a, b) => b[1] - a[1])[0];
+    if (q && q[1] >= 1) out.push(t('petQuit', { n: q[1], h: q[0].name }));
+    if (!state.energy[today]) out.push(t('petEnergy'));
+    const c = state.contract; if (c) { const left = diffDays(today, c.endsAt); if (left >= 0 && left <= 3) out.push(t('petContract', { n: left })); }
+    const bal = pointsInfo().balance, rw = state.rewards.filter(r => r.cost <= bal).sort((a, b) => b.cost - a.cost)[0];
+    out.push(rw ? t('petReward', { name: rw.name }) : t('petPoints', { n: fmtNum(bal) }));
+    return out;
+  }
+  let petIdx = 0;
+  function petCardHtml() {
+    const pet = petOf(), msgs = petMessages(), msg = msgs[petIdx % msgs.length];
+    return `<div class="pet-card clay"><button class="pet-btn" data-act="pet" aria-label="${esc(pet.name || t('petDefaultName'))}">${catSvg(pet, petMood(), 96)}</button>
+      <div class="bubble"><b>${esc(pet.name || t('petDefaultName'))}</b><span id="pet-msg">${esc(msg)}</span></div></div>`;
+  }
+  function petSettingsHtml() {
+    const pet = petOf(), n = pet.colors.length;
+    return `<div class="pet-settings"><div class="pet-preview">${catSvg(pet, 'happy', 120)}</div><div class="stack grow" style="gap:12px;min-width:200px">
+      <label class="field"><span>${esc(t('petName'))}</span><input class="input" id="pet-name" maxlength="20" value="${esc(pet.name)}" placeholder="${esc(t('petDefaultName'))}"></label>
+      <div class="field"><span>${esc(t('petKind'))}</span><div class="row wrap"><span class="chip on">🐈 ${esc(t('petCat'))}</span><span class="chip" style="opacity:.5">🐕 ${esc(t('petSoon'))}</span></div></div>
+      <div class="field"><span>${esc(t('petFur'))}</span><div class="seg"><button data-pet-fur="1" class="${pet.fur ? 'on' : ''}">${esc(t('petWithFur'))}</button><button data-pet-fur="0" class="${pet.fur ? '' : 'on'}">${esc(t('petHairless'))}</button></div></div>
+      <div class="field"><span>${esc(t('petColors'))}</span><div class="seg">${[1, 2, 3].map(k => `<button data-pet-n="${k}" class="${n === k ? 'on' : ''}">${k}</button>`).join('')}</div>
+        ${pet.colors.map((c, i) => `<div class="swatches" style="margin-top:8px"><span class="small muted" style="width:70px">${esc(t('petColor' + (i + 1)))}</span>${CAT_COLORS.map(([k, hex]) => `<button class="sw ${c === hex ? 'on' : ''}" data-pet-c="${i}:${hex}" style="--c:${hex}" title="${esc(t('cc_' + k))}" aria-label="${esc(t('cc_' + k))}"></button>`).join('')}</div>`).join('')}</div>
+    </div></div>`;
+  }
+  function petSettingsClick(e, root) {
+    let el; const pet = petOf();
+    if ((el = e.target.closest('[data-pet-fur]'))) pet.fur = el.dataset.petFur === '1';
+    else if ((el = e.target.closest('[data-pet-n]'))) { const k = +el.dataset.petN; const def = ['#1c1c1e', '#f4f1ea', '#e8892b']; pet.colors = Array.from({ length: k }, (_, i) => pet.colors[i] || def[i]); }
+    else if ((el = e.target.closest('[data-pet-c]'))) { const [i, hex] = el.dataset.petC.split(':'); pet.colors[+i] = hex; }
+    else return false;
+    state.pet = pet; save(); $('#st-pet', root).innerHTML = petSettingsHtml(); return true;
+  }
+
+  /* ---------- perfil público (enlace de solo lectura) ---------- */
+  const profileOf = () => ({ enabled: false, slug: '', show: { level: true, cards: true, habits: true, contracts: true }, ...(state.profile || {}) });
+  const slugify = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+  const profileUrl = slug => `${APP_URL}?u=${encodeURIComponent(slug)}`;
+  function profileSnapshot() {
+    const pr = profileOf(), s = pr.show, out = { name: firstName(), lang: state.lang, at: todayKey() };
+    if (s.level) { const lv = levelInfo(); out.level = { n: lv.level, title: lv.title, xp: lv.xp }; }
+    if (s.cards) {
+      out.cards = state.habits.filter(h => unlockedCount(h)).map(h => ({ name: h.name, icon: h.icon, ranks: RANKS.slice(0, unlockedCount(h)).map(([r]) => { const m = (state.mastery[h.id] || {})[r] || {}; return [r, m.date || todayKey(), m.serial || 0]; }) }));
+      out.secrets = SECRETS.filter(([id]) => state.secrets[id]).map(([id, icon]) => [id, icon, state.secrets[id]]);
+      out.challenges = state.challengeCards;
+    }
+    if (s.habits) out.habits = state.habits.filter(h => !h.archived).map(h => ({ name: h.name, icon: h.icon, color: hColor(h), quit: isQuit(h), streak: currentStreak(h), best: bestStreak(h) }));
+    if (s.contracts) out.contracts = state.contractCards;
+    return out;
+  }
+  let lastProfile = '';
+  async function publishProfile(force = false) {
+    const pr = profileOf(); if (!auth || !pr.slug) return;
+    const data = pr.enabled ? profileSnapshot() : {};
+    const sig = JSON.stringify([pr.enabled, pr.slug, data]);
+    if (!force && sig === lastProfile) return;
+    await ensureToken();
+    try {
+      await sbFetch('/rest/v1/kg_profiles?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: auth.uid, slug: pr.slug, enabled: pr.enabled, data, updated_at: new Date().toISOString() }) });
+      lastProfile = sig;
+    } catch (e) { if (e.status === 409) toast(t('slugTaken')); else throw e; }
+  }
+  function privacyHtml() {
+    const pr = profileOf();
+    if (!auth) return `<p class="muted small" style="margin:0">${esc(t('profileNeedLogin'))}</p>`;
+    return `<div class="stack" style="gap:12px">
+      <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-on" ${pr.enabled ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('profileEnable'))}</b><br><span class="muted small">${esc(t('profileHint'))}</span></span></label>
+      <label class="field"><span>${esc(t('profileSlug'))}</span><input class="input" id="pf-slug" maxlength="30" value="${esc(pr.slug)}" placeholder="${esc(slugify(firstName()) || 'mi-perfil')}"></label>
+      <div class="field"><span>${esc(t('profileShow'))}</span>${['level', 'cards', 'habits', 'contracts'].map(k => `<label class="check"><input type="checkbox" data-pf-show="${k}" ${pr.show[k] ? 'checked' : ''}> ${esc(t('profileShow_' + k))}</label>`).join('')}</div>
+      ${pr.enabled && pr.slug ? `<div class="row wrap"><input class="input grow" readonly value="${esc(profileUrl(pr.slug))}" onclick="this.select()" style="flex:1 1 220px"><button class="btn" data-s="pf-copy">${esc(t('copy'))}</button><a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${esc(t('profileOpen'))}</a></div>` : ''}
+    </div>`;
+  }
+  async function privacyChange(e, root) {
+    const pr = profileOf(); let changed = false;
+    if (e.target.id === 'pf-on') { pr.enabled = e.target.checked; if (pr.enabled && !pr.slug) pr.slug = (slugify(firstName()) || 'keepgoing') + '-' + Math.floor(100 + Math.random() * 900); changed = true; }
+    if (e.target.id === 'pf-slug') { const v = slugify(e.target.value); if (v.length < 3) { toast(t('slugBad')); return; } pr.slug = v; changed = true; }
+    if (e.target.dataset && e.target.dataset.pfShow) { pr.show = { ...pr.show, [e.target.dataset.pfShow]: e.target.checked }; changed = true; }
+    if (!changed) return;
+    state.profile = pr; save();
+    try { await publishProfile(true); toast(t(pr.enabled ? 'profilePublished' : 'profileHidden')); } catch (err) { toast(t('syncError', { e: err.message })); }
+    $('#st-priv', root).innerHTML = privacyHtml();
+  }
+  // Vista pública: ?u=slug (sin iniciar sesión)
+  async function renderPublicProfile(slug) {
+    applyTheme();
+    const app = $('#app');
+    app.innerHTML = `<div class="main"><div class="empty"><div class="empty-art">${ico('crown')}</div><h2>${esc(t('loading'))}</h2></div></div>`;
+    let row = null;
+    try { const rows = await sbFetch(`/rest/v1/kg_profiles?slug=eq.${encodeURIComponent(slug)}&enabled=eq.true&select=data,updated_at`, {}, false); row = rows && rows[0]; } catch (e) { row = null; }
+    if (!row) { app.innerHTML = `<div class="main">${emptyState('crown', t('profileNotFound'), t('profileNotFoundSub'), `<a class="btn primary" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a>`)}</div>`; return; }
+    const d = row.data;
+    let html = `<div class="main"><div class="public-head clay"><div class="lvl-big">${d.level ? d.level.n : '★'}</div><div class="grow"><div class="muted small" style="font-weight:800;letter-spacing:.15em">KEEPGOING</div><h1 style="margin:2px 0;font-size:30px">${esc(d.name || 'KeepGoing')}</h1>${d.level ? `<div class="muted">${esc(d.level.title)} · ${fmtNum(d.level.xp)} XP</div>` : ''}</div></div>`;
+    if (d.habits && d.habits.length) html += `<h2 class="section-title" style="margin:24px 0 12px">🔥 ${esc(t('publicHabits'))}</h2><div class="stack" style="gap:10px">${d.habits.map(h => `<div class="today-row clay" style="${habitVars(h.color || '#3ddc97')}"><div class="habit-ico sm">${esc(h.icon || '#')}</div><div class="grow"><b>${esc(h.name)}</b><div class="muted small">${esc(h.quit ? t('quitDays', { n: h.streak }) : t('streak', { n: h.streak }))} · ${esc(t('bestStreak'))} ${h.best}</div></div></div>`).join('')}</div>`;
+    if (d.cards && d.cards.length) html += `<h2 class="section-title" style="margin:24px 0 12px">👑 ${esc(t('tabMastery'))}</h2>${d.cards.map(c => `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${esc(c.icon || '#')}</div><div class="grow"><h3>${esc(c.name)}</h3></div><b>${c.ranks.length}/10</b></div><div class="cards-row">${c.ranks.map(([r, date, serial]) => { const i = RANKS.findIndex(x => x[0] === r); return `<div class="kcard-btn">${cardFace({ id: '_', name: c.name }, i, 'front', '', { date, serial })}<span class="cap">${esc(t('rank_' + r))}</span></div>`; }).join('')}</div></section>`).join('')}`;
+    if (d.secrets && d.secrets.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>🔮 ${esc(t('secretCards'))}</h3></div><b>${d.secrets.length}</b></div><div class="cards-row">${d.secrets.map(([id, icon, date]) => `<div class="kcard-btn">${secretCardHtml(id, icon, date)}<span class="cap">${esc(t('sec_' + id))}</span></div>`).join('')}</div></section>`;
+    if (d.challenges && d.challenges.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>🏁 ${esc(t('challengeCards'))}</h3></div></div><div class="cards-row">${d.challenges.map(c => `<div class="kcard-btn">${challengeCardHtml(c)}</div>`).join('')}</div></section>`;
+    if (d.contracts && d.contracts.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>📜 ${esc(t('contractCards'))}</h3></div></div><div class="cards-row">${d.contracts.map(cc => `<div class="kcard-btn">${contractCardHtml(cc)}<span class="cap">${esc(t('tier_' + cc.tier))}</span></div>`).join('')}</div></section>`;
+    html += `<div class="center" style="margin:30px 0"><p class="muted small">${esc(t('publicUpdated', { d: fmtDate(d.at || todayKey()) }))}</p><a class="btn primary" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a></div></div>`;
+    app.innerHTML = html;
+  }
+
+  /* ---------- recordatorios (notificaciones push) ---------- */
+  const b64ToU8 = s => { const p = '='.repeat((4 - s.length % 4) % 4); const b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && location.protocol === 'https:';
+  async function enablePush() {
+    if (!auth) { toast(t('pushNeedLogin')); return false; }
+    if (!pushSupported()) { toast(t(/iPhone|iPad/i.test(navigator.userAgent) ? 'pushIosHint' : 'pushUnsupported')); return false; }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast(t('pushDenied')); return false; }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(VAPID_PUBLIC) });
+      const j = sub.toJSON();
+      await ensureToken();
+      await sbFetch('/rest/v1/kg_push?on_conflict=endpoint', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: auth.uid, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Madrid', lang: state.lang, updated_at: new Date().toISOString() }) });
+      toast(t('pushOn')); return true;
+    } catch (e) { toast(t('pushError', { e: e.message })); return false; }
+  }
+  async function disablePush() {
+    try {
+      const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+      if (sub) { if (auth) { await ensureToken(); await sbFetch(`/rest/v1/kg_push?endpoint=eq.${encodeURIComponent(sub.endpoint)}`, { method: 'DELETE' }); } await sub.unsubscribe(); }
+      toast(t('pushOff'));
+    } catch (e) { toast(t('pushError', { e: e.message })); }
+  }
+  async function testPush() {
+    if (!auth) { toast(t('pushNeedLogin')); return; }
+    try {
+      await ensureToken();
+      const res = await fetch(`${SB_URL}/functions/v1/kg-reminders`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + auth.access_token }, body: JSON.stringify({ test: true }) });
+      const j = await res.json();
+      toast(j.sent ? t('pushTestSent', { n: j.sent }) : t('pushTestNone'));
+    } catch (e) { toast(t('pushError', { e: e.message })); }
+  }
+  async function pushStatus() {
+    if (!pushSupported()) return 'unsupported';
+    if (Notification.permission === 'denied') return 'denied';
+    try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); return sub ? 'on' : 'off'; } catch (e) { return 'off'; }
+  }
+  function notifSettingsHtml(status) {
+    const withRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on);
+    return `<p class="muted small" style="margin-top:0">${esc(t('pushHint'))}</p>
+      <div class="row wrap"><span class="grow small" style="font-weight:800">${esc(t('pushStatus_' + status))}</span>
+        ${status === 'on' ? `<button class="btn" data-s="push-test">${ico('bell')} ${esc(t('pushTest'))}</button><button class="chip" data-s="push-off">${esc(t('pushDisable'))}</button>` : status === 'off' ? `<button class="btn primary" data-s="push-on">${ico('bell')} ${esc(t('pushEnable'))}</button>` : ''}</div>
+      ${withRem.length ? `<div style="margin-top:10px">${withRem.map(h => `<div class="entry"><span>${esc(h.icon)} ${esc(h.name)}</span><b>🔔 ${esc(h.reminder.time)}</b></div>`).join('')}</div>` : `<p class="muted small">${esc(t('pushNoReminders'))}</p>`}`;
+  }
+
+  /* ---------- retos con amigos ---------- */
+  const ROLES = ['lider', 'colider', 'experto', 'veterano', 'novato'];
+  const ROLE_ICON = { lider: '👑', colider: '⭐', experto: '🎓', veterano: '🛡️', novato: '🌱' };
+  const rpc = async (fn, args) => { await ensureToken(); return sbFetch(`/rest/v1/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) }); };
+  const habitSpec = h => ({ name: h.name, icon: h.icon, kind: h.kind || 'build', freq: h.freq, target: h.target, multi: h.multi, measure: h.measure, unit: h.unit, step: h.step, days: h.days, duration: h.duration, timeOfDay: h.timeOfDay });
+  const projectSpec = p => ({ name: p.name, icon: p.icon, desc: p.desc, deadline: p.deadline, goal: { type: p.goal.type, start: p.goal.start, target: p.goal.target, unit: p.goal.unit, items: (p.goal.items || []).map(i => i.text) }, milestones: (p.milestones || []).map(m => ({ text: m.text, date: m.date })) });
+  async function shareAsGroup(kind, obj) {
+    if (!auth) { toast(t('groupNeedLogin')); return; }
+    try {
+      const r = await rpc('kg_create_group', { p_name: obj.name, p_icon: obj.icon || '🎯', p_kind: kind, p_spec: kind === 'habit' ? habitSpec(obj) : projectSpec(obj), p_display_name: firstName() || 'Yo', p_local_id: obj.id });
+      obj.groupId = r.group_id; save();
+      openGroup(obj.groupId, r.code);
+    } catch (e) { toast(t('groupError', { e: e.message })); }
+  }
+  const findByGroup = gid => state.habits.find(h => h.groupId === gid) || state.projects.find(p => p.groupId === gid);
+  // Sube el progreso de los últimos 7 días de cada reto compartido
+  async function pushGroupProgress() {
+    if (!auth) return;
+    const rows = [], today = todayKey();
+    for (const h of state.habits) if (h.groupId) for (let i = 0; i < 7; i++) {
+      const k = addDays(today, -i); if (k < firstKey(h)) continue;
+      const v = cnt(h, k); rows.push({ group_id: h.groupId, user_id: auth.uid, day: k, value: v, done: isQuit(h) ? !v && k < today : periodState(h, periodStart(h, k)) === 'done', updated_at: new Date().toISOString() });
+    }
+    for (const p of state.projects) if (p.groupId) { const s = projectStats(p); rows.push({ group_id: p.groupId, user_id: auth.uid, day: today, value: Math.round(s.G * 100), done: s.achieved, updated_at: new Date().toISOString() }); }
+    if (!rows.length) return;
+    try { await sbFetch('/rest/v1/kg_progress?on_conflict=group_id,user_id,day', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) }); } catch (e) { /* se reintenta en la próxima sincronización */ }
+  }
+  async function openGroup(gid, freshCode = null) {
+    if (!auth) { toast(t('groupNeedLogin')); return; }
+    let wref, data = null;
+    const load = async () => {
+      await ensureToken();
+      const since = addDays(todayKey(), -13);
+      const [g, members, prog] = await Promise.all([
+        sbFetch(`/rest/v1/kg_groups?id=eq.${gid}&select=*`), sbFetch(`/rest/v1/kg_members?group_id=eq.${gid}&select=*&order=joined_at`),
+        sbFetch(`/rest/v1/kg_progress?group_id=eq.${gid}&day=gte.${since}&select=user_id,day,value,done`)]);
+      if (!g || !g[0]) { data = null; return; }
+      const me = members.find(m => m.user_id === auth.uid);
+      let code = freshCode;
+      if (!code && me && (me.role === 'lider' || me.role === 'colider')) { const inv = await sbFetch(`/rest/v1/kg_invites?group_id=eq.${gid}&expires_at=gt.${new Date().toISOString()}&select=code&order=created_at.desc&limit=1`); code = inv[0] && inv[0].code; }
+      data = { g: g[0], members, prog, me, code };
+    };
+    const draw = () => {
+      if (!data) { $('#grp', wref).innerHTML = `<p class="muted">${esc(t('groupGone'))}</p>`; return; }
+      const { g, members, prog, me, code } = data, today = todayKey(), canManage = me && (me.role === 'lider' || me.role === 'colider');
+      const days = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+      const pm = {}; prog.forEach(r => { (pm[r.user_id] = pm[r.user_id] || {})[r.day] = r; });
+      const link = code ? `${APP_URL}?join=${code}` : '';
+      $('#grp', wref).innerHTML = `<div class="stack" style="gap:16px">
+        <p class="muted" style="margin:0">${esc(t(g.kind === 'habit' ? 'groupHabitHint' : 'groupProjectHint'))}</p>
+        ${canManage && link ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('groupInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" onclick="this.select()" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('groupNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('groupInviteHint'))}</p></section>` : ''}
+        <section class="clay card"><h3 class="section-title">👥 ${esc(t('groupMembers', { n: members.length }))}</h3>
+          ${members.map(m => {
+            const p = pm[m.user_id] || {}, todayRow = p[today];
+            const late = g.kind === 'habit' && (!todayRow || !todayRow.done) && (g.spec.kind !== 'quit');
+            const missedY = g.kind === 'habit' && p[addDays(today, -1)] && !p[addDays(today, -1)].done;
+            return `<div class="member-row"><div class="avatar">${esc((m.display_name || '?').charAt(0).toUpperCase())}</div>
+              <div class="grow" style="min-width:0"><b class="ellipsis">${esc(m.display_name)}${m.user_id === auth.uid ? ' · ' + esc(t('you')) : ''}</b>
+                <div class="row" style="gap:6px;flex-wrap:wrap">${canManage && m.user_id !== auth.uid && (me.role === 'lider' || !['lider', 'colider'].includes(m.role))
+                  ? `<select class="role-select" data-role-user="${m.user_id}">${ROLES.filter(r => me.role === 'lider' || !['lider', 'colider'].includes(r)).map(r => `<option value="${r}" ${m.role === r ? 'selected' : ''}>${ROLE_ICON[r]} ${esc(t('role_' + r))}</option>`).join('')}</select>`
+                  : `<span class="role-chip">${ROLE_ICON[m.role]} ${esc(t('role_' + m.role))}</span>`}
+                  ${g.kind === 'habit' ? (late ? `<span class="warn-chip">⚠️ ${esc(t('groupNotToday'))}</span>` : `<span class="ok-chip">✅ ${esc(t('groupDoneToday'))}</span>`) : `<span class="role-chip">${todayRow ? todayRow.value : (Object.values(p).pop() || { value: 0 }).value}%</span>`}
+                  ${missedY ? `<span class="warn-chip">${esc(t('groupMissedYesterday'))}</span>` : ''}</div></div>
+              ${g.kind === 'habit' ? `<div class="mini-days">${days.map(d => `<i class="${p[d] ? (p[d].done ? 'on' : 'miss') : ''}" title="${esc(fmtShort(d))}"></i>`).join('')}</div>` : ''}
+              ${me && me.role === 'lider' && m.user_id !== auth.uid ? `<button class="icon-btn sm" data-g-kick="${m.user_id}" aria-label="${esc(t('groupKick'))}">${ico('x')}</button>` : ''}
+            </div>`;
+          }).join('')}</section>
+        <div class="center"><button class="chip" data-g="leave" style="color:#e5484d">${esc(t('groupLeave'))}</button></div>
+      </div>`;
+    };
+    openModal({
+      title: `👥 ${esc(t('groupTitle'))}`, cls: 'wide', body: `<div id="grp"><p class="muted">${esc(t('loading'))}</p></div>`,
+      onMount: async w => { wref = w; try { await pushGroupProgress(); await load(); } catch (e) { data = null; } draw(); },
+      onClick: async (e, close) => {
+        const b = e.target.closest('[data-g],[data-g-kick]'); if (!b || !data) return;
+        try {
+          if (b.dataset.gKick) { if (await confirmDialog(t('groupKickQ'))) { await rpc('kg_leave_group', { p_group: gid, p_user: b.dataset.gKick }); await load(); draw(); } return; }
+          const a = b.dataset.g, link = `${APP_URL}?join=${data.code}`;
+          if (a === 'share') { const text = t('groupShareText', { name: data.g.name }); if (navigator.share) navigator.share({ title: 'KeepGoing', text, url: link }).catch(() => {}); else { await navigator.clipboard.writeText(`${text} ${link}`); toast(t('copied')); } }
+          if (a === 'newcode') { data.code = await rpc('kg_new_invite', { p_group: gid }); draw(); }
+          if (a === 'leave' && await confirmDialog(t('groupLeaveQ'))) {
+            await rpc('kg_leave_group', { p_group: gid, p_user: null });
+            const o = findByGroup(gid); if (o) { delete o.groupId; save(); }
+            close(); render(); toast(t('groupLeft'));
+          }
+        } catch (err) { toast(t('groupError', { e: err.message })); }
+      },
+      onMount2: null
+    });
+    // cambios de rol
+    setTimeout(() => { if (wref) wref.addEventListener('change', async e => { const u = e.target.dataset && e.target.dataset.roleUser; if (!u) return; try { await rpc('kg_set_role', { p_group: gid, p_user: u, p_role: e.target.value }); await load(); draw(); toast(t('saved')); } catch (err) { toast(t('groupError', { e: err.message })); } }); }, 0);
+  }
+  // Unirse con ?join=CÓDIGO (se guarda hasta que haya sesión)
+  const JOIN_KEY = 'keepgoing.join';
+  async function processJoin() {
+    let code = null; try { code = localStorage.getItem(JOIN_KEY); } catch (e) { /* nada */ }
+    if (!code || !state.onboarded) return;
+    if (!auth) { whenFree(() => openModal({ body: `<div class="center"><div style="font-size:48px">👥</div><h2>${esc(t('joinTitle'))}</h2><p class="muted">${esc(t('joinNeedLogin'))}</p></div>`, foot: `<button class="btn primary block" data-m="login">${esc(t('signIn'))}</button>`, onClick: (e, close) => { if (e.target.closest('[data-m="login"]')) { close(); openLogin(); } } })); return; }
+    let info = null; try { info = await rpc('kg_peek_invite', { p_code: code }); } catch (e) { info = null; }
+    if (!info) { try { localStorage.removeItem(JOIN_KEY); } catch (e) { /* nada */ } toast(t('joinInvalid')); return; }
+    const ok = await confirmDialog(t('joinQ', { name: `${info.icon} ${info.name}`, n: info.members }));
+    try { localStorage.removeItem(JOIN_KEY); } catch (e) { /* nada */ }
+    if (!ok) return;
+    try {
+      let obj;
+      if (info.kind === 'habit') { const s = info.spec || {}; obj = newHabitFrom(s.name || info.name, s.icon || info.icon, { kind: s.kind || 'build', freq: s.freq || 'daily', target: s.target || 1, multi: !!s.multi, measure: s.measure || 'count', unit: s.unit || '', step: s.step || 1, days: s.days || [0, 1, 2, 3, 4, 5, 6], duration: s.duration || 0, timeOfDay: s.timeOfDay || 'any' }); state.habits.push(obj); }
+      else { const s = info.spec || {}, g = s.goal || {}; obj = { id: uid(), name: s.name || info.name, icon: s.icon || info.icon, color: null, desc: s.desc || '', habitIds: [], goal: { type: g.type || 'simple', start: g.start || 0, target: g.target || 0, unit: g.unit || '', entries: [], items: (g.items || []).map(text => ({ id: uid(), text, done: false })), achieved: false }, deadline: s.deadline || null, milestones: (s.milestones || []).map(m => ({ id: uid(), text: m.text, date: m.date, done: false })), photos: {}, createdAt: todayKey() }; state.projects.push(obj); }
+      await rpc('kg_join_group', { p_code: code, p_display_name: firstName() || 'Amigo', p_local_id: obj.id });
+      obj.groupId = info.group_id; save(); render(); toast(t('joined', { name: info.name }));
+      openGroup(info.group_id);
+    } catch (e) { toast(t('groupError', { e: e.message })); }
+  }
+
   /* ---------- modales y avisos ---------- */
   // Las celebraciones esperan su turno si ya hay una ventana abierta
   const modalQueue = [];
@@ -2916,6 +3335,7 @@
     if ((el = e.target.closest('[data-routine-run]'))) { const r = state.routines.find(x => x.id === el.dataset.routineRun); if (r) runRoutine(r); return; }
     if ((el = e.target.closest('[data-routine-edit]'))) { const r = state.routines.find(x => x.id === el.dataset.routineEdit); if (r) openRoutineEditor(r); return; }
     if ((el = e.target.closest('[data-timer]'))) { const h = getHabit(el.dataset.timer); if (h) openTimer(h); return; }
+    if ((el = e.target.closest('[data-group]'))) { e.preventDefault(); openGroup(el.dataset.group); return; }
     const a = e.target.closest('[data-act]'); if (!a) return;
     const id = a.dataset.id;
     switch (a.dataset.act) {
@@ -2930,6 +3350,11 @@
       case 'review-now': openReview(weekStart(todayKey())); break;
       case 'review-open': openReview(a.dataset.v); break;
       case 'secret-open': { const s = SECRETS.find(x => x[0] === id); if (s) openTrophy(secretCardHtml(s[0], s[1]), state.secrets[id] ? t('sec_' + id) : '???', state.secrets[id] ? t('secd_' + id) : t('secretHidden'), state.secrets[id] ? () => trophyCanvas('secret', { id, icon: s[1] }) : null); break; }
+      case 'pet': {
+        petIdx++; const msgs = petMessages(), m = $('#pet-msg'); if (m) m.textContent = msgs[petIdx % msgs.length];
+        a.classList.remove('bounce'); void a.offsetWidth; a.classList.add('bounce'); vibrate([8, 30, 8, 30, 8]);
+        break;
+      }
       case 'chal-open': { const c = state.challengeCards.find(x => x.id === id); if (c) openTrophy(challengeCardHtml(c), t('challengeDone'), c.name, () => trophyCanvas('challenge', c)); break; }
       case 'settings': openSettings(); break;
       case 'habit-new': openHabitEditor(); break;
@@ -2975,6 +3400,12 @@
     if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
 
+  // Perfil público (?u=slug): página de solo lectura, sin cargar la app
+  const params = new URLSearchParams(location.search);
+  if (params.get('u')) { publicMode = true; renderPublicProfile(params.get('u')); return; }
+  // Invitación a un reto (?join=CÓDIGO): se guarda hasta tener sesión
+  if (params.get('join')) { try { localStorage.setItem(JOIN_KEY, params.get('join').toUpperCase()); } catch (e) { /* nada */ } history.replaceState(null, '', location.pathname); }
+
   // Sincroniza cartas ya ganadas (por ejemplo, tras importar) y arranca
   state.habits.forEach(h => { checkMastery(h, !isQuit(h)); checkChallenge(h, !isQuit(h)); });
   checkSecrets(true);
@@ -2991,7 +3422,7 @@
     else if (isMulti(h) || !cnt(h, k)) setCount(h, k, cnt(h, k) + 1);
     render(); vibrate(20); toast(t('shortcutDone', { name: h.name }));
   })();
-  setTimeout(() => { if (state.onboarded) { offerShields(); maybeWeeklyReview(); } }, 1200);
+  setTimeout(() => { if (state.onboarded) { offerShields(); maybeWeeklyReview(); processJoin(); } }, 1200);
   // Solo para pruebas en local
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') window.__kg = { mergeStates, stampChanges };
 })();

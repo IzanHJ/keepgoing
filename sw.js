@@ -1,7 +1,7 @@
 /* KeepGoing — service worker: funciona sin conexión cuando la app se sirve por https */
-const CACHE = 'keepgoing-v4';
+const CACHE = 'keepgoing-v5';
 const RANKS = ['iniciado', 'aprendiz', 'discipulo', 'experto', 'elite', 'maestro', 'ascendente', 'supremo', 'mitico', 'trascendente'];
-const SHELL = ['./', './index.html', './css/app.css', './js/i18n.js', './js/i18n-plus.js', './js/app.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
+const SHELL = ['./', './index.html', './css/app.css', './js/i18n.js', './js/i18n-plus.js', './js/i18n-social.js', './js/app.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   ...RANKS.flatMap(r => [`./cards/${r}-front.jpg`, `./cards/${r}-back.jpg`])];
 
 self.addEventListener('install', e => {
@@ -13,6 +13,9 @@ self.addEventListener('activate', e => {
 // Red primero (para recibir actualizaciones), caché si no hay conexión
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // Solo la propia app y las fuentes; las peticiones a la nube (Supabase) van directas
+  const url = new URL(e.request.url);
+  if (url.origin !== location.origin && !url.hostname.includes('fonts.g')) return;
   e.respondWith(
     fetch(e.request).then(res => {
       const copy = res.clone();
@@ -20,4 +23,21 @@ self.addEventListener('fetch', e => {
       return res;
     }).catch(() => caches.match(e.request).then(r => r || caches.match('./index.html')))
   );
+});
+
+// Recordatorios push
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'KeepGoing', body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'KeepGoing', {
+    body: d.body || '', tag: d.tag || 'keepgoing', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', data: { url: d.url || './' }
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) if ('focus' in c) return c.focus();
+    return self.clients.openWindow(url);
+  }));
 });
