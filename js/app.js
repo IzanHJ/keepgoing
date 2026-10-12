@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.0';
+  const VERSION = '1.5.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -587,12 +587,27 @@
     if (!active.length && !arch.length) {
       return html + emptyState('checklist', t('habitsEmptyTitle'), t('habitsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button><button class="btn" data-act="packs">📦 ${esc(t('fromTemplate'))}</button></div>`);
     }
-    const view = state.ui.habitsView === 'today' ? 'today' : 'all';
-    html += `<div class="seg view-seg" style="margin-bottom:16px"><button data-act="hview" data-v="today" class="${view === 'today' ? 'on' : ''}">☀️ ${esc(t('viewToday'))}</button><button data-act="hview" data-v="all" class="${view === 'all' ? 'on' : ''}">${ico('checklist')} ${esc(t('viewAll'))}</button></div>`;
+    const VIEWS = [['today', '☀️', 'viewToday'], ['all', '📋', 'viewHabits'], ['challenges', '🏁', 'viewChallenges'], ['shared', '👥', 'viewShared']];
+    const view = VIEWS.some(v => v[0] === state.ui.habitsView) ? state.ui.habitsView : 'all';
+    html += `<div class="seg view-seg" style="margin-bottom:16px">${VIEWS.map(([v, e, k]) => `<button data-act="hview" data-v="${v}" class="${view === v ? 'on' : ''}"><span class="vi">${e}</span> ${esc(t(k))}</button>`).join('')}</div>`;
     if (view === 'today') return html + viewToday(active);
+    const grid = list => `<div class="habit-grid" id="habit-grid">${list.map(habitCard).join('')}</div>${list.length > 1 ? `<p class="grid-hint">${esc(t('dragHint'))}</p>` : ''}`;
+    if (view === 'challenges') {
+      const on = active.filter(h => h.challenge && !h.challenge.done), done = active.filter(h => h.challenge && h.challenge.done);
+      html += on.length ? grid(on) : emptyState('target', t('challengesEmpty'), t('challengesEmptySub'), '');
+      if (done.length) html += `<h2 class="section-title" style="margin-top:24px">🏆 ${esc(t('challengesDone'))}</h2><div class="habit-grid">${done.map(habitCard).join('')}</div>`;
+      return html;
+    }
+    if (view === 'shared') {
+      const hs = active.filter(h => h.groupId), ps = state.projects.filter(p => p.groupId);
+      if (!hs.length && !ps.length) return html + emptyState('globe', t('sharedEmpty'), t('sharedEmptySub'), '');
+      if (hs.length) html += grid(hs);
+      if (ps.length) html += `<h2 class="section-title" style="margin-top:24px">🎯 ${esc(t('sharedProjects'))}</h2><div class="proj-grid">${ps.map(projCard).join('')}</div>`;
+      return html;
+    }
     if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span><button class="chip" data-act="vacations">${esc(t('edit'))}</button></div>`;
     html += `<div class="habit-grid" id="habit-grid">${active.map(habitCard).join('')}</div>`;
-    if (active.length) html += `<p class="grid-hint">${esc(t('tapHint'))}</p>`;
+    if (active.length) html += `<p class="grid-hint">${esc(t('tapHint'))}${active.length > 1 ? '<br>' + esc(t('dragHint')) : ''}</p>`;
     if (arch.length) {
       html += `<div class="center" style="margin-top:22px"><button class="chip" data-act="toggle-archived">${ico('archive')} ${esc(state.ui.showArchived ? t('hideArchived') : t('showArchived', { n: arch.length }))}</button></div>`;
       if (state.ui.showArchived) html += `<div class="habit-grid archived-list" style="margin-top:18px">${arch.map(habitCard).join('')}</div>`;
@@ -994,19 +1009,7 @@
     html += `<h1 class="page-title">${esc(t('tabProjects'))}</h1>`;
     if (!state.projects.length) return html + emptyState('target', t('projectsEmptyTitle'), t('projectsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="proj-new">${ico('plus')} ${esc(t('newProject'))}</button><button class="btn" data-act="proj-tpl">📦 ${esc(t('projectTemplates'))}</button></div>`);
     const finished = state.projects.filter(p => projectStats(p).achieved), active = state.projects.filter(p => !finished.includes(p));
-    html += `<div class="proj-grid">${active.map(p => {
-      const s = projectStats(p); const c = p.color || 'var(--accent)';
-      return `<button class="proj clay" data-act="proj-open" data-id="${p.id}" style="--h:${c}">
-        <div class="proj-top">
-          <div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div>
-          <div class="grow"><h3>${esc(p.name)}${p.groupId ? ' <span class="grp-chip" data-group="' + p.groupId + '">👥</span>' : ''}</h3><div class="muted small" style="font-weight:700">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</div></div>
-          <div class="prob-badge"><b>${s.P}%</b><span>${esc(t('probability').split(' ')[0])}</span></div>
-        </div>
-        <div class="bar ${s.G ? '' : 'zero'}" style="margin-top:14px"><i style="width:${Math.round(s.G * 100)}%"></i></div>
-        <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted small" style="font-weight:700">${esc(t('progress'))} ${Math.round(s.G * 100)}%</span>${p.goal.type === 'numeric' ? `<span class="small" style="font-weight:800">${fmtNum(s.cur)} / ${fmtNum(p.goal.target)} ${esc(p.goal.unit)}</span>` : ''}</div>
-        ${s.hs.length ? `<div class="linked">${s.hs.map(h => `<span>${esc(h.icon)} ${esc(h.name)}</span>`).join('')}</div>` : ''}
-      </button>`;
-    }).join('')}</div>`;
+    html += `<div class="proj-grid">${active.map(projCard).join('')}</div>`;
     if (!active.length) html += `<p class="muted center">${esc(t('noActiveProjects'))}</p>`;
     // Carpeta de proyectos finalizados con su antes y después
     if (finished.length) {
@@ -1019,6 +1022,19 @@
       }).join('')}</div>`;
     }
     return html;
+  }
+  function projCard(p) {
+      const s = projectStats(p); const c = p.color || 'var(--accent)';
+      return `<button class="proj clay" data-act="proj-open" data-id="${p.id}" style="--h:${c}">
+        <div class="proj-top">
+          <div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div>
+          <div class="grow"><h3>${esc(p.name)}${p.groupId ? ' <span class="grp-chip" data-group="' + p.groupId + '">👥</span>' : ''}</h3><div class="muted small" style="font-weight:700">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</div></div>
+          <div class="prob-badge"><b>${s.P}%</b><span>${esc(t('probability').split(' ')[0])}</span></div>
+        </div>
+        <div class="bar ${s.G ? '' : 'zero'}" style="margin-top:14px"><i style="width:${Math.round(s.G * 100)}%"></i></div>
+        <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted small" style="font-weight:700">${esc(t('progress'))} ${Math.round(s.G * 100)}%</span>${p.goal.type === 'numeric' ? `<span class="small" style="font-weight:800">${fmtNum(s.cur)} / ${fmtNum(p.goal.target)} ${esc(p.goal.unit)}</span>` : ''}</div>
+        ${s.hs.length ? `<div class="linked">${s.hs.map(h => `<span>${esc(h.icon)} ${esc(h.name)}</span>`).join('')}</div>` : ''}
+      </button>`;
   }
 
   function openProjectEditor(p = null, preset = null) {
@@ -1675,29 +1691,48 @@
   }
 
   /* ---------- CONTRATO ---------- */
-  function contractText(name, start, end) {
-    return t('contractBody', { name: esc(name || '______'), start: esc(fmtDate(start)), end: esc(fmtDate(end)) });
+  // Texto del contrato según el nivel de compromiso (Chill / Serio / Locked-In) y mismo/misma
+  function contractParts(o) {
+    const lvl = ['chill', 'serio', 'locked'].includes(o.level) ? o.level : (state.commitment || 'serio');
+    const sameYear = o.signedAt.slice(0, 4) === o.endsAt.slice(0, 4);
+    const f = o.g === 'f';
+    const p = { name: esc(o.name || '______'), start: esc(fmtDate(o.signedAt, sameYear ? { day: 'numeric', month: 'long' } : undefined)), end: esc(fmtDate(o.endsAt)), mismo: f ? 'misma' : 'mismo', perfecto: f ? 'perfecta' : 'perfecto' };
+    return { lvl, sub: t('ct_sub_' + lvl), paras: t('ct_body_' + lvl, p).split('\n\n'), quote: t('ct_quote_' + lvl, p) };
   }
-  function contractDoc(c) {
-    return `<div class="contract clay"><h3>${esc(t('contractTitle'))}</h3><p>${contractText(c.name, c.signedAt, c.endsAt)}</p>
-      <div class="sig-line"><div><div class="muted small">${esc(t('contractSigned', { date: fmtDate(c.signedAt) }))}</div>${c.renewals ? `<div class="muted small">${esc(t('contractRenewals', { n: c.renewals }))}</div>` : ''}</div>
-      <div class="center">${c.sig ? `<img class="sig-img" src="${c.sig}" alt="">` : ''}<div class="sig-name">${esc(c.name)}</div></div></div>
-      ${c.witness ? `<p class="muted small" style="margin:14px 0 0">👀 ${esc(t('witnessIs', { w: c.witness.name || c.witness.email }))}</p>` : ''}</div>`;
+  const contractText = o => contractParts(o).paras.join('\n\n');
+  function contractInner(o) {
+    const x = contractParts(o);
+    return `<h3>${esc(t('contractTitle'))}</h3><div class="ct-sub">${esc(x.sub)}</div>
+      ${x.paras.map(p => `<p>${p}</p>`).join('')}
+      <p class="ct-signed"><b>${esc(t('contractSigned', { date: fmtDate(o.signedAt) }))}.</b>${o.renewals ? `<br><span class="muted small">${esc(t('contractRenewals', { n: o.renewals }))}</span>` : ''}</p>
+      <div class="sig-line"><span class="muted small">${esc(t('ct_sign'))}:</span><div class="center">${o.sig ? `<img class="sig-img" src="${o.sig}" alt="">` : ''}<div class="sig-name">${esc(o.name || '')}</div></div></div>
+      <p class="ct-witness">${esc(t('ct_witness'))}${o.witness ? `<br>👀 ${esc(t('witnessIs', { w: o.witness.name || o.witness.email }))}` : ''}</p>
+      <p class="ct-quote">${esc(x.quote)}</p>
+      <div class="center"><span class="role-chip">${esc(t('ct_level', { l: t('commit_' + x.lvl) }))}</span></div>`;
   }
+  const contractDoc = c => `<div class="contract clay">${contractInner(c)}</div>`;
   // Formulario de firma (onboarding y modal); devuelve getters
-  function contractFormHtml(name = '') {
-    const s = todayKey(), e = addMonths(s, 1);
-    return `<div class="contract clay" id="ct-doc"><h3>${esc(t('contractTitle'))}</h3><p id="ct-text">${contractText(name, s, e)}</p></div>
+  function contractFormHtml(name = '', withLevel = false) {
+    const s = todayKey(), e = addMonths(s, 1), g = (state.contract && state.contract.g) || 'm';
+    return `<div class="contract clay" id="ct-doc">${contractInner({ name, signedAt: s, endsAt: e, level: state.commitment, g })}</div>
       <div class="stack" style="margin-top:18px">
+        ${withLevel ? `<div class="field"><span>${esc(t('commitTitle'))}</span><div id="ct-level">${commitSegHtml()}</div></div>` : ''}
         <label class="field"><span>${esc(t('contractName'))}</span><input class="input" id="ct-name" maxlength="80" autocomplete="name" value="${esc(name)}" placeholder="${esc(t('contractNamePh'))}"></label>
+        ${state.lang === 'es' ? `<div class="field"><span>${esc(t('ct_gender'))}</span><div class="seg" id="ct-g">${['m', 'f'].map(x => `<button type="button" data-g="${x}" class="${g === x ? 'on' : ''}">${esc(t('ct_g_' + x))}</button>`).join('')}</div></div>` : ''}
         <div class="field"><span>${esc(t('contractSign'))}</span><canvas class="sig-pad" id="ct-sig"></canvas><div><button type="button" class="chip" id="ct-clear">${esc(t('contractClear'))}</button></div></div>
         ${witnessFormHtml(state.contract && state.contract.witness)}
       </div>`;
   }
   function mountContractForm(root) {
-    const name = $('#ct-name', root), txt = $('#ct-text', root), cv = $('#ct-sig', root);
+    const name = $('#ct-name', root), doc = $('#ct-doc', root), cv = $('#ct-sig', root);
     const s = todayKey(), e = addMonths(s, 1);
-    name.addEventListener('input', () => { txt.innerHTML = contractText(name.value.trim(), s, e); });
+    let g = (state.contract && state.contract.g) || 'm';
+    const redraw = () => { doc.innerHTML = contractInner({ name: name.value.trim(), signedAt: s, endsAt: e, level: state.commitment, g }); };
+    name.addEventListener('input', redraw);
+    const gs = $('#ct-g', root);
+    if (gs) gs.addEventListener('click', ev => { const b = ev.target.closest('[data-g]'); if (!b) return; g = b.dataset.g; gs.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); redraw(); });
+    const lv = $('#ct-level', root);
+    if (lv) lv.addEventListener('click', ev => { const b = ev.target.closest('[data-commit]'); if (!b) return; ev.stopPropagation(); setCommitment(b.dataset.commit); lv.innerHTML = commitSegHtml(); redraw(); });
     let dirty = false;
     const ctx = cv.getContext('2d');
     const size = () => { const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; cv.width = r.width * dpr; cv.height = r.height * dpr; ctx.scale(dpr, dpr); ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = state.theme.fg; };
@@ -1709,17 +1744,17 @@
     ['pointerup', 'pointercancel'].forEach(n => cv.addEventListener(n, () => { drawing = false; }));
     $('#ct-clear', root).addEventListener('click', () => { ctx.clearRect(0, 0, cv.width, cv.height); dirty = false; });
     const wit = $('#ct-wit', root); if (wit) wit.addEventListener('change', () => $('#ct-wit-box', root).classList.toggle('hidden', !wit.checked));
-    return { name: () => name.value.trim(), sig: () => dirty ? cv.toDataURL('image/png') : null, focus: () => name.focus(), witness: () => readWitness(root) };
+    return { name: () => name.value.trim(), sig: () => dirty ? cv.toDataURL('image/png') : null, focus: () => name.focus(), witness: () => readWitness(root), g: () => g };
   }
-  function signContract(name, sig, witness = null) {
+  function signContract(name, sig, witness = null, g = 'm') {
     const s = todayKey();
-    state.contract = { name, signedAt: s, endsAt: addMonths(s, 1), sig, renewals: 0, ...(witness ? { witness } : {}) };
+    state.contract = { name, signedAt: s, endsAt: addMonths(s, 1), sig, renewals: 0, level: state.commitment, g, ...(witness ? { witness } : {}) };
     save();
     if (witness) setTimeout(() => witnessMail(state.contract, 'sign'), 300);
   }
   function renewContract() {
     const c = state.contract; if (!c) return;
-    const s = todayKey(); c.signedAt = s; c.endsAt = addMonths(s, 1); c.renewals = (c.renewals || 0) + 1;
+    const s = todayKey(); c.signedAt = s; c.endsAt = addMonths(s, 1); c.renewals = (c.renewals || 0) + 1; c.level = state.commitment;
     save(); render(); toast(t('contractRenewed', { date: fmtDate(c.endsAt) }));
   }
   function openContract() {
@@ -1727,10 +1762,10 @@
     if (!c) {
       let form;
       openModal({
-        title: esc(t('setContract')), body: contractFormHtml(''),
+        title: esc(t('setContract')), body: contractFormHtml('', true),
         foot: `<button class="btn primary block" data-m="sign">${ico('doc')} ${esc(t('contractSignBtn'))}</button>`,
         onMount: w => { form = mountContractForm(w); },
-        onClick: (e, close) => { if (e.target.closest('[data-m="sign"]')) { if (!form.name()) { toast(t('contractNeedName')); form.focus(); return; } const w = form.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return; } signContract(form.name(), form.sig(), w); close(); render(); toast(t('saved')); } }
+        onClick: (e, close) => { if (e.target.closest('[data-m="sign"]')) { if (!form.name()) { toast(t('contractNeedName')); form.focus(); return; } const w = form.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return; } signContract(form.name(), form.sig(), w, form.g()); close(); render(); toast(t('saved')); } }
       });
       return;
     }
@@ -1804,7 +1839,8 @@
   }
 
   /* ---------- ONBOARDING ---------- */
-  const OB_STEPS = 4;
+  const OB_STEPS = 5;
+  const COMMIT_EMO = { chill: '🌿', serio: '🎯', locked: '🔒' };
   let obPending = [], obForm = null;
   const SUGGESTIONS = [['sugTeeth', '🦷', 'daily', 2], ['sugWater', '💧', 'daily', 1], ['sugRead', '📚', 'daily', 1], ['sugGym', '💪', 'weekly', 3], ['sugMeditate', '🧘', 'daily', 1], ['sugSleep', '😴', 'daily', 1], ['sugWalk', '🚶', 'daily', 1], ['sugStudy', '✍️', 'daily', 1]];
 
@@ -1820,6 +1856,9 @@
       title = t('obColorTitle'); lead = t('obColorSub');
       body = `<div id="ob-theme">${themeEditorHtml()}</div><div class="field" style="margin-top:22px"><span class="muted small" style="font-weight:800;text-transform:uppercase;letter-spacing:.04em">${esc(t('preview'))}</span><div id="ob-preview" style="margin-top:8px">${samplePreview()}</div></div>`;
     } else if (s === 2) {
+      title = t('obCommitTitle'); lead = t('obCommitSub');
+      body = `<div class="lang-list">${['chill', 'serio', 'locked'].map(l => { const on = state.commitment === l; return `<button class="lang-opt commit-opt clay ${on ? 'on' : ''}" data-ob-commit="${l}"><span class="flag">${COMMIT_EMO[l]}</span><span class="grow"><b>${esc(t('commit_' + l))}</b><span class="commit-sub">${esc(t('ct_sub_' + l))}</span><span class="muted small">${esc(t('commitd_' + l))}</span></span>${on ? ico('check') : ''}</button>`; }).join('')}</div>`;
+    } else if (s === 3) {
       title = t('obContractTitle'); lead = t('obContractSub'); next = t('contractSignBtn');
       body = contractFormHtml(state.contract ? state.contract.name : '');
     } else {
@@ -1838,14 +1877,15 @@
   function mountOnboarding() {
     const root = $('.ob');
     if (state.obStep === 1) bindThemeEditor($('#ob-theme'), () => { $('#ob-theme').innerHTML = themeEditorHtml(); $('#ob-preview').innerHTML = samplePreview(); });
-    if (state.obStep === 2) obForm = mountContractForm(root);
-    if (state.obStep === 3) $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
+    if (state.obStep === 3) obForm = mountContractForm(root);
+    if (state.obStep === 4) $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
     window.scrollTo(0, 0);
   }
   function onboardingClick(e) {
     const q = s => e.target.closest(s); let el;
     if (q('[data-ob-login]')) { openLogin(); return true; }
     if ((el = q('[data-ob-lang]'))) { state.lang = el.dataset.obLang; save(); render(); return true; }
+    if ((el = q('[data-ob-commit]'))) { setCommitment(el.dataset.obCommit); render(); return true; }
     if ((el = q('[data-ob-sug]'))) {
       const k = el.dataset.obSug; const i = obPending.findIndex(p => p.key === k);
       if (i >= 0) obPending.splice(i, 1); else { const s = SUGGESTIONS.find(x => x[0] === k); obPending.push({ key: k, name: t(k), icon: s[1], freq: s[2], target: s[3] }); }
@@ -1855,13 +1895,13 @@
     if ((el = q('[data-ob-del]'))) { const custom = obPending.filter(p => !p.key); obPending = obPending.filter(p => p !== custom[+el.dataset.obDel]); render(); return true; }
     if ((el = q('[data-ob]'))) {
       if (el.dataset.ob === 'back') { state.obStep = Math.max(0, state.obStep - 1); save(); render(); return true; }
-      if (state.obStep === 2) {
+      if (state.obStep === 3) {
         if (!obForm.name()) { toast(t('contractNeedName')); obForm.focus(); return true; }
         const prev = state.contract;
         const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
-        if (!prev || prev.name !== obForm.name() || obForm.sig() || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w);
+        if (!prev || prev.name !== obForm.name() || obForm.sig() || prev.g !== obForm.g() || prev.level !== state.commitment || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w, obForm.g());
       }
-      if (state.obStep === 3) {
+      if (state.obStep === 4) {
         const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 });
         obPending.forEach(p => state.habits.push({ id: uid(), name: p.name, icon: p.icon, color: null, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], freq: p.freq, target: p.target, multi: false, note: '', createdAt: todayKey(), archived: false }));
         obPending = []; state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
@@ -2262,7 +2302,9 @@
     state.commitHistory = state.commitHistory.filter(c => c.from !== k);
     state.commitHistory.push({ from: k, level: lv });
     state.commitHistory.sort((a, b) => a.from < b.from ? -1 : 1);
-    state.commitment = lv; save();
+    state.commitment = lv;
+    if (state.contract) state.contract.level = lv; // el contrato sigue al nivel elegido
+    save();
   }
   function commitSegHtml() {
     return `<div class="seg">${COMMIT_LEVELS.map(l => `<button type="button" data-commit="${l}" class="${state.commitment === l ? 'on' : ''}">${esc(t('commit_' + l))}</button>`).join('')}</div><p class="muted small" style="margin:8px 0 0">${esc(t('commitd_' + state.commitment))}</p>`;
@@ -2885,7 +2927,7 @@
     const subject = t(kind === 'result' ? 'witnessResultSubject' : 'witnessSubject', { name: c.name });
     const body = kind === 'result'
       ? t('witnessResultBody', { w: w.name || '', name: c.name, tier: t('tier_' + cc.tier), rate: cc.rate == null ? '—' : cc.rate + '%', start: fmtDate(cc.start), end: fmtDate(cc.end), url: APP_URL })
-      : t('witnessBody', { w: w.name || '', name: c.name, start: fmtDate(c.signedAt), end: fmtDate(c.endsAt), text: stripHtml(contractText(c.name, c.signedAt, c.endsAt)), url: APP_URL });
+      : t('witnessBody', { w: w.name || '', name: c.name, start: fmtDate(c.signedAt), end: fmtDate(c.endsAt), text: stripHtml(contractText(c)), url: APP_URL });
     location.href = `mailto:${encodeURIComponent(w.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
   const witnessFormHtml = (w = null) => `<label class="check" style="margin-top:4px"><input type="checkbox" id="ct-wit" ${w ? 'checked' : ''}> 👀 ${esc(t('witnessCheck'))}</label>
@@ -3291,7 +3333,61 @@
     if (lpTimer && lpStart && Math.hypot(e.clientX - lpStart[0], e.clientY - lpStart[1]) > 8) { clearTimeout(lpTimer); lpTimer = null; }
   });
   ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, () => { clearTimeout(lpTimer); lpTimer = null; }));
+  // Pulsación larga en un hábito (fuera de casillas y anillo) → arrastrar para reordenar
+  let rd = null, rdTimer = null, rdBlockClick = false;
+  document.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || rd) return;
+    const card = e.target.closest('#habit-grid > .habit');
+    if (!card || e.target.closest('.dot, .ring, .timer-btn, .grp-chip')) return;
+    const sx = e.clientX, sy = e.clientY;
+    clearTimeout(rdTimer);
+    rdTimer = setTimeout(() => {
+      rdTimer = null;
+      const r = card.getBoundingClientRect();
+      rd = { card, grid: card.parentElement, ox: sx - r.left, oy: sy - r.top, x: sx, y: sy, moved: false, raf: 0 };
+      card.classList.add('dragging'); document.body.classList.add('reordering'); vibrate(25);
+      const loop = () => { // autodesplazamiento cerca de los bordes
+        if (!rd) return;
+        const edge = 90, v = rd.y < edge ? -(edge - rd.y) / 6 : rd.y > innerHeight - edge ? (rd.y - innerHeight + edge) / 6 : 0;
+        if (v) { scrollBy(0, v); rdMove(); }
+        rd.raf = requestAnimationFrame(loop);
+      };
+      rd.raf = requestAnimationFrame(loop);
+    }, 450);
+    const cancel = ev => { if (rdTimer && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { clearTimeout(rdTimer); rdTimer = null; } };
+    document.addEventListener('pointermove', cancel);
+    document.addEventListener('pointerup', () => { clearTimeout(rdTimer); rdTimer = null; document.removeEventListener('pointermove', cancel); }, { once: true });
+  });
+  function rdMove() {
+    const { card, grid } = rd;
+    card.style.transform = '';
+    const under = document.elementFromPoint(rd.x, rd.y), target = under && under.closest('#habit-grid > .habit');
+    if (target && target !== card && target.parentElement === grid) {
+      const kids = [...grid.children], from = kids.indexOf(card), to = kids.indexOf(target);
+      grid.insertBefore(card, to > from ? target.nextSibling : target); rd.moved = true;
+    }
+    const r = card.getBoundingClientRect();
+    card.style.transform = `translate(${rd.x - rd.ox - r.left}px, ${rd.y - rd.oy - r.top}px) scale(1.03)`;
+  }
+  document.addEventListener('pointermove', e => { if (!rd) return; e.preventDefault(); rd.x = e.clientX; rd.y = e.clientY; rdMove(); });
+  // En móvil hay que frenar el desplazamiento de la página mientras se arrastra
+  document.addEventListener('touchmove', e => { if (rd) e.preventDefault(); }, { passive: false });
+  ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, () => {
+    if (!rd) return;
+    const { card, grid, moved } = rd; cancelAnimationFrame(rd.raf); rd = null;
+    card.classList.remove('dragging'); card.style.transform = ''; document.body.classList.remove('reordering');
+    rdBlockClick = true; setTimeout(() => { rdBlockClick = false; }, 350);
+    if (!moved) return;
+    // Los hábitos visibles ocupan sus mismos huecos en la lista completa, con el orden nuevo
+    const ids = [...grid.children].map(el => el.dataset.id), set = new Set(ids);
+    const slots = state.habits.map((h, i) => set.has(h.id) ? i : -1).filter(i => i >= 0);
+    const byId = Object.fromEntries(state.habits.map(h => [h.id, h]));
+    const next = state.habits.slice(); slots.forEach((slot, j) => { next[slot] = byId[ids[j]]; });
+    state.habits = next; save(); render(); toast(t('reordered'));
+  }));
+  window.addEventListener('click', e => { if (rdBlockClick) { e.preventDefault(); e.stopPropagation(); rdBlockClick = false; } }, true);
   document.addEventListener('contextmenu', e => {
+    if (rd || e.target.closest('#habit-grid > .habit')) { if (!e.target.closest('.dot[data-k], .ring[data-ring]')) { e.preventDefault(); return; } }
     const el = e.target.closest('.dot[data-k], .ring[data-ring]');
     if (!el) return;
     e.preventDefault();

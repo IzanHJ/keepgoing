@@ -636,3 +636,20 @@ details.today-group summary::-webkit-details-marker { display: none; }
 .mini-days i { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-3); }
 .mini-days i.on { background: #3ddc97; }
 .mini-days i.miss { background: #ff6b6b; }
+
+/* =========================================================
+   Contratos por nivel, vistas de hábitos y reordenar
+   ========================================================= */
+.contract .ct-sub { text-align: center; font-weight: 800; color: var(--muted); margin: -8px 0 18px; font-size: 14px; }
+.contract .ct-signed { margin-top: 16px; }
+.contract .ct-witness { margin: 16px 0 0; font-size: 14px; color: var(--muted); }
+.contract .ct-quote { margin: 18px 0 12px; text-align: center; font-style: italic; font-family: Georgia, "Times New Roman", serif; font-size: 17px; }
+.commit-opt { text-align: left; align-items: center; }
+.commit-opt .grow { display: flex; flex-direction: column; gap: 2px; }
+.commit-opt .grow b { font-size: 18px; }
+.commit-opt .commit-sub { font-weight: 800; font-size: 14px; }
+.view-seg button { white-space: nowrap; padding: 0 6px; font-size: 14px; }
+@media (max-width: 460px) { .view-seg .vi { display: none; } .view-seg button { font-size: 13px; padding: 0 4px; } }
+.habit { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.habit.dragging { position: relative; z-index: 30; pointer-events: none; transition: none; box-shadow: 0 24px 50px rgba(0,0,0,.45), var(--sh-out); opacity: .96; }
+body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-select: none; user-select: none; }
