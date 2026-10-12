@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -139,6 +139,7 @@
     out.mastery = s.mastery && typeof s.mastery === 'object' ? s.mastery : {};
     out.rest = s.rest && typeof s.rest === 'object' ? s.rest : {};
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
+    for (const k of ['deleted', 'lmt', 'rmt']) out[k] = s[k] && typeof s[k] === 'object' ? s[k] : {};
     out.projects.forEach(p => { p.goal = { type: 'simple', start: 0, target: 0, unit: '', entries: [], items: [], achieved: false, ...(p.goal || {}) }; p.habitIds = p.habitIds || []; });
     return out;
   }
@@ -147,7 +148,91 @@
     return defaultState();
   }
   let state = load();
-  function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* modo privado */ } }
+  let lastSaved = JSON.stringify(state);
+  // Guarda en el dispositivo; marca con hora lo que ha cambiado (para fusionar entre dispositivos) y programa la sincronización
+  function save() {
+    try { stampChanges(JSON.parse(lastSaved), state); } catch (e) { /* primera vez */ }
+    lastSaved = JSON.stringify(state);
+    try { localStorage.setItem(STORE_KEY, lastSaved); } catch (e) { /* modo privado */ }
+    scheduleSync();
+  }
+  // Guarda sin marcar cambios (cuando el estado viene de la nube)
+  function saveSilently() {
+    lastSaved = JSON.stringify(state);
+    try { localStorage.setItem(STORE_KEY, lastSaved); } catch (e) { /* modo privado */ }
+  }
+
+  /* ---------- marcas de tiempo para fusionar ---------- */
+  const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
+  function stampChanges(prev, cur) {
+    const now = Date.now();
+    cur.deleted = cur.deleted || {}; cur.lmt = cur.lmt || {}; cur.rmt = cur.rmt || {};
+    for (const key of ['habits', 'projects']) {
+      const pm = new Map((prev[key] || []).map(x => [x.id, x]));
+      cur[key].forEach(x => { if (strip(x) !== strip(pm.get(x.id))) x.mt = now; });
+      (prev[key] || []).forEach(x => { if (!cur[key].some(y => y.id === x.id)) cur.deleted[x.id] = now; });
+    }
+    if ((prev.habits || []).map(h => h.id).join() !== cur.habits.map(h => h.id).join()) cur.orderMt = now;
+    for (const [lk, mk] of [['logs', 'lmt'], ['rest', 'rmt']]) {
+      const P = prev[lk] || {}, C = cur[lk] || {};
+      for (const hid of new Set([...Object.keys(P), ...Object.keys(C)])) {
+        const p = P[hid] || {}, c = C[hid] || {};
+        for (const k of new Set([...Object.keys(p), ...Object.keys(c)])) {
+          if ((p[k] || 0) !== (c[k] || 0)) (cur[mk][hid] || (cur[mk][hid] = {}))[k] = now;
+        }
+      }
+    }
+    if (strip(prev.contract) !== strip(cur.contract) && cur.contract) cur.contract.mt = now;
+    if (JSON.stringify([prev.theme, prev.lang]) !== JSON.stringify([cur.theme, cur.lang])) cur.smt = now;
+  }
+  // Fusión de dos estados: gana lo modificado más tarde; las cartas y contratos se suman
+  function mergeStates(L, R) {
+    const out = JSON.parse(JSON.stringify(L));
+    const del = { ...(L.deleted || {}) };
+    for (const [id, ts] of Object.entries(R.deleted || {})) del[id] = Math.max(del[id] || 0, ts);
+    out.deleted = del;
+    const alive = x => !(del[x.id] && del[x.id] >= (x.mt || 0));
+    const mergeList = (a, b) => {
+      const m = new Map();
+      [...a, ...b].forEach(x => { const c = m.get(x.id); if (!c || (x.mt || 0) > (c.mt || 0)) m.set(x.id, x); });
+      return [...m.values()].filter(alive);
+    };
+    const habits = mergeList(L.habits || [], R.habits || []);
+    const base = (R.orderMt || 0) > (L.orderMt || 0) ? R.habits : L.habits;
+    const idx = id => { const i = (base || []).findIndex(h => h.id === id); return i < 0 ? 1e9 : i; };
+    out.habits = habits.sort((a, b) => idx(a.id) - idx(b.id));
+    out.orderMt = Math.max(L.orderMt || 0, R.orderMt || 0);
+    out.projects = mergeList(L.projects || [], R.projects || []);
+    const hids = new Set(out.habits.map(h => h.id));
+    for (const [lk, mk] of [['logs', 'lmt'], ['rest', 'rmt']]) {
+      out[lk] = {}; out[mk] = {};
+      for (const hid of hids) {
+        const vl = (L[lk] || {})[hid] || {}, vr = (R[lk] || {})[hid] || {}, tl = (L[mk] || {})[hid] || {}, tr = (R[mk] || {})[hid] || {};
+        const V = {}, M = {};
+        for (const k of new Set([...Object.keys(vl), ...Object.keys(vr), ...Object.keys(tl), ...Object.keys(tr)])) {
+          const a = tl[k] || 0, b = tr[k] || 0;
+          const v = b > a ? (vr[k] || 0) : a > b ? (vl[k] || 0) : Math.max(+vl[k] || 0, +vr[k] || 0);
+          if (v) V[k] = v;
+          if (a || b) M[k] = Math.max(a, b);
+        }
+        out[lk][hid] = V; out[mk][hid] = M;
+      }
+    }
+    if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
+    if ((R.smt || 0) > (L.smt || 0)) { out.theme = R.theme; out.lang = R.lang; out.smt = R.smt; }
+    out.mastery = JSON.parse(JSON.stringify(L.mastery || {}));
+    for (const [hid, ranks] of Object.entries(R.mastery || {})) {
+      const m = out.mastery[hid] || (out.mastery[hid] = {});
+      for (const [r, v] of Object.entries(ranks)) if (!m[r] || v.date < m[r].date) m[r] = v;
+    }
+    const cc = new Map((L.contractCards || []).map(c => [c.id, c])); (R.contractCards || []).forEach(c => { if (!cc.has(c.id)) cc.set(c.id, c); });
+    out.contractCards = [...cc.values()].sort((a, b) => a.end < b.end ? -1 : 1);
+    out.serial = Math.max(L.serial || 0, R.serial || 0);
+    out.colorSeq = Math.max(L.colorSeq || 0, R.colorSeq || 0);
+    out.onboarded = !!(L.onboarded || R.onboarded);
+    out.ui = L.ui;
+    return out;
+  }
 
   const t = (key, p = {}) => {
     const dict = window.I18N[state.lang] || window.I18N.es;
@@ -1421,7 +1506,8 @@
     let body = '', title = '', lead = '', next = t('next');
     if (s === 0) {
       title = t('obLangTitle'); lead = t('obLangSub');
-      body = `<div class="lang-list">${[['es', '🇪🇸', 'Español'], ['en', '🇬🇧', 'English']].map(([l, f, n]) => `<button class="lang-opt clay ${state.lang === l ? 'on' : ''}" data-ob-lang="${l}"><span class="flag">${f}</span><span class="grow">${n}</span>${state.lang === l ? ico('check') : ''}</button>`).join('')}</div>`;
+      body = `<div class="lang-list">${[['es', '🇪🇸', 'Español'], ['en', '🇬🇧', 'English']].map(([l, f, n]) => `<button class="lang-opt clay ${state.lang === l ? 'on' : ''}" data-ob-lang="${l}"><span class="flag">${f}</span><span class="grow">${n}</span>${state.lang === l ? ico('check') : ''}</button>`).join('')}</div>
+        <div class="center" style="margin-top:26px"><button class="chip" data-ob-login>${ico('refresh')} ${esc(t('obHaveAccount'))}</button></div>`;
     } else if (s === 1) {
       title = t('obColorTitle'); lead = t('obColorSub');
       body = `<div id="ob-theme">${themeEditorHtml()}</div><div class="field" style="margin-top:22px"><span class="muted small" style="font-weight:800;text-transform:uppercase;letter-spacing:.04em">${esc(t('preview'))}</span><div id="ob-preview" style="margin-top:8px">${samplePreview()}</div></div>`;
@@ -1450,6 +1536,7 @@
   }
   function onboardingClick(e) {
     const q = s => e.target.closest(s); let el;
+    if (q('[data-ob-login]')) { openLogin(); return true; }
     if ((el = q('[data-ob-lang]'))) { state.lang = el.dataset.obLang; save(); render(); return true; }
     if ((el = q('[data-ob-sug]'))) {
       const k = el.dataset.obSug; const i = obPending.findIndex(p => p.key === k);
@@ -1475,6 +1562,128 @@
     return false;
   }
 
+  /* =========================================================
+     SINCRONIZACIÓN (Supabase: cuenta con email y contraseña)
+     Cada cuenta guarda un único documento JSON; las fusiones usan marcas de tiempo.
+     ========================================================= */
+  const SB_URL = 'https://cciponhdxztcmprlxgbm.supabase.co';
+  const SB_KEY = 'sb_publishable_2vd5eyubHFQtKQ9CCyG3XA_5QBWkZF6';
+  const AUTH_KEY = 'keepgoing.auth';
+  const APP_URL = 'https://izanhj.github.io/keepgoing/';
+  let auth = (() => { try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || null; } catch (e) { return null; } })();
+  const sync = { busy: false, timer: null, last: null, error: null };
+  const saveAuth = a => { auth = a; try { if (a) localStorage.setItem(AUTH_KEY, JSON.stringify(a)); else localStorage.removeItem(AUTH_KEY); } catch (e) { /* nada */ } };
+
+  async function sbFetch(path, opts = {}, withUser = true) {
+    const headers = { apikey: SB_KEY, 'Content-Type': 'application/json', ...(opts.headers || {}) };
+    if (withUser && auth) headers.Authorization = 'Bearer ' + auth.access_token;
+    const res = await fetch(SB_URL + path, { ...opts, headers });
+    const text = await res.text();
+    let body = null; try { body = text ? JSON.parse(text) : null; } catch (e) { body = text; }
+    if (!res.ok) { const err = new Error((body && (body.msg || body.error_description || body.message || body.error)) || res.statusText); err.status = res.status; err.body = body; throw err; }
+    return body;
+  }
+  const keepSession = s => saveAuth({ access_token: s.access_token, refresh_token: s.refresh_token, expires_at: Date.now() + (s.expires_in || 3600) * 1000, email: s.user && s.user.email, uid: s.user && s.user.id });
+  async function signIn(email, password) {
+    keepSession(await sbFetch('/auth/v1/token?grant_type=password', { method: 'POST', body: JSON.stringify({ email, password }) }, false));
+  }
+  async function signUp(email, password) {
+    const r = await sbFetch(`/auth/v1/signup?redirect_to=${encodeURIComponent(APP_URL)}`, { method: 'POST', body: JSON.stringify({ email, password }) }, false);
+    if (r && r.access_token) { keepSession(r); return 'in'; }
+    return 'confirm'; // hay que confirmar el email
+  }
+  async function ensureToken() {
+    if (!auth) return false;
+    if (Date.now() < auth.expires_at - 60000) return true;
+    try { keepSession(await sbFetch('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: auth.refresh_token }) }, false)); return true; }
+    catch (e) { if (e.status === 400 || e.status === 401) { saveAuth(null); toast(t('syncExpired')); } throw e; }
+  }
+  async function signOut() {
+    try { if (auth) await sbFetch('/auth/v1/logout', { method: 'POST' }); } catch (e) { /* sin conexión: basta con olvidar la sesión */ }
+    saveAuth(null);
+  }
+  function scheduleSync(delay = 1500) {
+    if (!auth) return;
+    clearTimeout(sync.timer); sync.timer = setTimeout(syncNow, delay);
+  }
+  // Descarga, fusiona y sube. Devuelve true si llegó algo nuevo de otro dispositivo
+  async function syncNow(force = false) {
+    if (!auth || sync.busy || !navigator.onLine) return false;
+    // Con una ventana abierta se espera: así no se pisan los cambios que estás editando
+    if (!force && $('#modal-root').children.length) { scheduleSync(4000); return false; }
+    sync.busy = true; updateSyncBadge();
+    try {
+      await ensureToken();
+      const rows = await sbFetch(`/rest/v1/kg_state?select=data&user_id=eq.${auth.uid}`);
+      const before = JSON.stringify(state);
+      if (rows && rows[0] && rows[0].data) {
+        const merged = normalize(mergeStates(state, rows[0].data));
+        merged.ui = state.ui;
+        state = merged;
+      }
+      const changed = JSON.stringify(state) !== before;
+      saveSilently();
+      await sbFetch('/rest/v1/kg_state?on_conflict=user_id', {
+        method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ user_id: auth.uid, data: { ...state, ui: undefined }, updated_at: new Date().toISOString() })
+      });
+      sync.last = Date.now(); sync.error = null;
+      if (changed && !$('#modal-root').children.length) render();
+      return changed;
+    } catch (e) {
+      sync.error = e.message || String(e);
+      return false;
+    } finally { sync.busy = false; updateSyncBadge(); }
+  }
+  function updateSyncBadge() {
+    const el = $('#sync-status'); if (!el) return;
+    el.textContent = syncStatusText();
+  }
+  function syncStatusText() {
+    if (!auth) return t('syncOff');
+    if (sync.busy) return t('syncing');
+    if (sync.error) return t('syncError', { e: sync.error });
+    if (!navigator.onLine) return t('syncOffline');
+    return sync.last ? t('syncLast', { time: new Date(sync.last).toLocaleTimeString(state.lang, { hour: '2-digit', minute: '2-digit' }) }) : t('syncReady');
+  }
+  async function deleteCloud() { if (!auth) return; try { await ensureToken(); await sbFetch(`/rest/v1/kg_state?user_id=eq.${auth.uid}`, { method: 'DELETE' }); } catch (e) { /* se reintentará al borrar de nuevo */ } }
+
+  function accountHtml() {
+    if (auth) return `<div class="stack" style="gap:10px">
+      <div class="row wrap"><span class="grow"><b>${esc(t('syncAs', { email: auth.email || '' }))}</b><br><span class="muted small" id="sync-status">${esc(syncStatusText())}</span></span></div>
+      <div class="row wrap"><button class="btn" data-s="sync-now">${ico('refresh')} ${esc(t('syncNow'))}</button><button class="chip" data-s="sign-out">${esc(t('signOut'))}</button></div></div>`;
+    return `<div class="stack" style="gap:10px">
+      <p class="muted small" style="margin:0">${esc(t('syncHint'))}</p>
+      <input class="input" id="acc-email" type="email" autocomplete="email" placeholder="${esc(t('email'))}" inputmode="email">
+      <input class="input" id="acc-pass" type="password" autocomplete="current-password" placeholder="${esc(t('password'))}">
+      <div class="row wrap"><button class="btn primary" data-s="sign-in">${esc(t('signIn'))}</button><button class="btn" data-s="sign-up">${esc(t('signUp'))}</button></div></div>`;
+  }
+  // Acciones de cuenta compartidas por Ajustes y por el inicio de sesión del onboarding
+  async function accountAction(act, root, onDone) {
+    if (act === 'sync-now') { await syncNow(true); updateSyncBadge(); if (!sync.error) toast(t('syncDone')); else toast(t('syncError', { e: sync.error })); return; }
+    if (act === 'sign-out') { if (await confirmDialog(t('signOutQ'))) { await signOut(); onDone && onDone(); toast(t('signedOut')); } return; }
+    const email = ($('#acc-email', root).value || '').trim(), pass = $('#acc-pass', root).value || '';
+    if (!email || pass.length < 6) { toast(t('accNeedData')); return; }
+    try {
+      if (act === 'sign-in') await signIn(email, pass);
+      else if ((await signUp(email, pass)) === 'confirm') { toast(t('accConfirm')); return; }
+      toast(t('syncing'));
+      await syncNow(true);
+      onDone && onDone(); render(); toast(t('syncDone'));
+    } catch (e) { toast(t('accError', { e: e.message })); }
+  }
+  function openLogin() {
+    let wref;
+    openModal({
+      title: esc(t('setAccount')), body: '<div id="acc"></div>',
+      onMount: w => { wref = w; $('#acc', w).innerHTML = accountHtml(); },
+      onClick: (e, close) => { const el = e.target.closest('[data-s]'); if (el) accountAction(el.dataset.s, wref, () => close()); }
+    });
+  }
+  window.addEventListener('online', () => scheduleSync(300));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleSync(300); });
+  setInterval(() => { if (!document.hidden) syncNow(); }, 60000);
+
   /* ---------- AJUSTES ---------- */
   function openSettings() {
     let wref;
@@ -1482,6 +1691,7 @@
       const c = state.contract;
       $('#st', wref).innerHTML = `<div class="stack" style="gap:22px">
         <section><h3 class="section-title row">${ico('globe')} ${esc(t('setLanguage'))}</h3><div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div></section>
+        <section><h3 class="section-title row">${ico('refresh')} ${esc(t('setAccount'))}</h3><div id="st-acc">${accountHtml()}</div></section>
         <section><h3 class="section-title row">${ico('palette')} ${esc(t('setTheme'))}</h3><div id="st-theme">${themeEditorHtml()}</div></section>
         <section><h3 class="section-title row">${ico('doc')} ${esc(t('setContract'))}</h3>
           <div class="row wrap"><span class="grow muted small" style="font-weight:700">${c ? esc(diffDays(todayKey(), c.endsAt) < 0 ? t('contractEnded') : t('contractActive', { n: diffDays(todayKey(), c.endsAt) })) : esc(t('contractNone'))}</span>
@@ -1507,6 +1717,10 @@
         if ((el = q('[data-s-lang]'))) { state.lang = el.dataset.sLang; save(); render(); draw(); $('.sheet-head h2', w).textContent = t('settings'); return; }
         if (!(el = q('[data-s]'))) return;
         switch (el.dataset.s) {
+          case 'sync-now': case 'sign-in': case 'sign-up': case 'sign-out':
+            await accountAction(el.dataset.s, w, () => { $('#st-acc', w).innerHTML = accountHtml(); });
+            if ($('#st-acc', w)) $('#st-acc', w).innerHTML = accountHtml();
+            break;
           case 'contract': openContract(); break;
           case 'renew': renewContract(); draw(); break;
           case 'export': exportData(); break;
@@ -1514,8 +1728,9 @@
           case 'replay': close(); state.onboarded = false; state.obStep = 0; save(); render(); break;
           case 'reset':
             if (await confirmDialog(t('resetQ')) && await confirmDialog(t('resetQ2'))) {
+              await deleteCloud(); await signOut();
               try { localStorage.removeItem(STORE_KEY); } catch (err) { /* nada */ }
-              state = defaultState(); close(); render();
+              state = defaultState(); saveSilently(); close(); render();
             }
             break;
         }
@@ -1687,4 +1902,7 @@
   // Sincroniza cartas ya ganadas (por ejemplo, tras importar) y arranca
   state.habits.forEach(h => checkMastery(h, !isQuit(h)));
   render();
+  if (auth) scheduleSync(400);
+  // Solo para pruebas en local
+  if (location.hostname === 'localhost') window.__kg = { mergeStates, stampChanges };
 })();

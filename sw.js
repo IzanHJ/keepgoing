@@ -1,5 +1,5 @@
 /* KeepGoing — service worker: funciona sin conexión cuando la app se sirve por https */
-const CACHE = 'keepgoing-v2';
+const CACHE = 'keepgoing-v3';
 const RANKS = ['iniciado', 'aprendiz', 'discipulo', 'experto', 'elite', 'maestro', 'ascendente', 'supremo', 'mitico', 'trascendente'];
 const SHELL = ['./', './index.html', './css/app.css', './js/i18n.js', './js/app.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   ...RANKS.flatMap(r => [`./cards/${r}-front.jpg`, `./cards/${r}-back.jpg`])];
