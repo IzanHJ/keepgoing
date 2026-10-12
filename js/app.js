@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.6.0';
+  const VERSION = '1.7.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1722,13 +1722,17 @@
     return { lvl, sub: t('ct_sub_' + lvl), paras: t('ct_body_' + lvl, p).split('\n\n'), quote: t('ct_quote_' + lvl, p) };
   }
   const contractText = o => contractParts(o).paras.join('\n\n');
+  // Solo se pintan firmas que sean PNG en base64 (pueden venir de otra persona por el enlace del testigo)
+  const safeSig = s => typeof s === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(s) ? s : null;
   function contractInner(o) {
-    const x = contractParts(o);
+    const x = contractParts(o), w = o.witness, wCur = w && (!w.period || w.period === o.signedAt);
+    const wSig = wCur && safeSig(w.sig), oSig = safeSig(o.sig);
     return `<h3>${esc(t('contractTitle'))}</h3><div class="ct-sub">${esc(x.sub)}</div>
       ${x.paras.map(p => `<p>${p}</p>`).join('')}
       <p class="ct-signed"><b>${esc(t('contractSigned', { date: fmtDate(o.signedAt) }))}.</b>${o.renewals ? `<br><span class="muted small">${esc(t('contractRenewals', { n: o.renewals }))}</span>` : ''}</p>
-      <div class="sig-line"><span class="muted small">${esc(t('ct_sign'))}:</span><div class="center">${o.sig ? `<img class="sig-img" src="${o.sig}" alt="">` : ''}<div class="sig-name">${esc(o.name || '')}</div></div></div>
-      <p class="ct-witness">${esc(t('ct_witness'))}${o.witness ? `<br>👀 ${esc(t('witnessIs', { w: o.witness.name || o.witness.email }))}` : ''}</p>
+      <div class="sig-line"><span class="muted small">${esc(t('ct_sign'))}:</span><div class="center">${oSig ? `<img class="sig-img" src="${oSig}" alt="">` : ''}<div class="sig-name">${esc(o.name || '')}</div></div></div>
+      ${wSig ? `<div class="sig-line"><span class="muted small">${esc(t('ct_witnessReal'))}:</span><div class="center"><img class="sig-img" src="${wSig}" alt=""><div class="sig-name">${esc(w.signedName || '')}</div><div class="muted small">${esc(t('contractSigned', { date: fmtDate(w.signedAt || o.signedAt) }))}</div></div></div>` : ''}
+      <p class="ct-witness">${esc(t('ct_witness'))}${w && !wSig && (w.name || w.email) ? `<br>👀 ${esc(t(w.token && wCur ? 'witnessPending' : 'witnessIs', { w: w.name || w.email }))}` : ''}</p>
       <p class="ct-quote">${esc(x.quote)}</p>
       <div class="center"><span class="role-chip">${esc(t('ct_level', { l: t('commit_' + x.lvl) }))}</span></div>`;
   }
@@ -1755,18 +1759,22 @@
     if (gs) gs.addEventListener('click', ev => { const b = ev.target.closest('[data-g]'); if (!b) return; g = b.dataset.g; gs.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); redraw(); });
     const lv = $('#ct-level', root);
     if (lv) lv.addEventListener('click', ev => { const b = ev.target.closest('[data-commit]'); if (!b) return; ev.stopPropagation(); setCommitment(b.dataset.commit); lv.innerHTML = commitSegHtml(); redraw(); });
-    let dirty = false;
+    const pad = sigPad(cv, $('#ct-clear', root));
+    const wit = $('#ct-wit', root); if (wit) wit.addEventListener('change', () => $('#ct-wit-box', root).classList.toggle('hidden', !wit.checked));
+    return { name: () => name.value.trim(), sig: pad.get, focus: () => name.focus(), witness: () => readWitness(root), g: () => g };
+  }
+  // Panel para firmar con el dedo o el ratón; get() devuelve un PNG o null si está vacío
+  function sigPad(cv, clearBtn) {
+    let dirty = false, drawing = false, last = null;
     const ctx = cv.getContext('2d');
     const size = () => { const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; cv.width = r.width * dpr; cv.height = r.height * dpr; ctx.scale(dpr, dpr); ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = state.theme.fg; };
     requestAnimationFrame(size);
-    let drawing = false, last = null;
     const pos = ev => { const r = cv.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
     cv.addEventListener('pointerdown', ev => { drawing = true; last = pos(ev); cv.setPointerCapture(ev.pointerId); ev.preventDefault(); });
     cv.addEventListener('pointermove', ev => { if (!drawing) return; const p = pos(ev); ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...p); ctx.stroke(); last = p; dirty = true; });
     ['pointerup', 'pointercancel'].forEach(n => cv.addEventListener(n, () => { drawing = false; }));
-    $('#ct-clear', root).addEventListener('click', () => { ctx.clearRect(0, 0, cv.width, cv.height); dirty = false; });
-    const wit = $('#ct-wit', root); if (wit) wit.addEventListener('change', () => $('#ct-wit-box', root).classList.toggle('hidden', !wit.checked));
-    return { name: () => name.value.trim(), sig: () => dirty ? cv.toDataURL('image/png') : null, focus: () => name.focus(), witness: () => readWitness(root), g: () => g };
+    if (clearBtn) clearBtn.addEventListener('click', () => { ctx.clearRect(0, 0, cv.width, cv.height); dirty = false; });
+    return { get: () => dirty ? cv.toDataURL('image/png') : null };
   }
   function signContract(name, sig, witness = null, g = 'm') {
     const s = todayKey();
@@ -1807,7 +1815,7 @@
               if (!ev.target.closest('[data-m="wsave"]')) return;
               const wit = readWitness(w);
               if (wit === 'bad') { toast(t('witnessBadEmail')); return; }
-              if (wit) c.witness = wit; else delete c.witness;
+              if (wit) c.witness = c.witness && c.witness.email === wit.email ? { ...c.witness, ...wit } : wit; else delete c.witness;
               save(); cl(); if (wit) witnessMail(c, 'sign'); else toast(t('saved'));
             }
           });
@@ -2003,6 +2011,7 @@
       sync.last = Date.now(); sync.error = null;
       // Perfil público y progreso de retos compartidos (no bloquean la sincronización)
       publishProfile().catch(() => {});
+      checkWitness().catch(() => {});
       pushGroupProgress();
       if (changed && !$('#modal-root').children.length) render();
       return changed;
@@ -2956,7 +2965,86 @@
   const firstName = () => ((state.contract && state.contract.name) || (auth && auth.email) || '').split(/[\s@]/)[0];
 
   /* ---------- testigo del contrato (el email sale desde tu correo) ---------- */
+  // Testigo: crea (una vez por periodo de contrato) un enlace para que firme y abre el correo
+  async function witnessInvite(c) {
+    const w = c && c.witness; if (!w || !w.email) return;
+    let link = null;
+    if (auth) {
+      try {
+        if (!w.token || w.period !== c.signedAt) {
+          await ensureToken();
+          const snap = { name: c.name, signedAt: c.signedAt, endsAt: c.endsAt, level: c.level || state.commitment, g: c.g || 'm', sig: safeSig(c.sig), lang: state.lang };
+          const rows = await sbFetch('/rest/v1/kg_witness', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ contract: snap }) });
+          w.token = rows[0].id; w.period = c.signedAt; delete w.sig; delete w.signedName; delete w.signedAt; save();
+        }
+        link = `${APP_URL}?w=${w.token}`;
+      } catch (e) { toast(t('syncError', { e: e.message })); }
+    }
+    const subject = t('witnessSubject', { name: c.name });
+    const body = link ? t('witnessLinkBody', { w: w.name || '', name: c.name, start: fmtDate(c.signedAt), end: fmtDate(c.endsAt), link })
+      : t('witnessBody', { w: w.name || '', name: c.name, start: fmtDate(c.signedAt), end: fmtDate(c.endsAt), text: stripHtml(contractText(c)), url: APP_URL });
+    const href = `mailto:${encodeURIComponent(w.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    // El correo se abre con un toque (en iPhone no se puede abrir solo tras esperar a la nube)
+    openModal({
+      title: `📧 ${esc(t('witnessTitle'))}`,
+      body: `<p style="margin-top:0">${esc(t(link ? 'witnessLinkReady' : auth ? 'witnessNoLink' : 'witnessLinkNeedLogin', { w: w.name || w.email }))}</p>${link ? `<input class="input" readonly value="${esc(link)}" onclick="this.select()">` : ''}`,
+      foot: `<a class="btn primary" href="${esc(href)}" data-m="mail">📧 ${esc(t('witnessOpenMail'))}</a>${link ? `<button class="btn" data-m="copy">${esc(t('copy'))}</button>` : ''}`,
+      onClick: async (e, close) => {
+        if (e.target.closest('[data-m="copy"]')) { try { await navigator.clipboard.writeText(link); toast(t('copied')); } catch (err) { /* nada */ } }
+        if (e.target.closest('[data-m="mail"]')) setTimeout(close, 400);
+      }
+    });
+  }
+  // ¿Ha firmado ya el testigo? (se comprueba al sincronizar)
+  async function checkWitness() {
+    const c = state.contract, w = c && c.witness;
+    if (!auth || !w || !w.token || w.sig || w.period !== c.signedAt) return;
+    await ensureToken();
+    const rows = await sbFetch(`/rest/v1/kg_witness?id=eq.${encodeURIComponent(w.token)}&select=witness_name,witness_sig,signed_at`);
+    const r = rows && rows[0];
+    if (r && r.signed_at && safeSig(r.witness_sig)) {
+      w.sig = r.witness_sig; w.signedName = r.witness_name; w.signedAt = r.signed_at.slice(0, 10);
+      save(); render(); toast(t('witnessSignedToast', { name: r.witness_name }));
+    }
+  }
+  // Página del testigo (?w=enlace): lee el contrato y lo firma sin necesidad de cuenta
+  async function renderWitnessPage(token) {
+    applyTheme();
+    const app = $('#app');
+    app.innerHTML = `<div class="main"><div class="empty"><div class="empty-art">${ico('doc')}</div><h2>${esc(t('loading'))}</h2></div></div>`;
+    const load = async () => { try { return await sbFetch('/rest/v1/rpc/kg_witness_get', { method: 'POST', body: JSON.stringify({ p_token: token }) }, false); } catch (e) { return null; } };
+    let d = /^[0-9a-f-]{36}$/i.test(token) ? await load() : null;
+    const c = d && d.contract, isKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
+    if (!c || !isKey(c.signedAt) || !isKey(c.endsAt)) { app.innerHTML = `<div class="main">${emptyState('doc', t('witNotFound'), t('witNotFoundSub'), `<a class="btn primary" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a>`)}</div>`; return; }
+    if (c.lang && window.I18N[c.lang]) state.lang = c.lang;
+    const draw = () => {
+      const signed = !!d.signed_at;
+      const doc = { name: String(c.name || ''), signedAt: c.signedAt, endsAt: c.endsAt, level: c.level, g: c.g, sig: c.sig, witness: signed ? { sig: d.witness_sig, signedName: d.witness_name, signedAt: String(d.signed_at).slice(0, 10), period: c.signedAt } : null };
+      app.innerHTML = `<div class="main wit-page">
+        <div class="center" style="margin:10px 0 18px"><div class="muted small" style="letter-spacing:.15em;font-weight:var(--fw-label)">KEEPGOING</div><h1 class="page-title" style="margin:6px 0 8px">${esc(t('witPageTitle'))}</h1><p class="muted" style="margin:0">${esc(t(signed ? 'witPageSignedSub' : 'witPageSub', { name: doc.name }))}</p></div>
+        <div class="contract clay">${contractInner(doc)}</div>
+        ${signed ? `<div class="center clay card" style="margin-top:18px"><div style="font-size:44px">✅</div><h2 style="margin:6px 0">${esc(t('witPageDone'))}</h2><p class="muted" style="margin:0">${esc(t('witPageDoneSub', { name: doc.name }))}</p></div>`
+          : `<div class="clay card stack" style="margin-top:18px">
+            <label class="field"><span>${esc(t('witPageName'))}</span><input class="input" id="wp-name" maxlength="80" autocomplete="name" placeholder="${esc(t('contractNamePh'))}"></label>
+            <div class="field"><span>${esc(t('witPageSign'))}</span><canvas class="sig-pad" id="wp-sig"></canvas><div><button type="button" class="chip" id="wp-clear">${esc(t('contractClear'))}</button></div></div>
+            <button class="btn primary block" id="wp-go">✍️ ${esc(t('witPageBtn'))}</button></div>`}
+        <div class="center" style="margin:28px 0"><a class="btn" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a></div></div>`;
+      if (signed) return;
+      const pad = sigPad($('#wp-sig'), $('#wp-clear'));
+      $('#wp-go').addEventListener('click', async ev => {
+        const name = $('#wp-name').value.trim(), sig = pad.get();
+        if (name.length < 2) { toast(t('witNeedName')); $('#wp-name').focus(); return; }
+        if (!sig) { toast(t('witNeedSig')); return; }
+        ev.target.disabled = true;
+        try { await sbFetch('/rest/v1/rpc/kg_witness_sign', { method: 'POST', body: JSON.stringify({ p_token: token, p_name: name, p_sig: sig }) }, false); vibrate([20, 40, 20]); }
+        catch (e) { toast(t(/already_signed/.test(e.message) ? 'witAlready' : 'witError')); }
+        d = (await load()) || d; draw(); window.scrollTo(0, 0);
+      });
+    };
+    draw();
+  }
   function witnessMail(c, kind, cc) {
+    if (kind !== 'result') return witnessInvite(c);
     const w = c && c.witness; if (!w || !w.email) return;
     const subject = t(kind === 'result' ? 'witnessResultSubject' : 'witnessSubject', { name: c.name });
     const body = kind === 'result'
@@ -3687,6 +3775,8 @@
   // Perfil público (?u=slug): página de solo lectura, sin cargar la app
   const params = new URLSearchParams(location.search);
   if (params.get('u')) { publicMode = true; renderPublicProfile(params.get('u')); return; }
+  // Enlace del testigo (?w=…): firmar el contrato de otra persona
+  if (params.get('w')) { publicMode = true; renderWitnessPage(params.get('w')); return; }
   // Invitación a un reto (?join=CÓDIGO): se guarda hasta tener sesión
   if (params.get('join')) { try { localStorage.setItem(JOIN_KEY, params.get('join').toUpperCase()); } catch (e) { /* nada */ } history.replaceState(null, '', location.pathname); }
 
