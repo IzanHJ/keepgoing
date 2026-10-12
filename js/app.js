@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.5.0';
+  const VERSION = '1.6.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -131,7 +131,10 @@
   const ico = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
   /* ---------- estado ---------- */
-  const DEFAULT_THEME = { preset: 'noche', bg: '#000000', fg: '#ffffff', accent: '#3ddc97', style: 'clay', bgMode: 'solid', bg2: '#1b1b2f' };
+  const DEFAULT_THEME = { preset: 'noche', bg: '#000000', fg: '#ffffff', accent: '#3ddc97', style: 'clay', bgMode: 'solid', bg2: '#1b1b2f', font: 'quicksand' };
+  // Tipos de letra disponibles (se cargan desde Google Fonts en index.html)
+  const FONTS = [['quicksand', 'Quicksand'], ['nunito-sans', 'Nunito Sans'], ['nunito', 'Nunito'], ['jakarta', 'Plus Jakarta Sans'], ['poppins', 'Poppins']];
+  const fontFamily = id => (FONTS.find(f => f[0] === id) || FONTS[0])[1];
   function defaultState() {
     const lang = (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
     return {
@@ -324,7 +327,8 @@
       '--glass': grad ? 'blur(18px) saturate(1.3)' : 'none',
       '--sh-out': light ? '0 14px 28px rgba(20,20,45,.13), 0 3px 6px rgba(20,20,45,.07)' : '0 14px 30px rgba(0,0,0,.55), 0 2px 4px rgba(0,0,0,.3)',
       '--sh-in': light ? 'inset 0 3px 2px rgba(255,255,255,.85), inset 0 -8px 16px rgba(20,20,45,.08)' : 'inset 0 2px 1px rgba(255,255,255,.07), inset 0 -8px 16px rgba(0,0,0,.35)',
-      '--sh-press': light ? 'inset 0 4px 10px rgba(20,20,45,.16)' : 'inset 0 4px 12px rgba(0,0,0,.5)'
+      '--sh-press': light ? 'inset 0 4px 10px rgba(20,20,45,.16)' : 'inset 0 4px 12px rgba(0,0,0,.5)',
+      '--font-main': `"${fontFamily(th.font)}"`
     };
     for (const k in css) r.style.setProperty(k, css[k]);
     r.dataset.light = light ? '1' : '0';
@@ -908,7 +912,7 @@
         <div class="muted small" style="margin-top:6px">${esc(t('restHint'))}</div>`;
     };
     const body = () => `<div class="center" style="--h:${hColor(h)}">
-      <div class="muted small" style="font-weight:800;text-transform:uppercase;letter-spacing:.04em">${esc(t(quit ? 'relapsesDay' : 'dayCount'))}</div>
+      <div class="muted small" style="font-weight:var(--fw-label);text-transform:uppercase;letter-spacing:.04em">${esc(t(quit ? 'relapsesDay' : 'dayCount'))}</div>
       <div class="row" style="justify-content:center;gap:22px;margin:16px 0 6px">
         <button class="icon-btn" data-d="-1" aria-label="-1">${ico('minus')}</button>
         <b id="dc" style="font-size:52px;min-width:90px;line-height:1">${cnt(h, k)}</b>
@@ -1016,7 +1020,7 @@
       html += `<h2 class="section-title" style="margin:28px 0 14px;font-size:22px">🏆 ${esc(t('finishedProjects'))}</h2><div class="proj-grid">${finished.map(p => {
         const done = p.goal.type === 'simple' ? '' : '';
         return `<button class="proj clay finished" data-act="proj-open" data-id="${p.id}">
-          <div class="proj-top"><div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div><div class="grow"><h3>${esc(p.name)}</h3><div class="muted small" style="font-weight:700">✅ ${esc(t('achieved'))}${done}</div></div></div>
+          <div class="proj-top"><div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div><div class="grow"><h3>${esc(p.name)}</h3><div class="muted small" style="font-weight:var(--fw-label)">✅ ${esc(t('achieved'))}${done}</div></div></div>
           ${p.photos.before || p.photos.after ? `<div class="ba-row">${['before', 'after'].map(k => p.photos[k] ? `<div class="ba-thumb"><img data-photo="${esc(p.photos[k].path)}" alt=""><span>${esc(t('photo_' + k))}</span></div>` : `<div class="ba-thumb empty"><span>${esc(t('photo_' + k))}</span></div>`).join('')}</div>` : ''}
         </button>`;
       }).join('')}</div>`;
@@ -1028,11 +1032,11 @@
       return `<button class="proj clay" data-act="proj-open" data-id="${p.id}" style="--h:${c}">
         <div class="proj-top">
           <div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div>
-          <div class="grow"><h3>${esc(p.name)}${p.groupId ? ' <span class="grp-chip" data-group="' + p.groupId + '">👥</span>' : ''}</h3><div class="muted small" style="font-weight:700">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</div></div>
+          <div class="grow"><h3>${esc(p.name)}${p.groupId ? ' <span class="grp-chip" data-group="' + p.groupId + '">👥</span>' : ''}</h3><div class="muted small" style="font-weight:var(--fw-label)">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</div></div>
           <div class="prob-badge"><b>${s.P}%</b><span>${esc(t('probability').split(' ')[0])}</span></div>
         </div>
         <div class="bar ${s.G ? '' : 'zero'}" style="margin-top:14px"><i style="width:${Math.round(s.G * 100)}%"></i></div>
-        <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted small" style="font-weight:700">${esc(t('progress'))} ${Math.round(s.G * 100)}%</span>${p.goal.type === 'numeric' ? `<span class="small" style="font-weight:800">${fmtNum(s.cur)} / ${fmtNum(p.goal.target)} ${esc(p.goal.unit)}</span>` : ''}</div>
+        <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted small" style="font-weight:var(--fw-label)">${esc(t('progress'))} ${Math.round(s.G * 100)}%</span>${p.goal.type === 'numeric' ? `<span class="small" style="font-weight:var(--fw-num)">${fmtNum(s.cur)} / ${fmtNum(p.goal.target)} ${esc(p.goal.unit)}</span>` : ''}</div>
         ${s.hs.length ? `<div class="linked">${s.hs.map(h => `<span>${esc(h.icon)} ${esc(h.name)}</span>`).join('')}</div>` : ''}
       </button>`;
   }
@@ -1144,20 +1148,20 @@
       const factor = (label, v, txt) => `<div class="factor"><span>${esc(label)}</span><b>${txt ?? (v == null ? '—' : Math.round(v * 100) + '%')}</b><div class="bar ${v ? '' : 'zero'}"><i style="width:${v == null ? 0 : Math.round(clamp(v, 0, 1) * 100)}%"></i></div></div>`;
       const body = `<div class="stack" style="gap:16px">
         ${p.desc ? `<p class="muted" style="margin:0">${esc(p.desc)}</p>` : ''}
-        <div class="row wrap small" style="font-weight:700">${ico('calendar')} <span>${esc(p.deadline ? fmtDate(p.deadline) + ' · ' + deadlineText(p, s) : t('noDeadline'))}</span></div>
+        <div class="row wrap small" style="font-weight:var(--fw-label)">${ico('calendar')} <span>${esc(p.deadline ? fmtDate(p.deadline) + ' · ' + deadlineText(p, s) : t('noDeadline'))}</span></div>
         <section class="clay card"><h3 class="section-title">${esc(t('goal'))}${g.type === 'numeric' && g.unit ? ` <span class="muted small">(${esc(g.unit)})</span>` : ''}</h3>${goalHtml}</section>
         <section class="clay card">
           <h3 class="section-title">${esc(t('probCalc'))}</h3>
-          <div class="gauge">${donut(s.P)}<div class="grow"><div class="gauge-num">${s.P}%</div><div class="muted small" style="font-weight:700">${esc(t('probability'))}</div></div></div>
+          <div class="gauge">${donut(s.P)}<div class="grow"><div class="gauge-num">${s.P}%</div><div class="muted small" style="font-weight:var(--fw-label)">${esc(t('probability'))}</div></div></div>
           ${factor(t('probConsistency'), s.A)}
           ${s.pace != null ? factor(t('probPace'), Math.min(1, s.pace)) : ''}
           ${s.T != null ? factor(t('probTime'), s.T) : ''}
           ${s.A == null ? `<p class="muted small">${esc(t('probNoHabits'))}</p>` : ''}
-          ${s.projection != null ? `<p class="small" style="font-weight:700">${esc(t('probProjection', { v: fmtNum(s.projection) + ' ' + g.unit }))}${s.neededPerDay != null ? ' ' + esc(t('probNeeded', { v: fmtNum(Math.abs(s.neededPerDay)) + ' ' + g.unit })) : ''}</p>` : ''}
+          ${s.projection != null ? `<p class="small" style="font-weight:var(--fw-label)">${esc(t('probProjection', { v: fmtNum(s.projection) + ' ' + g.unit }))}${s.neededPerDay != null ? ' ' + esc(t('probNeeded', { v: fmtNum(Math.abs(s.neededPerDay)) + ' ' + g.unit })) : ''}</p>` : ''}
           ${!s.achieved ? `<div style="margin-top:14px">
-            <label class="small" style="font-weight:800" id="pd-simlabel">${esc(t('probSim', { n: simDefault }))}</label>
+            <label class="small" style="font-weight:var(--fw-label)" id="pd-simlabel">${esc(t('probSim', { n: simDefault }))}</label>
             <input type="range" id="pd-sim" min="0" max="100" value="${simDefault}">
-            <div class="small" id="pd-simres" style="font-weight:800">→ ${esc(t('probSimResult', { n: projectStats(p, simDefault / 100).P }))}</div>
+            <div class="small" id="pd-simres" style="font-weight:var(--fw-label)">→ ${esc(t('probSimResult', { n: projectStats(p, simDefault / 100).P }))}</div>
           </div>` : ''}
           ${whatIfHtml(p, s)}
           <p class="muted small" style="margin-bottom:0">${esc(t('probHelp'))}</p>
@@ -1491,12 +1495,30 @@
   function viewMastery() {
     let html = topBar(`<button class="icon-btn" data-act="ranks-info" aria-label="${esc(t('masteryRanks'))}">${ico('info')}</button>`);
     html += `<h1 class="page-title">${esc(t('tabMastery'))}</h1>`;
+    html += profileCardHtml();
     const hs = state.habits.filter(h => !h.archived || unlockedCount(h));
     if (!hs.length) return html + emptyState('crown', t('tabMastery'), t('masteryEmpty'), `<button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button>`);
     const got = hs.reduce((a, h) => a + unlockedCount(h), 0);
+    const mRank = state.ui.mRank == null || state.ui.mRank === 'all' ? 'all' : +state.ui.mRank;
+    const mHabit = hs.some(h => h.id === state.ui.mHabit) ? state.ui.mHabit : 'all';
+    // Álbum: contador por rango (también sirve de filtro) y filtro por hábito
+    const albumHtml = `<div class="album-filters">
+      <div class="chip-scroll">${[['all', t('albumAll'), got]].concat(RANKS.map(([r], i) => [i, t('rank_' + r), hs.filter(h => unlockedCount(h) > i).length])).map(([v, l, n]) => `<button class="chip ${mRank === v ? 'on' : ''}" data-act="m-rank" data-v="${v}">${esc(l)} <b class="chip-n">${n}</b></button>`).join('')}</div>
+      <div class="chip-scroll">${[['all', '✨', t('albumAllHabits')]].concat(hs.map(h => [h.id, h.icon || '#', h.name])).map(([v, ic, l]) => `<button class="chip ${mHabit === v ? 'on' : ''}" data-act="m-habit" data-v="${v}">${esc(ic)} ${esc(l)}</button>`).join('')}</div></div>`;
+    // Próxima carta más cercana
+    let near = null;
+    hs.filter(h => !h.archived).forEach(h => { const u = unlockedCount(h); if (u >= RANKS.length) return; const left = RANKS[u][1] - successDays(h); if (!near || left < near.left) near = { h, u, left }; });
+    const nearHtml = near ? `<button class="next-card clay" data-act="card-open" data-id="${near.h.id}" data-i="${near.u}" style="${habitVars(hColor(near.h))}"><span class="next-mini">${cardLocked(near.u)}</span><span class="grow"><span class="muted small">${esc(t('nextCard'))}</span><b>${esc(t('rank_' + RANKS[near.u][0]))} · ${esc(near.h.icon || '')} ${esc(near.h.name)}</b><span class="small">${esc(t('nextCardLeft', { n: near.left }))}</span><span class="bar" style="display:block;height:8px;margin-top:6px"><i style="width:${clamp((successDays(near.h) - (near.u ? RANKS[near.u - 1][1] : 0)) / (RANKS[near.u][1] - (near.u ? RANKS[near.u - 1][1] : 0)) * 100, 0, 100)}%;background:var(--h)"></i></span></span></button>` : '';
+    if (mRank !== 'all') {
+      const [r, th] = RANKS[mRank], list = hs.filter(h => mHabit === 'all' || h.id === mHabit);
+      return html + albumHtml + `<section class="series clay"><div class="series-head"><div class="grow"><h3>👑 ${esc(t('rank_' + r))}</h3><div class="muted small">${esc(t('tag_' + r))} · ${esc(t('masteryReq', { n: th }))}</div></div><b style="font-size:20px">${list.filter(h => unlockedCount(h) > mRank).length}/${list.length}</b></div>
+        <div class="cards-row">${list.map(h => { const un = unlockedCount(h) > mRank, m = (state.mastery[h.id] || {})[r]; return `<button class="kcard-btn" data-act="card-open" data-id="${h.id}" data-i="${mRank}">${un ? cardFace(h, mRank, 'front') : cardLocked(mRank)}<span class="cap">${esc(h.name)}<small>${un ? esc(fmtShort(m ? m.date : todayKey())) : esc(t('masteryReq', { n: th }))}</small></span></button>`; }).join('')}</div></section>`;
+    }
+    if (mHabit !== 'all') { html += albumHtml; return html + hs.filter(h => h.id === mHabit).map(masterySeries).join(''); }
     const lv = levelInfo(), pi = pointsInfo();
     html += `<button class="mastery-sum clay level-card" data-act="level"><div class="lvl-big">${lv.level}</div><div class="grow"><b>${esc(lv.title)}</b><div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))} · ${fmtNum(pi.balance)} ⭐</div><div class="bar" style="margin-top:8px;height:8px"><i style="width:${lv.pct}%"></i></div></div><span class="chip">${ico('gift')} ${esc(t('rewardsTitle'))}</span></button>`;
     html += `<div class="mastery-sum clay"><div class="empty-art" style="width:64px;height:64px;margin:0;border-radius:20px">${ico('crown')}</div><div class="grow"><b>${esc(t('masteryCollected', { a: got, b: hs.length * RANKS.length }))}</b><div class="muted small">${esc(t('masteryHow'))}</div></div></div>`;
+    html += nearHtml + albumHtml;
     // Cartas secretas (ocultas hasta conseguirlas)
     const nSec = SECRETS.filter(([id]) => state.secrets[id]).length;
     html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">🔮</div><div class="grow"><h3>${esc(t('secretCards'))}</h3><div class="muted small">${esc(t('secretCardsHint'))}</div></div><b style="font-size:20px">${nSec}/${SECRETS.length}</b></div>
@@ -1509,13 +1531,15 @@
       html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">📜</div><div class="grow"><h3>${esc(t('contractCards'))}</h3></div><b style="font-size:20px">${state.contractCards.length}</b></div>
         <div class="cards-row">${[...state.contractCards].reverse().map(cc => `<button class="kcard-btn" data-act="cc-open" data-id="${cc.id}">${contractCardHtml(cc)}<span class="cap">${esc(t('tier_' + cc.tier))}<small>${esc(fmtShort(cc.end))}</small></span></button>`).join('')}</div></section>`;
     }
-    hs.forEach(h => {
+    return html + hs.map(masterySeries).join('');
+  }
+  function masterySeries(h) {
       const n = successDays(h), u = unlockedCount(h);
       const next = RANKS[u], prevTh = u ? RANKS[u - 1][1] : 0;
       const pct = next ? (n - prevTh) / (next[1] - prevTh) * 100 : 100;
-      html += `<section class="series clay" style="${habitVars(hColor(h))}">
+      return `<section class="series clay" style="${habitVars(hColor(h))}">
         <div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px">${esc(h.icon || '#')}</div>
-          <div class="grow"><h3>${esc(h.name)}</h3><div class="muted small" style="font-weight:700">${esc(next ? t('masteryNext', { a: n, b: next[1], rank: t('rank_' + next[0]) }) : t('masteryMax'))}</div>
+          <div class="grow"><h3>${esc(h.name)}</h3><div class="muted small" style="font-weight:var(--fw-label)">${esc(next ? t('masteryNext', { a: n, b: next[1], rank: t('rank_' + next[0]) }) : t('masteryMax'))}</div>
           <div class="bar ${pct > 0 ? '' : 'zero'}" style="height:8px;margin-top:6px;max-width:320px"><i style="width:${clamp(pct, 0, 100)}%;background:var(--h)"></i></div></div>
           <b style="font-size:20px">${u}/10</b></div>
         <div class="cards-row">${RANKS.map(([r, th], i) => {
@@ -1523,8 +1547,6 @@
           return `<button class="kcard-btn" data-act="card-open" data-id="${h.id}" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${un ? cardFace(h, i, 'front') : cardLocked(i)}<span class="cap">${esc(t('rank_' + r))}<small>${un ? esc(fmtShort(m ? m.date : todayKey())) : esc(t('masteryReq', { n: th }))}</small></span></button>`;
         }).join('')}</div>
       </section>`;
-    });
-    return html;
   }
 
   function openCard(h, i, celebrate = false) {
@@ -1534,7 +1556,7 @@
     const inner = un
       ? `<div class="flip ${celebrate ? 'unlock-burst' : ''}" id="flip"><div class="flip-inner">${cardFace(h, i, 'front')}${cardFace(h, i, 'back', 'rev')}</div></div>`
       : `<div class="flip" style="cursor:default"><div class="flip-inner">${cardLocked(i)}</div></div>`;
-    const cap = `<div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:900;margin-bottom:4px">${esc(t('masteryUnlocked'))}</div>` : ''}${esc(t('rank_' + r))} · ${esc(h.name)}<small>${un ? esc((m ? fmtDate(m.date) : '') + ' · ' + t('masteryFlip')) : esc(t('masteryNext', { a: successDays(h), b: th, rank: t('rank_' + r) }))}</small></div>`;
+    const cap = `<div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('masteryUnlocked'))}</div>` : ''}${esc(t('rank_' + r))} · ${esc(h.name)}<small>${un ? esc((m ? fmtDate(m.date) : '') + ' · ' + t('masteryFlip')) : esc(t('masteryNext', { a: successDays(h), b: th, rank: t('rank_' + r) }))}</small></div>`;
     openModal({
       cls: 'card-view',
       body: inner + cap + `<div class="row" style="justify-content:center;margin-top:16px">${un ? `<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
@@ -1672,7 +1694,7 @@
     openModal({
       cls: 'card-view',
       body: `<div class="flip ${celebrate ? 'unlock-burst' : ''}" style="cursor:default"><div class="flip-inner">${contractCardHtml(cc)}</div></div>
-        <div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:900;margin-bottom:4px">${esc(t('contractDone'))}!</div><small>${esc(t('contractDoneMsg'))}</small>` : `${esc(t('tier_' + cc.tier))} · ${esc(fmtDate(cc.end))}`}</div>
+        <div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('contractDone'))}!</div><small>${esc(t('contractDoneMsg'))}</small>` : `${esc(t('tier_' + cc.tier))} · ${esc(fmtDate(cc.end))}`}</div>
         <div class="row wrap" style="justify-content:center;margin-top:16px">${celebrate && ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}${c && c.witness ? `<button class="btn" data-m="witness">📧 ${esc(t('witnessSendResult'))}</button>` : ''}<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
       onClick: (e, close) => {
         if (e.target.closest('[data-m="witness"]')) witnessMail(state.contract, 'result', cc);
@@ -1798,9 +1820,10 @@
   function presetName(p) { return p[state.lang] || p.es; }
   function themeEditorHtml() {
     const th = state.theme;
-    const pick = (key, label) => `<label class="row" style="gap:10px"><input type="color" class="swatch-input" data-th-color="${key}" value="${th[key]}"><span class="small" style="font-weight:800">${esc(label)}</span></label>`;
+    const pick = (key, label) => `<label class="row" style="gap:10px"><input type="color" class="swatch-input" data-th-color="${key}" value="${th[key]}"><span class="small" style="font-weight:var(--fw-label)">${esc(label)}</span></label>`;
     const myLevel = state.onboarded ? levelInfo().level : 0;
     return `<div class="stack" style="gap:20px">
+      <div class="field"><span>${esc(t('fontTitle'))}</span><div class="font-list">${FONTS.map(([id, name]) => `<button type="button" class="font-opt ${(th.font || 'quicksand') === id ? 'on' : ''}" data-th-font="${id}" style="font-family:'${name}', sans-serif"><b>${esc(name)}</b><span>${esc(t('fontSample'))}</span>${id === 'quicksand' ? `<i>${esc(t('fontDefault'))}</i>` : ''}</button>`).join('')}</div></div>
       <div class="field"><span>${esc(t('themePresets'))}</span><div class="preset-grid">${PRESETS.map(p => {
         const bg = p.bgMode === 'gradient' ? `linear-gradient(135deg, ${p.bg}, ${p.bg2})` : p.bg;
         const locked = p.lvl && p.lvl > myLevel;
@@ -1826,7 +1849,8 @@
         const p = PRESETS.find(x => x.id === el.dataset.thPreset);
         if (p.lvl && p.lvl > (state.onboarded ? levelInfo().level : 0)) { toast(t('themeLocked', { n: p.lvl })); return; }
         Object.assign(state.theme, { preset: p.id, bg: p.bg, fg: p.fg, accent: p.accent, style: p.style || 'clay', bgMode: p.bgMode || 'solid', bg2: p.bg2 || state.theme.bg2 });
-      } else if ((el = q('[data-th-style]'))) state.theme.style = el.dataset.thStyle;
+      } else if ((el = q('[data-th-font]'))) state.theme.font = el.dataset.thFont;
+      else if ((el = q('[data-th-style]'))) state.theme.style = el.dataset.thStyle;
       else if ((el = q('[data-th-bg]'))) { state.theme.bgMode = el.dataset.thBg; if (state.theme.bgMode === 'gradient' && state.theme.bg2 === state.theme.bg) state.theme.bg2 = mix(state.theme.bg, state.theme.accent, .5); }
       else return;
       save(); applyTheme(); redraw();
@@ -1854,7 +1878,7 @@
         <div class="center" style="margin-top:26px"><button class="chip" data-ob-login>${ico('refresh')} ${esc(t('obHaveAccount'))}</button></div>`;
     } else if (s === 1) {
       title = t('obColorTitle'); lead = t('obColorSub');
-      body = `<div id="ob-theme">${themeEditorHtml()}</div><div class="field" style="margin-top:22px"><span class="muted small" style="font-weight:800;text-transform:uppercase;letter-spacing:.04em">${esc(t('preview'))}</span><div id="ob-preview" style="margin-top:8px">${samplePreview()}</div></div>`;
+      body = `<div id="ob-theme">${themeEditorHtml()}</div><div class="field" style="margin-top:22px"><span class="muted small" style="font-weight:var(--fw-label);text-transform:uppercase;letter-spacing:.04em">${esc(t('preview'))}</span><div id="ob-preview" style="margin-top:8px">${samplePreview()}</div></div>`;
     } else if (s === 2) {
       title = t('obCommitTitle'); lead = t('obCommitSub');
       body = `<div class="lang-list">${['chill', 'serio', 'locked'].map(l => { const on = state.commitment === l; return `<button class="lang-opt commit-opt clay ${on ? 'on' : ''}" data-ob-commit="${l}"><span class="flag">${COMMIT_EMO[l]}</span><span class="grow"><b>${esc(t('commit_' + l))}</b><span class="commit-sub">${esc(t('ct_sub_' + l))}</span><span class="muted small">${esc(t('commitd_' + l))}</span></span>${on ? ico('check') : ''}</button>`; }).join('')}</div>`;
@@ -2038,30 +2062,39 @@
   setInterval(() => { if (!document.hidden) syncNow(); }, 60000);
 
   /* ---------- AJUSTES ---------- */
+  const openAcc = new Set(); // apartados de Ajustes abiertos (se recuerdan mientras dure la sesión)
   function openSettings() {
     let wref;
     const draw = () => {
       const c = state.contract;
-      $('#st', wref).innerHTML = `<div class="stack" style="gap:22px">
-        <section><h3 class="section-title row">${ico('globe')} ${esc(t('setLanguage'))}</h3><div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div></section>
-        <section><h3 class="section-title row">${ico('refresh')} ${esc(t('setAccount'))}</h3><div id="st-acc">${accountHtml()}</div></section>
-        <section><h3 class="section-title row">${ico('palette')} ${esc(t('setTheme'))}</h3><div id="st-theme">${themeEditorHtml()}</div></section>
-        <section><h3 class="section-title row">${ico('doc')} ${esc(t('setContract'))}</h3>
-          <div class="row wrap"><span class="grow muted small" style="font-weight:700">${c ? esc(diffDays(todayKey(), c.endsAt) < 0 ? t('contractEnded') : t('contractActive', { n: diffDays(todayKey(), c.endsAt) })) : esc(t('contractNone'))}</span>
-          <button class="chip" data-s="contract">${esc(c ? t('contractView') : t('contractSignNow'))}</button>${c ? `<button class="chip" data-s="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}</div></section>
-        <section><h3 class="section-title row">⭐ ${esc(t('commitTitle'))}</h3><div id="st-commit">${commitSegHtml()}</div></section>
-        <section><h3 class="section-title row">🐈 ${esc(t('petTitle'))}</h3><div id="st-pet">${petSettingsHtml()}</div></section>
-        <section><h3 class="section-title row">${ico('bell')} ${esc(t('pushTitle'))}</h3><div id="st-push"><p class="muted small">${esc(t('loading'))}</p></div></section>
-        <section><h3 class="section-title row">🔒 ${esc(t('privacyTitle'))}</h3><div id="st-priv">${privacyHtml()}</div></section>
-        <section><h3 class="section-title row">🏖️ ${esc(t('vacTitle'))}</h3>
-          <div class="row wrap"><span class="grow muted small" style="font-weight:700">${esc(activeVacation() ? t('vacActive', { date: fmtDate(activeVacation().to) }) : t('vacHintShort'))}</span><button class="chip" data-s="vacations">${esc(t('vacManage'))}</button></div></section>
-        <section><h3 class="section-title row">🔔 ${esc(t('promptsTitle'))}</h3><p class="muted small" style="margin-top:0">${esc(t('promptsHint'))}</p>${promptsSettingsHtml()}</section>
-        <section><h3 class="section-title row">${ico('download')} ${esc(t('setData'))}</h3>
-          <p class="muted small" style="margin-top:0">${esc(t('dataHint'))}</p>
-          <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button></div>
-          <input type="file" id="st-file" accept=".json,application/json" class="hidden">
-          <div class="row wrap" style="margin-top:14px"><button class="chip" data-s="replay">${ico('refresh')} ${esc(t('replayOnboarding'))}</button><button class="chip" data-s="reset" style="color:#e5484d">${ico('trash')} ${esc(t('resetData'))}</button></div>
-        </section>
+      // Lista desplegable por apartado; la pista de la derecha resume el valor actual
+      const acc = (id, icon, title, hint, body) => `<details class="acc" data-acc="${id}" ${openAcc.has(id) ? 'open' : ''}><summary><span class="acc-ico">${icon}</span><span class="acc-txt"><b>${esc(title)}</b>${hint ? `<small>${esc(hint)}</small>` : ''}</span><span class="acc-chev">${ico('right')}</span></summary><div class="acc-body">${body}</div></details>`;
+      const group = (label, items) => `<div class="acc-group"><div class="acc-label">${esc(label)}</div><div class="acc-list clay">${items.join('')}</div></div>`;
+      const cLeft = c ? diffDays(todayKey(), c.endsAt) : 0;
+      const nOff = PROMPTS.filter(p => !promptOn(p.id)).length, nRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on).length;
+      const preset = PRESETS.find(p => p.id === state.theme.preset);
+      $('#st', wref).innerHTML = `<div class="stack" style="gap:20px">
+        ${group(t('setGroupGeneral'), [
+          acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
+          acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
+          acc('look', ico('palette'), t('setLook'), `${fontFamily(state.theme.font)} · ${preset ? presetName(preset) : t('themeCustom')}`, `<div id="st-theme">${themeEditorHtml()}</div>`)
+        ])}
+        ${group(t('setGroupCommit'), [
+          acc('contract', ico('doc'), t('setContract'), c ? (cLeft < 0 ? t('contractEnded') : t('contractActive', { n: cLeft })) : t('contractNone'), `<div class="row wrap"><button class="chip" data-s="contract">${esc(c ? t('contractView') : t('contractSignNow'))}</button>${c ? `<button class="chip" data-s="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}</div>`),
+          acc('commit', '⭐', t('commitTitle'), t('commit_' + state.commitment), `<div id="st-commit">${commitSegHtml()}</div>`),
+          acc('vac', '🏖️', t('vacTitle'), activeVacation() ? t('vacActive', { date: fmtDate(activeVacation().to) }) : '', `<div class="row wrap"><span class="grow muted small">${esc(t('vacHintShort'))}</span><button class="chip" data-s="vacations">${esc(t('vacManage'))}</button></div>`)
+        ])}
+        ${group(t('setGroupNotices'), [
+          acc('push', ico('bell'), t('pushTitle'), nRem ? t('setRemN', { n: nRem }) : '', `<div id="st-push"><p class="muted small">${esc(t('loading'))}</p></div>`),
+          acc('prompts', '💬', t('promptsTitle'), nOff ? t('setOffN', { n: nOff }) : t('setAllOn'), `<p class="muted small" style="margin-top:0">${esc(t('promptsHint'))}</p>${promptsSettingsHtml()}`)
+        ])}
+        ${group(t('setGroupPrivacy'), [
+          acc('priv', '🔒', t('privacyTitle'), profileOf().enabled ? t('setPublicOn') : t('setPublicOff'), `<div id="st-priv">${privacyHtml()}</div>`),
+          acc('data', ico('download'), t('setData'), '', `<p class="muted small" style="margin-top:0">${esc(t('dataHint'))}</p>
+            <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button></div>
+            <input type="file" id="st-file" accept=".json,application/json" class="hidden">
+            <div class="row wrap" style="margin-top:14px"><button class="chip" data-s="replay">${ico('refresh')} ${esc(t('replayOnboarding'))}</button><button class="chip" data-s="reset" style="color:#e5484d">${ico('trash')} ${esc(t('resetData'))}</button></div>`)
+        ])}
         <p class="muted small center" style="margin:0">KeepGoing · ${esc(t('version', { v: VERSION }))}</p>
       </div>`;
     };
@@ -2069,6 +2102,7 @@
       title: esc(t('settings')), cls: 'wide', body: '<div id="st"></div>',
       onMount: w => {
         wref = w; draw();
+        w.addEventListener('toggle', e => { const d = e.target.closest && e.target.closest('details[data-acc]'); if (!d) return; if (d.open) openAcc.add(d.dataset.acc); else openAcc.delete(d.dataset.acc); }, true);
         bindThemeEditor(w, () => { $('#st-theme', w).innerHTML = themeEditorHtml(); render(); });
         w.addEventListener('change', e => {
           if (e.target.id === 'st-file' && e.target.files[0]) importFile(e.target.files[0], w);
@@ -2314,7 +2348,7 @@
     const draw = () => {
       const lv = levelInfo(), pi = pointsInfo();
       $('#lvl', wref).innerHTML = `<div class="stack" style="gap:18px">
-        <div class="row" style="gap:16px"><div class="lvl-big">${lv.level}</div><div class="grow"><div style="font-size:22px;font-weight:900">${esc(lv.title)}</div>
+        <div class="row" style="gap:16px"><div class="lvl-big">${lv.level}</div><div class="grow"><div style="font-size:22px;font-weight:var(--fw-title)">${esc(lv.title)}</div>
           <div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))}</div><div class="bar" style="margin-top:8px"><i style="width:${lv.pct}%"></i></div></div></div>
         <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtNum(pi.balance)} ⭐</b><span>${esc(t('ptsBalance'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div></div>
         <section><h3 class="section-title">${esc(t('commitTitle'))}</h3>${commitSegHtml()}</section>
@@ -2670,7 +2704,7 @@
     openModal({
       cls: 'card-view',
       body: `<div class="flip unlock-burst" style="cursor:default"><div class="flip-inner">${cardHtml}</div></div>
-        <div class="card-view-cap"><div style="font-size:22px;font-weight:900;margin-bottom:4px">${esc(title)}</div><small>${esc(msg)}</small></div>
+        <div class="card-view-cap"><div style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(title)}</div><small>${esc(msg)}</small></div>
         <div class="row" style="justify-content:center;margin-top:16px">${canvasFn ? `<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
       onClick: e => { if (canvasFn && e.target.closest('[data-m="share"]')) shareCanvas(canvasFn, 'keepgoing-trofeo.png', title); }
     });
@@ -2804,11 +2838,11 @@
     const kpi = (v, l) => `<div class="kpi clay"><b>${v}</b><span>${esc(l)}</span></div>`;
     const wdBars = t('weekdaysShort').split(',').map((l, i) => { let o = 0, ok = 0; days.forEach(k => { if (wdOf(k) !== i) return; D.forEach(h => { const s = dayScore(h, k); if (s != null) { o++; if (s >= 1) ok++; } }); }); return { label: l, v: o ? ok / o * 100 : 0 }; });
     const html = `<!doctype html><html lang="${state.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>KeepGoing · ${esc(monthName)}</title>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Nunito:wght@400;600;700;800;900&display=swap"><link rel="stylesheet" href="${base}css/app.css">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Quicksand:wght@400;500;600;700&family=Nunito+Sans:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="${base}css/app.css">
       <style>body{padding:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.rep{max-width:960px;margin:0 auto}.rep h1{font-size:40px;margin:0;text-transform:capitalize}.rep h2{font-size:20px;margin:26px 0 12px}
       .chart-grid{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}@page{size:A4;margin:10mm}@media print{.no-print{display:none}body{padding:0}.clay{break-inside:avoid}}</style></head>
       <body><div class="rep">
-        <div class="row" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap"><div><div class="muted" style="font-weight:800;letter-spacing:.15em">KEEPGOING</div><h1>${esc(t('reportOf', { m: monthName }))}</h1>${state.contract ? `<div class="muted">${esc(state.contract.name)}</div>` : ''}</div><div class="no-print"><button class="btn primary" onclick="print()">${esc(t('reportSave'))}</button></div></div>
+        <div class="row" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap"><div><div class="muted" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1>${esc(t('reportOf', { m: monthName }))}</h1>${state.contract ? `<div class="muted">${esc(state.contract.name)}</div>` : ''}</div><div class="no-print"><button class="btn primary" onclick="print()">${esc(t('reportSave'))}</button></div></div>
         <h2>${esc(t('reportSummary'))}</h2>
         <div class="kpis">${kpi(rateP == null ? '—' : rateP + '%', t('kpiRate'))}${kpi(perfect, t('perfectDays'))}${kpi(fmtNum(pts) + ' ⭐', t('ptsEarned'))}${kpi(entries, t('kpiTotal'))}${kpi(act.size, t('kpiActiveDays'))}${kpi(en.length ? fmtNum(en.reduce((a, b) => a + b, 0) / en.length) + '/5' : '—', t('energyAvg'))}</div>
         <div class="chart-grid"><section class="chart-card clay"><h3>${esc(t('chartDaily'))}</h3>${lineChart(linePts, { min: 0, max: 100, fmt: v => Math.round(v) + '%' })}</section>
@@ -3041,17 +3075,165 @@
     state.pet = pet; save(); $('#st-pet', root).innerHTML = petSettingsHtml(); return true;
   }
 
+  /* ---------- PERFIL (arriba de Maestrías): mascota, bio, vitrina, estadísticas, mapa anual, logros y carnet ---------- */
+  const profileName = () => (state.contract && state.contract.name) || firstName() || t('profileYou');
+  const memberSince = () => [firstDay(), ...state.habits.map(h => h.createdAt), state.contract && state.contract.signedAt].filter(k => k && k > '2000').sort()[0] || todayKey();
+  function lifeStats() {
+    const hs = state.habits, days = new Set();
+    hs.forEach(h => { if (isQuit(h)) return; const L = state.logs[h.id] || {}; for (const k in L) if (L[k] > 0) days.add(k); });
+    return {
+      activeDays: days.size, best: Math.max(0, ...hs.map(bestStreak)), entries: hs.reduce((a, h) => a + totalEntries(h), 0),
+      perfect: pointsInfo().perfectDays, cards: hs.reduce((a, h) => a + unlockedCount(h), 0), secrets: SECRETS.filter(([id]) => state.secrets[id]).length,
+      mastered: hs.filter(h => unlockedCount(h) >= RANKS.length).length, contracts: state.contractCards.length, challenges: state.challengeCards.length,
+      projects: state.projects.filter(p => projectStats(p).achieved).length, xp: levelInfo().xp, since: memberSince()
+    };
+  }
+  // Vitrina: claves 'm:<hábito>:<rango>' (carta de maestría) o 's:<id>' (carta secreta)
+  function showcaseItem(key) {
+    const [k, a, b] = String(key || '').split(':');
+    if (k === 'm') { const h = getHabit(a), i = +b; if (!h || !(unlockedCount(h) > i)) return null; return { html: cardFace(h, i, 'front'), label: `${t('rank_' + RANKS[i][0])} · ${h.name}`, h, i }; }
+    if (k === 's') { const s = SECRETS.find(x => x[0] === a); if (!s || !state.secrets[a]) return null; return { html: secretCardHtml(s[0], s[1]), label: t('sec_' + a), s }; }
+    return null;
+  }
+  const showcaseKeys = () => (profileOf().showcase || []).slice(0, 3);
+  function openShowcasePicker(slot, done) {
+    const opts = [];
+    state.habits.forEach(h => { for (let i = unlockedCount(h) - 1; i >= 0; i--) opts.push('m:' + h.id + ':' + i); });
+    SECRETS.forEach(([id]) => { if (state.secrets[id]) opts.push('s:' + id); });
+    openModal({
+      title: `🏆 ${esc(t('showcaseTitle'))}`, cls: 'wide',
+      body: opts.length ? `<p class="muted small" style="margin-top:0">${esc(t('showcasePick'))}</p><div class="pick-grid">${opts.map(k => { const it = showcaseItem(k); return `<button class="kcard-btn" data-pick="${k}">${it.html}<span class="cap">${esc(it.label)}</span></button>`; }).join('')}</div>` : `<p class="muted">${esc(t('showcaseNone'))}</p>`,
+      foot: showcaseKeys()[slot] ? `<button class="btn" data-pick="">${ico('trash')} ${esc(t('showcaseRemove'))}</button>` : '',
+      onClick: (e, close) => {
+        const b = e.target.closest('[data-pick]'); if (!b) return;
+        const pr = profileOf(), sc = [0, 1, 2].map(i => (pr.showcase || [])[i] || null);
+        sc[slot] = b.dataset.pick || null;
+        state.profile = { ...pr, showcase: sc }; save(); close(); done();
+      }
+    });
+  }
+  function yearHeatHtml() {
+    const today = todayKey(), H = state.habits.filter(h => !h.archived);
+    const startW = weekStart(addDays(today, -364)), weeks = diffDays(startW, weekStart(today)) / 7 + 1;
+    const base = T.surfaceHex, hue = state.theme.accent, lv = [mix(base, hue, .1), mix(base, hue, .32), mix(base, hue, .55), mix(base, hue, .78), hue];
+    let cells = '';
+    for (let w = 0; w < weeks; w++) for (let d = 0; d < 7; d++) {
+      const k = addDays(startW, w * 7 + d);
+      if (k > today) { cells += '<i style="visibility:hidden"></i>'; continue; }
+      const sc = H.map(h => dayScore(h, k)).filter(x => x != null), v = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : 0;
+      cells += `<i style="background:${lv[v <= 0 ? 0 : v < .34 ? 1 : v < .67 ? 2 : v < 1 ? 3 : 4]}" title="${esc(fmtDate(k))} · ${Math.round(v * 100)}%"></i>`;
+    }
+    return `<div class="heat-wrap prof-heat"><div class="heat">${cells}</div></div><div class="heat-legend">${esc(t('less'))} ${lv.map(c => `<i style="background:${c}"></i>`).join('')} ${esc(t('more'))}</div>`;
+  }
+  function achievements() {
+    const ev = [];
+    state.habits.forEach(h => {
+      if (h.createdAt) ev.push({ d: h.createdAt, icon: h.icon || '#', txt: t('achStart', { name: h.name }) });
+      RANKS.forEach(([r]) => { const m = (state.mastery[h.id] || {})[r]; if (m && m.date) ev.push({ d: m.date, icon: '👑', txt: t('achCard', { rank: t('rank_' + r), name: h.name }) }); });
+    });
+    SECRETS.forEach(([id, icon]) => { if (state.secrets[id]) ev.push({ d: state.secrets[id], icon, txt: t('achSecret', { name: t('sec_' + id) }) }); });
+    state.challengeCards.forEach(c => ev.push({ d: c.end, icon: '🏁', txt: t('achChallenge', { name: c.name, n: c.days }) }));
+    state.contractCards.forEach(cc => ev.push({ d: cc.end, icon: '📜', txt: t('achContract', { tier: t('tier_' + cc.tier) }) }));
+    let xp = 0, L = 0;
+    eachDay(k => { xp += Math.max(0, dayInfo(k).pts); while (xp >= xpFor(L + 1)) { L++; ev.push({ d: k, icon: '⬆️', txt: t('achLevel', { n: L, title: levelTitle(L) }) }); } });
+    return ev.filter(e => e.d).sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0);
+  }
+  function profileCardHtml() {
+    const lv = levelInfo(), bio = profileOf().bio;
+    return `<button class="prof-card clay" data-act="profile"><span class="prof-pet">${catSvg(petOf(), 'happy', 74)}</span><span class="grow"><b class="prof-card-name">${esc(profileName())}</b><span class="muted small">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</span>${bio ? `<span class="prof-bio">${esc(bio)}</span>` : `<span class="muted small">${esc(t('profileTapHint'))}</span>`}</span>${ico('right')}</button>`;
+  }
+  let achAll = false;
+  function profileHtml() {
+    const pr = profileOf(), lv = levelInfo(), st = lifeStats(), sc = showcaseKeys(), ach = achievements();
+    const kpi = (v, l) => `<div class="kpi clay"><b>${v}</b><span>${esc(l)}</span></div>`;
+    const sec = (icon, title, body) => `<section class="prof-sec"><h3 class="section-title">${icon} ${esc(title)}</h3>${body}</section>`;
+    return `<div class="stack" style="gap:22px">
+      <div class="prof-head"><button class="pet-btn" data-pf="pet" aria-label="${esc(petOf().name || t('petDefaultName'))}">${catSvg(petOf(), 'happy', 124)}</button>
+        <div class="grow"><h2 class="prof-name">${esc(profileName())}</h2><div class="prof-lvl">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</div><div class="muted small">${esc(t('memberSince', { d: fmtDate(st.since) }))}</div></div></div>
+      <label class="field"><span>${esc(t('bioTitle'))}</span><textarea class="input" id="pf-bio" maxlength="140" rows="2" placeholder="${esc(t('ct_quote_' + (state.commitment || 'serio'), { perfecto: 'perfecto' }))}">${esc(pr.bio || '')}</textarea></label>
+      <div class="row wrap"><button class="btn primary" data-pf="carnet">${ico('upload')} ${esc(t('carnetShare'))}</button>${pr.enabled && pr.slug ? `<a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${ico('globe')} ${esc(t('profileOpen'))}</a>` : `<button class="btn" data-pf="public">${ico('globe')} ${esc(t('profilePublicSetup'))}</button>`}</div>
+      ${sec('🏆', t('showcaseTitle'), `<div class="show-row">${[0, 1, 2].map(i => { const it = showcaseItem(sc[i]); return `<button class="kcard-btn show-slot" data-pf="slot" data-i="${i}">${it ? it.html : `<div class="slot-empty">${ico('plus')}</div>`}<span class="cap">${it ? esc(it.label) : esc(t('showcaseAdd'))}</span></button>`; }).join('')}</div>`)}
+      ${sec('📊', t('lifeStats'), `<div class="kpis prof-kpis">${kpi(fmtNum(st.activeDays), t('kpiActiveDays'))}${kpi(st.best, t('kpiBest'))}${kpi(fmtNum(st.entries), t('kpiTotal'))}${kpi(st.perfect, t('perfectDays'))}${kpi(`${st.cards}<small>/${state.habits.length * RANKS.length}</small>`, t('statCards'))}${kpi(st.secrets, t('secretCards'))}${kpi(st.mastered, t('statMastered'))}${kpi(st.contracts, t('contractCards'))}${kpi(st.challenges, t('challengeCards'))}${kpi(st.projects, t('statProjects'))}${kpi(fmtNum(st.xp), 'XP')}</div>`)}
+      ${sec('🗓️', t('yearHeat'), yearHeatHtml())}
+      ${sec('✨', t('achTitle'), ach.length ? `<div class="ach-list">${(achAll ? ach : ach.slice(0, 12)).map(e => `<div class="ach"><span class="ach-ico">${esc(e.icon)}</span><span class="grow">${esc(e.txt)}</span><span class="muted small">${esc(fmtShort(e.d))}</span></div>`).join('')}</div>${ach.length > 12 ? `<div class="center" style="margin-top:10px"><button class="chip" data-pf="ach-more">${esc(t(achAll ? 'achLess' : 'achMore', { n: ach.length }))}</button></div>` : ''}` : `<p class="muted small">${esc(t('achNone'))}</p>`)}
+      ${sec('🐈', t('petTitle'), `<div id="st-pet">${petSettingsHtml()}</div>`)}
+    </div>`;
+  }
+  function openProfile() {
+    achAll = false;
+    openModal({
+      title: esc(t('profileTitle')), cls: 'wide', body: '<div id="pf"></div>',
+      onMount: w => {
+        const draw = () => { $('#pf', w).innerHTML = profileHtml(); };
+        w._draw = draw; draw();
+        w.addEventListener('change', e => {
+          if (e.target.id === 'pf-bio') { state.profile = { ...profileOf(), bio: e.target.value.trim().slice(0, 140) }; save(); render(); toast(t('saved')); }
+          if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); render(); toast(t('saved')); }
+        });
+      },
+      onClick: (e, close, w) => {
+        if (petSettingsClick(e, w)) { w._draw(); render(); return; }
+        const b = e.target.closest('[data-pf]'); if (!b) return;
+        switch (b.dataset.pf) {
+          case 'pet': b.classList.remove('bounce'); void b.offsetWidth; b.classList.add('bounce'); vibrate([8, 30, 8]); break;
+          case 'slot': openShowcasePicker(+b.dataset.i, () => { w._draw(); render(); }); break;
+          case 'ach-more': achAll = !achAll; w._draw(); break;
+          case 'carnet': shareCanvas(profileCanvas, 'keepgoing-carnet.png', t('carnetTitle')); break;
+          case 'public': close(); openAcc.add('priv'); openSettings(); break;
+        }
+      }
+    });
+  }
+  // Carnet compartible (imagen 1080×1600)
+  async function profileCanvas() {
+    const fam = fontFamily(state.theme.font), th = state.theme;
+    try { await Promise.all([document.fonts.load(`700 40px "${fam}"`), document.fonts.load(`500 40px "${fam}"`)]); } catch (e) { /* sigue con la del sistema */ }
+    const W = 1080, H = 1600, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d'), lv = levelInfo(), st = lifeStats(), pr = profileOf();
+    const bgA = th.bgMode === 'gradient' ? th.bg : th.bg, bgB = th.bgMode === 'gradient' ? th.bg2 : mix(th.bg, th.accent, .22);
+    const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, bgA); g.addColorStop(1, bgB); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
+    ctx.fillStyle = rgba(th.fg, .08); rr(50, 50, W - 100, H - 100, 70); ctx.fill();
+    const fg = th.fg, mut = mix(th.fg, th.bg, .4);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const txt = (s, y, size, color, weight = 700) => { ctx.font = `${weight} ${size}px "${fam}", sans-serif`; ctx.fillStyle = color; ctx.fillText(s, W / 2, y); };
+    txt('KEEPGOING', 130, 30, mut, 700);
+    const svg = catSvg(petOf(), 'happy', 330).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+    try { const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); await img.decode(); ctx.drawImage(img, W / 2 - 165, 160, 330, 330); } catch (e) { /* sin mascota */ }
+    let ns = 64; ctx.font = `700 ${ns}px "${fam}", sans-serif`; while (ns > 34 && ctx.measureText(profileName()).width > W - 180) { ns -= 2; ctx.font = `700 ${ns}px "${fam}", sans-serif`; }
+    txt(profileName(), 560, ns, fg, 700);
+    txt(t('lvShortTitle', { n: lv.level, title: lv.title }), 630, 36, th.accent, 700);
+    if (pr.bio) { ctx.font = `500 32px "${fam}", sans-serif`; ctx.fillStyle = mut; wrapLines(ctx, pr.bio, W - 240, 2).forEach((ln, j) => ctx.fillText(ln, W / 2, 695 + j * 42)); }
+    [[fmtNum(st.activeDays), t('kpiActiveDays')], [st.best, t('kpiBest')], [st.cards + st.secrets, t('statCards')], [st.contracts, t('contractCards')]].forEach(([v, l], j) => {
+      const x = 110 + j * 220; ctx.fillStyle = rgba(th.fg, .1); rr(x, 790, 200, 170, 36); ctx.fill();
+      ctx.font = `700 58px "${fam}", sans-serif`; ctx.fillStyle = fg; ctx.fillText(String(v), x + 100, 855);
+      ctx.font = `600 22px "${fam}", sans-serif`; ctx.fillStyle = mut; wrapLines(ctx, String(l), 180, 2).forEach((ln, i) => ctx.fillText(ln, x + 100, 912 + i * 26));
+    });
+    const items = showcaseKeys().map(showcaseItem).filter(Boolean);
+    const cw = 250, ch = Math.round(cw * CARD_H / CARD_W), gap = 40, x0 = (W - (items.length * cw + (items.length - 1) * gap)) / 2;
+    for (let j = 0; j < items.length; j++) {
+      try { const it = items[j], c = it.h ? await cardCanvas(it.h, it.i, 'front') : await trophyCanvas('secret', { id: it.s[0], icon: it.s[1] }); ctx.save(); rr(x0 + j * (cw + gap), 1010, cw, ch, 22); ctx.clip(); ctx.drawImage(c, x0 + j * (cw + gap), 1010, cw, ch); ctx.restore(); } catch (e) { /* carta sin imagen */ }
+    }
+    txt(`${t('memberSince', { d: fmtDate(st.since) })} · ${fmtShort(todayKey())}`, H - 95, 26, mut, 600);
+    return cv;
+  }
+
   /* ---------- perfil público (enlace de solo lectura) ---------- */
   const profileOf = () => ({ enabled: false, slug: '', show: { level: true, cards: true, habits: true, contracts: true }, ...(state.profile || {}) });
   const slugify = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
   const profileUrl = slug => `${APP_URL}?u=${encodeURIComponent(slug)}`;
   function profileSnapshot() {
-    const pr = profileOf(), s = pr.show, out = { name: firstName(), lang: state.lang, at: todayKey() };
+    const pr = profileOf(), s = pr.show, out = { name: firstName(), lang: state.lang, at: todayKey(), bio: pr.bio || '', pet: petOf() };
     if (s.level) { const lv = levelInfo(); out.level = { n: lv.level, title: lv.title, xp: lv.xp }; }
     if (s.cards) {
       out.cards = state.habits.filter(h => unlockedCount(h)).map(h => ({ name: h.name, icon: h.icon, ranks: RANKS.slice(0, unlockedCount(h)).map(([r]) => { const m = (state.mastery[h.id] || {})[r] || {}; return [r, m.date || todayKey(), m.serial || 0]; }) }));
       out.secrets = SECRETS.filter(([id]) => state.secrets[id]).map(([id, icon]) => [id, icon, state.secrets[id]]);
       out.challenges = state.challengeCards;
+      out.showcase = showcaseKeys().map(k => {
+        const it = showcaseItem(k); if (!it) return null;
+        if (it.h) { const m = (state.mastery[it.h.id] || {})[RANKS[it.i][0]] || {}; return { k: 'm', name: it.h.name, i: it.i, date: m.date || todayKey(), serial: m.serial || 0 }; }
+        return { k: 's', id: it.s[0], icon: it.s[1], date: state.secrets[it.s[0]] };
+      }).filter(Boolean);
     }
     if (s.habits) out.habits = state.habits.filter(h => !h.archived).map(h => ({ name: h.name, icon: h.icon, color: hColor(h), quit: isQuit(h), streak: currentStreak(h), best: bestStreak(h) }));
     if (s.contracts) out.contracts = state.contractCards;
@@ -3098,7 +3280,10 @@
     try { const rows = await sbFetch(`/rest/v1/kg_profiles?slug=eq.${encodeURIComponent(slug)}&enabled=eq.true&select=data,updated_at`, {}, false); row = rows && rows[0]; } catch (e) { row = null; }
     if (!row) { app.innerHTML = `<div class="main">${emptyState('crown', t('profileNotFound'), t('profileNotFoundSub'), `<a class="btn primary" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a>`)}</div>`; return; }
     const d = row.data;
-    let html = `<div class="main"><div class="public-head clay"><div class="lvl-big">${d.level ? d.level.n : '★'}</div><div class="grow"><div class="muted small" style="font-weight:800;letter-spacing:.15em">KEEPGOING</div><h1 style="margin:2px 0;font-size:30px">${esc(d.name || 'KeepGoing')}</h1>${d.level ? `<div class="muted">${esc(d.level.title)} · ${fmtNum(d.level.xp)} XP</div>` : ''}</div></div>`;
+    let html = `<div class="main"><div class="public-head clay"><div class="lvl-big">${d.level ? d.level.n : '★'}</div><div class="grow"><div class="muted small" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1 style="margin:2px 0;font-size:30px">${esc(d.name || 'KeepGoing')}</h1>${d.level ? `<div class="muted">${esc(d.level.title)} · ${fmtNum(d.level.xp)} XP</div>` : ''}${d.bio ? `<div class="prof-bio" style="margin-top:6px">${esc(d.bio)}</div>` : ''}</div>${d.pet ? `<span class="prof-pet">${catSvg({ kind: 'cat', name: '', fur: true, colors: ['#1c1c1e'], ...d.pet }, 'happy', 84)}</span>` : ''}</div>`;
+    if (d.showcase && d.showcase.length) html += `<h2 class="section-title" style="margin:24px 0 12px">🏆 ${esc(t('showcaseTitle'))}</h2><div class="show-row">${d.showcase.map(x => x.k === 'm'
+      ? `<div class="kcard-btn">${cardFace({ id: '_', name: x.name }, x.i, 'front', '', { date: x.date, serial: x.serial })}<span class="cap">${esc(t('rank_' + RANKS[x.i][0]))} · ${esc(x.name)}</span></div>`
+      : `<div class="kcard-btn">${secretCardHtml(x.id, x.icon, x.date)}<span class="cap">${esc(t('sec_' + x.id))}</span></div>`).join('')}</div>`;
     if (d.habits && d.habits.length) html += `<h2 class="section-title" style="margin:24px 0 12px">🔥 ${esc(t('publicHabits'))}</h2><div class="stack" style="gap:10px">${d.habits.map(h => `<div class="today-row clay" style="${habitVars(h.color || '#3ddc97')}"><div class="habit-ico sm">${esc(h.icon || '#')}</div><div class="grow"><b>${esc(h.name)}</b><div class="muted small">${esc(h.quit ? t('quitDays', { n: h.streak }) : t('streak', { n: h.streak }))} · ${esc(t('bestStreak'))} ${h.best}</div></div></div>`).join('')}</div>`;
     if (d.cards && d.cards.length) html += `<h2 class="section-title" style="margin:24px 0 12px">👑 ${esc(t('tabMastery'))}</h2>${d.cards.map(c => `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${esc(c.icon || '#')}</div><div class="grow"><h3>${esc(c.name)}</h3></div><b>${c.ranks.length}/10</b></div><div class="cards-row">${c.ranks.map(([r, date, serial]) => { const i = RANKS.findIndex(x => x[0] === r); return `<div class="kcard-btn">${cardFace({ id: '_', name: c.name }, i, 'front', '', { date, serial })}<span class="cap">${esc(t('rank_' + r))}</span></div>`; }).join('')}</div></section>`).join('')}`;
     if (d.secrets && d.secrets.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>🔮 ${esc(t('secretCards'))}</h3></div><b>${d.secrets.length}</b></div><div class="cards-row">${d.secrets.map(([id, icon, date]) => `<div class="kcard-btn">${secretCardHtml(id, icon, date)}<span class="cap">${esc(t('sec_' + id))}</span></div>`).join('')}</div></section>`;
@@ -3149,7 +3334,7 @@
   function notifSettingsHtml(status) {
     const withRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on);
     return `<p class="muted small" style="margin-top:0">${esc(t('pushHint'))}</p>
-      <div class="row wrap"><span class="grow small" style="font-weight:800">${esc(t('pushStatus_' + status))}</span>
+      <div class="row wrap"><span class="grow small" style="font-weight:var(--fw-label)">${esc(t('pushStatus_' + status))}</span>
         ${status === 'on' ? `<button class="btn" data-s="push-test">${ico('bell')} ${esc(t('pushTest'))}</button><button class="chip" data-s="push-off">${esc(t('pushDisable'))}</button>` : status === 'off' ? `<button class="btn primary" data-s="push-on">${ico('bell')} ${esc(t('pushEnable'))}</button>` : ''}</div>
       ${withRem.length ? `<div style="margin-top:10px">${withRem.map(h => `<div class="entry"><span>${esc(h.icon)} ${esc(h.name)}</span><b>🔔 ${esc(h.reminder.time)}</b></div>`).join('')}</div>` : `<p class="muted small">${esc(t('pushNoReminders'))}</p>`}`;
   }
@@ -3300,7 +3485,7 @@
     return new Promise(res => {
       let answered = false;
       openModal({
-        body: `<p style="font-size:17px;font-weight:700;margin:6px 0 0">${esc(msg)}</p>`,
+        body: `<p style="font-size:17px;font-weight:var(--fw-subtitle);margin:6px 0 0">${esc(msg)}</p>`,
         foot: `<button class="btn" data-c="0">${esc(t('cancel'))}</button><button class="btn danger" data-c="1">${esc(t('confirm'))}</button>`,
         onClick: (e, close) => { const b = e.target.closest('[data-c]'); if (b) { answered = true; close(); res(b.dataset.c === '1'); } },
         onClose: () => { if (!answered) res(false); }
@@ -3441,6 +3626,9 @@
       case 'hview': state.ui.habitsView = a.dataset.v; save(); render(); break;
       case 'vacations': openVacations(); break;
       case 'level': openLevel(); break;
+      case 'profile': openProfile(); break;
+      case 'm-rank': state.ui.mRank = a.dataset.v; save(); render(); break;
+      case 'm-habit': state.ui.mHabit = a.dataset.v; save(); render(); break;
       case 'proj-tpl': openProjectTemplates(); break;
       case 'report': openReport(); break;
       case 'review-now': openReview(weekStart(todayKey())); break;
