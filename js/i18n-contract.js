@@ -25,9 +25,9 @@
     ct_quote_chill: '«Mi vida no es una carrera; también merezco disfrutar del camino».',
     ct_sign: 'Firma', ct_witness: 'Testigo simbólico: Mi Yo Futuro', ct_level: 'Nivel: {l}',
     ct_gender: 'Conmigo…', ct_g_m: 'mismo', ct_g_f: 'misma',
-    viewHabits: 'Hábitos', viewChallenges: 'Retos', viewShared: 'Compartido',
+    viewHabits: 'Hábitos', viewChallenges: 'Retos', viewShared: 'Grupos',
     challengesEmpty: 'No tienes retos activos', challengesEmptySub: 'Edita un hábito y ponle un reto de 21, 30 o 66 días (o el que quieras).',
-    sharedEmpty: 'Aún no compartes nada', sharedEmptySub: 'Activa «Compartir como reto con amigos» al editar un hábito o un proyecto.',
+    sharedEmpty: 'Aún no compartes nada', sharedEmptySub: 'Activa «Compartir en un grupo» al editar un hábito o un proyecto.',
     sharedProjects: 'Proyectos compartidos', challengesDone: 'Retos completados',
     dragHint: 'Mantén pulsado un hábito y arrástralo para cambiar el orden', reordered: 'Orden guardado'
   };
@@ -56,9 +56,9 @@
     ct_quote_chill: '“My life is not a race; I also deserve to enjoy the journey.”',
     ct_sign: 'Signature', ct_witness: 'Symbolic witness: My Future Self', ct_level: 'Level: {l}',
     ct_gender: 'Myself…', ct_g_m: 'mismo', ct_g_f: 'misma',
-    viewHabits: 'Habits', viewChallenges: 'Challenges', viewShared: 'Shared',
+    viewHabits: 'Habits', viewChallenges: 'Challenges', viewShared: 'Groups',
     challengesEmpty: 'No active challenges', challengesEmptySub: 'Edit a habit and give it a 21, 30 or 66-day challenge (or any length).',
-    sharedEmpty: 'Nothing shared yet', sharedEmptySub: 'Turn on “Share as a challenge with friends” when editing a habit or project.',
+    sharedEmpty: 'Nothing shared yet', sharedEmptySub: 'Turn on “Share in a group” when editing a habit or project.',
     sharedProjects: 'Shared projects', challengesDone: 'Completed challenges',
     dragHint: 'Press and hold a habit, then drag it to reorder', reordered: 'Order saved'
   };
