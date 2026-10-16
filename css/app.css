@@ -835,3 +835,46 @@ p { font-weight: var(--fw-body); }
 .cat-type { width: 64px; text-align: center; }
 .ob-privacy { margin-top: 16px; padding: 14px 16px; border-radius: var(--r-md); }
 @media (max-width: 380px) { .cal-cell { min-height: 50px; } .cal-net { font-size: 9px; } }
+
+/* =========================================================
+   v1.10: pulido (centrado, hover en PC + animación al tocar en todos los dispositivos)
+   Todo lo animado se apaga con prefers-reduced-motion (regla global de arriba).
+   ========================================================= */
+:root[data-light="1"] { --amt-in: #1a8a4f; --amt-out: #c62a2f; --cap-gold: #c99700; }
+/* Centrado: en escritorio la barra lateral ocupa la izquierda; el contenido queda centrado en la ventana */
+@media (min-width: 900px) {
+  .main { padding-right: calc(118px + var(--safe-r)); }
+}
+/* Vistas de una columna: ancho de lectura cómodo y centrado */
+.main[data-tab="ledger"] > *, .main[data-tab="projects"] > .top-bar, .main[data-tab="ledger"] > .top-bar { max-width: 820px; margin-inline: auto; }
+.main[data-tab="ledger"] > .page-title { margin-inline: auto; }
+.sheet-body { overscroll-behavior: contain; }
+
+/* Botones: elevación con el cursor (solo en dispositivos con hover) */
+.chip, .icon-btn, .lvl-pill, .cap-dot { transition: transform .15s ease, box-shadow .15s ease, background .2s, color .2s; }
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover, .chip:hover, .icon-btn:hover, .lvl-pill:hover { transform: translateY(-2px); }
+  .btn:active, .chip:active, .icon-btn:active, .lvl-pill:active { transform: scale(.95); }
+  .nav button:hover { color: var(--fg); background: var(--surface-2); }
+  .ledger-item:hover, .kcard-btn:hover { transform: translateY(-2px); }
+  .ledger-item, .kcard-btn { transition: transform .15s ease; }
+}
+/* Animación al tocar (ratón, dedo o teclado): un pequeño «rebote» del botón */
+.tap-pop { animation: tapPop .28s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes tapPop { 0% { transform: scale(.94); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+/* Insignia de nivel al ganar puntos */
+.lvl-pill.bump { animation: pillBump .5s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes pillBump { 0% { transform: scale(1); } 35% { transform: scale(1.1); } 100% { transform: scale(1); } }
+.pts-pop { position: fixed; z-index: 300; transform: translateX(-50%); padding: 4px 10px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: var(--fw-num); font-size: 13px; pointer-events: none; box-shadow: var(--sh-out); animation: ptsUp 1.2s ease-out forwards; }
+@keyframes ptsUp { 0% { opacity: 0; transform: translate(-50%, 6px) scale(.8); } 20% { opacity: 1; transform: translate(-50%, 0) scale(1.05); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -22px) scale(1); } }
+/* Vistas: aparición suave al cambiar de pestaña */
+.main > * { animation: viewIn .25s ease-out both; }
+@keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.main.no-anim > * { animation: none; }
+/* Libreta cifrada: pantalla de contraseña */
+.vault { max-width: 460px; margin: 8px auto 24px; padding: 28px 24px; text-align: center; border-radius: var(--r-xl); }
+.vault-ico { font-size: 44px; }
+.vault h2 { margin: 8px 0 6px; font-size: 22px; }
+.vault-form { text-align: left; margin-top: 18px; }
+.vault-forgot { margin-top: 16px; }
+.banner.clay { display: flex; gap: 10px; align-items: center; padding: 12px 16px; border-radius: var(--r-md); margin-bottom: 14px; }

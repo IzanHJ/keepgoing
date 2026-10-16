@@ -20,7 +20,21 @@
     capOpen: 'Ver nivel y conversor de Dinero Caprichable', capUseIncome: 'Usar los ingresos de este mes ({m})',
     privacyMode: 'Modo privacidad', privacyModeOn: 'Importes ocultos', privacyModeOff: 'Importes visibles', privacyModeLabel: 'Ocultar importes (modo privacidad)',
     privacyModeHint: 'Muestra «•••••» en lugar de las cantidades. Puedes alternarlo al momento con el icono del ojo en la Libreta.',
-    privacyHide: 'Ocultar importes', privacyShow: 'Mostrar importes', privacyOnToast: 'Importes ocultos', privacyOffToast: 'Importes visibles'
+    privacyHide: 'Ocultar importes', privacyShow: 'Mostrar importes', privacyOnToast: 'Importes ocultos', privacyOffToast: 'Importes visibles',
+    vaultTitle: 'Contraseña de la Libreta', vaultNone: 'Sin crear', vaultIsOpen: 'Abierta', vaultIsLocked: 'Cerrada',
+    vaultNoneHint: 'Se crea la primera vez que abres la Libreta.', vaultSettingsHint: 'La Libreta está cifrada en este dispositivo y en la nube con tu contraseña. Se cierra sola tras 10 minutos en segundo plano.',
+    vaultSetupTitle: 'Protege tu Libreta', vaultSetupSub: 'Tus gastos e ingresos se cifran en el dispositivo con esta contraseña. Te la pediremos al abrir la Libreta en cada sesión.',
+    vaultPw: 'Contraseña', vaultPw2: 'Repite la contraseña', vaultNewPw: 'Nueva contraseña',
+    vaultAck: 'Entiendo que si olvido la contraseña no se pueden recuperar los datos de la Libreta.',
+    vaultCreate: 'Crear contraseña y abrir', vaultWorking: 'Cifrando…', vaultCreated: '🔐 Libreta cifrada',
+    vaultShort: 'Usa al menos 6 caracteres', vaultMismatch: 'Las contraseñas no coinciden', vaultNeedAck: 'Marca la casilla para confirmar que lo entiendes',
+    vaultLockedTitle: 'Libreta cerrada', vaultLockedSub: 'Escribe tu contraseña para ver tus gastos e ingresos.', vaultOpen: 'Abrir',
+    vaultWrong: 'Contraseña incorrecta', vaultForgot: 'He olvidado la contraseña', vaultLock: 'Cerrar la Libreta', vaultLocked: '🔒 Libreta cerrada',
+    vaultChange: 'Cambiar contraseña', vaultChangeHint: 'Se vuelve a cifrar toda la Libreta. En tus otros dispositivos te pedirá la nueva.', vaultChanged: 'Contraseña cambiada',
+    vaultOpenFirst: 'Abre primero la Libreta', vaultError: 'No se ha podido cifrar. Inténtalo de nuevo.',
+    vaultWipeQ: '¿Borrar toda la Libreta? Sin la contraseña no se puede recuperar.', vaultWipeQ2: 'Se borrarán todos los gastos, ingresos, categorías y repeticiones. ¿Seguro?', vaultWiped: 'Libreta borrada',
+    vaultBad: '{n} elemento(s) no se pueden descifrar con esta contraseña (quizá se cifraron con otra en otro dispositivo). Se conservan sin tocar.',
+    vaultNoCrypto: 'El cifrado no está disponible aquí', vaultNoCryptoHint: 'Abre la app desde su dirección https (o desde localhost) para usar la Libreta cifrada.'
   };
   const en = {
     tabLedger: 'Ledger', ledgerAdd: 'Add entry', ledgerCalendar: 'Spending and income calendar',
@@ -42,7 +56,21 @@
     capOpen: 'Open level and Treat Money converter', capUseIncome: "Use this month's income ({m})",
     privacyMode: 'Privacy mode', privacyModeOn: 'Amounts hidden', privacyModeOff: 'Amounts visible', privacyModeLabel: 'Hide amounts (privacy mode)',
     privacyModeHint: 'Shows “•••••” instead of amounts. Toggle it instantly with the eye icon in the Ledger.',
-    privacyHide: 'Hide amounts', privacyShow: 'Show amounts', privacyOnToast: 'Amounts hidden', privacyOffToast: 'Amounts visible'
+    privacyHide: 'Hide amounts', privacyShow: 'Show amounts', privacyOnToast: 'Amounts hidden', privacyOffToast: 'Amounts visible',
+    vaultTitle: 'Ledger password', vaultNone: 'Not created', vaultIsOpen: 'Open', vaultIsLocked: 'Locked',
+    vaultNoneHint: 'It is created the first time you open the Ledger.', vaultSettingsHint: 'The Ledger is encrypted on this device and in the cloud with your password. It locks itself after 10 minutes in the background.',
+    vaultSetupTitle: 'Protect your Ledger', vaultSetupSub: 'Your spending and income are encrypted on the device with this password. We will ask for it when you open the Ledger each session.',
+    vaultPw: 'Password', vaultPw2: 'Repeat the password', vaultNewPw: 'New password',
+    vaultAck: 'I understand that if I forget the password the Ledger data cannot be recovered.',
+    vaultCreate: 'Create password and open', vaultWorking: 'Encrypting…', vaultCreated: '🔐 Ledger encrypted',
+    vaultShort: 'Use at least 6 characters', vaultMismatch: 'Passwords do not match', vaultNeedAck: 'Tick the box to confirm you understand',
+    vaultLockedTitle: 'Ledger locked', vaultLockedSub: 'Enter your password to see your spending and income.', vaultOpen: 'Open',
+    vaultWrong: 'Wrong password', vaultForgot: 'I forgot the password', vaultLock: 'Lock the Ledger', vaultLocked: '🔒 Ledger locked',
+    vaultChange: 'Change password', vaultChangeHint: 'The whole Ledger is re-encrypted. Your other devices will ask for the new one.', vaultChanged: 'Password changed',
+    vaultOpenFirst: 'Open the Ledger first', vaultError: 'Could not encrypt. Try again.',
+    vaultWipeQ: 'Delete the whole Ledger? Without the password it cannot be recovered.', vaultWipeQ2: 'All spending, income, categories and repeats will be deleted. Sure?', vaultWiped: 'Ledger deleted',
+    vaultBad: '{n} item(s) cannot be decrypted with this password (maybe encrypted with another one on another device). They are kept untouched.',
+    vaultNoCrypto: 'Encryption is not available here', vaultNoCryptoHint: 'Open the app from its https address (or localhost) to use the encrypted Ledger.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
