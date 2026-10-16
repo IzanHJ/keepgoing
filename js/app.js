@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.9.0';
+  const VERSION = '1.10.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -158,6 +158,8 @@
       pointsSince: null, caprice: defaultCaprice(), legacyShop: null,
       // Fase 2 (v1.9): Libreta de Gastos (importes en céntimos) y modo privacidad
       ledgerEntries: [], ledgerCats: defaultLedgerCats(), ledgerRecurring: [], ledgerPrefs: { privacy: false },
+      // Fase 3 (v1.10): sonidos activados por defecto
+      soundOn: true, ledgerVault: null,
       ui: { tab: 'habits', range: 30, chartHabit: 'all', showArchived: false, habitsView: 'all' }
     };
   }
@@ -181,6 +183,7 @@
     for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
+    out.soundOn = s.soundOn !== false;
     out.stats = { timerMin: 0, ...(s.stats || {}) };
     if (!Array.isArray(out.commitHistory) || !out.commitHistory.length) out.commitHistory = [{ from: '0000-00-00', level: out.commitment || 'serio' }];
     const cp = s.caprice && typeof s.caprice === 'object' ? s.caprice : {}, dc = defaultCaprice();
@@ -211,7 +214,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.ledgerVault];
   function stampChanges(prev, cur) {
     const now = Date.now();
     cur.deleted = cur.deleted || {};
@@ -282,7 +285,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.ledgerVault] = settingsOf(R); out.smt = R.smt; }
     // Los puntos de compromiso empiezan en la fecha más antigua en que cualquier dispositivo migró
     const ps = [L.pointsSince, R.pointsSince].filter(Boolean).sort();
     out.pointsSince = ps[0] || null;
@@ -455,14 +458,40 @@
   function setCount(h, k, v) {
     const L = state.logs[h.id] || (state.logs[h.id] = {});
     const before = L[k] || 0;
+    const snap = { day: dayInfo(k), lvl: levelInfo().level, done: !isQuit(h) && cnt(h, k) >= dayGoal(h) };
     v = Math.max(0, isAmount(h) ? Math.round(v * 100) / 100 : Math.floor(v));
     if (v) L[k] = v; else delete L[k];
     // Hora del registro (para «a qué hora sueles hacerlo» y las cartas secretas)
     if (v > before && k === todayKey()) { const d = new Date(); (state.ltime[h.id] || (state.ltime[h.id] = {}))[k] = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
     save();
+    habitFeedback(h, k, before, v, snap);
     checkMastery(h);
     checkChallenge(h);
     checkSecrets();
+  }
+  /* ---------- respuesta al marcar: sonido, «+puntos» y subida de nivel ---------- */
+  const sfx = name => { if (window.KGSound) { KGSound.setEnabled(state.soundOn !== false); KGSound.play(name); } };
+  const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function habitFeedback(h, k, before, v, snap) {
+    const day = dayInfo(k), lvl = levelInfo().level, done = !isQuit(h) && cnt(h, k) >= dayGoal(h);
+    if (v < before) sfx(isQuit(h) ? 'pop' : 'undo');
+    else if (isQuit(h)) sfx('slip');
+    else if (lvl > snap.lvl) sfx('levelup');
+    else if (day.perfect && !snap.day.perfect) sfx('perfect');
+    else if (done && !snap.done) sfx('complete');
+    else sfx('tap');
+    const gain = day.cpts - snap.day.cpts;
+    if (gain > 1e-9) setTimeout(() => { pointsPop(gain); if (!(lvl > snap.lvl) && !(day.perfect && !snap.day.perfect) && !(done && !snap.done)) sfx('points'); }, 120);
+    if (lvl > snap.lvl) setTimeout(() => toast(t('levelUpToast', { n: lvl, title: levelTitle(lvl) })), 200);
+  }
+  // «+2,5 pts» que sube junto a la insignia de nivel
+  function pointsPop(n) {
+    const pill = $('.lvl-pill'); if (!pill) return;
+    pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+    const r = pill.getBoundingClientRect(), el = document.createElement('span');
+    el.className = 'pts-pop'; el.setAttribute('aria-hidden', 'true'); el.textContent = `+${fmtPts(n)} pts`;
+    el.style.left = `${r.left + r.width / 2}px`; el.style.top = `${r.bottom + 4}px`;
+    document.body.appendChild(el); setTimeout(() => el.remove(), reducedMotion() ? 900 : 1300);
   }
   function tapDay(h, k) {
     if (k > todayKey()) return;
@@ -565,17 +594,20 @@
      ========================================================= */
   let minWeeks = 20;
 
+  let lastTab = null;
   function render() {
     if (publicMode) return;
     migrateShop();
-    if (state.onboarded) runRecurring();
+    if (LV.key && (!state.ledgerVault || LV.salt !== state.ledgerVault.salt)) ledgerLock(); // la contraseña cambió en otro dispositivo
+    else if (ledgerOpen() && LV.sig !== ledgerSig() && !LV.busy) { LV.busy = true; ledgerLoad().then(() => { LV.busy = false; runRecurring(); render(); }).catch(() => { LV.busy = false; }); }
     applyTheme();
     document.documentElement.lang = state.lang;
     hideTip();
     const app = $('#app');
     if (!state.onboarded) { app.innerHTML = renderOnboarding(); mountOnboarding(); return; }
     const cc = awardContract();
-    app.innerHTML = `<div class="app">${renderNav()}<main class="main" id="main">${renderView()}</main></div>`;
+    const tabChanged = lastTab !== state.ui.tab; lastTab = state.ui.tab;
+    app.innerHTML = `<div class="app">${renderNav()}<main class="main ${tabChanged ? '' : 'no-anim'}" id="main" data-tab="${esc(state.ui.tab)}">${renderView()}</main></div>`;
     afterRender();
     noticeLegacyShop();
     if (cc) setTimeout(() => whenFree(() => openContractCard(cc, true)), 400);
@@ -1610,7 +1642,7 @@
       }
     });
   }
-  function showUnlock(h, i) { if (state.ui.tab === 'mastery') render(); whenFree(() => { vibrate([20, 40, 20]); openCard(h, i, true); }); }
+  function showUnlock(h, i) { if (state.ui.tab === 'mastery') render(); whenFree(() => { vibrate([20, 40, 20]); sfx('unlock'); openCard(h, i, true); }); }
 
   /* ---------- exportar cartas como imagen ---------- */
   const loadImg = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
@@ -2124,6 +2156,7 @@
         ${group(t('setGroupGeneral'), [
           acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
           acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
+          acc('sound', '🔊', t('soundTitle'), state.soundOn !== false ? t('soundOn') : t('soundOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-sound ${state.soundOn !== false ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('soundLabel'))}</b><br><span class="muted small">${esc(t('soundHint'))}</span></span></label><div class="row wrap" style="margin-top:12px"><button class="chip" data-s-sound-test>▶ ${esc(t('soundTest'))}</button></div>`),
           acc('look', ico('palette'), t('setLook'), `${fontFamily(state.theme.font)} · ${preset ? presetName(preset) : t('themeCustom')}`, `<div id="st-theme">${themeEditorHtml()}</div>`)
         ])}
         ${group(t('setGroupCommit'), [
@@ -2138,6 +2171,7 @@
         ])}
         ${group(t('setGroupPrivacy'), [
           acc('amounts', ico('eyeOff'), t('privacyMode'), privacyOn() ? t('privacyModeOn') : t('privacyModeOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-privacy ${privacyOn() ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('privacyModeLabel'))}</b><br><span class="muted small">${esc(t('privacyModeHint'))}</span></span></label>`),
+          acc('vault', ico('lock'), t('vaultTitle'), !state.ledgerVault ? t('vaultNone') : ledgerOpen() ? t('vaultIsOpen') : t('vaultIsLocked'), state.ledgerVault ? `<p class="muted small" style="margin-top:0">${esc(t('vaultSettingsHint'))}</p><div class="row wrap">${ledgerOpen() ? `<button class="chip" data-s="vault-lock">${ico('lock')} ${esc(t('vaultLock'))}</button><button class="chip" data-s="vault-change">${esc(t('vaultChange'))}</button>` : ''}<button class="chip" data-s="vault-wipe" style="color:#e5484d">${ico('trash')} ${esc(t('vaultForgot'))}</button></div>` : `<p class="muted small" style="margin:0">${esc(t('vaultNoneHint'))}</p>`),
           acc('priv', '🔒', t('privacyTitle'), profileOf().enabled ? t('setPublicOn') : t('setPublicOff'), `<div id="st-priv">${privacyHtml()}</div>`),
           acc('data', ico('download'), t('setData'), '', `<p class="muted small" style="margin-top:0">${esc(t('dataHint'))}</p>
             <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button></div>
@@ -2164,6 +2198,7 @@
           if (nt) { state.prompts[nt] = { ...(state.prompts[nt] || {}), note: e.target.value.trim() }; save(); toast(t('saved')); }
           if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); toast(t('saved')); }
           if (e.target.closest && e.target.closest('#st-priv')) privacyChange(e, w);
+          if (e.target.matches && e.target.matches('[data-s-sound]')) { state.soundOn = e.target.checked; save(); if (state.soundOn) sfx('toggle'); toast(t(state.soundOn ? 'soundOnToast' : 'soundOffToast')); }
           if (e.target.matches && e.target.matches('[data-s-privacy]')) { setPrivacy(e.target.checked); render(); toast(t(e.target.checked ? 'privacyOnToast' : 'privacyOffToast')); }
         });
         const refreshPush = async () => { const el = $('#st-push', w); if (el) el.innerHTML = notifSettingsHtml(await pushStatus()); };
@@ -2172,11 +2207,15 @@
       onClick: async (e, close, w) => {
         const q = s => e.target.closest(s); let el;
         if ((el = q('[data-s-lang]'))) { state.lang = el.dataset.sLang; save(); render(); draw(); $('.sheet-head h2', w).textContent = t('settings'); return; }
-        if ((el = q('[data-commit]'))) { setCommitment(el.dataset.commit); $('#st-commit', w).innerHTML = commitSegHtml(); render(); return; }
+        if ((el = q('[data-commit]'))) { setCommitment(el.dataset.commit); $('#st-commit', w).innerHTML = commitSegHtml(); render(); sfx('toggle'); return; }
+        if (q('[data-s-sound-test]')) { const seq = ['complete', 'points', 'perfect', 'levelup']; seq.forEach((n, i) => setTimeout(() => sfx(n), i * 900)); return; }
         if (petSettingsClick(e, w)) return;
         if (!(el = q('[data-s]'))) return;
         switch (el.dataset.s) {
           case 'vacations': openVacations(); break;
+          case 'vault-lock': ledgerLock(); render(); draw(); toast(t('vaultLocked')); break;
+          case 'vault-change': openVaultPassword(); break;
+          case 'vault-wipe': await confirmVaultWipe(); draw(); break;
           case 'push-on': await enablePush(); w._refreshPush(); break;
           case 'push-off': await disablePush(); w._refreshPush(); break;
           case 'push-test': await testPush(); break;
@@ -2587,38 +2626,156 @@
   // Importe visible respetando el modo privacidad («•••••»)
   const money = v => LED.mask(fmtMoney(v), privacyOn());
   const cents = c => money((c || 0) / 100);
-  const catOf = id => state.ledgerCats.find(c => c.id === id) || state.ledgerCats.find(c => c.id === 'other') || { id: 'other', icon: '📦', key: 'catOther', type: 'both' };
+  const catOf = id => LV.cats.find(c => c.id === id) || LV.cats.find(c => c.id === 'other') || { id: 'other', icon: '📦', key: 'catOther', type: 'both' };
   const catName = c => c.name || t(c.key || 'catOther');
   const ledgerMonth = () => { const m = state.ui.ledgerMonth; return /^\d{4}-\d{2}$/.test(m || '') ? m : todayKey().slice(0, 7); };
   function setPrivacy(on) { state.ledgerPrefs = { ...(state.ledgerPrefs || {}), privacy: !!on }; save(); }
+  /* ---------- cifrado de la Libreta (contraseña al abrir) ----------
+     En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
+     Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
+  const VAULT = window.KGVault;
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring']];
+  const LV = { key: null, salt: null, entries: [], cats: [], recurring: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const ledgerOpen = () => !!LV.key && !!state.ledgerVault && LV.salt === state.ledgerVault.salt;
+  const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
+  // Descifra el estado en memoria (al abrir y cuando la sincronización trae cambios)
+  async function ledgerLoad() {
+    let bad = 0, legacy = false;
+    for (const [k, sk] of LKINDS) {
+      const out = [];
+      for (const x of state[sk]) {
+        if (!x.enc) { const { mt, ...p } = x; out.push(p); legacy = true; continue; }
+        try { const p = { ...(await VAULT.decrypt(LV.key, x.enc)), id: x.id }; out.push(p); LV.plain.set(x.id, JSON.stringify(p)); LV.known.add(x.id); }
+        catch (e) { bad++; }
+      }
+      LV[k] = out;
+    }
+    if (!LV.cats.length) LV.cats = defaultLedgerCats();
+    LV.bad = bad; LV.sig = ledgerSig();
+    if (legacy || !state.ledgerCats.length) await ledgerCommit();
+  }
+  // Cifra lo que haya cambiado en memoria y lo guarda (los que no se pudieron descifrar se conservan intactos)
+  async function ledgerCommit() {
+    if (!ledgerOpen()) return;
+    for (const [k, sk] of LKINDS) {
+      const ids = new Set(LV[k].map(x => x.id));
+      const next = state[sk].filter(x => ids.has(x.id) || (x.enc && !LV.known.has(x.id)));
+      for (const p of LV[k]) {
+        const js = JSON.stringify(p);
+        if (LV.plain.get(p.id) === js && next.some(x => x.id === p.id && x.enc)) continue;
+        const { id, ...rest } = p, enc = await VAULT.encrypt(LV.key, rest);
+        const i = next.findIndex(x => x.id === id);
+        if (i >= 0) next[i] = { id, enc }; else next.push({ id, enc });
+        LV.plain.set(id, js); LV.known.add(id);
+      }
+      state[sk] = next;
+    }
+    save(); LV.sig = ledgerSig();
+  }
+  const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
+  function ledgerLock() { Object.assign(LV, { key: null, salt: null, entries: [], cats: [], recurring: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); }
+  async function ledgerUnlock(pw) {
+    const key = await VAULT.open(pw, state.ledgerVault);
+    if (!key) return false;
+    LV.key = key; LV.salt = state.ledgerVault.salt; await ledgerLoad(); runRecurring(); return true;
+  }
+  async function ledgerSetup(pw) {
+    const { key, header } = await VAULT.create(pw);
+    state.ledgerVault = header; LV.key = key; LV.salt = header.salt; LV.plain = new Map(); LV.known = new Set();
+    await ledgerLoad(); await ledgerCommit();
+  }
+  async function ledgerChangePassword(pw) {
+    const { key, header } = await VAULT.create(pw);
+    state.ledgerVault = header; LV.key = key; LV.salt = header.salt; LV.plain = new Map();
+    await ledgerCommit();
+  }
+  function ledgerWipe() { state.ledgerVault = null; ledgerLock(); for (const [, sk] of LKINDS) state[sk] = []; save(); }
+  // Se bloquea solo tras 10 minutos en segundo plano
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (LV.key && Date.now() - hiddenAt > 10 * 60000 && hiddenAt) { ledgerLock(); render(); } });
+  // Pantalla de la Libreta cerrada: crear contraseña, abrir o aviso de que el navegador no permite cifrar
+  function ledgerLockedHtml() {
+    if (!VAULT.available()) return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultNoCrypto'))}</h2><p class="muted">${esc(t('vaultNoCryptoHint'))}</p></section>`;
+    if (!state.ledgerVault) return `<section class="vault clay"><div class="vault-ico">🔐</div><h2>${esc(t('vaultSetupTitle'))}</h2><p class="muted">${esc(t('vaultSetupSub'))}</p>
+      <form class="stack vault-form" data-vault="setup" autocomplete="off" style="gap:12px">
+        <input class="input" type="password" id="vault-pw" minlength="6" autocomplete="new-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
+        <input class="input" type="password" id="vault-pw2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}" aria-label="${esc(t('vaultPw2'))}">
+        <label class="check"><input type="checkbox" id="vault-ack"><span class="small">${esc(t('vaultAck'))}</span></label>
+        <button class="btn primary" type="submit">${ico('lock')} ${esc(t('vaultCreate'))}</button></form></section>`;
+    return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultLockedTitle'))}</h2><p class="muted">${esc(t('vaultLockedSub'))}</p>
+      <form class="stack vault-form" data-vault="open" autocomplete="off" style="gap:12px">
+        <input class="input" type="password" id="vault-pw" autocomplete="current-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
+        <button class="btn primary" type="submit">${esc(t('vaultOpen'))}</button></form>
+      <button class="chip vault-forgot" data-act="vault-wipe">${esc(t('vaultForgot'))}</button></section>`;
+  }
+  document.addEventListener('submit', async e => {
+    const f = e.target.closest('[data-vault]'); if (!f) return;
+    e.preventDefault(); if (LV.busy) return;
+    const pw = $('#vault-pw', f).value, btn = $('button[type="submit"]', f);
+    if (f.dataset.vault === 'setup') {
+      if (pw.length < 6) { toast(t('vaultShort')); return; }
+      if (pw !== $('#vault-pw2', f).value) { toast(t('vaultMismatch')); return; }
+      if (!$('#vault-ack', f).checked) { toast(t('vaultNeedAck')); return; }
+    }
+    LV.busy = true; btn.disabled = true; btn.textContent = t('vaultWorking');
+    try {
+      if (f.dataset.vault === 'setup') { await ledgerSetup(pw); sfx('unlock'); toast(t('vaultCreated')); }
+      else if (!(await ledgerUnlock(pw))) { sfx('slip'); toast(t('vaultWrong')); LV.busy = false; btn.disabled = false; btn.textContent = t('vaultOpen'); $('#vault-pw', f).select(); return; }
+      else sfx('toggle');
+    } catch (err) { toast(t('vaultError')); }
+    LV.busy = false; render();
+  });
+  async function openVaultPassword() {
+    if (!ledgerOpen()) { toast(t('vaultOpenFirst')); return; }
+    openModal({
+      title: `🔐 ${esc(t('vaultChange'))}`,
+      body: `<form class="stack" id="vault-change" style="gap:12px"><input class="input" type="password" id="vc-1" autocomplete="new-password" placeholder="${esc(t('vaultNewPw'))}"><input class="input" type="password" id="vc-2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}"><p class="muted small" style="margin:0">${esc(t('vaultChangeHint'))}</p></form>`,
+      foot: `<button class="btn primary" data-vc>${esc(t('save'))}</button>`,
+      onClick: async (e, close, w) => {
+        if (!e.target.closest('[data-vc]')) return;
+        const a = $('#vc-1', w).value, b = $('#vc-2', w).value;
+        if (a.length < 6) { toast(t('vaultShort')); return; }
+        if (a !== b) { toast(t('vaultMismatch')); return; }
+        try { await ledgerChangePassword(a); toast(t('vaultChanged')); close(); render(); } catch (err) { toast(t('vaultError')); }
+      }
+    });
+  }
+  async function confirmVaultWipe() {
+    if (await confirmDialog(t('vaultWipeQ')) && await confirmDialog(t('vaultWipeQ2'))) { ledgerWipe(); render(); toast(t('vaultWiped')); }
+  }
+
+
 
   // Genera los movimientos de las repeticiones que falten hasta hoy (ids deterministas: no se duplican entre dispositivos;
   // si borras uno generado no vuelve a aparecer porque su id queda en «deleted»)
   function runRecurring() {
-    const today = todayKey(), have = new Set(state.ledgerEntries.map(e => e.id)), del = state.deleted || {};
+    if (!ledgerOpen()) return;
+    const today = todayKey(), have = new Set(LV.entries.map(e => e.id)), del = state.deleted || {};
     let added = 0;
-    for (const r of state.ledgerRecurring) {
+    for (const r of LV.recurring) {
       if (r.archived) continue;
       for (const d of LED.occurrences(r, r.from, today)) {
         const id = LED.recEntryId(r.id, d);
         if (have.has(id) || del[id]) continue;
-        state.ledgerEntries.push({ id, date: d, type: r.type, amountCents: r.amountCents, categoryId: r.categoryId, note: r.note || '', method: r.method || '', recurringId: r.id, createdAt: Date.now() });
+        LV.entries.push({ id, date: d, type: r.type, amountCents: r.amountCents, categoryId: r.categoryId, note: r.note || '', method: r.method || '', recurringId: r.id, createdAt: Date.now() });
         have.add(id); added++;
       }
     }
-    if (added) save();
+    if (added) ledgerSave();
   }
-  const monthIncome = (ym = todayKey().slice(0, 7)) => LED.totals(LED.inMonth(state.ledgerEntries, +ym.slice(0, 4), +ym.slice(5, 7))).income;
+  const monthIncome = (ym = todayKey().slice(0, 7)) => LED.totals(LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7))).income;
 
   function viewLedger() {
     const priv = privacyOn(), ym = ledgerMonth(), y = +ym.slice(0, 4), m = +ym.slice(5, 7);
     const sel = state.ui.ledgerDay && state.ui.ledgerDay.startsWith(ym) ? state.ui.ledgerDay : (todayKey().startsWith(ym) ? todayKey() : null);
-    const monthEntries = LED.inMonth(state.ledgerEntries, y, m), tot = LED.totals(monthEntries), days = LED.byDay(monthEntries);
+    const monthEntries = LED.inMonth(LV.entries, y, m), tot = LED.totals(monthEntries), days = LED.byDay(monthEntries);
     const eye = `<button class="icon-btn" data-act="privacy" aria-pressed="${priv}" aria-label="${esc(t(priv ? 'privacyShow' : 'privacyHide'))}" title="${esc(t(priv ? 'privacyShow' : 'privacyHide'))}">${ico(priv ? 'eyeOff' : 'eye')}</button>`;
-    let html = topBar(`${eye}<button class="icon-btn" data-act="ledger-add" aria-label="${esc(t('ledgerAdd'))}">${ico('plus')}</button>`);
+    let html = topBar(ledgerOpen() ? `${eye}<button class="icon-btn" data-act="vault-lock" aria-label="${esc(t('vaultLock'))}" title="${esc(t('vaultLock'))}">${ico('lock')}</button><button class="icon-btn" data-act="ledger-add" aria-label="${esc(t('ledgerAdd'))}">${ico('plus')}</button>` : eye);
     html += `<h1 class="page-title">${esc(t('tabLedger'))}</h1>`;
     html += `<button class="cap-link" data-act="level" aria-label="${esc(t('capOpen'))}">${capTotalHtml()}</button>`;
-    const years = new Set([y, +todayKey().slice(0, 4)]); state.ledgerEntries.forEach(e => years.add(+String(e.date).slice(0, 4)));
+    if (!ledgerOpen()) return html + ledgerLockedHtml();
+    if (LV.bad) html += `<div class="banner clay">⚠️<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
+    const years = new Set([y, +todayKey().slice(0, 4)]); LV.entries.forEach(e => years.add(+String(e.date).slice(0, 4)));
     const yMin = Math.min(...years) - 1, yMax = Math.max(...years) + 1;
     const monthNames = Array.from({ length: 12 }, (_, i) => fmtDate(`2026-${pad(i + 1)}-01`, { month: 'long' }));
     const wd = Array.from({ length: 7 }, (_, i) => fmtDate(addDays('2026-10-12', i), { weekday: 'short' }));
@@ -2636,13 +2793,13 @@
       }).join('')}</div>`).join('')}</div>
     </section>`;
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
-    html += `<div class="row wrap ledger-tools"><button class="chip" data-act="ledger-cats">🏷️ ${esc(t('ledgerCats'))}</button><button class="chip" data-act="ledger-recs">🔁 ${esc(t('ledgerRecs'))}${state.ledgerRecurring.filter(r => !r.archived).length ? ` <b class="chip-n">${state.ledgerRecurring.filter(r => !r.archived).length}</b>` : ''}</button></div>`;
+    html += `<div class="row wrap ledger-tools"><button class="chip" data-act="ledger-cats">🏷️ ${esc(t('ledgerCats'))}</button><button class="chip" data-act="ledger-recs">🔁 ${esc(t('ledgerRecs'))}${LV.recurring.filter(r => !r.archived).length ? ` <b class="chip-n">${LV.recurring.filter(r => !r.archived).length}</b>` : ''}</button></div>`;
     return html;
   }
   // Importe corto para las celdas del calendario (sin decimales si es redondo)
   const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
   function ledgerDayHtml(k) {
-    const list = state.ledgerEntries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(list);
+    const list = LV.entries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(list);
     return `<section class="ledger-day clay" aria-live="polite"><div class="row"><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>
       ${list.length ? `<ul class="ledger-list">${list.map(e => { const c = catOf(e.categoryId); return `<li><button class="ledger-item" data-ledger-edit="${e.id}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ' · 🔁' : ''}</span></span><b class="${e.type === 'income' ? 'amt-in' : 'amt-out'}">${privacyOn() ? '' : e.type === 'income' ? '+' : '−'}${cents(e.amountCents)}</b></button></li>`; }).join('')}</ul>
         <div class="entry"><span class="muted">${esc(t('ledgerDayNet'))}</span><b>${cents(tot.net)}</b></div>` : `<p class="muted small" style="margin:10px 0 0">${esc(t('ledgerDayEmpty'))}</p>`}
@@ -2654,7 +2811,7 @@
     const isNew = !entry;
     const f = entry ? { ...entry } : { type: 'expense', amountCents: 0, categoryId: 'food', note: '', method: 'card', date: date || todayKey(), every: '', to: '' };
     let wref;
-    const catsHtml = () => state.ledgerCats.filter(c => !c.archived && (c.type === 'both' || c.type === f.type)).map(c => `<button type="button" class="chip ${f.categoryId === c.id ? 'on' : ''}" data-le-cat="${c.id}" aria-pressed="${f.categoryId === c.id}">${esc(c.icon)} ${esc(catName(c))}</button>`).join('');
+    const catsHtml = () => LV.cats.filter(c => !c.archived && (c.type === 'both' || c.type === f.type)).map(c => `<button type="button" class="chip ${f.categoryId === c.id ? 'on' : ''}" data-le-cat="${c.id}" aria-pressed="${f.categoryId === c.id}">${esc(c.icon)} ${esc(catName(c))}</button>`).join('');
     const draw = () => {
       $('#le', wref).innerHTML = `<div class="stack" style="gap:16px">
         <div class="seg" role="group" aria-label="${esc(t('ledgerType'))}">${['expense', 'income'].map(v => `<button type="button" data-le-type="${v}" class="${f.type === v ? 'on' : ''}" aria-pressed="${f.type === v}">${esc(t(v === 'expense' ? 'ledgerExpenseOne' : 'ledgerIncomeOne'))}</button>`).join('')}</div>
@@ -2684,20 +2841,20 @@
         if ((el = e.target.closest('[data-le]'))) {
           if (el.dataset.le === 'del') {
             if (!(await confirmDialog(t('ledgerDelQ')))) return;
-            state.ledgerEntries = state.ledgerEntries.filter(x => x.id !== entry.id); save(); close(); render(); return;
+            LV.entries = LV.entries.filter(x => x.id !== entry.id); ledgerSave(); close(); render(); sfx('undo'); return;
           }
           read();
           const amt = LED.parseCents($('#le-amt', wref).value);
           if (!amt) { toast(t('ledgerNeedAmount')); $('#le-amt', wref).focus(); return; }
           const data = { type: f.type, amountCents: amt, categoryId: f.categoryId, note: f.note, method: f.method, date: f.date };
           if (isNew && f.every) {
-            state.ledgerRecurring.push({ id: uid(), ...data, every: f.every, from: f.date, to: f.to && f.to >= f.date ? f.to : '', archived: false });
+            LV.recurring.push({ id: uid(), ...data, every: f.every, from: f.date, to: f.to && f.to >= f.date ? f.to : '', archived: false });
             runRecurring();
             if (f.date > todayKey()) toast(t('ledgerRecFuture'));
-          } else if (isNew) state.ledgerEntries.push({ id: uid(), ...data, recurringId: '', createdAt: Date.now() });
-          else Object.assign(state.ledgerEntries.find(x => x.id === entry.id) || {}, data);
+          } else if (isNew) LV.entries.push({ id: uid(), ...data, recurringId: '', createdAt: Date.now() });
+          else Object.assign(LV.entries.find(x => x.id === entry.id) || {}, data);
           state.ui.ledgerDay = f.date; state.ui.ledgerMonth = f.date.slice(0, 7);
-          save(); close(); render(); vibrate(10);
+          ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'income' ? 'money' : 'pop');
         }
       }
     });
@@ -2707,7 +2864,7 @@
   function openLedgerCats() {
     let wref, newType = 'expense';
     const draw = () => {
-      $('#lc', wref).innerHTML = `<div class="stack" style="gap:10px">${state.ledgerCats.map(c => `<div class="row cat-row ${c.archived ? 'archived' : ''}"><input class="input" data-lc-icon="${c.id}" value="${esc(c.icon)}" maxlength="4" aria-label="${esc(t('ledgerCatIcon'))}" style="width:62px;text-align:center"><input class="input grow" data-lc-name="${c.id}" value="${esc(catName(c))}" maxlength="30" aria-label="${esc(t('ledgerCatName'))}"><span class="muted small cat-type">${esc(t('ctype_' + c.type))}</span><button class="icon-btn sm" data-lc-arch="${c.id}" aria-label="${esc(t(c.archived ? 'restore' : 'archive'))}" title="${esc(t(c.archived ? 'restore' : 'archive'))}">${ico(c.archived ? 'refresh' : 'archive')}</button></div>`).join('')}
+      $('#lc', wref).innerHTML = `<div class="stack" style="gap:10px">${LV.cats.map(c => `<div class="row cat-row ${c.archived ? 'archived' : ''}"><input class="input" data-lc-icon="${c.id}" value="${esc(c.icon)}" maxlength="4" aria-label="${esc(t('ledgerCatIcon'))}" style="width:62px;text-align:center"><input class="input grow" data-lc-name="${c.id}" value="${esc(catName(c))}" maxlength="30" aria-label="${esc(t('ledgerCatName'))}"><span class="muted small cat-type">${esc(t('ctype_' + c.type))}</span><button class="icon-btn sm" data-lc-arch="${c.id}" aria-label="${esc(t(c.archived ? 'restore' : 'archive'))}" title="${esc(t(c.archived ? 'restore' : 'archive'))}">${ico(c.archived ? 'refresh' : 'archive')}</button></div>`).join('')}
         <h4 style="margin:14px 0 0">${esc(t('ledgerCatNew'))}</h4>
         <div class="seg">${['expense', 'income', 'both'].map(v => `<button type="button" data-lc-type="${v}" class="${newType === v ? 'on' : ''}">${esc(t('ctype_' + v))}</button>`).join('')}</div>
         <div class="row"><input class="input" id="lc-icon" value="🏷️" maxlength="4" style="width:62px;text-align:center" aria-label="${esc(t('ledgerCatIcon'))}"><input class="input grow" id="lc-name" maxlength="30" placeholder="${esc(t('ledgerCatName'))}"><button class="btn" data-lc-add>${ico('plus')} ${esc(t('add'))}</button></div></div>`;
@@ -2716,16 +2873,16 @@
       title: `🏷️ ${esc(t('ledgerCats'))}`, body: '<div id="lc"></div>',
       onMount: w => { wref = w; draw();
         w.addEventListener('change', e => {
-          const c = e.target.dataset && state.ledgerCats.find(x => x.id === (e.target.dataset.lcName || e.target.dataset.lcIcon)); if (!c) return;
+          const c = e.target.dataset && LV.cats.find(x => x.id === (e.target.dataset.lcName || e.target.dataset.lcIcon)); if (!c) return;
           if (e.target.dataset.lcName) { const v = e.target.value.trim(); if (v) c.name = v === t(c.key || '') ? '' : v; }
           else c.icon = e.target.value.trim() || c.icon;
-          save(); render();
+          ledgerSave(); render();
         }); },
       onClick: e => {
         let el;
         if ((el = e.target.closest('[data-lc-type]'))) { newType = el.dataset.lcType; const n = $('#lc-name', wref).value; draw(); $('#lc-name', wref).value = n; return; }
-        if ((el = e.target.closest('[data-lc-arch]'))) { const c = state.ledgerCats.find(x => x.id === el.dataset.lcArch); if (c) { c.archived = !c.archived; save(); draw(); render(); } return; }
-        if (e.target.closest('[data-lc-add]')) { const name = $('#lc-name', wref).value.trim(); if (!name) { toast(t('ledgerCatNeedName')); return; } state.ledgerCats.push({ id: uid(), name, icon: $('#lc-icon', wref).value.trim() || '🏷️', type: newType, archived: false }); save(); draw(); render(); }
+        if ((el = e.target.closest('[data-lc-arch]'))) { const c = LV.cats.find(x => x.id === el.dataset.lcArch); if (c) { c.archived = !c.archived; ledgerSave(); draw(); render(); } return; }
+        if (e.target.closest('[data-lc-add]')) { const name = $('#lc-name', wref).value.trim(); if (!name) { toast(t('ledgerCatNeedName')); return; } LV.cats.push({ id: uid(), name, icon: $('#lc-icon', wref).value.trim() || '🏷️', type: newType, archived: false }); ledgerSave(); draw(); render(); }
       }
     });
   }
@@ -2734,18 +2891,18 @@
   function openLedgerRecs() {
     let wref;
     const draw = () => {
-      const recs = state.ledgerRecurring.filter(r => !r.archived);
+      const recs = LV.recurring.filter(r => !r.archived);
       $('#lr', wref).innerHTML = recs.length ? `<div class="stack" style="gap:8px">${recs.map(r => { const c = catOf(r.categoryId); return `<div class="row ledger-item static"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(r.note || catName(c))}</b><span class="muted small">${esc(t('repeat_' + r.every))} · ${esc(t('ledgerSince', { d: fmtShort(r.from) }))}${r.to ? ' · ' + esc(t('ledgerUntil', { d: fmtShort(r.to) })) : ''}</span></span><b class="${r.type === 'income' ? 'amt-in' : 'amt-out'}">${cents(r.amountCents)}</b><button class="icon-btn sm" data-lr-stop="${r.id}" aria-label="${esc(t('ledgerRecStop'))}" title="${esc(t('ledgerRecStop'))}">${ico('x')}</button></div>`; }).join('')}</div><p class="muted small">${esc(t('ledgerRecHint'))}</p>` : `<p class="muted">${esc(t('ledgerRecEmpty'))}</p>`;
     };
     openModal({
       title: `🔁 ${esc(t('ledgerRecs'))}`, body: '<div id="lr"></div>', onMount: w => { wref = w; draw(); },
       onClick: async e => {
         const el = e.target.closest('[data-lr-stop]'); if (!el) return;
-        const r = state.ledgerRecurring.find(x => x.id === el.dataset.lrStop); if (!r) return;
+        const r = LV.recurring.find(x => x.id === el.dataset.lrStop); if (!r) return;
         if (!(await confirmDialog(t('ledgerRecStopQ')))) return;
         r.archived = true;
-        state.ledgerEntries = state.ledgerEntries.filter(x => !(x.recurringId === r.id && x.date > todayKey()));
-        save(); draw(); render();
+        LV.entries = LV.entries.filter(x => !(x.recurringId === r.id && x.date > todayKey()));
+        ledgerSave(); draw(); render();
       }
     });
   }
@@ -2999,7 +3156,7 @@
     c.done = todayKey();
     const card = { id: h.id + '_' + c.start, hid: h.id, name: h.name, icon: h.icon, days: c.days, start: c.start, end: todayKey(), serial: ++state.serial };
     state.challengeCards.push(card); save();
-    if (!silent) setTimeout(() => whenFree(() => openTrophy(challengeCardHtml(card), t('challengeDone'), t('challengeDoneMsg', { name: h.name }), () => trophyCanvas('challenge', card))), 400);
+    if (!silent) setTimeout(() => whenFree(() => sfx('levelup') || openTrophy(challengeCardHtml(card), t('challengeDone'), t('challengeDoneMsg', { name: h.name }), () => trophyCanvas('challenge', card))), 400);
   }
 
   /* ---------- cartas secretas ---------- */
@@ -3042,7 +3199,7 @@
       let ok = false; try { ok = test(); } catch (e) { ok = false; }
       if (!ok) continue;
       state.secrets[id] = todayKey(); save();
-      if (!silent) setTimeout(() => whenFree(() => openTrophy(secretCardHtml(id, icon), t('secretUnlocked'), t('secd_' + id), () => trophyCanvas('secret', { id, icon }))), 450);
+      if (!silent) setTimeout(() => whenFree(() => sfx('unlock') || openTrophy(secretCardHtml(id, icon), t('secretUnlocked'), t('secd_' + id), () => trophyCanvas('secret', { id, icon }))), 450);
     }
   }
   function secretCardHtml(id, icon, date = null) {
@@ -4063,7 +4220,7 @@
     if ((el = e.target.closest('[data-timer]'))) { const h = getHabit(el.dataset.timer); if (h) openTimer(h); return; }
     if ((el = e.target.closest('[data-group]'))) { e.preventDefault(); openGroup(el.dataset.group); return; }
     if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
-    if ((el = e.target.closest('[data-ledger-edit]'))) { const en = state.ledgerEntries.find(x => x.id === el.dataset.ledgerEdit); if (en) openEntry(en); return; }
+    if ((el = e.target.closest('[data-ledger-edit]'))) { const en = LV.entries.find(x => x.id === el.dataset.ledgerEdit); if (en) openEntry(en); return; }
     const a = e.target.closest('[data-act]'); if (!a) return;
     const id = a.dataset.id;
     switch (a.dataset.act) {
@@ -4073,8 +4230,10 @@
       case 'hview': state.ui.habitsView = a.dataset.v; save(); render(); break;
       case 'vacations': openVacations(); break;
       case 'level': openLevel(); break;
-      case 'privacy': setPrivacy(!privacyOn()); render(); toast(t(privacyOn() ? 'privacyOnToast' : 'privacyOffToast')); break;
-      case 'ledger-add': openEntry(null, a.dataset.d || state.ui.ledgerDay || todayKey()); break;
+      case 'privacy': setPrivacy(!privacyOn()); render(); sfx('toggle'); toast(t(privacyOn() ? 'privacyOnToast' : 'privacyOffToast')); break;
+      case 'vault-lock': ledgerLock(); render(); sfx('toggle'); toast(t('vaultLocked')); break;
+      case 'vault-wipe': confirmVaultWipe(); break;
+      case 'ledger-add': if (!ledgerOpen()) { state.ui.tab = 'ledger'; render(); break; } openEntry(null, a.dataset.d || state.ui.ledgerDay || todayKey()); break;
       case 'ledger-month': { const [yy, mm] = ledgerMonth().split('-').map(Number), d = new Date(yy, mm - 1 + +a.dataset.d, 1); state.ui.ledgerMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; save(); render(); break; }
       case 'ledger-cats': openLedgerCats(); break;
       case 'ledger-recs': openLedgerRecs(); break;
@@ -4106,6 +4265,13 @@
       case 'cc-open': { const cc = state.contractCards.find(x => x.id === id); if (cc) openContractCard(cc); break; }
     }
   });
+  // Rebote al tocar botones (funciona con ratón, dedo y teclado; nada depende solo de hover)
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.btn, .chip, .icon-btn, .lvl-pill, .nav button, .seg button, .cal-cell:not(.empty), .ledger-item');
+    if (!b || !b.isConnected) return;
+    b.classList.remove('tap-pop'); void b.offsetWidth; b.classList.add('tap-pop');
+    b.addEventListener('animationend', () => b.classList.remove('tap-pop'), { once: true });
+  }, true);
   document.addEventListener('change', e => {
     if (e.target.id === 'chart-habit') { state.ui.chartHabit = e.target.value; save(); render(); }
     if (e.target.matches('[data-ledger-m], [data-ledger-y]')) {
