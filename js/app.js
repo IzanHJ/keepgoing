@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.7.0';
+  const VERSION = '1.8.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -135,6 +135,8 @@
   // Tipos de letra disponibles (se cargan desde Google Fonts en index.html)
   const FONTS = [['quicksand', 'Quicksand'], ['nunito-sans', 'Nunito Sans'], ['nunito', 'Nunito'], ['jakarta', 'Plus Jakarta Sans'], ['poppins', 'Poppins']];
   const fontFamily = id => (FONTS.find(f => f[0] === id) || FONTS[0])[1];
+  const CAP = window.KGCaprice;
+  const defaultCaprice = () => ({ income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT }, history: [{ from: '0000-00-00', income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT } }] });
   function defaultState() {
     const lang = (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
     return {
@@ -148,6 +150,8 @@
       shields: {}, ltime: {}, energy: {}, reviews: {}, prompts: {}, secrets: {}, challengeCards: [],
       routineRuns: {}, stats: { timerMin: 0 },
       commitment: 'serio', commitHistory: [{ from: '0000-00-00', level: 'serio' }],
+      // Fase 1 (v1.8): puntos de compromiso (desde pointsSince) y conversor a «Dinero Caprichable»
+      pointsSince: null, caprice: defaultCaprice(), legacyShop: null,
       ui: { tab: 'habits', range: 30, chartHabit: 'all', showArchived: false, habitsView: 'all' }
     };
   }
@@ -171,6 +175,8 @@
     for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.stats = { timerMin: 0, ...(s.stats || {}) };
     if (!Array.isArray(out.commitHistory) || !out.commitHistory.length) out.commitHistory = [{ from: '0000-00-00', level: out.commitment || 'serio' }];
+    const cp = s.caprice && typeof s.caprice === 'object' ? s.caprice : {}, dc = defaultCaprice();
+    out.caprice = { income: +cp.income > 0 ? +cp.income : dc.income, pct: { ...dc.pct, ...(cp.pct || {}) }, history: Array.isArray(cp.history) && cp.history.length ? cp.history : dc.history };
     out.projects.forEach(p => { p.milestones = p.milestones || []; p.photos = p.photos || {}; });
     out.projects.forEach(p => { p.goal = { type: 'simple', start: 0, target: 0, unit: '', entries: [], items: [], achieved: false, ...(p.goal || {}) }; p.habitIds = p.habitIds || []; });
     return out;
@@ -197,7 +203,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice];
   function stampChanges(prev, cur) {
     const now = Date.now();
     cur.deleted = cur.deleted || {};
@@ -268,7 +274,11 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice] = settingsOf(R); out.smt = R.smt; }
+    // Los puntos de compromiso empiezan en la fecha más antigua en que cualquier dispositivo migró
+    const ps = [L.pointsSince, R.pointsSince].filter(Boolean).sort();
+    out.pointsSince = ps[0] || null;
+    out.legacyShop = L.legacyShop || R.legacyShop || null;
     // Uniones: cartas secretas (fecha más antigua), retos superados, rutinas completadas y minutos de temporizador
     out.secrets = { ...(R.secrets || {}), ...(L.secrets || {}) };
     for (const [id, d] of Object.entries(R.secrets || {})) if (out.secrets[id] > d) out.secrets[id] = d;
@@ -477,34 +487,48 @@
   const commitOn = k => { let lv = 'serio'; for (const c of state.commitHistory) if (c.from <= k) lv = c.level; return COMMIT[lv] ? lv : 'serio'; };
   let calcVer = 0; const memo = new Map();
   const cached = (key, fn) => { const k = calcVer + '|' + todayKey() + '|' + key; if (!memo.has(k)) { if (memo.size > 6000) memo.clear(); memo.set(k, fn()); } return memo.get(k); };
-  // Puntos de un día y si fue «día perfecto» (todos los hábitos diarios hechos y ninguna recaída)
+  /* Datos de un día:
+     · cpts: puntos de compromiso (0–10). Día perfecto = 10; cada hábito vale 10 / hábitos exigidos por el nivel
+       (Chill 2, Serio 4, Locked-In 7). Hábitos parciales (cantidades) suman su parte. Solo desde pointsSince.
+     · money: Dinero Caprichable de ese día con el conversor vigente ese día.
+     · pts: XP para el nivel. Antes de pointsSince se conserva la fórmula antigua (no se recalcula el historial);
+       desde entonces XP = puntos × 10. */
+  const capOn = k => CAP.onDay(state.caprice.history, k) || state.caprice;
+  const pointsOn = k => !!state.pointsSince && k >= state.pointsSince;
   function dayInfo(k) {
     return cached('day' + k, () => {
-      const today = todayKey(), lv = COMMIT[commitOn(k)];
-      let base = 0, due = 0, done = 0, slip = false, quitClean = 0;
+      const today = todayKey(), lvKey = commitOn(k), lv = COMMIT[lvKey];
+      let base = 0, due = 0, done = 0, slip = false, quitClean = 0, units = 0;
       for (const h of state.habits) {
         if (k < firstKey(h) || (h.archived && !cnt(h, k))) continue;
-        if (isQuit(h)) { if (cnt(h, k)) slip = true; else if (k < today) { quitClean++; base += 5; } continue; }
-        if (h.freq !== 'daily') { if (cnt(h, k) > 0) base += 10; continue; }
+        if (isQuit(h)) { if (cnt(h, k)) slip = true; else if (k < today) { quitClean++; base += 5; units++; } continue; }
+        if (h.freq !== 'daily') { if (cnt(h, k) > 0) { base += 10; units++; } continue; }
         if (isOffDay(h, k) && !cnt(h, k)) continue;
         due++;
         const sc = Math.min(1, cnt(h, k) / dayGoal(h));
+        units += sc;
         if (sc >= 1) { done++; base += 10; } else base += Math.round(10 * sc);
+      }
+      const need = CAP.HABITS_PER_LEVEL[lvKey];
+      if (pointsOn(k)) {
+        const cpts = CAP.dayPoints(units, lvKey), c = capOn(k);
+        return { pts: cpts * 10, cpts, money: CAP.moneyFor(cpts, c.income, c.pct[lvKey]), perfect: cpts >= CAP.PERFECT_DAY_POINTS - 1e-9, level: lvKey, units, need, due, done, slip };
       }
       const perfect = !slip && (due > 0 ? done === due : quitClean > 0);
       let pts = Math.round(base * lv.mult) + (perfect ? lv.bonus : 0);
       if (k < today) pts += (due - done) * lv.miss;
-      return { pts, perfect, due, done, slip };
+      return { pts, cpts: 0, money: 0, perfect, level: lvKey, units, need, due, done, slip };
     });
   }
   function firstDay() { return cached('first', () => state.habits.reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, todayKey())); }
   function eachDay(fn) { const today = todayKey(); for (let k = firstDay(); k <= today; k = addDays(k, 1)) fn(k); }
   function pointsInfo() {
     return cached('points', () => {
-      let xp = 0, net = 0, perfectDays = 0, perfectRun = 0, bestPerfectRun = 0;
-      eachDay(k => { const d = dayInfo(k); xp += Math.max(0, d.pts); net += d.pts; if (d.perfect) { perfectDays++; perfectRun++; bestPerfectRun = Math.max(bestPerfectRun, perfectRun); } else if (k < todayKey()) perfectRun = 0; });
+      let xp = 0, net = 0, points = 0, money = 0, perfectDays = 0, perfectRun = 0, bestPerfectRun = 0;
+      eachDay(k => { const d = dayInfo(k); xp += Math.max(0, d.pts); net += d.pts; points += d.cpts; money += d.money; if (d.perfect) { perfectDays++; perfectRun++; bestPerfectRun = Math.max(bestPerfectRun, perfectRun); } else if (k < todayKey()) perfectRun = 0; });
+      // starBalance: saldo ⭐ de la antigua tienda (solo tiene sentido antes de migrar)
       const spent = state.redemptions.reduce((a, r) => a + (r.cost || 0), 0);
-      return { xp, balance: net - spent, spent, perfectDays, bestPerfectRun };
+      return { xp, points, money, starBalance: net - spent, perfectDays, bestPerfectRun };
     });
   }
   // Nivel L necesita 50·L·(L+1) XP acumulados
@@ -535,6 +559,7 @@
 
   function render() {
     if (publicMode) return;
+    migrateShop();
     applyTheme();
     document.documentElement.lang = state.lang;
     hideTip();
@@ -543,6 +568,7 @@
     const cc = awardContract();
     app.innerHTML = `<div class="app">${renderNav()}<main class="main" id="main">${renderView()}</main></div>`;
     afterRender();
+    noticeLegacyShop();
     if (cc) setTimeout(() => whenFree(() => openContractCard(cc, true)), 400);
   }
 
@@ -1516,7 +1542,7 @@
     }
     if (mHabit !== 'all') { html += albumHtml; return html + hs.filter(h => h.id === mHabit).map(masterySeries).join(''); }
     const lv = levelInfo(), pi = pointsInfo();
-    html += `<button class="mastery-sum clay level-card" data-act="level"><div class="lvl-big">${lv.level}</div><div class="grow"><b>${esc(lv.title)}</b><div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))} · ${fmtNum(pi.balance)} ⭐</div><div class="bar" style="margin-top:8px;height:8px"><i style="width:${lv.pct}%"></i></div></div><span class="chip">${ico('gift')} ${esc(t('rewardsTitle'))}</span></button>`;
+    html += `<button class="mastery-sum clay level-card" data-act="level"><div class="lvl-big">${lv.level}</div><div class="grow"><b>${esc(lv.title)}</b><div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))} · ${esc(t('ptsN', { n: fmtPts(pi.points) }))}</div><div class="bar" style="margin-top:8px;height:8px"><i style="width:${lv.pct}%"></i></div></div><span class="chip">💶 ${esc(fmtMoney(pi.money))}</span></button>`;
     html += `<div class="mastery-sum clay"><div class="empty-art" style="width:64px;height:64px;margin:0;border-radius:20px">${ico('crown')}</div><div class="grow"><b>${esc(t('masteryCollected', { a: got, b: hs.length * RANKS.length }))}</b><div class="muted small">${esc(t('masteryHow'))}</div></div></div>`;
     html += nearHtml + albumHtml;
     // Cartas secretas (ocultas hasta conseguirlas)
@@ -2091,6 +2117,7 @@
         ${group(t('setGroupCommit'), [
           acc('contract', ico('doc'), t('setContract'), c ? (cLeft < 0 ? t('contractEnded') : t('contractActive', { n: cLeft })) : t('contractNone'), `<div class="row wrap"><button class="chip" data-s="contract">${esc(c ? t('contractView') : t('contractSignNow'))}</button>${c ? `<button class="chip" data-s="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}</div>`),
           acc('commit', '⭐', t('commitTitle'), t('commit_' + state.commitment), `<div id="st-commit">${commitSegHtml()}</div>`),
+          acc('caprice', '💶', t('capConverter'), `${t('capShort', { m: fmtMoney(CAP.tenPointsValue(state.caprice.income, state.caprice.pct[state.commitment])) })}`, capHtml()),
           acc('vac', '🏖️', t('vacTitle'), activeVacation() ? t('vacActive', { date: fmtDate(activeVacation().to) }) : '', `<div class="row wrap"><span class="grow muted small">${esc(t('vacHintShort'))}</span><button class="chip" data-s="vacations">${esc(t('vacManage'))}</button></div>`)
         ])}
         ${group(t('setGroupNotices'), [
@@ -2106,6 +2133,7 @@
         ])}
         <p class="muted small center" style="margin:0">KeepGoing · ${esc(t('version', { v: VERSION }))}</p>
       </div>`;
+      updateCap(wref);
     };
     openModal({
       title: esc(t('settings')), cls: 'wide', body: '<div id="st"></div>',
@@ -2113,6 +2141,7 @@
         wref = w; draw();
         w.addEventListener('toggle', e => { const d = e.target.closest && e.target.closest('details[data-acc]'); if (!d) return; if (d.open) openAcc.add(d.dataset.acc); else openAcc.delete(d.dataset.acc); }, true);
         bindThemeEditor(w, () => { $('#st-theme', w).innerHTML = themeEditorHtml(); render(); });
+        bindCap(w, () => render());
         w.addEventListener('change', e => {
           if (e.target.id === 'st-file' && e.target.files[0]) importFile(e.target.files[0], w);
           // Avisos: activar/desactivar y nota
@@ -2334,61 +2363,201 @@
     }
   }
 
-  /* ---------- nivel, puntos y tienda de recompensas ---------- */
-  const COMMIT_LEVELS = ['chill', 'serio', 'locked'];
+  /* ---------- nivel, puntos de compromiso y Dinero Caprichable ---------- */
+  const COMMIT_LEVELS = CAP.LEVELS;
+  const fmtMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  const fmtPct = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 4 }).format(v) + ' %';
+  const fmtPctIn = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 4, useGrouping: false }).format(v);
+  const fmtPts = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 2 }).format(v);
   function levelPill() {
     const lv = levelInfo(), pi = pointsInfo();
-    return `<button class="lvl-pill clay" data-act="level" aria-label="${esc(t('lvTitle'))}"><span class="lvl-num">${lv.level}</span><span class="lvl-txt"><b>${esc(lv.title)}</b><span>${fmtNum(pi.balance)} ⭐</span></span></button>`;
+    return `<button class="lvl-pill clay" data-act="level" aria-label="${esc(t('lvTitle'))}"><span class="lvl-num">${lv.level}</span><span class="lvl-txt"><b>${esc(lv.title)}</b><span>${esc(t('ptsN', { n: fmtPts(pi.points) }))}</span></span></button>`;
   }
+  // El cambio de nivel solo afecta a los días futuros (desde mañana); en la configuración inicial o sin hábitos, desde hoy
   function setCommitment(lv) {
-    const k = todayKey();
-    state.commitHistory = state.commitHistory.filter(c => c.from !== k);
-    state.commitHistory.push({ from: k, level: lv });
+    const today = todayKey(), started = state.onboarded && state.habits.length > 0;
+    const k = started ? addDays(today, 1) : today;
+    state.commitHistory = state.commitHistory.filter(c => c.from < k);
+    if (!(started && commitOn(today) === lv)) state.commitHistory.push({ from: k, level: lv });
     state.commitHistory.sort((a, b) => a.from < b.from ? -1 : 1);
     state.commitment = lv;
     if (state.contract) state.contract.level = lv; // el contrato sigue al nivel elegido
     save();
   }
   function commitSegHtml() {
-    return `<div class="seg">${COMMIT_LEVELS.map(l => `<button type="button" data-commit="${l}" class="${state.commitment === l ? 'on' : ''}">${esc(t('commit_' + l))}</button>`).join('')}</div><p class="muted small" style="margin:8px 0 0">${esc(t('commitd_' + state.commitment))}</p>`;
+    const now = commitOn(todayKey()), pending = now !== state.commitment;
+    return `<div class="seg">${COMMIT_LEVELS.map(l => `<button type="button" data-commit="${l}" class="${state.commitment === l ? 'on' : ''}" aria-pressed="${state.commitment === l}">${esc(t('commit_' + l))}</button>`).join('')}</div>
+      <p class="muted small" style="margin:8px 0 0">${esc(t('commitd_' + state.commitment))}</p>
+      ${pending ? `<p class="small commit-pending" role="status">${esc(t('commitPending', { a: t('commit_' + now), b: t('commit_' + state.commitment) }))}</p>` : ''}`;
   }
+
+  /* Migración de la antigua tienda de recompensas (una sola vez). Los puntos de compromiso y el Dinero Caprichable
+     cuentan desde hoy. Las recompensas, canjes y ⭐ antiguos no encajan en el nuevo sistema: NO se borran,
+     se guardan tal cual (state.rewards / state.redemptions) y se avisa al usuario. */
+  function migrateShop() {
+    if (state.pointsSince) return;
+    const bal = state.habits.length ? pointsInfo().starBalance : 0;
+    const hasLegacy = state.rewards.length || state.redemptions.length || bal;
+    state.pointsSince = todayKey();
+    if (hasLegacy) state.legacyShop = { date: todayKey(), starBalance: bal, rewards: state.rewards.length, redemptions: state.redemptions.length, seen: false };
+    save();
+  }
+  function legacyShopHtml(open = false) {
+    const L = state.legacyShop;
+    if (!L || (!state.rewards.length && !state.redemptions.length && !L.starBalance)) return '';
+    return `<details class="legacy clay" ${open ? 'open' : ''}><summary><span class="grow"><b>${esc(t('legacyTitle'))}</b><span class="muted small">${esc(t('legacySum', { r: state.rewards.length, c: state.redemptions.length, s: fmtNum(L.starBalance) }))}</span></span>${ico('down')}</summary>
+      <p class="small">${esc(t('legacyWhy'))}</p>
+      ${state.rewards.length ? `<h4 class="legacy-h">${esc(t('legacyRewards'))}</h4>${state.rewards.map(r => `<div class="entry"><span>${esc(r.icon || '🎁')} ${esc(r.name)}</span><b>${fmtNum(r.cost)} ⭐</b></div>`).join('')}` : ''}
+      ${state.redemptions.length ? `<h4 class="legacy-h">${esc(t('redeemHistory'))}</h4>${[...state.redemptions].reverse().map(r => `<div class="entry"><span>${esc(r.icon || '🎁')} ${esc(r.name)} <span class="muted">· ${esc(fmtShort(r.date))}</span></span><b>−${fmtNum(r.cost)} ⭐</b></div>`).join('')}` : ''}
+      <p class="muted small" style="margin-bottom:0">${esc(t('legacyKept'))}</p></details>`;
+  }
+  // Aviso único tras migrar, si había datos que no encajan
+  function noticeLegacyShop() {
+    const L = state.legacyShop;
+    if (!L || L.seen || !state.onboarded) return;
+    L.seen = true; save();
+    whenFree(() => openModal({
+      title: `💶 ${esc(t('legacyNoticeTitle'))}`, body: `<p style="margin-top:0">${esc(t('legacyNotice'))}</p>${legacyShopHtml(true)}`,
+      foot: `<button class="btn primary" data-m="x">${esc(t('legacyOk'))}</button>`
+    }));
+  }
+
+  // Total de Dinero Caprichable: dinero VISUAL (no se suma ni se descuenta del saldo real)
+  function capTotalHtml() {
+    const pi = pointsInfo(), d = dayInfo(todayKey());
+    return `<div class="cap-total" role="group" aria-label="${esc(t('capTitle'))}">
+      <div class="cap-total-head"><span>💶 ${esc(t('capTitle'))}</span><span class="cap-badge">${esc(t('capBadge'))}</span></div>
+      <div class="cap-total-amount">${esc(fmtMoney(pi.money))}</div>
+      <div class="small">${esc(t('capToday', { p: fmtPts(d.cpts), m: fmtMoney(d.money) }))}</div>
+      <p class="muted small" style="margin:6px 0 0">${esc(t('capNotReal'))}</p>
+    </div>`;
+  }
+
+  /* Conversor: 10 puntos = ingreso neto total × (porcentaje / 100). Cada nivel tiene su porcentaje (modificable).
+     Los cambios se guardan desde hoy en un historial: no recalculan el Dinero Caprichable de días pasados. */
+  function setCaprice(patch) {
+    const c = state.caprice, k = todayKey();
+    if (patch.income != null) c.income = patch.income;
+    if (patch.pct) c.pct = { ...c.pct, ...patch.pct };
+    c.history = c.history.filter(h => h.from !== k);
+    c.history.push({ from: k, income: c.income, pct: { ...c.pct } });
+    c.history.sort((a, b) => a.from < b.from ? -1 : 1);
+    save();
+  }
+  function capHtml() {
+    const c = state.caprice;
+    return `<div class="cap-conv" data-cap>
+      <p class="muted small" style="margin-top:0">${esc(t('capFormula'))}</p>
+      <div class="field"><span>${esc(t('capEditFor'))}</span><div class="seg" data-cap-levels>${COMMIT_LEVELS.map(l => `<button type="button" data-cap-lv="${l}">${esc(t('commit_' + l))}</button>`).join('')}</div></div>
+      <div class="cap-slider">
+        <div class="cap-track" role="slider" tabindex="0" aria-valuemin="0.1" aria-valuemax="1" aria-label="${esc(t('capSliderLabel'))}">
+          <span class="cap-line" aria-hidden="true"></span>
+          ${CAP.DOTS.map((d, i) => `<button type="button" class="cap-dot" data-cap-dot="${i}" style="left:${d.pos}%" tabindex="-1" aria-label="${esc(t('commit_' + d.lv) + ' · ' + fmtPct(d.pct))}"><span>${i + 1}</span></button>`).join('')}
+          <span class="cap-thumb" aria-hidden="true"></span>
+        </div>
+        <div class="cap-labels" aria-hidden="true">${CAP.DOTS.map(d => `<span style="left:${d.pos}%">${esc(t('commit_' + d.lv))}<small>${esc(fmtPct(d.pct))}</small></span>`).join('')}</div>
+      </div>
+      <label class="field cap-pct"><span data-cap-pct-label></span><span class="cap-input"><input class="input" data-cap-pct inputmode="decimal" autocomplete="off"><b>%</b></span></label>
+      <p class="small cap-hint" data-cap-hint role="status"></p>
+      <div class="cap-preview">
+        <h4>${esc(t('capPreview'))}</h4>
+        <label class="field"><span>${esc(t('capIncome'))}</span><span class="cap-input"><input class="input" data-cap-income inputmode="decimal" autocomplete="off" value="${esc(fmtPctIn(c.income))}"><b>€</b></span></label>
+        <p class="small" style="margin:10px 0 6px">${esc(t('capEquals'))}</p>
+        <ul class="cap-prev-list">${COMMIT_LEVELS.map(l => `<li data-cap-prev="${l}"><span>${esc(t('commit_' + l))} <small data-cap-prev-pct></small></span><b data-cap-prev-val></b></li>`).join('')}</ul>
+      </div>
+    </div>`;
+  }
+  // Actualiza el conversor sin volver a pintarlo (para que el marcador se desplace con animación)
+  function updateCap(root) {
+    const box = $('[data-cap]', root); if (!box) return;
+    const c = state.caprice, lv = box._lv || (box._lv = state.commitment), pct = c.pct[lv];
+    const inc = box._income != null ? box._income : c.income;
+    $$('[data-cap-lv]', box).forEach(b => { b.classList.toggle('on', b.dataset.capLv === lv); b.setAttribute('aria-pressed', b.dataset.capLv === lv); });
+    $('.cap-thumb', box).style.left = CAP.sliderPos(pct) + '%';
+    const tr = $('.cap-track', box);
+    tr.setAttribute('aria-valuenow', pct); tr.setAttribute('aria-valuetext', `${fmtPct(pct)} · ${t('commit_' + lv)}`);
+    $('[data-cap-pct-label]', box).textContent = t('capPctFor', { l: t('commit_' + lv) });
+    const pi = $('[data-cap-pct]', box); if (document.activeElement !== pi) pi.value = fmtPctIn(pct);
+    $('[data-cap-hint]', box).textContent = pct > 1 ? t('capAbove') : pct < 0.1 ? t('capBelow') : '';
+    $$('[data-cap-prev]', box).forEach(li => {
+      const l = li.dataset.capPrev; li.classList.toggle('on', l === state.commitment);
+      $('[data-cap-prev-pct]', li).textContent = `(${fmtPct(c.pct[l])})${l === state.commitment ? ' · ' + t('capCurrent') : ''}`;
+      $('[data-cap-prev-val]', li).textContent = fmtMoney(CAP.tenPointsValue(inc, c.pct[l]));
+    });
+  }
+  function bindCap(root, onSaved = () => {}) {
+    const box = () => $('[data-cap]', root);
+    const setPct = (v, animate = true) => {
+      const b = box(); if (!b) return;
+      b.classList.toggle('no-anim', !animate);
+      setCaprice({ pct: { [b._lv]: v } }); updateCap(root); onSaved();
+    };
+    root.addEventListener('click', e => {
+      const b = box(); if (!b) return; let el;
+      if ((el = e.target.closest('[data-cap-lv]'))) { b._lv = el.dataset.capLv; b.classList.remove('no-anim'); updateCap(root); return; }
+      if ((el = e.target.closest('[data-cap-dot]'))) { setPct(CAP.DOTS[+el.dataset.capDot].pct); return; }
+      if (e.target.closest('[data-commit]')) setTimeout(() => { const bb = box(); if (bb) { bb._lv = state.commitment; updateCap(root); } }, 0);
+    });
+    // Arrastrar o pulsar en la barra
+    root.addEventListener('pointerdown', e => {
+      const tr = e.target.closest('.cap-track'); if (!tr || e.target.closest('[data-cap-dot]')) return;
+      const r = tr.getBoundingClientRect(), at = x => CAP.pctFromPos((x - r.left) / r.width * 100);
+      tr.classList.add('dragging'); tr.setPointerCapture && tr.setPointerCapture(e.pointerId);
+      setPct(at(e.clientX), false);
+      const move = ev => setPct(at(ev.clientX), false);
+      const up = () => { tr.classList.remove('dragging'); tr.removeEventListener('pointermove', move); tr.removeEventListener('pointerup', up); tr.removeEventListener('pointercancel', up); };
+      tr.addEventListener('pointermove', move); tr.addEventListener('pointerup', up); tr.addEventListener('pointercancel', up);
+    });
+    // Teclado: ← más porcentaje (hacia Chill), → menos (hacia Locked-In)
+    root.addEventListener('keydown', e => {
+      const tr = e.target.closest('.cap-track'); if (!tr) return;
+      const b = box(), cur = CAP.sliderPos(state.caprice.pct[b._lv]);
+      const pos = { ArrowLeft: cur - 2.5, ArrowDown: cur + 2.5, ArrowRight: cur + 2.5, ArrowUp: cur - 2.5, Home: 10, End: 90 }[e.key];
+      if (pos == null) return;
+      e.preventDefault(); setPct(CAP.pctFromPos(pos));
+    });
+    // Ingreso: la vista previa cambia al instante; se guarda si es válido
+    root.addEventListener('input', e => {
+      const b = box(); if (!b) return;
+      if (e.target.matches('[data-cap-income]')) {
+        const v = CAP.parseNumber(e.target.value);
+        b._income = v != null && v >= 0 ? v : 0; updateCap(root);
+        if (v != null && v > 0) { setCaprice({ income: v }); onSaved(); }
+      }
+    });
+    // Porcentaje escrito a mano: se acepta tal cual (aunque esté fuera de 0,1–1 %) y el marcador se desplaza despacio
+    root.addEventListener('change', e => {
+      const b = box(); if (!b || !e.target.matches('[data-cap-pct]')) return;
+      const v = CAP.parseNumber(e.target.value);
+      if (v == null || !(v > 0)) { toast(t('capPctInvalid')); e.target.value = fmtPctIn(state.caprice.pct[b._lv]); return; }
+      setPct(v); e.target.value = fmtPctIn(v);
+    });
+    root.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-cap-pct], [data-cap-income]')) e.target.blur(); });
+    updateCap(root);
+  }
+
   function openLevel() {
     let wref;
     const draw = () => {
-      const lv = levelInfo(), pi = pointsInfo();
+      const lv = levelInfo(), pi = pointsInfo(), d = dayInfo(todayKey());
       $('#lvl', wref).innerHTML = `<div class="stack" style="gap:18px">
         <div class="row" style="gap:16px"><div class="lvl-big">${lv.level}</div><div class="grow"><div style="font-size:22px;font-weight:var(--fw-title)">${esc(lv.title)}</div>
           <div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))}</div><div class="bar" style="margin-top:8px"><i style="width:${lv.pct}%"></i></div></div></div>
-        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtNum(pi.balance)} ⭐</b><span>${esc(t('ptsBalance'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div></div>
+        ${capTotalHtml()}
+        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtPts(d.cpts)}<small>/10</small></b><span>${esc(t('ptsToday'))}</span></div><div class="kpi clay"><b>${fmtPts(pi.points)}</b><span>${esc(t('ptsTotal'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div></div>
         <section><h3 class="section-title">${esc(t('commitTitle'))}</h3>${commitSegHtml()}</section>
-        <section><h3 class="section-title row">${ico('gift')} ${esc(t('rewardsTitle'))}</h3>
-          ${state.rewards.length ? state.rewards.map(r => `<div class="reward-row clay"><span style="font-size:26px">${esc(r.icon || '🎁')}</span><span class="grow"><b>${esc(r.name)}</b><br><span class="muted small">${fmtNum(r.cost)} ⭐</span></span>
-            <button class="btn ${pi.balance >= r.cost ? 'accent' : ''}" data-rw-redeem="${r.id}" ${pi.balance >= r.cost ? '' : 'disabled'}>${esc(t('redeem'))}</button><button class="icon-btn sm" data-rw-del="${r.id}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('') : `<p class="muted small">${esc(t('rewardsEmpty'))}</p>`}
-          <div class="row wrap" style="margin-top:12px"><input class="input" id="rw-icon" maxlength="4" value="🎁" style="width:70px;text-align:center"><input class="input grow" id="rw-name" maxlength="50" placeholder="${esc(t('rewardNamePh'))}" style="flex:1 1 160px"><input class="input" id="rw-cost" type="number" min="1" inputmode="numeric" placeholder="⭐" style="width:100px"><button class="btn" data-rw-add>${ico('plus')} ${esc(t('add'))}</button></div>
-        </section>
-        ${state.redemptions.length ? `<section><h3 class="section-title">${esc(t('redeemHistory'))}</h3>${[...state.redemptions].reverse().slice(0, 10).map(r => `<div class="entry"><span>${esc(r.icon || '🎁')} ${esc(r.name)} <span class="muted">· ${esc(fmtShort(r.date))}</span></span><b>−${fmtNum(r.cost)} ⭐</b></div>`).join('')}</section>` : ''}
-        <p class="muted small" style="margin:0">${esc(t('ptsHow'))}</p>
+        <section><h3 class="section-title">${esc(t('capConverter'))}</h3>${capHtml()}</section>
+        ${legacyShopHtml()}
+        <p class="muted small" style="margin:0">${esc(t('ptsHow', { since: fmtDate(state.pointsSince || todayKey()) }))}</p>
       </div>`;
+      updateCap(wref);
     };
     openModal({
       title: `⭐ ${esc(t('lvTitle'))}`, cls: 'wide', body: '<div id="lvl"></div>',
-      onMount: w => { wref = w; draw(); },
-      onClick: async (e) => {
-        let el;
-        if ((el = e.target.closest('[data-commit]'))) { setCommitment(el.dataset.commit); draw(); render(); return; }
-        if (e.target.closest('[data-rw-add]')) {
-          const name = $('#rw-name', wref).value.trim(), cost = parseInt($('#rw-cost', wref).value, 10), icon = $('#rw-icon', wref).value.trim() || '🎁';
-          if (!name || !(cost > 0)) { toast(t('rewardNeedData')); return; }
-          state.rewards.push({ id: uid(), name, cost, icon }); save(); draw(); return;
-        }
-        if ((el = e.target.closest('[data-rw-del]'))) { state.rewards = state.rewards.filter(r => r.id !== el.dataset.rwDel); save(); draw(); return; }
-        if ((el = e.target.closest('[data-rw-redeem]'))) {
-          const r = state.rewards.find(x => x.id === el.dataset.rwRedeem); if (!r) return;
-          if (await confirmDialog(t('redeemQ', { name: r.name, n: fmtNum(r.cost) }))) {
-            state.redemptions.push({ id: uid(), rewardId: r.id, name: r.name, icon: r.icon, cost: r.cost, date: todayKey() });
-            save(); vibrate([20, 40, 20]); toast(t('redeemed', { name: r.name })); draw(); render();
-          }
-        }
+      onMount: w => { wref = w; draw(); bindCap(w, () => { const el = $('.cap-total', w); if (el) el.outerHTML = capTotalHtml(); render(); }); },
+      onClick: (e) => {
+        const el = e.target.closest('[data-commit]');
+        if (el) { setCommitment(el.dataset.commit); draw(); render(); }
       }
     });
   }
@@ -2439,7 +2608,7 @@
     const di = dayInfo(todayKey());
     let html = petCardHtml() + energyHtml();
     if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span></div>`;
-    if (di.perfect && items.length) html += `<div class="perfect-banner clay">🎉 <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${COMMIT[commitOn(todayKey())].bonus} ⭐</span></div>`;
+    if (di.perfect && items.length) html += `<div class="perfect-banner clay">🎉 <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${fmtPts(di.cpts)} pts · ${esc(fmtMoney(di.money))}</span></div>`;
     const routs = state.routines.filter(r => r.habitIds.some(id => { const h = getHabit(id); return h && !h.archived && todayStatus(h).due; }));
     const groups = TOD.map(tod => {
       const rs = routs.filter(r => (r.timeOfDay || 'any') === tod);
@@ -2787,7 +2956,7 @@
   }
   function weekSummary(week) {
     const end = addDays(week, 6), last = end > todayKey() ? todayKey() : end; let perfect = 0, pts = 0;
-    for (let k = week; k <= last; k = addDays(k, 1)) { const d = dayInfo(k); if (d.perfect) perfect++; pts += d.pts; }
+    for (let k = week; k <= last; k = addDays(k, 1)) { const d = dayInfo(k); if (d.perfect) perfect++; pts += d.cpts; }
     const rates = state.habits.filter(h => !h.archived).map(h => rate(h, 7, last)).filter(r => r != null);
     return { perfect, pts, rate: rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length * 100) : null };
   }
@@ -2796,7 +2965,7 @@
     openModal({
       title: `📝 ${esc(t('reviewTitle'))}`,
       body: `<p class="muted" style="margin-top:0">${esc(t('reviewWeek', { a: fmtDate(week, { day: 'numeric', month: 'short' }), b: fmtDate(addDays(week, 6), { day: 'numeric', month: 'short' }) }))}</p>
-        <div class="kpis" style="margin-bottom:14px"><div class="kpi clay"><b>${s.rate == null ? '—' : s.rate + '%'}</b><span>${esc(t('kpiRate'))}</span></div><div class="kpi clay"><b>${s.perfect}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${fmtNum(s.pts)} ⭐</b><span>${esc(t('ptsEarned'))}</span></div></div>
+        <div class="kpis" style="margin-bottom:14px"><div class="kpi clay"><b>${s.rate == null ? '—' : s.rate + '%'}</b><span>${esc(t('kpiRate'))}</span></div><div class="kpi clay"><b>${s.perfect}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${fmtPts(s.pts)}</b><span>${esc(t('ptsEarned'))}</span></div></div>
         <div class="stack">
           <label class="field"><span>${esc(t('reviewGood'))}</span><textarea class="input" id="rv-good" maxlength="500">${esc(prev.good || '')}</textarea></label>
           <label class="field"><span>${esc(t('reviewAdjust'))}</span><textarea class="input" id="rv-adj" maxlength="500">${esc(prev.adjust || '')}</textarea></label>
@@ -2833,7 +3002,7 @@
     const n = diffDays(from, to) + 1, days = []; for (let k = from; k <= to; k = addDays(k, 1)) days.push(k);
     const H = state.habits.filter(h => firstKey(h) <= to);
     let perfect = 0, pts = 0, entries = 0; const act = new Set(), en = [];
-    days.forEach(k => { const d = dayInfo(k); if (d.perfect) perfect++; pts += d.pts; if (state.energy[k]) en.push(state.energy[k]); });
+    days.forEach(k => { const d = dayInfo(k); if (d.perfect) perfect++; pts += d.cpts; if (state.energy[k]) en.push(state.energy[k]); });
     H.forEach(h => { if (isQuit(h)) return; const L = state.logs[h.id] || {}; for (const k in L) if (k >= from && k <= to && L[k] > 0) { entries += isAmount(h) ? 1 : L[k]; act.add(k); } });
     const rates = H.map(h => rate(h, n, to)).filter(r => r != null);
     const rateP = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length * 100) : null;
@@ -2853,7 +3022,7 @@
       <body><div class="rep">
         <div class="row" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap"><div><div class="muted" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1>${esc(t('reportOf', { m: monthName }))}</h1>${state.contract ? `<div class="muted">${esc(state.contract.name)}</div>` : ''}</div><div class="no-print"><button class="btn primary" onclick="print()">${esc(t('reportSave'))}</button></div></div>
         <h2>${esc(t('reportSummary'))}</h2>
-        <div class="kpis">${kpi(rateP == null ? '—' : rateP + '%', t('kpiRate'))}${kpi(perfect, t('perfectDays'))}${kpi(fmtNum(pts) + ' ⭐', t('ptsEarned'))}${kpi(entries, t('kpiTotal'))}${kpi(act.size, t('kpiActiveDays'))}${kpi(en.length ? fmtNum(en.reduce((a, b) => a + b, 0) / en.length) + '/5' : '—', t('energyAvg'))}</div>
+        <div class="kpis">${kpi(rateP == null ? '—' : rateP + '%', t('kpiRate'))}${kpi(perfect, t('perfectDays'))}${kpi(fmtPts(pts), t('ptsEarned'))}${kpi(entries, t('kpiTotal'))}${kpi(act.size, t('kpiActiveDays'))}${kpi(en.length ? fmtNum(en.reduce((a, b) => a + b, 0) / en.length) + '/5' : '—', t('energyAvg'))}</div>
         <div class="chart-grid"><section class="chart-card clay"><h3>${esc(t('chartDaily'))}</h3>${lineChart(linePts, { min: 0, max: 100, fmt: v => Math.round(v) + '%' })}</section>
           <section class="chart-card clay"><h3>${esc(t('chartWeekday'))}</h3>${barChart(wdBars, { max: 100, fmt: v => Math.round(v) + '%' })}</section></div>
         <h2>${esc(t('chartTable'))}</h2>
@@ -3134,8 +3303,8 @@
     if (q && q[1] >= 1) out.push(t('petQuit', { n: q[1], h: q[0].name }));
     if (!state.energy[today]) out.push(t('petEnergy'));
     const c = state.contract; if (c) { const left = diffDays(today, c.endsAt); if (left >= 0 && left <= 3) out.push(t('petContract', { n: left })); }
-    const bal = pointsInfo().balance, rw = state.rewards.filter(r => r.cost <= bal).sort((a, b) => b.cost - a.cost)[0];
-    out.push(rw ? t('petReward', { name: rw.name }) : t('petPoints', { n: fmtNum(bal) }));
+    const pi = pointsInfo();
+    out.push(pi.money > 0 ? t('petCaprice', { m: fmtMoney(pi.money) }) : t('petPoints', { n: fmtPts(pi.points) }));
     return out;
   }
   let petIdx = 0;

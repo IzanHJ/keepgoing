@@ -745,3 +745,45 @@ p { font-weight: var(--fw-body); }
 .next-card .grow { display: flex; flex-direction: column; gap: 2px; }
 .next-card b { font-size: 17px; font-weight: var(--fw-subtitle); }
 .next-mini { width: 64px; flex: none; }
+
+/* =========================================================
+   v1.8: Dinero Caprichable y conversor de puntos
+   ========================================================= */
+:root { --cap-gold: #f2c94c; --cap-ink: #2b2100; }
+/* Dinero visual: estilo de «vale» (borde discontinuo dorado) para que no se confunda con dinero real */
+.cap-total { padding: 16px 18px; border-radius: var(--r-lg); border: 2px dashed var(--cap-gold); background: var(--surface); text-align: center; }
+.cap-total-head { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: var(--fw-subtitle); }
+.cap-badge { font-size: 11px; font-weight: var(--fw-ui); text-transform: uppercase; letter-spacing: .06em; padding: 3px 9px; border-radius: 999px; background: var(--cap-gold); color: var(--cap-ink); }
+.cap-total-amount { font-size: clamp(30px, 8vw, 42px); font-weight: var(--fw-num); font-variant-numeric: tabular-nums; line-height: 1.2; margin: 6px 0 2px; font-style: italic; }
+.commit-pending { margin: 8px 0 0; padding: 8px 12px; border-radius: var(--r-sm); background: var(--surface-2); }
+
+.cap-conv { display: grid; gap: 14px; }
+.cap-slider { padding: 6px 0 0; }
+.cap-track { position: relative; height: 44px; margin: 0 6px; cursor: pointer; touch-action: none; border-radius: 999px; }
+.cap-line { position: absolute; left: 0; right: 0; top: 50%; height: 8px; margin-top: -4px; border-radius: 999px; background: var(--surface-2); box-shadow: inset 0 3px 8px rgba(0,0,0,.25); }
+.cap-dot { position: absolute; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 0; padding: 0; background: var(--surface-3); color: var(--fg); font-size: 12px; font-weight: var(--fw-ui); display: grid; place-items: center; transition: transform .2s ease; }
+.cap-dot:hover, .cap-dot:focus-visible { transform: scale(1.12); }
+/* El marcador se desplaza despacio desde su posición anterior (sin animación al arrastrar o con movimiento reducido) */
+.cap-thumb { position: absolute; top: 50%; left: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--bg), var(--sh-out); pointer-events: none; transition: left 1.4s cubic-bezier(.45, 0, .2, 1); }
+.cap-track.dragging .cap-thumb, .no-anim .cap-thumb { transition: none; }
+.cap-labels { position: relative; height: 34px; margin: 4px 6px 0; font-size: 12px; font-weight: var(--fw-label); }
+.cap-labels span { position: absolute; transform: translateX(-50%); text-align: center; white-space: nowrap; line-height: 1.2; }
+.cap-labels small { display: block; color: var(--muted); font-weight: var(--fw-secondary); }
+.cap-input { display: flex; align-items: center; gap: 8px; }
+.cap-input .input { max-width: 160px; }
+.cap-hint { margin: -6px 0 0; color: var(--muted); min-height: 1em; }
+.cap-hint:empty { display: none; }
+.cap-preview { padding: 14px 16px; border-radius: var(--r-md); background: var(--surface-2); }
+.cap-preview h4 { margin: 0 0 10px; font-size: 15px; }
+.cap-prev-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cap-prev-list li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: var(--r-sm); font-variant-numeric: tabular-nums; }
+.cap-prev-list li small { color: var(--muted); }
+.cap-prev-list li.on { background: var(--accent); color: var(--accent-ink); }
+.cap-prev-list li.on small { color: inherit; opacity: .8; }
+
+.legacy { padding: 14px 16px; border-radius: var(--r-md); }
+.legacy summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.legacy summary::-webkit-details-marker { display: none; }
+.legacy summary .grow { display: flex; flex-direction: column; }
+.legacy[open] summary svg.i { transform: rotate(180deg); }
+.legacy-h { margin: 12px 0 4px; font-size: 14px; }
