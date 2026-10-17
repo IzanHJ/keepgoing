@@ -1303,7 +1303,7 @@ p { font-weight: var(--fw-body); }
 #main .jig:nth-child(even) { animation-direction: alternate-reverse; }
 #main .jig.dragging { animation: none; }
 #main .chat-rows .jig, #main .today-row.jig, #main .routine-card.jig, #main .ev-card.jig { animation-name: jig-sm; }
-.jig.chat-row .chat-end { padding-right: 26px; }
+.jig.chat-sw .chat-end { padding-right: 26px; }
 @keyframes jig { from { transform: rotate(-1.3deg); } to { transform: rotate(1.3deg); } }
 @keyframes jig-sm { from { transform: rotate(-.5deg) translateX(-1px); } to { transform: rotate(.5deg) translateX(1px); } }
 .w-del { position: absolute; top: -8px; right: -8px; z-index: 5; width: 28px; height: 28px; border-radius: 50%; background: #e5484d; color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 700; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); border: 2px solid var(--surface); animation: wdel-in .2s ease-out; }
@@ -1385,3 +1385,35 @@ button.media-chip { cursor: pointer; }
 .chat-compose.has-text .send-btn { display: inline-flex; }
 .chat-compose.has-text .mic-btn, .chat-compose.has-text .photo-btn-chat { display: none; }
 @media (max-width: 420px) { .chat-compose { gap: 6px; } .chat-compose > .icon-btn, .chat-compose > label.icon-btn { width: 38px; height: 38px; } }
+.chart-grid.single { grid-template-columns: 1fr; }
+/* v1.16: filas del Chat deslizables (papelera) */
+.chat-sw { border-radius: var(--r-md); }
+.chat-sw .swipe-front:not(.live-row) { background: linear-gradient(var(--surface), var(--surface)), var(--surface-solid, var(--surface)); }
+.chat-sw + .chat-sw { box-shadow: 0 -1px 0 var(--line); }
+.chat-sw .swipe-acts { padding-right: 8px; }
+.chat-sw .sw-act { height: calc(100% - 16px); }
+@media (hover: hover) { .chat-sw .swipe-front:not(.live-row):hover { background: linear-gradient(var(--surface-2), var(--surface-2)), var(--surface-solid, var(--surface)); } }
+/* v1.16: «Ver» detallado */
+.pv-modal .modal-body { display: grid; gap: 10px; }
+.pv-modal .section-title { margin: 8px 0 2px; }
+.pv-habit { padding: 10px 12px; border-radius: var(--r-md); display: grid; gap: 6px; }
+.pv-h-head { display: flex; align-items: center; gap: 10px; }
+.pv-h-head .grow { display: grid; gap: 2px; }
+.pv-ico { flex: none; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: var(--surface-2); font-size: 18px; }
+.pv-note { margin: 0; font-size: 14px; line-height: 1.4; color: var(--fg); opacity: .9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pv-desc { margin: 0; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pv-facts { display: grid; }
+.pv-facts .entry:last-child { border-bottom: 0; }
+.pv-group { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); }
+.pv-group .grow { display: grid; gap: 2px; }
+/* v1.16: «Notas para ti» */
+.notes-box { gap: 4px; }
+.note-card { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: var(--r-md); }
+.note-card + .note-card { box-shadow: 0 -1px 0 var(--line); }
+.note-card .grow { display: grid; gap: 2px; }
+.note-card.fresh { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.note-pts { flex: none; color: var(--accent); font-weight: var(--fw-num); }
+.note-text { margin: 4px 0 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+/* v1.16: opción «permiso una sola vez» de la huella / Face ID */
+.sec-once { align-items: center; gap: 10px; justify-content: space-between; padding: 8px 0; }
+.sec-once > span { min-width: 0; }
