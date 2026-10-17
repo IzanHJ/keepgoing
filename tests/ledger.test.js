@@ -57,3 +57,27 @@ test('modo privacidad oculta el texto', () => {
   assert.equal(L.mask('12,50 €', false), '12,50 €');
   assert.equal(L.recEntryId('rent', '2026-10-01'), 'rec-rent-2026-10-01');
 });
+
+test('gráficas: suma por categoría, franja de fechas y series por mes/año/día', () => {
+  const E = [
+    { date: '2026-01-15', type: 'expense', amountCents: 1000, categoryId: 'food' },
+    { date: '2026-01-20', type: 'expense', amountCents: 500, categoryId: 'transport' },
+    { date: '2026-03-02', type: 'expense', amountCents: 2500, categoryId: 'food' },
+    { date: '2026-03-31', type: 'income', amountCents: 140000, categoryId: 'salary' },
+    { date: '2025-12-31', type: 'income', amountCents: 2000, categoryId: 'gift' }
+  ];
+  assert.deepEqual(L.span(E), { from: '2025-12-31', to: '2026-03-31' });
+  assert.equal(L.span([]), null);
+  assert.deepEqual(L.byCategory(E, 'expense'), [{ id: 'food', cents: 3500 }, { id: 'transport', cents: 500 }]);
+  assert.deepEqual(L.byCategory(E, 'income').map(c => c.id), ['salary', 'gift']);
+  assert.equal(L.inRange(E, '2026-01-01', '2026-01-31').length, 2);
+  // comida entre enero y marzo
+  const food = L.inRange(E, '2026-01-01', '2026-03-31').filter(e => e.categoryId === 'food');
+  assert.deepEqual(L.totals(food), { income: 0, expense: 3500, net: -3500 });
+  const m = L.series(E, '2025-12-01', '2026-03-31', 'month');
+  assert.deepEqual(m.map(r => r.key), ['2025-12', '2026-01', '2026-02', '2026-03']);
+  assert.deepEqual(m.map(r => [r.income, r.expense]), [[2000, 0], [0, 1500], [0, 0], [140000, 2500]]);
+  assert.deepEqual(L.series(E, '2025-01-01', '2026-12-31', 'year').map(r => [r.key, r.income, r.expense]), [['2025', 2000, 0], ['2026', 140000, 4000]]);
+  const d = L.series(E, '2026-01-14', '2026-01-16', 'day');
+  assert.deepEqual(d.map(r => [r.key, r.expense]), [['2026-01-14', 0], ['2026-01-15', 1000], ['2026-01-16', 0]]);
+});

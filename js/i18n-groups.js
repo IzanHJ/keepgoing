@@ -61,7 +61,7 @@
     rankScoreHabit: '{n} día(s)', rankScoreProject: '+{n} %', rankEmpty: 'Aún nadie suma en este periodo.',
     rankPrizes: 'Premios: 1.º {a} · 2.º {b} · 3.º {c} puntos de reputación', rankPrizesNone: 'MAX es un ranking acumulado: no reparte premios.',
     rankRepNote: 'La reputación es solo estética y de estatus: no tiene valor económico y no son puntos de hábitos.',
-    freq_1W: '1S', freq_1M: '1M', freq_1Y: '1A', freq_MAX: 'MAX', freqLong_1W: 'Semanal', freqLong_1M: 'Mensual', freqLong_1Y: 'Anual', freqLong_MAX: 'Acumulado',
+    freq_1W: '1W', freq_1M: '1M', freq_1Y: '1Y', freq_MAX: 'MAX', freqLong_1W: 'Semanal', freqLong_1M: 'Mensual', freqLong_1Y: 'Anual', freqLong_MAX: 'Acumulado',
     repShort: '{n} rep.', repInGroup: 'Reputación en el grupo', repTotal: 'Reputación total', repTotalSub: 'Ganada en los rankings de tus grupos. Solo estatus, sin valor económico.',
     // miembros, roles y permisos
     gYou: 'tú', gRole: 'Rol', gPerms: 'Permisos', gPermsLeader: 'El líder tiene todos los permisos.', gPermsSaved: 'Permisos actualizados',

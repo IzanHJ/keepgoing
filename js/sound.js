@@ -44,7 +44,18 @@
     money: () => { tone(N.B5, 0, 0.08, { type: 'square', gain: 0.05 }); tone(N.E6, 0.08, 0.35, { type: 'square', gain: 0.05 }); },
     pop: () => tone(620, 0, 0.09, { to: 310, gain: 0.12 }),
     undo: () => tone(N.E5, 0, 0.16, { to: N.C4 * 1.5, type: 'triangle', gain: 0.08 }),
-    slip: () => { tone(N.E4, 0, 0.25, { type: 'triangle', gain: 0.08 }); tone(N.C4, 0.12, 0.35, { type: 'triangle', gain: 0.08 }); }
+    slip: () => { tone(N.E4, 0, 0.25, { type: 'triangle', gain: 0.08 }); tone(N.C4, 0.12, 0.35, { type: 'triangle', gain: 0.08 }); },
+    // Papel que se rasga: ruido filtrado con chasquidos sueltos (generado, sin grabaciones)
+    tear: () => {
+      const c = ctx, dur = 1.6, t0 = c.currentTime, n = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (Math.random() < 0.03 ? 1 : 0.22);
+      const src = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain();
+      src.buffer = buf; bp.type = 'bandpass'; bp.Q.value = 0.8;
+      bp.frequency.setValueAtTime(1500, t0); bp.frequency.linearRampToValueAtTime(3400, t0 + dur);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.32, t0 + 0.12);
+      g.gain.setValueAtTime(0.28, t0 + dur - 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(bp); bp.connect(g); g.connect(master); src.start(t0); src.stop(t0 + dur + 0.05);
+    }
   };
   function play(name) {
     if (!enabled || !SOUNDS[name]) return;

@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.11.0';
+  const VERSION = '1.12.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -136,7 +136,7 @@
   /* ---------- estado ---------- */
   const DEFAULT_THEME = { preset: 'noche', bg: '#000000', fg: '#ffffff', accent: '#3ddc97', style: 'clay', bgMode: 'solid', bg2: '#1b1b2f', font: 'quicksand' };
   // Tipos de letra disponibles (se cargan desde Google Fonts en index.html)
-  const FONTS = [['quicksand', 'Quicksand'], ['nunito-sans', 'Nunito Sans'], ['nunito', 'Nunito'], ['jakarta', 'Plus Jakarta Sans'], ['poppins', 'Poppins']];
+  const FONTS = [['quicksand', 'Quicksand'], ['nunito-sans', 'Nunito Sans'], ['jakarta', 'Plus Jakarta Sans'], ['poppins', 'Poppins']];
   const fontFamily = id => (FONTS.find(f => f[0] === id) || FONTS[0])[1];
   const CAP = window.KGCaprice;
   const defaultCaprice = () => ({ income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT }, history: [{ from: '0000-00-00', income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT } }] });
@@ -148,7 +148,7 @@
       theme: { ...DEFAULT_THEME },
       contract: null,
       habits: [], logs: {}, projects: [], rest: {},
-      mastery: {}, serial: 0, colorSeq: 0, contractCards: [],
+      mastery: {}, perfectMastery: {}, serial: 0, colorSeq: 0, contractCards: [],
       // Fase 1: rutinas, recompensas, vacaciones, escudos, energía, revisiones, avisos, retos, cartas secretas
       routines: [], rewards: [], redemptions: [], vacations: [],
       shields: {}, ltime: {}, energy: {}, reviews: {}, prompts: {}, secrets: {}, challengeCards: [],
@@ -171,11 +171,17 @@
     const d = defaultState();
     const out = { ...d, ...s };
     out.theme = { ...d.theme, ...(s.theme || {}) };
+    if (out.theme.font === 'nunito') out.theme.font = 'quicksand'; // la letra Nunito ya no existe
     out.ui = { ...d.ui, ...(s.ui || {}) };
+    // v1.12: Proyectos y Gráficos viven dentro de la pestaña de Hábitos
+    if (out.ui.tab === 'projects') { out.ui.tab = 'habits'; out.ui.habitsView = 'all'; }
+    if (out.ui.tab === 'charts') { out.ui.tab = 'habits'; out.ui.habitsView = 'charts'; }
+    if (!['habits', 'ledger', 'mastery'].includes(out.ui.tab)) out.ui.tab = 'habits';
     out.habits = Array.isArray(s.habits) ? s.habits : [];
     out.logs = s.logs && typeof s.logs === 'object' ? s.logs : {};
     out.projects = Array.isArray(s.projects) ? s.projects : [];
     out.mastery = s.mastery && typeof s.mastery === 'object' ? s.mastery : {};
+    out.perfectMastery = s.perfectMastery && typeof s.perfectMastery === 'object' && !Array.isArray(s.perfectMastery) ? s.perfectMastery : {};
     out.rest = s.rest && typeof s.rest === 'object' ? s.rest : {};
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'emt', 'rvmt', 'pmt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
@@ -303,6 +309,8 @@
       const m = out.mastery[hid] || (out.mastery[hid] = {});
       for (const [r, v] of Object.entries(ranks)) if (!m[r] || v.date < m[r].date) m[r] = v;
     }
+    out.perfectMastery = { ...(L.perfectMastery || {}) };
+    for (const [r, v] of Object.entries(R.perfectMastery || {})) if (!out.perfectMastery[r] || v.date < out.perfectMastery[r].date) out.perfectMastery[r] = v;
     const cc = new Map((L.contractCards || []).map(c => [c.id, c])); (R.contractCards || []).forEach(c => { if (!cc.has(c.id)) cc.set(c.id, c); });
     out.contractCards = [...cc.values()].sort((a, b) => a.end < b.end ? -1 : 1);
     out.serial = Math.max(L.serial || 0, R.serial || 0);
@@ -465,7 +473,7 @@
     if (v > before && k === todayKey()) { const d = new Date(); (state.ltime[h.id] || (state.ltime[h.id] = {}))[k] = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
     save();
     habitFeedback(h, k, before, v, snap);
-    checkMastery(h);
+    checkPerfectMastery();
     checkChallenge(h);
     checkSecrets();
   }
@@ -579,26 +587,49 @@
   const LEVEL_TITLES = [[0, 'lvNovato'], [3, 'lvConstante'], [5, 'lvDisciplinado'], [8, 'lvEnfocado'], [12, 'lvImparable'], [16, 'lvInquebrantable'], [20, 'lvLeyenda'], [30, 'lvMito']];
   const levelTitle = L => t(LEVEL_TITLES.filter(([n]) => L >= n).pop()[1]);
 
-  /* ---------- Maestrías ---------- */
-  function checkMastery(h, silent = false) {
-    const n = successDays(h);
-    const m = state.mastery[h.id] || (state.mastery[h.id] = {});
-    let fresh = -1;
-    RANKS.forEach(([r, th], i) => { if (n >= th && !m[r]) { m[r] = { date: todayKey(), serial: ++state.serial }; fresh = i; } });
-    if (fresh >= 0) { save(); if (!silent) setTimeout(() => showUnlock(h, fresh), 380); }
+  /* ---------- Maestrías: por racha de días perfectos (una sola colección, más exigente) ----------
+     Las cartas antiguas por hábito (state.mastery) se conservan tal cual y se ven aparte; ya no se ganan nuevas. */
+  // Días perfectos seguidos. Los días de vacaciones ni suman ni rompen la racha; hoy solo suma si ya es perfecto.
+  function perfectRun() {
+    return cached('prun', () => {
+      let cur = 0, best = 0; const today = todayKey();
+      if (state.habits.length) eachDay(k => { const d = dayInfo(k); if (d.perfect) { cur++; if (cur > best) best = cur; } else if (k < today && !inVacation(k)) cur = 0; });
+      return { cur, best };
+    });
   }
-  const unlockedCount = h => { const n = successDays(h); return RANKS.filter(([, th]) => n >= th).length; };
+  const PSUBJ = () => ({ id: '__perfect', name: profileName(), perfect: true });
+  const perfectCount = () => RANKS.filter(([r]) => state.perfectMastery[r]).length;
+  function checkPerfectMastery(silent = false) {
+    if (!state.habits.length) return;
+    const { best } = perfectRun(), m = state.perfectMastery; let fresh = -1;
+    RANKS.forEach(([r, th], i) => { if (best >= th && !m[r]) { m[r] = { date: todayKey(), serial: ++state.serial }; fresh = i; } });
+    if (fresh >= 0) { save(); if (!silent) setTimeout(() => showUnlock(fresh), 380); }
+  }
+  // Cartas antiguas por hábito: solo las que se ganaron y quedaron guardadas
+  const legacyCount = h => RANKS.filter(([r]) => (state.mastery[h.id] || {})[r]).length;
+  const legacyTotal = () => state.habits.reduce((a, h) => a + legacyCount(h), 0);
+  const cardMeta = (h, r) => h.perfect ? state.perfectMastery[r] : (state.mastery[h.id] || {})[r];
 
   /* =========================================================
      RENDER
      ========================================================= */
-  let minWeeks = 20;
-
-  let lastTab = null;
+  let lastView = null, lastTabIdx = -1;
+  // Pestañas: Hábitos y Proyectos (con Gráficos dentro), Libreta y Maestrías
+  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['ledger', 'wallet', 'tabLedger'], ['mastery', 'crown', 'tabMastery']];
+  const HVIEWS = [['today', '☀️', 'viewToday'], ['all', '📋', 'viewAll'], ['challenges', '🏁', 'viewChallenges'], ['shared', '👥', 'viewShared'], ['charts', '📊', 'tabChartsShort']];
+  const habitsView = () => HVIEWS.some(v => v[0] === state.ui.habitsView) ? state.ui.habitsView : 'all';
+  const openFolder = () => { const p = state.ui.folder && state.projects.find(x => x.id === state.ui.folder); return p && habitsView() === 'all' ? p : null; };
+  // Posición de la vista (pestaña y subvista) para saber hacia qué lado se desliza al cambiar
+  function viewPos() {
+    const ti = Math.max(0, TABS.findIndex(x => x[0] === state.ui.tab));
+    if (state.ui.tab !== 'habits') return { key: state.ui.tab, n: ti * 100 };
+    const vi = HVIEWS.findIndex(v => v[0] === habitsView()), f = openFolder();
+    return { key: 'habits:' + habitsView() + (f ? ':' + f.id : ''), n: vi * 10 + (f ? 5 : 0) };
+  }
   function render() {
     if (publicMode) return;
     migrateShop();
-    if (LV.key && (!state.ledgerVault || LV.salt !== state.ledgerVault.salt)) ledgerLock(); // la contraseña cambió en otro dispositivo
+    if (LV.key && !vaultSame()) ledgerLock(); // la Libreta se ha vuelto a crear en otro dispositivo
     else if (ledgerOpen() && LV.sig !== ledgerSig() && !LV.busy) { LV.busy = true; ledgerLoad().then(() => { LV.busy = false; runRecurring(); render(); }).catch(() => { LV.busy = false; }); }
     applyTheme();
     document.documentElement.lang = state.lang;
@@ -606,41 +637,54 @@
     const app = $('#app');
     if (!state.onboarded) { app.innerHTML = renderOnboarding(); mountOnboarding(); return; }
     const cc = awardContract();
-    const tabChanged = lastTab !== state.ui.tab; lastTab = state.ui.tab;
-    app.innerHTML = `<div class="app">${renderNav()}<main class="main ${tabChanged ? '' : 'no-anim'}" id="main" data-tab="${esc(state.ui.tab)}">${renderView()}</main></div>`;
+    const ti = TABS.findIndex(x => x[0] === state.ui.tab), pos = viewPos();
+    // Animación de entrada solo si cambia la vista: se desliza hacia la derecha o la izquierda según el orden
+    const anim = lastView === null ? 'anim-in' : lastView.key === pos.key ? 'no-anim' : (pos.n > lastView.n ? 'anim-fwd' : 'anim-back');
+    const prevTab = lastTabIdx; lastView = pos; lastTabIdx = ti;
+    app.innerHTML = `<div class="app">${renderNav()}<main class="main ${anim}" id="main" data-tab="${esc(state.ui.tab)}">${renderView()}</main></div>`;
+    placeNavInd(prevTab);
     afterRender();
-    noticeLegacyShop();
     if (cc) setTimeout(() => whenFree(() => openContractCard(cc, true)), 400);
   }
 
   function renderNav() {
-    const tabs = [['habits', 'checklist', t('tabHabits')], ['projects', 'target', t('tabProjects')], ['ledger', 'wallet', t('tabLedger')], ['charts', 'chart', t('tabChartsShort')], ['mastery', 'crown', t('tabMastery')]];
-    return `<nav class="nav" aria-label="KeepGoing">${tabs.map(([id, ic, label]) =>
-      `<button data-act="go" data-tab="${id}" class="${state.ui.tab === id ? 'on' : ''}" ${state.ui.tab === id ? 'aria-current="page"' : ''} title="${esc(id === 'charts' ? t('tabCharts') : label)}">${ico(ic)}<span>${esc(label)}</span></button>`).join('')}</nav>`;
+    return `<nav class="nav" aria-label="KeepGoing"><span class="nav-ind" aria-hidden="true"></span>${TABS.map(([id, ic, key]) =>
+      `<button data-act="go" data-tab="${id}" class="${state.ui.tab === id ? 'on' : ''}" ${state.ui.tab === id ? 'aria-current="page"' : ''} title="${esc(t(key))}">${ico(ic)}<span>${esc(t(key))}</span></button>`).join('')}</nav>`;
+  }
+  // Indicador que se desliza de la pestaña anterior a la nueva
+  function placeNavInd(prevIdx) {
+    const nav = $('.nav'); if (!nav) return;
+    const ind = $('.nav-ind', nav), btns = $$('button', nav), cur = btns.findIndex(b => b.classList.contains('on'));
+    if (!ind || cur < 0) return;
+    const put = b => { ind.style.width = b.offsetWidth + 'px'; ind.style.height = b.offsetHeight + 'px'; ind.style.transform = `translate(${b.offsetLeft}px, ${b.offsetTop}px)`; };
+    if (prevIdx >= 0 && prevIdx !== cur && btns[prevIdx] && !reducedMotion()) { ind.style.transition = 'none'; put(btns[prevIdx]); void ind.offsetWidth; ind.style.transition = ''; }
+    put(btns[cur]);
+    if (prevIdx >= 0 && prevIdx !== cur) btns[cur].classList.add('nav-bounce');
   }
 
   function renderView() {
     switch (state.ui.tab) {
-      case 'projects': return viewProjects();
       case 'ledger': return viewLedger();
-      case 'charts': return viewCharts();
       case 'mastery': return viewMastery();
       default: return viewHabits();
     }
   }
 
+  // @nametag junto al nivel: abre tu perfil (insignias, logros, cartas…)
+  const myTag = () => profileOf().tag || repState.nametag || '';
+  const tagPill = () => `<button class="tag-pill clay ${myTag() ? '' : 'empty'}" data-act="profile" aria-label="${esc(t('profileTitle'))}" title="${esc(t('profileTitle'))}">${myTag() ? `<b>@</b>${esc(myTag())}` : `<b>@</b>${esc(t('tagPillEmpty'))}`}</button>`;
   function topBar(actions = '') {
-    return `<div class="top-bar"><div class="row" style="gap:10px;min-width:0"><button class="icon-btn" data-act="settings" aria-label="${esc(t('settings'))}" title="${esc(t('settings'))}">${ico('gear')}</button>${state.habits.length ? levelPill() : ''}</div>${actions ? `<div class="pill-group">${actions}</div>` : ''}</div>`;
+    return `<div class="top-bar"><div class="row top-left" style="gap:8px;min-width:0"><button class="icon-btn" data-act="settings" aria-label="${esc(t('settings'))}" title="${esc(t('settings'))}">${ico('gear')}</button>${state.habits.length ? levelPill() : ''}${tagPill()}</div>${actions ? `<div class="pill-group">${actions}</div>` : ''}</div>`;
   }
   const emptyState = (icon, title, sub, action = '') =>
     `<div class="empty"><div class="empty-art">${ico(icon)}</div><h2>${esc(title)}</h2><p>${esc(sub)}</p>${action}</div>`;
 
   function afterRender() {
-    if (state.ui.tab === 'habits') fitGrids();
-    if (state.ui.tab === 'projects') loadPhotos($('#main'));
+    initCals($('#main'));
+    if (state.ui.tab === 'habits') loadPhotos($('#main'));
   }
 
-  /* ---------- HÁBITOS ---------- */
+  /* ---------- HÁBITOS Y PROYECTOS ---------- */
   function contractBanner() {
     const c = state.contract;
     if (!c) return `<div class="banner clay"><div class="banner-ico">${ico('doc')}</div><span class="grow">${esc(t('contractNone'))}</span><button class="chip" data-act="contract">${esc(t('contractSignNow'))}</button></div>`;
@@ -651,18 +695,23 @@
     return `<button class="banner clay" data-act="contract" style="width:100%;border:0;text-align:left;color:inherit"><div class="banner-ico">${ico('doc')}</div><span class="grow"><b>${esc(left === 1 ? t('contractActive1') : t('contractActive', { n: left }))}</b><span class="bar" style="display:block;height:6px;margin-top:6px;max-width:260px"><i style="width:${pct}%"></i></span></span>${ico('right')}</button>`;
   }
 
+  // Un hábito está «dentro» de una carpeta si pertenece a algún proyecto sin terminar
+  const activeProjects = () => state.projects.filter(p => !projectStats(p).achieved);
+  const folderedIds = () => new Set(activeProjects().flatMap(p => p.habitIds));
+
   function viewHabits() {
     const active = state.habits.filter(h => !h.archived), arch = state.habits.filter(h => h.archived);
-    let html = topBar(`<button class="icon-btn" data-act="go" data-tab="charts" aria-label="${esc(t('tabCharts'))}">${ico('chart')}</button><button class="icon-btn" data-act="create" aria-label="${esc(t('addHabit'))}">${ico('plus')}</button>`);
-    html += `<h1 class="page-title">${esc(t('tabHabits'))}</h1>`;
-    html += contractBanner();
-    if (!active.length && !arch.length) {
-      return html + emptyState('checklist', t('habitsEmptyTitle'), t('habitsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button><button class="btn" data-act="packs">📦 ${esc(t('fromTemplate'))}</button></div>`);
+    let html = topBar(`<button class="icon-btn" data-act="create" aria-label="${esc(t('createTitle'))}">${ico('plus')}</button>`);
+    const folder = openFolder();
+    if (!folder && state.ui.folder) state.ui.folder = null;
+    html += `<h1 class="page-title">${esc(t('tabHabitsProjects'))}</h1>`;
+    if (!active.length && !arch.length && !state.projects.length) {
+      return html + contractBanner() + emptyState('checklist', t('habitsEmptyTitle'), t('habitsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button><button class="btn" data-act="packs">📦 ${esc(t('fromTemplate'))}</button><button class="btn" data-act="proj-new">${ico('target')} ${esc(t('newProject'))}</button></div>`);
     }
-    const VIEWS = [['today', '☀️', 'viewToday'], ['all', '📋', 'viewHabits'], ['challenges', '🏁', 'viewChallenges'], ['shared', '👥', 'viewShared']];
-    const view = VIEWS.some(v => v[0] === state.ui.habitsView) ? state.ui.habitsView : 'all';
-    html += `<div class="seg view-seg" style="margin-bottom:16px">${VIEWS.map(([v, e, k]) => `<button data-act="hview" data-v="${v}" class="${view === v ? 'on' : ''}"><span class="vi">${e}</span> ${esc(t(k))}</button>`).join('')}</div>`;
-    if (view === 'today') return html + viewToday(active);
+    const view = habitsView();
+    html += `<div class="seg view-seg" role="tablist">${HVIEWS.map(([v, e, k]) => `<button data-act="hview" data-v="${v}" role="tab" aria-selected="${view === v}" class="${view === v ? 'on' : ''}"><span class="vi">${e}</span> ${esc(t(k))}</button>`).join('')}</div>`;
+    if (view === 'today') return html + contractBanner() + viewToday(active);
+    if (view === 'charts') return html + chartsHtml();
     const grid = list => `<div class="habit-grid" id="habit-grid">${list.map(habitCard).join('')}</div>${list.length > 1 ? `<p class="grid-hint">${esc(t('dragHint'))}</p>` : ''}`;
     if (view === 'challenges') {
       const on = active.filter(h => h.challenge && !h.challenge.done), done = active.filter(h => h.challenge && h.challenge.done);
@@ -671,13 +720,52 @@
       return html;
     }
     if (view === 'shared') return html + groupsViewHtml(active);
+    if (folder) return html + folderViewHtml(folder);
+    html += contractBanner();
     if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span><button class="chip" data-act="vacations">${esc(t('edit'))}</button></div>`;
-    html += `<div class="habit-grid" id="habit-grid">${active.map(habitCard).join('')}</div>`;
-    if (active.length) html += `<p class="grid-hint">${esc(t('tapHint'))}${active.length > 1 ? '<br>' + esc(t('dragHint')) : ''}</p>`;
+    const inF = folderedIds(), folders = activeProjects(), loose = active.filter(h => !inF.has(h.id));
+    html += `<div class="habit-grid" id="habit-grid">${folders.map(folderCard).join('')}${loose.map(habitCard).join('')}</div>`;
+    if (loose.length || folders.length) html += `<p class="grid-hint">${esc(t('tapHint'))}<br>${esc(t('folderHint'))}</p>`;
+    const finished = state.projects.filter(p => !folders.includes(p));
+    if (finished.length) html += `<h2 class="section-title" style="margin:28px 0 14px;font-size:22px">🏆 ${esc(t('finishedProjects'))}</h2><div class="proj-grid">${finished.map(finishedCard).join('')}</div>`;
     if (arch.length) {
       html += `<div class="center" style="margin-top:22px"><button class="chip" data-act="toggle-archived">${ico('archive')} ${esc(state.ui.showArchived ? t('hideArchived') : t('showArchived', { n: arch.length }))}</button></div>`;
       if (state.ui.showArchived) html += `<div class="habit-grid archived-list" style="margin-top:18px">${arch.map(habitCard).join('')}</div>`;
     }
+    return html;
+  }
+
+  // Carpeta (proyecto) en la cuadrícula: mismo tamaño que un hábito; muestra sus hábitos y el progreso de hoy
+  function folderCard(p) {
+    const s = projectStats(p), hs = p.habitIds.map(getHabit).filter(h => h && !h.archived);
+    const due = hs.filter(h => todayStatus(h).due), done = due.filter(h => todayStatus(h).done && !isQuit(h)).length;
+    const minis = hs.slice(0, 4).map(h => { const st = todayStatus(h); return `<span class="fmini ${st.due && st.done && !st.quit ? 'on' : ''}" style="${habitVars(hColor(h))}">${esc(h.icon || '#')}</span>`; }).join('');
+    return `<article class="folder clay" data-pid="${p.id}" style="--h:${p.color || 'var(--accent)'}">
+      <button class="folder-main" data-act="folder-open" data-id="${p.id}" aria-label="${esc(t('folderOpen', { name: p.name }))}">
+        <span class="folder-tab" aria-hidden="true"></span>
+        <span class="folder-head"><span class="folder-ico">${esc(p.icon || '📁')}</span><span class="prob-badge"><b>${s.P}%</b><span>${esc(t('probability').split(' ')[0])}</span></span></span>
+        <h3>${esc(p.name)}${p.groupId ? ' 👥' : ''}</h3>
+        <span class="muted small folder-sub">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</span>
+        <span class="bar ${s.G ? '' : 'zero'}"><i style="width:${Math.round(s.G * 100)}%"></i></span>
+        <span class="folder-minis">${minis || `<span class="muted small">${esc(t('folderEmpty'))}</span>`}</span>
+        <span class="muted small">${esc(t('folderCount', { n: hs.length }))}${due.length ? ' · ' + esc(t('folderToday', { a: done, b: due.length })) : ''}</span>
+      </button>
+    </article>`;
+  }
+  function finishedCard(p) {
+    return `<button class="proj clay finished" data-act="proj-open" data-id="${p.id}">
+      <div class="proj-top"><div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div><div class="grow"><h3>${esc(p.name)}</h3><div class="muted small" style="font-weight:var(--fw-label)">✅ ${esc(t('achieved'))}</div></div></div>
+      ${p.photos.before || p.photos.after ? `<div class="ba-row">${['before', 'after'].map(k => p.photos[k] ? `<div class="ba-thumb"><img data-photo="${esc(p.photos[k].path)}" alt=""><span>${esc(t('photo_' + k))}</span></div>` : `<div class="ba-thumb empty"><span>${esc(t('photo_' + k))}</span></div>`).join('')}</div>` : ''}
+    </button>`;
+  }
+  // Dentro de una carpeta: resumen del proyecto y sus hábitos (un hábito puede estar en varias carpetas)
+  function folderViewHtml(p) {
+    const hs = p.habitIds.map(getHabit).filter(h => h && !h.archived);
+    let html = `<div class="folder-bar"><button class="chip" data-act="folder-close">${ico('left')} ${esc(t('viewAll'))}</button><span class="muted small grow">${esc(t('folderInside'))}</span><button class="chip" data-act="proj-edit" data-id="${p.id}">${ico('edit')} ${esc(t('edit'))}</button></div>`;
+    html += `<div class="folder-summary">${projCard(p)}</div>`;
+    html += hs.length ? `<div class="habit-grid" id="habit-grid" data-folder="${p.id}">${hs.map(habitCard).join('')}</div><p class="grid-hint">${esc(t('folderOutHint'))}</p>`
+      : `<p class="muted center">${esc(t('folderEmptyHint'))}</p>`;
+    html += `<div class="center" style="margin-top:14px"><button class="btn" data-act="proj-edit" data-id="${p.id}">${ico('plus')} ${esc(t('folderAddHabits'))}</button></div>`;
     return html;
   }
 
@@ -697,21 +785,16 @@
     const sum = periodSum(h, today);
     const streak = currentStreak(h);
     const meta = [];
+    const inFolders = state.projects.filter(p => p.habitIds.includes(h.id)).length;
     if (isQuit(h)) {
       const slip = cnt(h, today) > 0, best = bestStreak(h);
+      meta.push(`<span class="tag-quit">${esc(t('kindQuit'))}</span>`);
       meta.push(esc(streak === 1 ? t('quitDay1') : t('quitDays', { n: streak })));
       if (best > streak) meta.push(esc(t('bestStreak')) + ' ' + best);
       if (h.challenge && !h.challenge.done) meta.push(`🏁 ${challengeProgress(h)}/${h.challenge.days}`);
       if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">👥</span>`);
       const ring = `<button class="ring quit ${slip ? 'slipped' : 'full'}" data-ring="${h.id}" aria-label="${esc(t('relapse'))}"><svg viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="23" fill="none" stroke="var(--h)" stroke-opacity=".4" stroke-width="3.5"/></svg><span class="ring-in">${slip ? ico('x') : streak}</span></button>`;
-      return `<article class="habit clay" data-id="${h.id}" style="${habitVars(c)}">
-        <div class="habit-head">
-          <button class="habit-ico" data-act="habit-edit" data-id="${h.id}" aria-label="${esc(t('editHabit'))}">${esc(h.icon || '#')}</button>
-          <button class="habit-title" data-act="habit-edit" data-id="${h.id}"><h3>${esc(h.name)}</h3><div class="habit-meta"><span class="tag-quit">${esc(t('kindQuit'))}</span>${meta.map(m => `<span>${m}</span>`).join('')}</div></button>
-          ${ring}
-        </div>
-        ${dotsHtml(h)}
-      </article>`;
+      return cardShell(h, c, meta, ring);
     }
     if (isAmount(h)) meta.push(`${fmtNum(sum)} / ${fmtNum(h.target)} ${esc(h.unit || '')}${h.freq !== 'daily' ? ' · ' + esc(unitLabel(h)) : ''}`);
     else {
@@ -724,37 +807,43 @@
     if (h.challenge && !h.challenge.done) meta.push(`🏁 ${challengeProgress(h)}/${h.challenge.days}`);
     if (h.reminder && h.reminder.on) meta.push(`🔔${esc(h.reminder.time)}`);
     if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">👥</span>`);
+    if (inFolders > 1) meta.push(`📁${inFolders}`);
     // En hábitos con cantidad, el anillo muestra el porcentaje del objetivo
     const ring = isAmount(h)
       ? ringHtml(Math.min(sum, h.target), h.target, `data-ring="${h.id}" aria-label="${esc(t('today'))}: ${fmtNum(sum)}/${fmtNum(h.target)}"`).replace(/<span class="ring-in">.*<\/span><\/button>$/, `<span class="ring-in" style="font-size:12px">${sum >= h.target ? ico('check') : Math.round(sum / h.target * 100) + '%'}</span></button>`)
       : ringHtml(sum, h.target, `data-ring="${h.id}" aria-label="${esc(t('today'))}: ${sum}/${h.target}"`);
+    return cardShell(h, c, meta, ring);
+  }
+  function cardShell(h, c, meta, ring) {
     return `<article class="habit clay" data-id="${h.id}" style="${habitVars(c)}">
       <div class="habit-head">
         <button class="habit-ico" data-act="habit-edit" data-id="${h.id}" aria-label="${esc(t('editHabit'))}">${esc(h.icon || '#')}</button>
         <button class="habit-title" data-act="habit-edit" data-id="${h.id}"><h3>${esc(h.name)}</h3>${meta.length ? `<div class="habit-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>` : ''}</button>
-        ${+h.duration > 0 ? `<button class="icon-btn sm timer-btn" data-timer="${h.id}" aria-label="${esc(t('timer'))}">${ico('timer')}</button>` : ''}
+        ${+h.duration > 0 && !isQuit(h) ? `<button class="icon-btn sm timer-btn" data-timer="${h.id}" aria-label="${esc(t('timer'))}">${ico('timer')}</button>` : ''}
         ${ring}
       </div>
-      ${dotsHtml(h)}
+      ${calHtml(h)}
     </article>`;
   }
 
-  function dotsHtml(h) {
-    const today = todayKey(), fk = firstKey(h), goal = dayGoal(h);
-    const curWeek = weekStart(today);
-    const weeks = Math.max(diffDays(weekStart(fk), curWeek) / 7 + 1, minWeeks);
-    const first = addDays(curWeek, -(weeks - 1) * 7);
-    const L = state.logs[h.id] || {};
+  /* ---------- calendario de 1 mes por hábito: se desliza para ver los meses anteriores y posteriores ---------- */
+  const calOff = {}; // hábito → meses de desplazamiento respecto al mes actual (0 = este mes)
+  const ymAdd = (ym, n) => { const [y, m] = ym.split('-').map(Number), d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+  const ymDiff = (a, b) => { const [ya, ma] = a.split('-').map(Number), [yb, mb] = b.split('-').map(Number); return (yb - ya) * 12 + (mb - ma); };
+  // Se puede ir desde el primer mes con datos (al menos 1 mes atrás) hasta 1 mes en el futuro
+  const calBounds = h => ({ min: -Math.max(1, ymDiff(firstKey(h).slice(0, 7), todayKey().slice(0, 7))), max: 1 });
+  function monthCal(h, ym) {
+    const [y, m] = ym.split('-').map(Number), today = todayKey(), fk = firstKey(h), goal = dayGoal(h), L = state.logs[h.id] || {};
     let out = '';
-    for (let w = 0; w < weeks; w++) {
-      const ws = addDays(first, w * 7);
-      for (let d = 0; d < 7; d++) {
-        const k = addDays(ws, d);
-        if (k > today) { out += '<i class="dot future"></i>'; continue; }
+    for (const w of LED.monthGrid(y, m)) {
+      for (const k of w) {
+        if (!k) { out += '<i class="dot blank"></i>'; continue; }
+        const n = +k.slice(8);
+        if (k > today) { out += `<span class="dot future">${n}</span>`; continue; }
         const c = L[k] || 0;
-        let cls = 'dot', label = c >= 2 && !isAmount(h) ? c : '';
+        let cls = 'dot';
         if (isQuit(h)) {
-          if (c > 0) { cls += ' slip'; label = ''; }
+          if (c > 0) cls += ' slip';
           else if (k >= fk && k < today) cls += ' on';
         } else {
           if (c >= goal) cls += ' on'; else if (c > 0) cls += ' part';
@@ -764,37 +853,51 @@
         }
         if (k < fk) cls += ' pre';
         if (k === today) cls += ' today';
-        out += `<button class="${cls}" data-k="${k}" aria-label="${esc(fmtDate(k))}: ${c}">${label}</button>`;
+        out += `<button class="${cls}" data-k="${k}" aria-label="${esc(fmtDate(k))}: ${c}">${c >= 2 && !isAmount(h) && !isQuit(h) ? `<b>${c}</b>` : n}</button>`;
       }
-      if (h.freq === 'weekly') out += `<i class="wk${periodDone(h, ws) ? ' on' : ''}"></i>`;
+      if (h.freq === 'weekly') { const ws = weekStart(w.find(Boolean)); out += `<i class="wk${ws > today ? ' future' : periodDone(h, ws) ? ' on' : ''}"></i>`; }
     }
-    return `<div class="dots-scroll"><div class="dots${h.freq === 'weekly' ? ' weekly' : ''}" data-id="${h.id}">${out}</div></div>`;
+    return `<div class="mcal" data-ym="${ym}"><div class="mcal-grid${h.freq === 'weekly' ? ' weekly' : ''}">${out}</div></div>`;
   }
-
-  function fitGrids() {
-    const sc = $('.dots-scroll');
-    if (sc) {
-      const cs = getComputedStyle(document.documentElement);
-      const dot = parseFloat(cs.getPropertyValue('--dot')) || 15, gap = parseFloat(cs.getPropertyValue('--dot-gap')) || 4;
-      const need = Math.max(4, Math.floor((sc.clientWidth + gap) / (dot + gap)));
-      if (need !== minWeeks) {
-        minWeeks = need;
-        $$('.habit[data-id]').forEach(el => { const h = getHabit(el.dataset.id); if (h) el.outerHTML = habitCard(h); });
-      }
-    }
-    $$('.dots-scroll').forEach(s => { s.scrollLeft = s.scrollWidth; });
+  function calHtml(h) {
+    const cur = todayKey().slice(0, 7), b = calBounds(h), off = clamp(calOff[h.id] || 0, b.min, b.max), ym = ymAdd(cur, off);
+    const slides = []; if (off > b.min) slides.push(ymAdd(ym, -1)); slides.push(ym); if (off < b.max) slides.push(ymAdd(ym, 1));
+    const lbl = fmtDate(ym + '-01', ym.slice(0, 4) === cur.slice(0, 4) ? { month: 'long' } : { month: 'short', year: 'numeric' });
+    const wd = t('weekdaysShort').split(',').map(s => s.charAt(0));
+    return `<div class="cal-box" data-hid="${h.id}">
+      <div class="cal-top"><button class="cal-nav" data-cal="-1" ${off <= b.min ? 'disabled' : ''} aria-label="${esc(t('ledgerPrev'))}">${ico('left')}</button><span class="cal-label">${esc(lbl.charAt(0).toUpperCase() + lbl.slice(1))}</span><button class="cal-nav" data-cal="1" ${off >= b.max ? 'disabled' : ''} aria-label="${esc(t('ledgerNext'))}">${ico('right')}</button></div>
+      <div class="mcal-wd${h.freq === 'weekly' ? ' weekly' : ''}" aria-hidden="true">${wd.map(d => `<span>${esc(d)}</span>`).join('')}${h.freq === 'weekly' ? '<span></span>' : ''}</div>
+      <div class="cal-swipe" data-hid="${h.id}" data-start="${slides.indexOf(ym)}">${slides.map(s => monthCal(h, s)).join('')}</div>
+    </div>`;
   }
+  // Coloca cada calendario en su mes (sin animación)
+  function initCals(root) { $$('.cal-swipe', root).forEach(sw => { sw.scrollLeft = (+sw.dataset.start || 0) * sw.clientWidth; sw._ready = true; }); }
+  function moveCal(hid, d) {
+    const h = getHabit(hid); if (!h) return;
+    const b = calBounds(h); calOff[hid] = clamp((calOff[hid] || 0) + d, b.min, b.max);
+    $$(`.cal-box[data-hid="${hid}"]`).forEach(box => { const tmp = document.createElement('div'); tmp.innerHTML = calHtml(h).trim(); const n = tmp.firstElementChild; box.replaceWith(n); initCals(n.parentElement); });
+  }
+  // Al terminar de deslizar, el mes que queda a la vista pasa a ser el actual de ese calendario
+  const calTimers = new WeakMap();
+  document.addEventListener('scroll', e => {
+    const sw = e.target; if (!sw.classList || !sw.classList.contains('cal-swipe') || !sw._ready) return;
+    clearTimeout(calTimers.get(sw));
+    calTimers.set(sw, setTimeout(() => {
+      if (!sw.isConnected || !sw.clientWidth) return;
+      const idx = Math.round(sw.scrollLeft / sw.clientWidth), start = +sw.dataset.start || 0;
+      if (idx !== start && Math.abs(sw.scrollLeft - idx * sw.clientWidth) < 4) moveCal(sw.dataset.hid, idx - start);
+    }, 90));
+  }, true);
 
   function refreshHabit(id, pop = false) {
-    const h = getHabit(id); const el = $(`.habit[data-id="${id}"]`);
-    if (!h || !el) return render();
-    const sc = el.querySelector('.dots-scroll');
-    const atEnd = !sc || sc.scrollLeft + sc.clientWidth >= sc.scrollWidth - 6;
-    const sl = sc ? sc.scrollLeft : 0;
-    const tmp = document.createElement('div'); tmp.innerHTML = habitCard(h).trim();
-    const n = tmp.firstElementChild; el.replaceWith(n);
-    const sc2 = n.querySelector('.dots-scroll'); if (sc2) sc2.scrollLeft = atEnd ? sc2.scrollWidth : sl;
-    if (pop) n.classList.add('pop');
+    const h = getHabit(id); const els = $$(`.habit[data-id="${id}"]`);
+    if (!h || !els.length) return render();
+    els.forEach(el => {
+      const tmp = document.createElement('div'); tmp.innerHTML = habitCard(h).trim();
+      const n = tmp.firstElementChild; el.replaceWith(n); initCals(n);
+      if (pop) n.classList.add('pop');
+    });
+    $$('.folder[data-pid]').forEach(f => { const p = state.projects.find(x => x.id === f.dataset.pid); if (p && p.habitIds.includes(id)) { const tmp = document.createElement('div'); tmp.innerHTML = folderCard(p).trim(); f.replaceWith(tmp.firstElementChild); } });
   }
 
   /* ---------- editor de hábito ---------- */
@@ -947,7 +1050,7 @@
           } else {
             Object.assign(h, props);
             if (!props.challenge) delete h.challenge;
-            checkMastery(h, true); checkChallenge(h);
+            checkPerfectMastery(true); checkChallenge(h);
           }
           save(); close();
           if (state.ui.tab !== 'habits') state.ui.tab = 'habits';
@@ -1070,25 +1173,6 @@
     return s.daysLeft === 1 ? t('dayLeft') : t('daysLeft', { n: s.daysLeft });
   }
 
-  function viewProjects() {
-    let html = topBar(`<button class="icon-btn" data-act="proj-tpl" aria-label="${esc(t('projectTemplates'))}">📦</button><button class="icon-btn" data-act="proj-new" aria-label="${esc(t('newProject'))}">${ico('plus')}</button>`);
-    html += `<h1 class="page-title">${esc(t('tabProjects'))}</h1>`;
-    if (!state.projects.length) return html + emptyState('target', t('projectsEmptyTitle'), t('projectsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="proj-new">${ico('plus')} ${esc(t('newProject'))}</button><button class="btn" data-act="proj-tpl">📦 ${esc(t('projectTemplates'))}</button></div>`);
-    const finished = state.projects.filter(p => projectStats(p).achieved), active = state.projects.filter(p => !finished.includes(p));
-    html += `<div class="proj-grid">${active.map(projCard).join('')}</div>`;
-    if (!active.length) html += `<p class="muted center">${esc(t('noActiveProjects'))}</p>`;
-    // Carpeta de proyectos finalizados con su antes y después
-    if (finished.length) {
-      html += `<h2 class="section-title" style="margin:28px 0 14px;font-size:22px">🏆 ${esc(t('finishedProjects'))}</h2><div class="proj-grid">${finished.map(p => {
-        const done = p.goal.type === 'simple' ? '' : '';
-        return `<button class="proj clay finished" data-act="proj-open" data-id="${p.id}">
-          <div class="proj-top"><div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div><div class="grow"><h3>${esc(p.name)}</h3><div class="muted small" style="font-weight:var(--fw-label)">✅ ${esc(t('achieved'))}${done}</div></div></div>
-          ${p.photos.before || p.photos.after ? `<div class="ba-row">${['before', 'after'].map(k => p.photos[k] ? `<div class="ba-thumb"><img data-photo="${esc(p.photos[k].path)}" alt=""><span>${esc(t('photo_' + k))}</span></div>` : `<div class="ba-thumb empty"><span>${esc(t('photo_' + k))}</span></div>`).join('')}</div>` : ''}
-        </button>`;
-      }).join('')}</div>`;
-    }
-    return html;
-  }
   function projCard(p) {
       const s = projectStats(p); const c = p.color || 'var(--accent)';
       return `<button class="proj clay" data-act="proj-open" data-id="${p.id}" style="--h:${c}">
@@ -1170,9 +1254,9 @@
           const share = f.share; delete f.share;
           if (isNew) { f.id = uid(); f.createdAt = todayKey(); state.projects.push(f); }
           else Object.assign(p, f);
-          save(); close(); state.ui.tab = 'projects'; render();
+          save(); close(); state.ui.tab = 'habits'; render();
           const obj = isNew ? f : p;
-          if (share && !obj.groupId) shareAsGroup('project', obj); else openProject(obj);
+          if (share && !obj.groupId) shareAsGroup('project', obj); else if (isNew) openProject(obj);
         }
       }
     });
@@ -1256,7 +1340,7 @@
         w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pd-val') { e.preventDefault(); $('[data-pd="log"]', w).click(); } });
         w.addEventListener('change', async e => {
           const kind = e.target.dataset && e.target.dataset.photoUp; if (!kind || !e.target.files[0]) return;
-          try { toast(t('photoUploading')); await uploadPhoto(p, kind, e.target.files[0]); toast(t('photoSaved')); draw(); if (state.ui.tab === 'projects') render(); }
+          try { toast(t('photoUploading')); await uploadPhoto(p, kind, e.target.files[0]); toast(t('photoSaved')); draw(); if (state.ui.tab === 'habits') render(); }
           catch (err) { toast(t('photoError', { e: err.message })); }
         });
         maybeAfterPhoto(p);
@@ -1282,7 +1366,7 @@
             return;
           default: return;
         }
-        save(); draw(); if (state.ui.tab === 'projects') { $('#main').innerHTML = renderView(); loadPhotos($('#main')); }
+        save(); draw(); if (state.ui.tab === 'habits') render();
         maybeAfterPhoto(p);
       }
     });
@@ -1357,12 +1441,12 @@
     </svg></div>`;
   }
 
-  function viewCharts() {
-    let html = topBar() + `<h1 class="page-title">${esc(t('tabCharts'))}</h1>`;
+  function chartsHtml() {
+    let html = '';
     const active = state.habits.filter(h => !h.archived);
     const anyLogs = state.habits.some(h => Object.keys(state.logs[h.id] || {}).length);
     if (!state.habits.length || !anyLogs) {
-      return html + emptyState('chart', t('tabCharts'), t('chartsEmpty'), state.habits.length ? `<button class="btn primary" data-act="go" data-tab="habits">${ico('checklist')} ${esc(t('tabHabits'))}</button>` : `<button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button>`);
+      return html + emptyState('chart', t('tabCharts'), t('chartsEmpty'), state.habits.length ? `<button class="btn primary" data-act="hview" data-v="all">${ico('checklist')} ${esc(t('tabHabits'))}</button>` : `<button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button>`);
     }
     if (state.ui.chartHabit !== 'all' && !getHabit(state.ui.chartHabit)) state.ui.chartHabit = 'all';
     const single = state.ui.chartHabit !== 'all' ? getHabit(state.ui.chartHabit) : null;
@@ -1463,14 +1547,13 @@
 
     // 5) tabla por hábito
     const rows = (single ? [single] : state.habits.filter(h => !h.archived)).map(h => {
-      const r7 = rate(h, 7), r30 = rate(h, 30), u = unlockedCount(h);
+      const r7 = rate(h, 7), r30 = rate(h, 30);
       return `<tr style="--h:${hColor(h)}"><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--h);margin-right:8px"></span>${esc(h.icon)} ${esc(h.name)}</td>
         <td>${isQuit(h) ? esc(t('kindQuit')) : esc(t(h.freq === 'daily' ? 'freqDaily' : h.freq === 'weekly' ? 'freqWeekly' : 'freqMonthly')) + (h.target > 1 ? ' ×' + h.target : '')}</td>
         <td class="num">${r7 == null ? '—' : Math.round(r7 * 100) + '%'}</td><td class="num">${r30 == null ? '—' : Math.round(r30 * 100) + '%'}</td>
-        <td class="num">${totalEntries(h)}</td><td class="num">${currentStreak(h)}</td><td class="num">${bestStreak(h)}</td>
-        <td>${u ? esc(t('rank_' + RANKS[u - 1][0])) : '—'}</td></tr>`;
+        <td class="num">${totalEntries(h)}</td><td class="num">${currentStreak(h)}</td><td class="num">${bestStreak(h)}</td></tr>`;
     }).join('');
-    html += `<section class="chart-card clay" style="margin-top:18px"><h3>${ico('table')}<span class="grow">${esc(t('chartTable'))}</span></h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${esc(t('colHabit'))}</th><th>${esc(t('colFreq'))}</th><th class="num">${esc(t('col7'))}</th><th class="num">${esc(t('col30'))}</th><th class="num">${esc(t('colTotal'))}</th><th class="num">${esc(t('colStreak'))}</th><th class="num">${esc(t('colBest'))}</th><th>${esc(t('colRank'))}</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    html += `<section class="chart-card clay" style="margin-top:18px"><h3>${ico('table')}<span class="grow">${esc(t('chartTable'))}</span></h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${esc(t('colHabit'))}</th><th>${esc(t('colFreq'))}</th><th class="num">${esc(t('col7'))}</th><th class="num">${esc(t('col30'))}</th><th class="num">${esc(t('colTotal'))}</th><th class="num">${esc(t('colStreak'))}</th><th class="num">${esc(t('colBest'))}</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 
     // 6) proyectos numéricos
     const np = state.projects.filter(p => p.goal.type === 'numeric' && p.goal.entries.length);
@@ -1530,13 +1613,13 @@
   }
   function cardFields(h, i, side, meta = null) {
     const [r, th] = RANKS[i], L = CARD_LAYOUT[r];
-    const m = meta || (state.mastery[h.id] || {})[r] || { date: todayKey(), serial: 0 };
+    const m = meta || cardMeta(h, r) || { date: todayKey(), serial: 0 };
     if (side !== 'front') return [{ spec: L.back, text: h.name, o: { min: 460 } }];
     return [
       { spec: L.name, text: h.name, kind: 'name' },
       { spec: L.level, text: t('masteryLevel', { n: i + 1 }), o: { min: 200 } },
       { spec: L.desc, text: t('tag_' + r), o: { min: 620 } },
-      { spec: L.req, text: isQuit(h) ? t('quitDays', { n: th }) : t('masteryReq', { n: th }), o: { min: 620 } },
+      { spec: L.req, text: h.perfect ? t('perfectReq', { n: th }) : isQuit(h) ? t('quitDays', { n: th }) : t('masteryReq', { n: th }), o: { min: 620 } },
       { spec: L.date, text: fmtShort(m.date), o: { min: 220 } },
       { spec: L.serial, text: t('masterySerial', { n: String(m.serial).padStart(4, '0') }), o: { min: 250 } }
     ];
@@ -1558,29 +1641,19 @@
     let html = topBar(`<button class="icon-btn" data-act="ranks-info" aria-label="${esc(t('masteryRanks'))}">${ico('info')}</button>`);
     html += `<h1 class="page-title">${esc(t('tabMastery'))}</h1>`;
     html += profileCardHtml();
-    const hs = state.habits.filter(h => !h.archived || unlockedCount(h));
-    if (!hs.length) return html + emptyState('crown', t('tabMastery'), t('masteryEmpty'), `<button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button>`);
-    const got = hs.reduce((a, h) => a + unlockedCount(h), 0);
-    const mRank = state.ui.mRank == null || state.ui.mRank === 'all' ? 'all' : +state.ui.mRank;
-    const mHabit = hs.some(h => h.id === state.ui.mHabit) ? state.ui.mHabit : 'all';
-    // Álbum: contador por rango (también sirve de filtro) y filtro por hábito
-    const albumHtml = `<div class="album-filters">
-      <div class="chip-scroll">${[['all', t('albumAll'), got]].concat(RANKS.map(([r], i) => [i, t('rank_' + r), hs.filter(h => unlockedCount(h) > i).length])).map(([v, l, n]) => `<button class="chip ${mRank === v ? 'on' : ''}" data-act="m-rank" data-v="${v}">${esc(l)} <b class="chip-n">${n}</b></button>`).join('')}</div>
-      <div class="chip-scroll">${[['all', '✨', t('albumAllHabits')]].concat(hs.map(h => [h.id, h.icon || '#', h.name])).map(([v, ic, l]) => `<button class="chip ${mHabit === v ? 'on' : ''}" data-act="m-habit" data-v="${v}">${esc(ic)} ${esc(l)}</button>`).join('')}</div></div>`;
-    // Próxima carta más cercana
-    let near = null;
-    hs.filter(h => !h.archived).forEach(h => { const u = unlockedCount(h); if (u >= RANKS.length) return; const left = RANKS[u][1] - successDays(h); if (!near || left < near.left) near = { h, u, left }; });
-    const nearHtml = near ? `<button class="next-card clay" data-act="card-open" data-id="${near.h.id}" data-i="${near.u}" style="${habitVars(hColor(near.h))}"><span class="next-mini">${cardLocked(near.u)}</span><span class="grow"><span class="muted small">${esc(t('nextCard'))}</span><b>${esc(t('rank_' + RANKS[near.u][0]))} · ${esc(near.h.icon || '')} ${esc(near.h.name)}</b><span class="small">${esc(t('nextCardLeft', { n: near.left }))}</span><span class="bar" style="display:block;height:8px;margin-top:6px"><i style="width:${clamp((successDays(near.h) - (near.u ? RANKS[near.u - 1][1] : 0)) / (RANKS[near.u][1] - (near.u ? RANKS[near.u - 1][1] : 0)) * 100, 0, 100)}%;background:var(--h)"></i></span></span></button>` : '';
-    if (mRank !== 'all') {
-      const [r, th] = RANKS[mRank], list = hs.filter(h => mHabit === 'all' || h.id === mHabit);
-      return html + albumHtml + `<section class="series clay"><div class="series-head"><div class="grow"><h3>👑 ${esc(t('rank_' + r))}</h3><div class="muted small">${esc(t('tag_' + r))} · ${esc(t('masteryReq', { n: th }))}</div></div><b style="font-size:20px">${list.filter(h => unlockedCount(h) > mRank).length}/${list.length}</b></div>
-        <div class="cards-row">${list.map(h => { const un = unlockedCount(h) > mRank, m = (state.mastery[h.id] || {})[r]; return `<button class="kcard-btn" data-act="card-open" data-id="${h.id}" data-i="${mRank}">${un ? cardFace(h, mRank, 'front') : cardLocked(mRank)}<span class="cap">${esc(h.name)}<small>${un ? esc(fmtShort(m ? m.date : todayKey())) : esc(t('masteryReq', { n: th }))}</small></span></button>`; }).join('')}</div></section>`;
-    }
-    if (mHabit !== 'all') { html += albumHtml; return html + hs.filter(h => h.id === mHabit).map(masterySeries).join(''); }
-    const lv = levelInfo(), pi = pointsInfo();
-    html += `<button class="mastery-sum clay level-card" data-act="level"><div class="lvl-big">${lv.level}</div><div class="grow"><b>${esc(lv.title)}</b><div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))} · ${esc(t('ptsN', { n: fmtPts(pi.points) }))}</div><div class="bar" style="margin-top:8px;height:8px"><i style="width:${lv.pct}%"></i></div></div><span class="chip">💶 ${esc(money(pi.money))}</span></button>`;
-    html += `<div class="mastery-sum clay"><div class="empty-art" style="width:64px;height:64px;margin:0;border-radius:20px">${ico('crown')}</div><div class="grow"><b>${esc(t('masteryCollected', { a: got, b: hs.length * RANKS.length }))}</b><div class="muted small">${esc(t('masteryHow'))}</div></div></div>`;
-    html += nearHtml + albumHtml;
+    if (!state.habits.length) return html + emptyState('crown', t('tabMastery'), t('masteryEmptyPerfect'), `<button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button>`);
+    const lv = levelInfo(), pi = pointsInfo(), pr = perfectRun(), got = perfectCount();
+    html += `<button class="mastery-sum clay level-card" data-act="level"><div class="lvl-big">${lv.level}</div><div class="grow"><b>${esc(lv.title)}</b><div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))} · ${esc(t('ptsN', { n: fmtPts(pi.points) }))}</div><div class="bar" style="margin-top:8px;height:8px"><i style="width:${lv.pct}%"></i></div></div></button>`;
+    // Racha actual y próxima carta
+    const ni = RANKS.findIndex(([r]) => !state.perfectMastery[r]), next = ni >= 0 ? RANKS[ni] : null;
+    const pct = next ? clamp(pr.cur / next[1] * 100, 0, 100) : 100;
+    html += `<section class="streak-card clay"><div class="streak-flame" aria-hidden="true">🔥</div><div class="grow">
+      <span class="muted small">${esc(t('perfectStreakNow'))}</span><b class="streak-n">${esc(t(pr.cur === 1 ? 'perfectStreakDay1' : 'perfectStreakDays', { n: pr.cur }))}</b>
+      <span class="muted small">${esc(t('perfectStreakBest', { n: pr.best }))}</span>
+      ${next ? `<div class="bar ${pct ? '' : 'zero'}" style="height:10px;margin-top:10px"><i style="width:${pct}%"></i></div><span class="small streak-next">${esc(t('perfectNext', { n: Math.max(0, next[1] - pr.cur), rank: t('rank_' + next[0]) }))}</span>` : `<span class="small">${esc(t('masteryMax'))}</span>`}
+      </div></section>`;
+    html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">👑</div><div class="grow"><h3>${esc(t('perfectSeries'))}</h3><div class="muted small">${esc(t('perfectHow', { n: CAP.HABITS_PER_LEVEL[commitOn(todayKey())] }))}</div></div><b style="font-size:20px">${got}/${RANKS.length}</b></div>
+      <div class="cards-row">${RANKS.map(([r, th], i) => { const m = state.perfectMastery[r]; return `<button class="kcard-btn" data-act="pcard-open" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${m ? cardFace(PSUBJ(), i, 'front') : cardLocked(i)}<span class="cap">${esc(t('rank_' + r))}<small>${m ? esc(fmtShort(m.date)) : esc(t('perfectReq', { n: th }))}</small></span></button>`; }).join('')}</div></section>`;
     // Cartas secretas (ocultas hasta conseguirlas)
     const nSec = SECRETS.filter(([id]) => state.secrets[id]).length;
     html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">🔮</div><div class="grow"><h3>${esc(t('secretCards'))}</h3><div class="muted small">${esc(t('secretCardsHint'))}</div></div><b style="font-size:20px">${nSec}/${SECRETS.length}</b></div>
@@ -1593,39 +1666,31 @@
       html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">📜</div><div class="grow"><h3>${esc(t('contractCards'))}</h3></div><b style="font-size:20px">${state.contractCards.length}</b></div>
         <div class="cards-row">${[...state.contractCards].reverse().map(cc => `<button class="kcard-btn" data-act="cc-open" data-id="${cc.id}">${contractCardHtml(cc)}<span class="cap">${esc(t('tier_' + cc.tier))}<small>${esc(fmtShort(cc.end))}</small></span></button>`).join('')}</div></section>`;
     }
-    return html + hs.map(masterySeries).join('');
+    // Cartas antiguas (por hábito): se guardan, no se borran
+    const old = state.habits.filter(legacyCount);
+    if (old.length) html += `<details class="legacy-cards clay"><summary><span class="grow"><b>${esc(t('legacyCardsTitle'))}</b><span class="muted small">${esc(t('legacyCardsSub', { n: legacyTotal() }))}</span></span>${ico('down')}</summary>${old.map(legacySeries).join('')}</details>`;
+    return html;
   }
-  function masterySeries(h) {
-      const n = successDays(h), u = unlockedCount(h);
-      const next = RANKS[u], prevTh = u ? RANKS[u - 1][1] : 0;
-      const pct = next ? (n - prevTh) / (next[1] - prevTh) * 100 : 100;
-      return `<section class="series clay" style="${habitVars(hColor(h))}">
-        <div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px">${esc(h.icon || '#')}</div>
-          <div class="grow"><h3>${esc(h.name)}</h3><div class="muted small" style="font-weight:var(--fw-label)">${esc(next ? t('masteryNext', { a: n, b: next[1], rank: t('rank_' + next[0]) }) : t('masteryMax'))}</div>
-          <div class="bar ${pct > 0 ? '' : 'zero'}" style="height:8px;margin-top:6px;max-width:320px"><i style="width:${clamp(pct, 0, 100)}%;background:var(--h)"></i></div></div>
-          <b style="font-size:20px">${u}/10</b></div>
-        <div class="cards-row">${RANKS.map(([r, th], i) => {
-          const un = n >= th; const m = (state.mastery[h.id] || {})[r];
-          return `<button class="kcard-btn" data-act="card-open" data-id="${h.id}" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${un ? cardFace(h, i, 'front') : cardLocked(i)}<span class="cap">${esc(t('rank_' + r))}<small>${un ? esc(fmtShort(m ? m.date : todayKey())) : esc(t('masteryReq', { n: th }))}</small></span></button>`;
-        }).join('')}</div>
-      </section>`;
+  function legacySeries(h) {
+    return `<div class="legacy-row" style="${habitVars(hColor(h))}"><h4>${esc(h.icon || '#')} ${esc(h.name)} <span class="muted small">${legacyCount(h)}/${RANKS.length}</span></h4>
+      <div class="cards-row">${RANKS.map(([r], i) => { const m = (state.mastery[h.id] || {})[r]; return m ? `<button class="kcard-btn" data-act="card-open" data-id="${h.id}" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${cardFace(h, i, 'front')}<span class="cap">${esc(t('rank_' + r))}<small>${esc(fmtShort(m.date))}</small></span></button>` : ''; }).join('')}</div></div>`;
   }
 
   function openCard(h, i, celebrate = false) {
     const [r, th] = RANKS[i];
-    const un = successDays(h) >= th;
-    const m = (state.mastery[h.id] || {})[r];
+    const m = cardMeta(h, r), un = !!m;
     const inner = un
       ? `<div class="flip ${celebrate ? 'unlock-burst' : ''}" id="flip"><div class="flip-inner">${cardFace(h, i, 'front')}${cardFace(h, i, 'back', 'rev')}</div></div>`
       : `<div class="flip" style="cursor:default"><div class="flip-inner">${cardLocked(i)}</div></div>`;
-    const cap = `<div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('masteryUnlocked'))}</div>` : ''}${esc(t('rank_' + r))} · ${esc(h.name)}<small>${un ? esc((m ? fmtDate(m.date) : '') + ' · ' + t('masteryFlip')) : esc(t('masteryNext', { a: successDays(h), b: th, rank: t('rank_' + r) }))}</small></div>`;
+    const lockedTxt = h.perfect ? t('perfectNext', { n: Math.max(0, th - perfectRun().cur), rank: t('rank_' + r) }) : t('masteryReq', { n: th });
+    const cap = `<div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('masteryUnlocked'))}</div>` : ''}${esc(t('rank_' + r))} · ${esc(h.perfect ? t('perfectSeries') : h.name)}<small>${un ? esc(fmtDate(m.date) + ' · ' + t('masteryFlip')) : esc(lockedTxt)}</small></div>`;
     openModal({
       cls: 'card-view',
       body: inner + cap + `<div class="row" style="justify-content:center;margin-top:16px">${un ? `<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
       onClick: (e, close, w) => {
         if (e.target.closest('[data-m="share"]')) {
           const side = $('#flip', w).classList.contains('back') ? 'back' : 'front';
-          shareCanvas(() => cardCanvas(h, i, side), `keepgoing-${r}-${side}.png`, `${t('rank_' + r)} · ${h.name}`);
+          shareCanvas(() => cardCanvas(h, i, side), `keepgoing-${r}-${side}.png`, `${t('rank_' + r)} · ${h.perfect ? t('perfectSeries') : h.name}`);
           return;
         }
         const f = e.target.closest('#flip'); if (!f || f.dataset.busy) return;
@@ -1636,7 +1701,42 @@
       }
     });
   }
-  function showUnlock(h, i) { if (state.ui.tab === 'mastery') render(); whenFree(() => { vibrate([20, 40, 20]); sfx('unlock'); openCard(h, i, true); }); }
+  function showUnlock(i) { if (state.ui.tab === 'mastery') render(); whenFree(() => { vibrate([20, 40, 20]); openPack(i); }); }
+
+  /* ---------- sobre de Maestría: se toca, el papel se rasga despacio y aparece la carta ---------- */
+  const PACK_COLORS = { iniciado: ['#1f7a52', '#b8f5d6'], aprendiz: ['#55602f', '#dfe7b5'], discipulo: ['#7a5a2e', '#f3dfb4'], experto: ['#1d4e9e', '#bcd4ff'], elite: ['#5b2a9a', '#e0c9ff'], maestro: ['#8f4a23', '#ffd3b0'], ascendente: ['#8a6a12', '#ffe9a3'], supremo: ['#8c3a4f', '#ffc9d6'], mitico: ['#20232c', '#c9cfdc'], trascendente: ['#a8327f', '#ffd6f0'] };
+  function openPack(i) {
+    const r = RANKS[i][0], [c1, c2] = PACK_COLORS[r] || ['#222', '#ccc'];
+    // Línea del rasgado en zigzag: la misma para la tira de arriba y para el cuerpo, así encajan
+    const pts = []; for (let x = 0; x <= 100; x += 5) pts.push([x, x % 10 ? 21 : 17.5]);
+    const zig = pts.map(([x, y]) => `${x}% ${y}%`).join(',');
+    const topClip = `polygon(0 0,100% 0,${pts.slice().reverse().map(([x, y]) => `${x}% ${y}%`).join(',')})`;
+    const bodyClip = `polygon(${zig},100% 100%,0 100%)`;
+    const face = `<div class="pack-face"><span class="pack-crown">${crownSvg()}</span><b>KEEPGOING</b><span>${esc(t('packLabel'))}</span><i class="pack-shine"></i></div>`;
+    openModal({
+      cls: 'card-view pack-view', dismissable: false,
+      body: `<div class="pack-stage"><button class="pack" data-pack-open style="--p1:${c1};--p2:${c2}" aria-label="${esc(t('packOpen'))}">
+          <div class="pack-card">${cardFace(PSUBJ(), i, 'front')}</div>
+          <div class="pack-body" style="clip-path:${bodyClip}">${face}</div>
+          <div class="pack-top" style="clip-path:${topClip}">${face}</div>
+          <svg class="pack-tear" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.map(([x, y]) => `${x},${y}`).join(' ')}"/></svg>
+        </button><p class="pack-hint">${esc(t('packTap'))}</p></div>`,
+      onClick: (e, close, w) => {
+        const b = e.target.closest('[data-pack-open]'); if (!b || b.dataset.busy) return; b.dataset.busy = '1';
+        const done = () => { close(); sfx('unlock'); openCard(PSUBJ(), i, true); };
+        if (reducedMotion()) { done(); return; }
+        $('.pack-hint', w).classList.add('gone');
+        sfx('tear'); vibrate([8, 60, 8, 60, 8, 60, 8]);
+        b.classList.add('tearing');                        // el papel se rasga despacio de izquierda a derecha
+        setTimeout(() => { b.classList.add('torn'); sfx('pop'); }, 1700); // la tira sale volando
+        setTimeout(() => b.classList.add('reveal'), 2300);  // la carta sube y el sobre cae
+        setTimeout(done, 3400);
+      }
+    });
+  }
+  // Corona del logotipo (SVG propio en línea)
+  const CROWN = '<g fill="currentColor"><path d="M239.0 384.0 L250.0 114.0 L233.0 122.0 L243.1 82.9 L256.0 40.0 L268.9 82.9 L279.0 122.0 L262.0 114.0 L273.0 384.0 Z"/><path d="M155.0 371.2 L176.3 165.6 L158.9 172.7 L171.0 134.2 L186.0 92.0 L196.7 135.5 L204.9 175.0 L188.3 166.2 L189.0 372.8 Z"/><path d="M323.0 372.8 L323.7 166.2 L307.1 175.0 L315.3 135.5 L326.0 92.0 L341.0 134.2 L353.1 172.7 L335.7 165.6 L357.0 371.2 Z"/><path d="M87.2 348.6 L79.3 224.1 L63.7 234.5 L67.8 194.4 L74.0 150.0 L93.2 190.5 L109.1 227.6 L91.1 222.2 L120.8 343.4 Z"/><path d="M391.2 343.4 L420.9 222.2 L402.9 227.6 L418.8 190.5 L438.0 150.0 L444.2 194.4 L448.3 234.5 L432.7 224.1 L424.8 348.6 Z"/></g><g fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round"><path d="M250 150 C 250 330, 192 330, 190 196"/><path d="M176 210 C 172 340, 110 330, 100 250"/><g transform="translate(512 0) scale(-1 1)"><path d="M250 150 C 250 330, 192 330, 190 196"/><path d="M176 210 C 172 340, 110 330, 100 250"/></g></g><g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"><path d="M250 150 C 250 330, 192 330, 190 196"/><path d="M176 210 C 172 340, 110 330, 100 250"/><g transform="translate(512 0) scale(-1 1)"><path d="M250 150 C 250 330, 192 330, 190 196"/><path d="M176 210 C 172 340, 110 330, 100 250"/></g></g><g fill="currentColor"><path d="M62 318 Q256 430 450 318 L456 374 Q256 490 56 374 Z"/><path d="M92 392 Q256 494 420 392 L408 432 Q340 486 282 470 L256 498 L230 470 Q172 486 104 432 Z"/></g><path d="M66 341 Q256 455 446 341" fill="none" stroke="#fff" stroke-width="7"/><path d="M60 362 Q256 477 452 362" fill="none" stroke="#fff" stroke-width="3"/><circle cx="256" cy="402" r="11" fill="#fff"/><circle cx="172" cy="388" r="8" fill="#fff"/><circle cx="340" cy="388" r="8" fill="#fff"/><circle cx="104" cy="358" r="6" fill="#fff"/><circle cx="408" cy="358" r="6" fill="#fff"/>';
+  const crownSvg = () => `<svg viewBox="0 0 512 512" aria-hidden="true">${CROWN}</svg>`;
 
   /* ---------- exportar cartas como imagen ---------- */
   const loadImg = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
@@ -1698,7 +1798,7 @@
     const pct = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length * 100) : null;
     let entries = 0; const act = new Set();
     hs.forEach(h => { if (isQuit(h)) return; const L = state.logs[h.id] || {}; for (const k in L) if (k >= s && k <= e && L[k] > 0) { entries += L[k]; act.add(k); } });
-    let cards = 0; Object.values(state.mastery).forEach(m => Object.values(m).forEach(x => { if (x.date >= s && x.date <= e) cards++; }));
+    let cards = 0; [...Object.values(state.mastery), state.perfectMastery].forEach(m => Object.values(m).forEach(x => { if (x.date >= s && x.date <= e) cards++; }));
     const tier = pct == null ? 'bronce' : pct >= 80 ? 'oro' : pct >= 60 ? 'plata' : 'bronce';
     const cc = { id, start: s, end: e, name: c.name, rate: pct, entries, activeDays: act.size, cards, tier, serial: ++state.serial, date: todayKey() };
     state.contractCards.push(cc); save();
@@ -2165,7 +2265,7 @@
         ])}
         ${group(t('setGroupPrivacy'), [
           acc('amounts', ico('eyeOff'), t('privacyMode'), privacyOn() ? t('privacyModeOn') : t('privacyModeOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-privacy ${privacyOn() ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('privacyModeLabel'))}</b><br><span class="muted small">${esc(t('privacyModeHint'))}</span></span></label>`),
-          acc('vault', ico('lock'), t('vaultTitle'), !state.ledgerVault ? t('vaultNone') : ledgerOpen() ? t('vaultIsOpen') : t('vaultIsLocked'), state.ledgerVault ? `<p class="muted small" style="margin-top:0">${esc(t('vaultSettingsHint'))}</p><div class="row wrap">${ledgerOpen() ? `<button class="chip" data-s="vault-lock">${ico('lock')} ${esc(t('vaultLock'))}</button><button class="chip" data-s="vault-change">${esc(t('vaultChange'))}</button>` : ''}<button class="chip" data-s="vault-wipe" style="color:#e5484d">${ico('trash')} ${esc(t('vaultForgot'))}</button></div>` : `<p class="muted small" style="margin:0">${esc(t('vaultNoneHint'))}</p>`),
+          acc('vault', ico('lock'), t('vaultTitle'), !state.ledgerVault ? t('vaultNone') : ledgerOpen() ? t('vaultIsOpen') : t('vaultIsLocked'), state.ledgerVault ? `<p class="muted small" style="margin-top:0">${esc(t('vaultSettingsHint'))}</p><div class="row wrap">${ledgerOpen() ? `<button class="chip" data-s="vault-lock">${ico('lock')} ${esc(t('vaultLock'))}</button><button class="chip" data-s="vault-change">${esc(t('vaultChange'))}</button><button class="chip" data-s="vault-sec">🔐 ${esc(t('vaultSecurity'))}</button>` : ''}<button class="chip" data-s="vault-wipe" style="color:#e5484d">${ico('trash')} ${esc(t('vaultForgot'))}</button></div>` : `<p class="muted small" style="margin:0">${esc(t('vaultNoneHint'))}</p>`),
           acc('priv', '🔒', t('privacyTitle'), profileOf().enabled ? t('setPublicOn') : t('setPublicOff'), `<div id="st-priv">${privacyHtml()}</div>`),
           acc('data', ico('download'), t('setData'), '', `<p class="muted small" style="margin-top:0">${esc(t('dataHint'))}</p>
             <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button></div>
@@ -2209,6 +2309,7 @@
           case 'vacations': openVacations(); break;
           case 'vault-lock': ledgerLock(); render(); draw(); toast(t('vaultLocked')); break;
           case 'vault-change': openVaultPassword(); break;
+          case 'vault-sec': openVaultSecurity(); break;
           case 'vault-wipe': await confirmVaultWipe(); draw(); break;
           case 'push-on': await enablePush(); w._refreshPush(); break;
           case 'push-off': await disablePush(); w._refreshPush(); break;
@@ -2250,7 +2351,7 @@
         if (!Array.isArray(data.habits) || typeof data.logs !== 'object') throw new Error('bad');
         if (!(await confirmDialog(t('dataImportQ')))) return;
         state = normalize(data); state.onboarded = true;
-        state.habits.forEach(h => checkMastery(h, true));
+        checkPerfectMastery(true);
         save(); $$('.backdrop').forEach(b => b.remove()); document.body.style.overflow = ''; render(); toast(t('importedOk'));
       } catch (err) { toast(t('importError')); }
       if (w && $('#st-file', w)) $('#st-file', w).value = '';
@@ -2449,26 +2550,6 @@
     if (hasLegacy) state.legacyShop = { date: todayKey(), starBalance: bal, rewards: state.rewards.length, redemptions: state.redemptions.length, seen: false };
     save();
   }
-  function legacyShopHtml(open = false) {
-    const L = state.legacyShop;
-    if (!L || (!state.rewards.length && !state.redemptions.length && !L.starBalance)) return '';
-    return `<details class="legacy clay" ${open ? 'open' : ''}><summary><span class="grow"><b>${esc(t('legacyTitle'))}</b><span class="muted small">${esc(t('legacySum', { r: state.rewards.length, c: state.redemptions.length, s: fmtNum(L.starBalance) }))}</span></span>${ico('down')}</summary>
-      <p class="small">${esc(t('legacyWhy'))}</p>
-      ${state.rewards.length ? `<h4 class="legacy-h">${esc(t('legacyRewards'))}</h4>${state.rewards.map(r => `<div class="entry"><span>${esc(r.icon || '🎁')} ${esc(r.name)}</span><b>${fmtNum(r.cost)} ⭐</b></div>`).join('')}` : ''}
-      ${state.redemptions.length ? `<h4 class="legacy-h">${esc(t('redeemHistory'))}</h4>${[...state.redemptions].reverse().map(r => `<div class="entry"><span>${esc(r.icon || '🎁')} ${esc(r.name)} <span class="muted">· ${esc(fmtShort(r.date))}</span></span><b>−${fmtNum(r.cost)} ⭐</b></div>`).join('')}` : ''}
-      <p class="muted small" style="margin-bottom:0">${esc(t('legacyKept'))}</p></details>`;
-  }
-  // Aviso único tras migrar, si había datos que no encajan
-  function noticeLegacyShop() {
-    const L = state.legacyShop;
-    if (!L || L.seen || !state.onboarded) return;
-    L.seen = true; save();
-    whenFree(() => openModal({
-      title: `💶 ${esc(t('legacyNoticeTitle'))}`, body: `<p style="margin-top:0">${esc(t('legacyNotice'))}</p>${legacyShopHtml(true)}`,
-      foot: `<button class="btn primary" data-m="x">${esc(t('legacyOk'))}</button>`
-    }));
-  }
-
   // Total de Dinero Caprichable: dinero VISUAL (no se suma ni se descuenta del saldo real)
   function capTotalHtml() {
     const pi = pointsInfo(), d = dayInfo(todayKey());
@@ -2592,18 +2673,14 @@
       $('#lvl', wref).innerHTML = `<div class="stack" style="gap:18px">
         <div class="row" style="gap:16px"><div class="lvl-big">${lv.level}</div><div class="grow"><div style="font-size:22px;font-weight:var(--fw-title)">${esc(lv.title)}</div>
           <div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))}</div><div class="bar" style="margin-top:8px"><i style="width:${lv.pct}%"></i></div></div></div>
-        ${capTotalHtml()}
         <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtPts(d.cpts)}<small>/10</small></b><span>${esc(t('ptsToday'))}</span></div><div class="kpi clay"><b>${fmtPts(pi.points)}</b><span>${esc(t('ptsTotal'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div></div>
         <section><h3 class="section-title">${esc(t('commitTitle'))}</h3>${commitSegHtml()}</section>
-        <section><h3 class="section-title">${esc(t('capConverter'))}</h3>${capHtml()}</section>
-        ${legacyShopHtml()}
         <p class="muted small" style="margin:0">${esc(t('ptsHow', { since: fmtDate(state.pointsSince || todayKey()) }))}</p>
       </div>`;
-      updateCap(wref);
     };
     openModal({
       title: `⭐ ${esc(t('lvTitle'))}`, cls: 'wide', body: '<div id="lvl"></div>',
-      onMount: w => { wref = w; draw(); bindCap(w, () => { const el = $('.cap-total', w); if (el) el.outerHTML = capTotalHtml(); render(); }); },
+      onMount: w => { wref = w; draw(); },
       onClick: (e) => {
         const el = e.target.closest('[data-commit]');
         if (el) { setCommitment(el.dataset.commit); draw(); render(); }
@@ -2627,10 +2704,11 @@
   /* ---------- cifrado de la Libreta (contraseña al abrir) ----------
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
-  const VAULT = window.KGVault;
+  const VAULT = window.KGVault, DEV = window.KGVaultDevice;
   const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring']];
-  const LV = { key: null, salt: null, entries: [], cats: [], recurring: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
-  const ledgerOpen = () => !!LV.key && !!state.ledgerVault && LV.salt === state.ledgerVault.salt;
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
+  const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
   // Descifra el estado en memoria (al abrir y cuando la sincronización trae cambios)
   async function ledgerLoad() {
@@ -2667,41 +2745,152 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, salt: null, entries: [], cats: [], recurring: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  async function useKey(key, raw) { LV.key = key; LV.raw = raw; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
+  // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
-    const key = await VAULT.open(pw, state.ledgerVault);
-    if (!key) return false;
-    LV.key = key; LV.salt = state.ledgerVault.salt; await ledgerLoad(); runRecurring(); return true;
+    const o = await VAULT.open(pw, state.ledgerVault);
+    if (!o) return false;
+    if (o.legacy) {
+      LV.key = o.key; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad();
+      const { key, raw, header } = await VAULT.create(pw);
+      state.ledgerVault = header; Object.assign(LV, { key, raw, vid: header.vid, plain: new Map() });
+      await ledgerCommit(); runRecurring();
+    } else await useKey(o.key, o.raw);
+    return true;
+  }
+  // Abrir con la clave de datos que devuelve el PIN o la huella
+  async function ledgerUnlockRaw(raw) {
+    const key = await VAULT.importRaw(raw);
+    if (!(await VAULT.verify(key, state.ledgerVault))) return false;
+    await useKey(key, raw); return true;
   }
   async function ledgerSetup(pw) {
-    const { key, header } = await VAULT.create(pw);
-    state.ledgerVault = header; LV.key = key; LV.salt = header.salt; LV.plain = new Map(); LV.known = new Set();
+    const { key, raw, header } = await VAULT.create(pw);
+    state.ledgerVault = header; Object.assign(LV, { key, raw, vid: header.vid, plain: new Map(), known: new Set() });
     await ledgerLoad(); await ledgerCommit();
   }
-  async function ledgerChangePassword(pw) {
-    const { key, header } = await VAULT.create(pw);
-    state.ledgerVault = header; LV.key = key; LV.salt = header.salt; LV.plain = new Map();
-    await ledgerCommit();
-  }
-  function ledgerWipe() { state.ledgerVault = null; ledgerLock(); for (const [, sk] of LKINDS) state[sk] = []; save(); }
+  // Cambiar la contraseña: misma clave de datos con otra envoltura (el PIN y la huella siguen valiendo)
+  async function ledgerChangePassword(pw) { state.ledgerVault = await VAULT.rewrap(pw, LV.raw, state.ledgerVault); LV.vid = VAULT.vidOf(state.ledgerVault); save(); }
+  function ledgerWipe() { if (state.ledgerVault) DEV.forget(VAULT.vidOf(state.ledgerVault)); state.ledgerVault = null; ledgerLock(); for (const [, sk] of LKINDS) state[sk] = []; save(); }
   // Se bloquea solo tras 10 minutos en segundo plano
   let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (LV.key && Date.now() - hiddenAt > 10 * 60000 && hiddenAt) { ledgerLock(); render(); } });
-  // Pantalla de la Libreta cerrada: crear contraseña, abrir o aviso de que el navegador no permite cifrar
+
+  /* ---------- desbloqueo rápido en este dispositivo: PIN de 4 cifras o huella / Face ID ---------- */
+  const DEVM = { vid: null, pin: false, bio: false, bioOk: false, loading: false };
+  let pinBuf = '', pwMode = false;
+  // Comprueba (una vez por libreta) qué métodos hay en este dispositivo y vuelve a pintar
+  function loadDevMethods(force = false) {
+    const vid = VAULT.vidOf(state.ledgerVault);
+    if (!vid || (!force && (DEVM.vid === vid || DEVM.loading))) return;
+    DEVM.loading = true;
+    Promise.all([DEV.methods(vid), DEV.bioAvailable()]).then(([m, ok]) => {
+      Object.assign(DEVM, { vid, pin: m.pin, bio: m.bio, bioOk: ok, loading: false });
+      if (state.ui.tab === 'ledger' && !ledgerOpen()) render();
+    }).catch(() => { DEVM.loading = false; });
+  }
+  const pinDots = () => `<div class="pin-dots" aria-hidden="true">${[0, 1, 2, 3].map(i => `<i class="${i < pinBuf.length ? 'on' : ''}"></i>`).join('')}</div>`;
+  function pinPadHtml() {
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', DEVM.bio ? 'bio' : '', '0', 'back'];
+    return `<div class="pin-pad" role="group" aria-label="${esc(t('pinEnter'))}">${keys.map(k => k === '' ? '<span></span>'
+      : k === 'bio' ? `<button type="button" class="pin-key alt" data-act="vault-bio" aria-label="${esc(t('bioUse'))}">👆</button>`
+      : k === 'back' ? `<button type="button" class="pin-key alt" data-pin="back" aria-label="${esc(t('pinBack'))}">⌫</button>`
+      : `<button type="button" class="pin-key" data-pin="${k}">${k}</button>`).join('')}</div>`;
+  }
+  // Pantalla de la Libreta cerrada: crear contraseña, PIN, huella o contraseña
   function ledgerLockedHtml() {
     if (!VAULT.available()) return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultNoCrypto'))}</h2><p class="muted">${esc(t('vaultNoCryptoHint'))}</p></section>`;
-    if (!state.ledgerVault) return `<section class="vault clay"><div class="vault-ico">🔐</div><h2>${esc(t('vaultSetupTitle'))}</h2><p class="muted">${esc(t('vaultSetupSub'))}</p>
+    if (!state.ledgerVault) return `<section class="vault clay"><div class="vault-ico">🔐</div><h2>${esc(t('vaultSetupTitle'))}</h2><p class="muted">${esc(t('vaultSetupSub2'))}</p>
       <form class="stack vault-form" data-vault="setup" autocomplete="off" style="gap:12px">
         <input class="input" type="password" id="vault-pw" minlength="6" autocomplete="new-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
         <input class="input" type="password" id="vault-pw2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}" aria-label="${esc(t('vaultPw2'))}">
         <label class="check"><input type="checkbox" id="vault-ack"><span class="small">${esc(t('vaultAck'))}</span></label>
         <button class="btn primary" type="submit">${ico('lock')} ${esc(t('vaultCreate'))}</button></form></section>`;
-    return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultLockedTitle'))}</h2><p class="muted">${esc(t('vaultLockedSub'))}</p>
+    loadDevMethods();
+    const pinMode = DEVM.vid === VAULT.vidOf(state.ledgerVault) && DEVM.pin && !pwMode;
+    const bioBtn = DEVM.bio && DEVM.vid === VAULT.vidOf(state.ledgerVault) ? `<button class="btn primary bio-btn" data-act="vault-bio">👆 ${esc(t('bioUse'))}</button>` : '';
+    if (pinMode) return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultLockedTitle'))}</h2><p class="muted">${esc(t('pinEnter'))}</p>
+      <div id="pin-box">${pinDots()}</div>${pinPadHtml()}
+      <button class="chip vault-forgot" data-act="vault-usepw">${esc(t('pinUsePw'))}</button></section>`;
+    return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultLockedTitle'))}</h2><p class="muted">${esc(t(bioBtn ? 'vaultLockedSubBio' : 'vaultLockedSub'))}</p>
+      ${bioBtn ? `<div class="center" style="margin-top:14px">${bioBtn}</div>` : ''}
       <form class="stack vault-form" data-vault="open" autocomplete="off" style="gap:12px">
         <input class="input" type="password" id="vault-pw" autocomplete="current-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
-        <button class="btn primary" type="submit">${esc(t('vaultOpen'))}</button></form>
-      <button class="chip vault-forgot" data-act="vault-wipe">${esc(t('vaultForgot'))}</button></section>`;
+        <button class="btn ${bioBtn ? '' : 'primary'}" type="submit">${esc(t('vaultOpen'))}</button></form>
+      <div class="row wrap" style="justify-content:center;margin-top:14px;gap:8px">${DEVM.pin && pwMode ? `<button class="chip" data-act="vault-usepin">${esc(t('pinUsePin'))}</button>` : ''}<button class="chip" data-act="vault-wipe">${esc(t('vaultForgot'))}</button></div></section>`;
   }
+  // Tras abrir con la contraseña en un dispositivo sin PIN ni huella, se ofrece activarlos (una vez)
+  function offerQuickUnlock() {
+    const vid = LV.vid, k = 'keepgoing.qoffer.' + vid;
+    try { if (localStorage.getItem(k)) return; localStorage.setItem(k, '1'); } catch (e) { return; }
+    Promise.all([DEV.methods(vid), DEV.bioAvailable()]).then(([m, ok]) => {
+      if (m.pin || m.bio || !DEV.supported()) return;
+      whenFree(() => openModal({
+        title: `🔐 ${esc(t('quickTitle'))}`,
+        body: `<p class="muted" style="margin-top:0">${esc(t('quickSub'))}</p><div class="stack" style="gap:10px">
+          <button class="create-opt clay" data-q="pin"><span style="font-size:28px">🔢</span><span class="grow"><b>${esc(t('pinTitle'))}</b><br><span class="muted small">${esc(t('pinSub'))}</span></span>${ico('right')}</button>
+          ${ok ? `<button class="create-opt clay" data-q="bio"><span style="font-size:28px">👆</span><span class="grow"><b>${esc(t('bioMethod'))}</b><br><span class="muted small">${esc(t('bioSub'))}</span></span>${ico('right')}</button>` : ''}
+          <button class="create-opt clay" data-q="pw"><span style="font-size:28px">🔑</span><span class="grow"><b>${esc(t('quickPwOnly'))}</b><br><span class="muted small">${esc(t('quickPwOnlySub'))}</span></span>${ico('right')}</button></div>
+          <p class="muted small" style="margin-bottom:0">${esc(t('quickNote'))}</p>`,
+        onClick: (e, close) => { const b = e.target.closest('[data-q]'); if (!b) return; close(); if (b.dataset.q === 'pin') openPinSetup(); else if (b.dataset.q === 'bio') enableBio(); }
+      }));
+    });
+  }
+  function openPinSetup(done = () => {}) {
+    if (!ledgerOpen() || !LV.raw) { toast(t('vaultOpenFirst')); return; }
+    openModal({
+      title: `🔢 ${esc(t('pinTitle'))}`,
+      body: `<form class="stack" id="pin-form" style="gap:12px" autocomplete="off"><p class="muted small" style="margin:0">${esc(t('pinSetupHint'))}</p>
+        <input class="input pin-input" id="pin-1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="${esc(t('pinNew'))}">
+        <input class="input pin-input" id="pin-2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="${esc(t('pinRepeat'))}"></form>`,
+      foot: `<button class="btn primary" data-pin-save>${esc(t('save'))}</button>`,
+      onMount: w => setTimeout(() => $('#pin-1', w)?.focus(), 200),
+      onClick: async (e, close, w) => {
+        if (!e.target.closest('[data-pin-save]')) return;
+        const a = $('#pin-1', w).value, b = $('#pin-2', w).value;
+        if (!VAULT.isPin(a)) { toast(t('pinBad')); return; }
+        if (a !== b) { toast(t('pinMismatch')); return; }
+        try { await DEV.setPin(LV.vid, a, LV.raw); DEVM.vid = null; loadDevMethods(true); close(); sfx('unlock'); toast(t('pinSaved')); done(); } catch (err) { toast(t('vaultError')); }
+      }
+    });
+  }
+  async function enableBio(done = () => {}) {
+    if (!ledgerOpen() || !LV.raw) { toast(t('vaultOpenFirst')); return; }
+    try { await DEV.setBio(LV.vid, LV.raw, profileName()); DEVM.vid = null; loadDevMethods(true); sfx('unlock'); toast(t('bioSaved')); done(); }
+    catch (err) { toast(err && err.name === 'NotAllowedError' ? t('bioCancelled') : t('bioError')); }
+  }
+  async function unlockWithBio() {
+    if (LV.busy) return;
+    LV.busy = true;
+    try {
+      const raw = await DEV.unlockBio(VAULT.vidOf(state.ledgerVault));
+      if (raw && await ledgerUnlockRaw(raw)) { sfx('toggle'); LV.busy = false; render(); return; }
+      toast(t('bioFailed'));
+    } catch (err) { toast(err && err.name === 'NotAllowedError' ? t('bioCancelled') : t('bioFailed')); }
+    LV.busy = false;
+  }
+  async function pinKey(k) {
+    if (LV.busy || ledgerOpen()) return;
+    if (k === 'back') pinBuf = pinBuf.slice(0, -1); else if (pinBuf.length < 4) pinBuf += k;
+    const box = $('#pin-box'); if (box) box.innerHTML = pinDots();
+    vibrate(6);
+    if (pinBuf.length < 4) return;
+    LV.busy = true;
+    const pin = pinBuf; let r;
+    try { r = await DEV.unlockPin(VAULT.vidOf(state.ledgerVault), pin); } catch (e) { r = { ok: false }; }
+    pinBuf = '';
+    if (r.ok && await ledgerUnlockRaw(r.raw)) { sfx('toggle'); LV.busy = false; render(); return; }
+    LV.busy = false; sfx('slip'); vibrate([30, 40, 30]);
+    if (r.gone) { DEVM.vid = null; pwMode = true; toast(t('pinGone')); render(); return; }
+    toast(t('pinWrong', { n: r.left }));
+    const b2 = $('#pin-box'); if (b2) { b2.innerHTML = pinDots(); b2.classList.remove('shake'); void b2.offsetWidth; b2.classList.add('shake'); }
+  }
+  // También se puede escribir el PIN con el teclado
+  document.addEventListener('keydown', e => {
+    if (state.ui.tab !== 'ledger' || ledgerOpen() || !$('#pin-box') || $('#modal-root').children.length) return;
+    if (/^\d$/.test(e.key)) { e.preventDefault(); pinKey(e.key); } else if (e.key === 'Backspace') { e.preventDefault(); pinKey('back'); }
+  });
   document.addEventListener('submit', async e => {
     const f = e.target.closest('[data-vault]'); if (!f) return;
     e.preventDefault(); if (LV.busy) return;
@@ -2717,13 +2906,14 @@
       else if (!(await ledgerUnlock(pw))) { sfx('slip'); toast(t('vaultWrong')); LV.busy = false; btn.disabled = false; btn.textContent = t('vaultOpen'); $('#vault-pw', f).select(); return; }
       else sfx('toggle');
     } catch (err) { toast(t('vaultError')); }
-    LV.busy = false; render();
+    LV.busy = false; pwMode = false; render();
+    if (ledgerOpen()) offerQuickUnlock();
   });
   async function openVaultPassword() {
     if (!ledgerOpen()) { toast(t('vaultOpenFirst')); return; }
     openModal({
       title: `🔐 ${esc(t('vaultChange'))}`,
-      body: `<form class="stack" id="vault-change" style="gap:12px"><input class="input" type="password" id="vc-1" autocomplete="new-password" placeholder="${esc(t('vaultNewPw'))}"><input class="input" type="password" id="vc-2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}"><p class="muted small" style="margin:0">${esc(t('vaultChangeHint'))}</p></form>`,
+      body: `<form class="stack" id="vault-change" style="gap:12px"><input class="input" type="password" id="vc-1" autocomplete="new-password" placeholder="${esc(t('vaultNewPw'))}"><input class="input" type="password" id="vc-2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}"><p class="muted small" style="margin:0">${esc(t('vaultChangeHint2'))}</p></form>`,
       foot: `<button class="btn primary" data-vc>${esc(t('save'))}</button>`,
       onClick: async (e, close, w) => {
         if (!e.target.closest('[data-vc]')) return;
@@ -2734,11 +2924,58 @@
       }
     });
   }
+  // Seguridad de la Libreta: contraseña, PIN y huella / Face ID de este dispositivo
+  function openVaultSecurity() {
+    if (!ledgerOpen()) { toast(t('vaultOpenFirst')); return; }
+    let wref;
+    const draw = async () => {
+      const [m, ok] = await Promise.all([DEV.methods(LV.vid), DEV.bioAvailable()]);
+      const row = (icon, title, sub, btns) => `<div class="sec-row clay"><span class="sec-ico">${icon}</span><span class="grow"><b>${esc(title)}</b><span class="muted small">${esc(sub)}</span></span><span class="row wrap" style="gap:6px;justify-content:flex-end">${btns}</span></div>`;
+      $('#vsec', wref).innerHTML = `<div class="stack" style="gap:10px">
+        ${row('🔑', t('vaultPwTitle'), t('vaultPwSub'), `<button class="chip" data-vs="pw">${esc(t('vaultChange'))}</button>`)}
+        ${row('🔢', t('pinTitle'), m.pin ? t('secOn') : t('secOff'), m.pin ? `<button class="chip" data-vs="pin">${esc(t('pinChange'))}</button><button class="chip" data-vs="pin-off">${esc(t('secRemove'))}</button>` : `<button class="chip on" data-vs="pin">${esc(t('secEnable'))}</button>`)}
+        ${row('👆', t('bioMethod'), !ok ? t('bioUnavailable') : m.bio ? t('secOn') : t('secOff'), !ok ? '' : m.bio ? `<button class="chip" data-vs="bio-off">${esc(t('secRemove'))}</button>` : `<button class="chip on" data-vs="bio">${esc(t('secEnable'))}</button>`)}
+        <p class="muted small" style="margin:4px 0 0">${esc(t('quickNote'))}</p></div>`;
+    };
+    openModal({
+      title: `🔐 ${esc(t('vaultSecurity'))}`, body: '<div id="vsec"></div>',
+      onMount: w => { wref = w; draw(); },
+      onClick: async (e, close) => {
+        const b = e.target.closest('[data-vs]'); if (!b) return;
+        const a = b.dataset.vs;
+        if (a === 'pw') { openVaultPassword(); return; }
+        if (a === 'pin') { openPinSetup(draw); return; }
+        if (a === 'bio') { await enableBio(); draw(); return; }
+        if (a === 'pin-off') { await DEV.clearPin(LV.vid); DEVM.vid = null; toast(t('secRemoved')); draw(); return; }
+        if (a === 'bio-off') { await DEV.clearBio(LV.vid); DEVM.vid = null; toast(t('secRemoved')); draw(); }
+      }
+    });
+  }
   async function confirmVaultWipe() {
     if (await confirmDialog(t('vaultWipeQ')) && await confirmDialog(t('vaultWipeQ2'))) { ledgerWipe(); render(); toast(t('vaultWiped')); }
   }
 
-
+  /* ---------- modo privacidad: casilla en la Libreta y móvil boca abajo ---------- */
+  const flipSupported = () => 'DeviceOrientationEvent' in window && matchMedia('(pointer: coarse)').matches;
+  const flipOn = () => { try { return localStorage.getItem('keepgoing.flip') === '1'; } catch (e) { return false; } };
+  let flipSince = 0;
+  function onOrient(e) {
+    if (e.beta == null) return;
+    // Boca abajo: la pantalla mira al suelo (beta cerca de ±180°, sin inclinación lateral)
+    const down = Math.abs(e.beta) > 145 && Math.abs(e.gamma || 0) < 35;
+    if (!down) { flipSince = 0; return; }
+    if (!flipSince) { flipSince = Date.now(); return; }
+    if (Date.now() - flipSince > 450 && !privacyOn()) { setPrivacy(true); vibrate(40); if (state.ui.tab === 'ledger') render(); toast(t('privacyFlipToast')); }
+  }
+  function flipListen() { window.removeEventListener('deviceorientation', onOrient); if (flipOn() && flipSupported()) window.addEventListener('deviceorientation', onOrient); }
+  async function setFlip(on) {
+    if (on && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try { if ((await DeviceOrientationEvent.requestPermission()) !== 'granted') { toast(t('flipDenied')); render(); return; } } catch (e) { toast(t('flipDenied')); render(); return; }
+    }
+    try { localStorage.setItem('keepgoing.flip', on ? '1' : '0'); } catch (e) { /* nada */ }
+    flipListen(); render(); toast(t(on ? 'flipOnToast' : 'flipOffToast'));
+  }
+  flipListen();
 
   // Genera los movimientos de las repeticiones que falten hasta hoy (ids deterministas: no se duplican entre dispositivos;
   // si borras uno generado no vuelve a aparecer porque su id queda en «deleted»)
@@ -2763,11 +3000,16 @@
     const priv = privacyOn(), ym = ledgerMonth(), y = +ym.slice(0, 4), m = +ym.slice(5, 7);
     const sel = state.ui.ledgerDay && state.ui.ledgerDay.startsWith(ym) ? state.ui.ledgerDay : (todayKey().startsWith(ym) ? todayKey() : null);
     const monthEntries = LED.inMonth(LV.entries, y, m), tot = LED.totals(monthEntries), days = LED.byDay(monthEntries);
-    const eye = `<button class="icon-btn" data-act="privacy" aria-pressed="${priv}" aria-label="${esc(t(priv ? 'privacyShow' : 'privacyHide'))}" title="${esc(t(priv ? 'privacyShow' : 'privacyHide'))}">${ico(priv ? 'eyeOff' : 'eye')}</button>`;
-    let html = topBar(ledgerOpen() ? `${eye}<button class="icon-btn" data-act="vault-lock" aria-label="${esc(t('vaultLock'))}" title="${esc(t('vaultLock'))}">${ico('lock')}</button><button class="icon-btn" data-act="ledger-add" aria-label="${esc(t('ledgerAdd'))}">${ico('plus')}</button>` : eye);
+    let html = topBar(ledgerOpen() ? `<button class="icon-btn" data-act="vault-lock" aria-label="${esc(t('vaultLock'))}" title="${esc(t('vaultLock'))}">${ico('lock')}</button><button class="icon-btn" data-act="ledger-add" aria-label="${esc(t('ledgerAdd'))}">${ico('plus')}</button>` : '');
     html += `<h1 class="page-title">${esc(t('tabLedger'))}</h1>`;
-    html += `<button class="cap-link" data-act="level" aria-label="${esc(t('capOpen'))}">${capTotalHtml()}</button>`;
     if (!ledgerOpen()) return html + ledgerLockedHtml();
+    // Opciones de la pestaña: privacidad (casilla), boca abajo (móvil) y mostrar el Dinero Caprichable
+    html += `<div class="led-opts clay" role="group" aria-label="${esc(t('ledOptions'))}">
+      <label class="check"><input type="checkbox" data-led-opt="privacy" ${priv ? 'checked' : ''}> ${ico(priv ? 'eyeOff' : 'eye')} ${esc(t('privacyModeLabel'))}</label>
+      ${flipSupported() ? `<label class="check"><input type="checkbox" data-led-opt="flip" ${flipOn() ? 'checked' : ''}> 📱 ${esc(t('flipLabel'))}</label>` : ''}
+      <label class="check"><input type="checkbox" data-led-opt="cap" ${capHidden() ? '' : 'checked'}> 💶 ${esc(t('capShowWidget'))}</label>
+    </div>`;
+    if (!capHidden()) html += `<button class="cap-link" data-act="caprice" aria-label="${esc(t('capOpen'))}">${capTotalHtml()}</button>`;
     if (LV.bad) html += `<div class="banner clay">⚠️<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
     const years = new Set([y, +todayKey().slice(0, 4)]); LV.entries.forEach(e => years.add(+String(e.date).slice(0, 4)));
     const yMin = Math.min(...years) - 1, yMax = Math.max(...years) + 1;
@@ -2787,8 +3029,96 @@
       }).join('')}</div>`).join('')}</div>
     </section>`;
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
-    html += `<div class="row wrap ledger-tools"><button class="chip" data-act="ledger-cats">🏷️ ${esc(t('ledgerCats'))}</button><button class="chip" data-act="ledger-recs">🔁 ${esc(t('ledgerRecs'))}${LV.recurring.filter(r => !r.archived).length ? ` <b class="chip-n">${LV.recurring.filter(r => !r.archived).length}</b>` : ''}</button></div>`;
+    html += `<div class="row wrap ledger-tools"><button class="chip" data-act="ledger-cats">🏷️ ${esc(t('ledgerCats'))}</button><button class="chip" data-act="ledger-recs">🔁 ${esc(t('ledgerRecs'))}${LV.recurring.filter(r => !r.archived).length ? ` <b class="chip-n">${LV.recurring.filter(r => !r.archived).length}</b>` : ''}</button><button class="chip" data-act="vault-sec">🔐 ${esc(t('vaultSecurity'))}</button></div>`;
+    html += ledgerChartsHtml();
     return html;
+  }
+  /* ---------- Libreta: gráficas (tarta por categorías y evolución de ingresos y gastos) ---------- */
+  const PIE_COLORS = ['#ff6b6b', '#4cc9f0', '#f7c948', '#c77dff', '#3ddc97', '#ff8a5b', '#5b8cff', '#ff5d8f', '#a3e635', '#2ec4b6', '#b8b8c8'];
+  const IN_C = '#2fbf71', OUT_C = '#e5484d';
+  const capHidden = () => !!(state.ledgerPrefs && state.ledgerPrefs.capHidden);
+  // Tarta (anillo) con leyenda; en modo privacidad se ocultan los importes
+  function donutChart(segs, centerLabel) {
+    const total = segs.reduce((a, s) => a + s.value, 0);
+    if (!total) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
+    const R = 42, C = 2 * Math.PI * R; let acc = 0;
+    const arcs = segs.map(s => {
+      const f = s.value / total, len = Math.max(0, f * C - (segs.length > 1 ? 1.2 : 0));
+      const a = `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${s.color}" stroke-width="16" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc * C).toFixed(2)}"><title>${esc(s.label)} · ${Math.round(f * 100)}%</title></circle>`;
+      acc += f; return a;
+    }).join('');
+    return `<div class="pie-wrap"><svg class="pie" viewBox="0 0 120 120" role="img" aria-label="${esc(centerLabel)}"><g transform="rotate(-90 60 60)"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${arcs}</g>
+      <text x="60" y="57" text-anchor="middle" class="pie-c1">${esc(cents(total))}</text><text x="60" y="72" text-anchor="middle" class="pie-c2">${esc(centerLabel)}</text></svg>
+      <ul class="pie-legend">${segs.map(s => `<li><i style="background:${s.color}"></i><span class="grow">${esc(s.label)}</span><b>${Math.round(s.value / total * 100)}%</b><span class="muted small">${esc(cents(s.value))}</span></li>`).join('')}</ul></div>`;
+  }
+  // Dos series de puntos: verde = ingresos, rojo = gastos
+  function twoDotChart(rows, o = {}) {
+    if (!rows.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
+    const W = chartW(), H = o.h || (W < 500 ? 210 : 230), pl = 50, pr = 14, pt = 14, pb = 28, iw = W - pl - pr, ih = H - pt - pb, n = rows.length;
+    const hi = Math.max(1, ...rows.map(r => Math.max(r.income, r.expense)));
+    const x = i => pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => pt + ih - v / hi * ih;
+    const fmt = v => privacyOn() ? '•••' : compactMoney(v / 100);
+    const line = (k, c) => `<path d="${rows.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join('')}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity=".85"/>${rows.map((r, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(r[k]).toFixed(1)}" r="${n > 40 ? 2.5 : 4.5}" fill="${c}" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}`;
+    const nl = Math.min(n, W < 500 ? 4 : 6), labelIdx = [...new Set(Array.from({ length: nl }, (_, i) => Math.round(i * (n - 1) / Math.max(1, nl - 1))))];
+    const colW = iw / Math.max(1, n - (n > 1 ? 1 : 0));
+    return `<div class="chart ${privacyOn() ? 'priv' : ''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">
+      ${[0, hi / 2, hi].map(v => `<line class="grid-line" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="axis-label" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(fmt(v))}</text>`).join('')}
+      ${line('expense', OUT_C)}${line('income', IN_C)}
+      ${labelIdx.map(i => `<text class="axis-label" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 && n > 1 ? 'start' : i === n - 1 && n > 1 ? 'end' : 'middle'}">${esc(rows[i].label)}</text>`).join('')}
+      <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".35" stroke-width="1" style="display:none"/>
+      ${rows.map((r, i) => `<rect class="hit" x="${(x(i) - colW / 2).toFixed(1)}" y="${pt}" width="${colW.toFixed(1)}" height="${ih}" data-tip="${esc(`▲ ${privacyOn() ? '•••' : fmtMoney(r.income / 100)} · ▼ ${privacyOn() ? '•••' : fmtMoney(r.expense / 100)}`)}" data-sub="${esc(r.sub || r.label)}" data-cx="${x(i).toFixed(1)}" data-cy="${y(Math.max(r.income, r.expense)).toFixed(1)}"/>`).join('')}
+    </svg><div class="dot-legend"><span><i style="background:${IN_C}"></i>${esc(t('ledgerIncome'))}</span><span><i style="background:${OUT_C}"></i>${esc(t('ledgerExpense'))}</span></div></div>`;
+  }
+  const bucketLabel = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'short', year: '2-digit' }) : fmtDate(k, { day: 'numeric', month: 'short' });
+  const bucketSub = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'long', year: 'numeric' }) : fmtDate(k);
+  function ledgerChartsHtml() {
+    const ui = state.ui, ym = ledgerMonth(), today = todayKey();
+    const span = LED.span(LV.entries);
+    // 1) Tarta: periodo y desglose
+    const pp = ['month', 'year', 'all'].includes(ui.ledPie) ? ui.ledPie : 'month', pm = ['io', 'expense', 'income'].includes(ui.ledPieMode) ? ui.ledPieMode : 'io';
+    const pList = pp === 'month' ? LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7)) : pp === 'year' ? LED.inRange(LV.entries, ym.slice(0, 4) + '-01-01', ym.slice(0, 4) + '-12-31') : LV.entries;
+    const tot = LED.totals(pList);
+    const segs = pm === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }].filter(s => s.value)
+      : LED.byCategory(pList, pm).map((c, i) => { const cat = catOf(c.id); return { label: `${cat.icon} ${catName(cat)}`, value: c.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
+    const pName = pp === 'month' ? fmtDate(ym + '-01', { month: 'long', year: 'numeric' }) : pp === 'year' ? ym.slice(0, 4) : t('ledAll');
+    let html = `<h2 class="section-title led-h">📊 ${esc(t('ledCharts'))}</h2><div class="chart-grid">`;
+    html += `<section class="chart-card clay"><h3>🥧<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
+      <div class="seg seg-sm" role="group">${[['month', 'ledThisMonth'], ['year', 'ledThisYear'], ['all', 'ledAll']].map(([v, k]) => `<button data-act="led-pie" data-v="${v}" class="${pp === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
+      <div class="seg seg-sm" role="group" style="margin-top:8px">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-act="led-pie-mode" data-v="${v}" class="${pm === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
+      <div class="${privacyOn() ? 'priv' : ''}">${donutChart(segs, pm === 'io' ? t('ledNet', { v: cents(tot.net) }) : t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'))}</div></section>`;
+    // 2) Evolución a lo largo de los meses o años registrados
+    const lu = ui.ledLine === 'year' ? 'year' : 'month';
+    const from = span ? span.from : today, rows = LED.series(LV.entries, from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
+    html += `<section class="chart-card clay"><h3>📈<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
+      ${span ? twoDotChart(rows, { aria: t('ledLineTitle') }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section></div>`;
+    // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
+    const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
+    const fl = LED.inRange(LV.entries, lf.from, lf.to).filter(e => lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
+    const days = lf.from && lf.to ? diffDays(lf.from, lf.to) + 1 : 0, fu = days <= 62 ? 'day' : days <= 3 * 366 ? 'month' : 'year';
+    const frows = lf.from && lf.to && lf.from <= lf.to ? LED.series(fl, lf.from, lf.to, fu).map(r => ({ ...r, label: bucketLabel(r.key, fu), sub: bucketSub(r.key, fu) })) : [];
+    html += `<section class="chart-card clay led-filter"><h3>🔎<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
+      <div class="filter-row">
+        <label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${lf.cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}</select></label>
+        <label class="field"><span>${esc(t('ledFrom'))}</span><input class="input" type="date" data-led-f="from" value="${esc(lf.from)}"></label>
+        <label class="field"><span>${esc(t('ledTo'))}</span><input class="input" type="date" data-led-f="to" value="${esc(lf.to)}"></label>
+      </div>
+      <div class="row wrap" style="gap:6px;margin:4px 0 10px">${[['m', 'ledThisMonth'], ['y', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll']].map(([v, k]) => `<button class="chip" data-act="led-range" data-v="${v}">${esc(t(k))}</button>`).join('')}</div>
+      <div class="month-sum"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(ft.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(ft.expense)}</b></div><div><span>${esc(t('ledBalance'))}</span><b>${cents(ft.net)}</b></div></div>
+      <p class="muted small" style="margin:8px 0 4px">${esc(t('ledFilterCount', { n: fl.length }))}</p>
+      ${twoDotChart(frows, { aria: t('ledFilterTitle') })}</section>`;
+    return html;
+  }
+  // Dinero Caprichable: solo en la Libreta. Ventana con el total, el conversor y la opción de ocultarlo.
+  function openCaprice() {
+    openModal({
+      title: `💶 ${esc(t('capTitle'))}`, cls: 'wide',
+      body: `<div class="stack" style="gap:18px"><div id="cap-total">${capTotalHtml()}</div><section><h3 class="section-title">${esc(t('capConverter'))}</h3>${capHtml()}</section>
+        <label class="check"><input type="checkbox" data-cap-hide ${capHidden() ? 'checked' : ''}> ${esc(t('capHideWidget'))}</label></div>`,
+      onMount: w => {
+        bindCap(w, () => { const el = $('#cap-total', w); if (el) el.innerHTML = capTotalHtml(); render(); });
+        w.addEventListener('change', e => { if (e.target.matches('[data-cap-hide]')) { state.ledgerPrefs = { ...state.ledgerPrefs, capHidden: e.target.checked }; save(); render(); } });
+      }
+    });
   }
   // Importe corto para las celdas del calendario (sin decimales si es redondo)
   const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
@@ -2947,7 +3277,7 @@
     const di = dayInfo(todayKey());
     let html = petCardHtml() + energyHtml();
     if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span></div>`;
-    if (di.perfect && items.length) html += `<div class="perfect-banner clay">🎉 <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${fmtPts(di.cpts)} pts · ${esc(money(di.money))}</span></div>`;
+    if (di.perfect && items.length) html += `<div class="perfect-banner clay">🎉 <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${fmtPts(di.cpts)} pts</span></div>`;
     const routs = state.routines.filter(r => r.habitIds.some(id => { const h = getHabit(id); return h && !h.archived && todayStatus(h).due; }));
     const groups = TOD.map(tod => {
       const rs = routs.filter(r => (r.timeOfDay || 'any') === tod);
@@ -3076,10 +3406,10 @@
     const opt = (act, icon, title, sub) => `<button class="create-opt clay" data-create="${act}"><span style="font-size:30px">${icon}</span><span class="grow"><b>${esc(title)}</b><br><span class="muted small">${esc(sub)}</span></span>${ico('right')}</button>`;
     openModal({
       title: esc(t('createTitle')),
-      body: `<div class="stack" style="gap:12px">${opt('habit', '➕', t('newHabit'), t('createHabitSub'))}${opt('pack', '📦', t('fromTemplate'), t('createPackSub'))}${opt('challenge', '🏁', t('newChallenge'), t('createChallengeSub'))}${opt('routine', '🔁', t('newRoutine'), t('createRoutineSub'))}${opt('vacation', '🏖️', t('vacTitle'), t('vacHintShort'))}</div>`,
+      body: `<div class="stack" style="gap:12px">${opt('habit', '➕', t('newHabit'), t('createHabitSub'))}${opt('pack', '📦', t('fromTemplate'), t('createPackSub'))}${opt('challenge', '🏁', t('newChallenge'), t('createChallengeSub'))}${opt('project', '🎯', t('newProject'), t('createProjectSub'))}${opt('routine', '🔁', t('newRoutine'), t('createRoutineSub'))}${opt('vacation', '🏖️', t('vacTitle'), t('vacHintShort'))}</div>`,
       onClick: (e, close) => {
         const b = e.target.closest('[data-create]'); if (!b) return; close();
-        ({ habit: () => openHabitEditor(), pack: openPacks, challenge: openChallenges, routine: () => openRoutineEditor(), vacation: openVacations })[b.dataset.create]();
+        ({ habit: () => openHabitEditor(), project: () => openProjectEditor(), pack: openPacks, challenge: openChallenges, routine: () => openRoutineEditor(), vacation: openVacations })[b.dataset.create]();
       }
     });
   }
@@ -3179,7 +3509,7 @@
     ['earlyBird', '🌅', () => countTimes(tm => tm < '08:00') >= 15],
     ['nightOwl', '🦉', () => countTimes(tm => tm >= '23:00') >= 15],
     ['comeback', '🔄', () => state.habits.some(hasComeback)],
-    ['collector', '🃏', () => state.habits.reduce((a, h) => a + unlockedCount(h), 0) >= 25],
+    ['collector', '🃏', () => perfectCount() >= 5 || legacyTotal() >= 25],
     ['contract3', '📜', () => state.contractCards.length >= 3],
     ['quit30', '🕊️', () => state.habits.some(h => isQuit(h) && bestStreak(h) >= 30)],
     ['routine10', '🔁', () => Object.values(state.routineRuns).reduce((a, b) => a + b, 0) >= 10],
@@ -3317,7 +3647,7 @@
         if (auto) readDontRemind(w, 'weeklyReview');
         if (b.dataset.rv === 'skip') { if (auto) { state.ui.reviewSkip = week; save(); } close(); return; }
         state.reviews[week] = { good: $('#rv-good', w).value.trim(), adjust: $('#rv-adj', w).value.trim(), score: +$('#rv-score', w).value, date: todayKey() };
-        save(); close(); toast(t('saved')); if (state.ui.tab === 'charts') render();
+        save(); close(); toast(t('saved')); if (state.ui.tab === 'habits' && habitsView() === 'charts') render();
       }
     });
   }
@@ -3347,7 +3677,8 @@
     const rateP = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length * 100) : null;
     const D = H.filter(h => h.freq === 'daily');
     const linePts = days.map(k => { const sc = D.map(h => dayScore(h, k)).filter(v => v != null); return { label: fmtDate(k, { day: 'numeric', month: 'short' }), v: sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length * 100 : null }; });
-    const cards = []; for (const h of state.habits) for (const [r, v] of Object.entries(state.mastery[h.id] || {})) if (v.date >= from && v.date <= to) cards.push(`${h.icon} ${h.name} · ${t('rank_' + r)}`);
+    const cards = []; for (const [r, v] of Object.entries(state.perfectMastery)) if (v.date >= from && v.date <= to) cards.push(`👑 ${t('perfectSeries')} · ${t('rank_' + r)}`);
+    for (const h of state.habits) for (const [r, v] of Object.entries(state.mastery[h.id] || {})) if (v.date >= from && v.date <= to) cards.push(`${h.icon} ${h.name} · ${t('rank_' + r)}`);
     const reviews = Object.entries(state.reviews).filter(([w]) => w >= addDays(from, -6) && w <= to).sort();
     const monthName = fmtDate(from, { month: 'long', year: 'numeric' });
     const base = new URL('.', location.href).href;
@@ -3355,7 +3686,7 @@
     const kpi = (v, l) => `<div class="kpi clay"><b>${v}</b><span>${esc(l)}</span></div>`;
     const wdBars = t('weekdaysShort').split(',').map((l, i) => { let o = 0, ok = 0; days.forEach(k => { if (wdOf(k) !== i) return; D.forEach(h => { const s = dayScore(h, k); if (s != null) { o++; if (s >= 1) ok++; } }); }); return { label: l, v: o ? ok / o * 100 : 0 }; });
     const html = `<!doctype html><html lang="${state.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>KeepGoing · ${esc(monthName)}</title>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Quicksand:wght@400;500;600;700&family=Nunito+Sans:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="${base}css/app.css">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Quicksand:wght@400;500;600;700&family=Nunito+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="${base}css/app.css">
       <style>body{padding:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.rep{max-width:960px;margin:0 auto}.rep h1{font-size:40px;margin:0;text-transform:capitalize}.rep h2{font-size:20px;margin:26px 0 12px}
       .chart-grid{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}@page{size:A4;margin:10mm}@media print{.no-print{display:none}body{padding:0}.clay{break-inside:avoid}}</style></head>
       <body><div class="rep">
@@ -3636,14 +3967,14 @@
     const best = active.filter(h => !isQuit(h)).map(h => [h, currentStreak(h)]).sort((a, b) => b[1] - a[1])[0];
     if (best && best[1] >= 3) out.push(t('petStreak', { h: best[0].name, n: best[1] }));
     let near = null;
-    for (const h of active) { const n = successDays(h), u = unlockedCount(h); if (u < RANKS.length) { const k = RANKS[u][1] - n; if (!near || k < near.k) near = { k, h, r: RANKS[u][0] }; } }
-    if (near && near.k <= 7) out.push(t('petNextCard', { k: near.k, rank: t('rank_' + near.r), h: near.h.name }));
+    { const ni = RANKS.findIndex(([r]) => !state.perfectMastery[r]), pr = perfectRun(); if (ni >= 0 && pr.cur > 0 && RANKS[ni][1] - pr.cur <= 7) near = { k: RANKS[ni][1] - pr.cur, r: RANKS[ni][0] }; }
+    if (near) out.push(t('petNextPerfect', { k: near.k, rank: t('rank_' + near.r) }));
     const q = active.filter(isQuit).map(h => [h, currentStreak(h)]).sort((a, b) => b[1] - a[1])[0];
     if (q && q[1] >= 1) out.push(t('petQuit', { n: q[1], h: q[0].name }));
     if (!state.energy[today]) out.push(t('petEnergy'));
     const c = state.contract; if (c) { const left = diffDays(today, c.endsAt); if (left >= 0 && left <= 3) out.push(t('petContract', { n: left })); }
     const pi = pointsInfo();
-    out.push(pi.money > 0 ? t('petCaprice', { m: money(pi.money) }) : t('petPoints', { n: fmtPts(pi.points) }));
+    out.push(t('petPoints', { n: fmtPts(pi.points) }));
     return out;
   }
   let petIdx = 0;
@@ -3679,22 +4010,24 @@
     hs.forEach(h => { if (isQuit(h)) return; const L = state.logs[h.id] || {}; for (const k in L) if (L[k] > 0) days.add(k); });
     return {
       activeDays: days.size, best: Math.max(0, ...hs.map(bestStreak)), entries: hs.reduce((a, h) => a + totalEntries(h), 0),
-      perfect: pointsInfo().perfectDays, cards: hs.reduce((a, h) => a + unlockedCount(h), 0), secrets: SECRETS.filter(([id]) => state.secrets[id]).length,
-      mastered: hs.filter(h => unlockedCount(h) >= RANKS.length).length, contracts: state.contractCards.length, challenges: state.challengeCards.length,
+      perfect: pointsInfo().perfectDays, cards: perfectCount() + legacyTotal(), secrets: SECRETS.filter(([id]) => state.secrets[id]).length,
+      mastered: perfectRun().best, contracts: state.contractCards.length, challenges: state.challengeCards.length,
       projects: state.projects.filter(p => projectStats(p).achieved).length, xp: levelInfo().xp, since: memberSince()
     };
   }
   // Vitrina: claves 'm:<hábito>:<rango>' (carta de maestría) o 's:<id>' (carta secreta)
   function showcaseItem(key) {
     const [k, a, b] = String(key || '').split(':');
-    if (k === 'm') { const h = getHabit(a), i = +b; if (!h || !(unlockedCount(h) > i)) return null; return { html: cardFace(h, i, 'front'), label: `${t('rank_' + RANKS[i][0])} · ${h.name}`, h, i }; }
+    if (k === 'p') { const i = +a; if (!RANKS[i] || !state.perfectMastery[RANKS[i][0]]) return null; return { html: cardFace(PSUBJ(), i, 'front'), label: `${t('rank_' + RANKS[i][0])} · ${t('perfectSeries')}`, h: PSUBJ(), i }; }
+    if (k === 'm') { const h = getHabit(a), i = +b; if (!h || !RANKS[i] || !(state.mastery[h.id] || {})[RANKS[i][0]]) return null; return { html: cardFace(h, i, 'front'), label: `${t('rank_' + RANKS[i][0])} · ${h.name}`, h, i }; }
     if (k === 's') { const s = SECRETS.find(x => x[0] === a); if (!s || !state.secrets[a]) return null; return { html: secretCardHtml(s[0], s[1]), label: t('sec_' + a), s }; }
     return null;
   }
   const showcaseKeys = () => (profileOf().showcase || []).slice(0, 3);
   function openShowcasePicker(slot, done) {
     const opts = [];
-    state.habits.forEach(h => { for (let i = unlockedCount(h) - 1; i >= 0; i--) opts.push('m:' + h.id + ':' + i); });
+    for (let i = RANKS.length - 1; i >= 0; i--) if (state.perfectMastery[RANKS[i][0]]) opts.push('p:' + i);
+    state.habits.forEach(h => { for (let i = RANKS.length - 1; i >= 0; i--) if ((state.mastery[h.id] || {})[RANKS[i][0]]) opts.push('m:' + h.id + ':' + i); });
     SECRETS.forEach(([id]) => { if (state.secrets[id]) opts.push('s:' + id); });
     openModal({
       title: `🏆 ${esc(t('showcaseTitle'))}`, cls: 'wide',
@@ -3727,6 +4060,7 @@
       if (h.createdAt) ev.push({ d: h.createdAt, icon: h.icon || '#', txt: t('achStart', { name: h.name }) });
       RANKS.forEach(([r]) => { const m = (state.mastery[h.id] || {})[r]; if (m && m.date) ev.push({ d: m.date, icon: '👑', txt: t('achCard', { rank: t('rank_' + r), name: h.name }) }); });
     });
+    RANKS.forEach(([r, th]) => { const m = state.perfectMastery[r]; if (m && m.date) ev.push({ d: m.date, icon: '👑', txt: t('achPerfect', { rank: t('rank_' + r), n: th }) }); });
     SECRETS.forEach(([id, icon]) => { if (state.secrets[id]) ev.push({ d: state.secrets[id], icon, txt: t('achSecret', { name: t('sec_' + id) }) }); });
     state.challengeCards.forEach(c => ev.push({ d: c.end, icon: '🏁', txt: t('achChallenge', { name: c.name, n: c.days }) }));
     state.contractCards.forEach(cc => ev.push({ d: cc.end, icon: '📜', txt: t('achContract', { tier: t('tier_' + cc.tier) }) }));
@@ -3738,6 +4072,18 @@
     const lv = levelInfo(), bio = profileOf().bio;
     return `<button class="prof-card clay" data-act="profile"><span class="prof-pet">${catSvg(petOf(), 'happy', 74)}</span><span class="grow"><b class="prof-card-name">${esc(profileName())}</b><span class="muted small">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</span>${bio ? `<span class="prof-bio">${esc(bio)}</span>` : `<span class="muted small">${esc(t('profileTapHint'))}</span>`}</span>${ico('right')}</button>`;
   }
+  // Insignias: lo que has ganado de un vistazo (maestrías de racha, cartas secretas, contratos, retos y reputación)
+  function badgesHtml() {
+    const b = [];
+    RANKS.forEach(([r]) => { if (state.perfectMastery[r]) b.push(['👑', t('rank_' + r)]); });
+    SECRETS.forEach(([id, icon]) => { if (state.secrets[id]) b.push([icon, t('sec_' + id)]); });
+    const tiers = {}; state.contractCards.forEach(c => { tiers[c.tier] = (tiers[c.tier] || 0) + 1; });
+    Object.entries(tiers).forEach(([tier, n]) => b.push(['📜', `${t('tier_' + tier)}${n > 1 ? ' ×' + n : ''}`]));
+    if (state.challengeCards.length) b.push(['🏁', t('badgeChallenges', { n: state.challengeCards.length })]);
+    if (repState.golds) b.push(['🥇', t('badgeGolds', { n: repState.golds })]);
+    const best = perfectRun().best; if (best >= 3) b.push(['🔥', t('badgeBestRun', { n: best })]);
+    return b.length ? `<div class="badge-grid">${b.map(([i, l]) => `<span class="badge"><span class="badge-ico">${esc(i)}</span><span>${esc(l)}</span></span>`).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('badgesNone'))}</p>`;
+  }
   let achAll = false;
   function profileHtml() {
     const pr = profileOf(), lv = levelInfo(), st = lifeStats(), sc = showcaseKeys(), ach = achievements();
@@ -3745,11 +4091,12 @@
     const sec = (icon, title, body) => `<section class="prof-sec"><h3 class="section-title">${icon} ${esc(title)}</h3>${body}</section>`;
     return `<div class="stack" style="gap:22px">
       <div class="prof-head"><button class="pet-btn" data-pf="pet" aria-label="${esc(petOf().name || t('petDefaultName'))}">${catSvg(petOf(), 'happy', 124)}</button>
-        <div class="grow"><h2 class="prof-name">${esc(profileName())}</h2><div class="prof-lvl">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</div><div class="muted small">${esc(t('memberSince', { d: fmtDate(st.since) }))}</div></div></div>
+        <div class="grow"><h2 class="prof-name">${esc(profileName())}</h2>${myTag() ? `<div class="prof-tag">@${esc(myTag())}</div>` : ''}<div class="prof-lvl">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</div><div class="muted small">${esc(t('memberSince', { d: fmtDate(st.since) }))}</div></div></div>
       <label class="field"><span>${esc(t('bioTitle'))}</span><textarea class="input" id="pf-bio" maxlength="140" rows="2" placeholder="${esc(t('ct_quote_' + (state.commitment || 'serio'), { perfecto: 'perfecto' }))}">${esc(pr.bio || '')}</textarea></label>
       <div class="row wrap"><button class="btn primary" data-pf="carnet">${ico('upload')} ${esc(t('carnetShare'))}</button>${pr.enabled && pr.slug ? `<a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${ico('globe')} ${esc(t('profileOpen'))}</a>` : `<button class="btn" data-pf="public">${ico('globe')} ${esc(t('profilePublicSetup'))}</button>`}</div>
+      ${sec('🎖️', t('badgesTitle'), badgesHtml())}
       ${sec('🏆', t('showcaseTitle'), `<div class="show-row">${[0, 1, 2].map(i => { const it = showcaseItem(sc[i]); return `<button class="kcard-btn show-slot" data-pf="slot" data-i="${i}">${it ? it.html : `<div class="slot-empty">${ico('plus')}</div>`}<span class="cap">${it ? esc(it.label) : esc(t('showcaseAdd'))}</span></button>`; }).join('')}</div>`)}
-      ${sec('📊', t('lifeStats'), `<div class="kpis prof-kpis">${kpi(fmtNum(st.activeDays), t('kpiActiveDays'))}${kpi(st.best, t('kpiBest'))}${kpi(fmtNum(st.entries), t('kpiTotal'))}${kpi(st.perfect, t('perfectDays'))}${kpi(`${st.cards}<small>/${state.habits.length * RANKS.length}</small>`, t('statCards'))}${kpi(st.secrets, t('secretCards'))}${kpi(st.mastered, t('statMastered'))}${kpi(st.contracts, t('contractCards'))}${kpi(st.challenges, t('challengeCards'))}${kpi(st.projects, t('statProjects'))}${kpi(fmtNum(st.xp), 'XP')}</div>`)}
+      ${sec('📊', t('lifeStats'), `<div class="kpis prof-kpis">${kpi(fmtNum(st.activeDays), t('kpiActiveDays'))}${kpi(st.best, t('kpiBest'))}${kpi(fmtNum(st.entries), t('kpiTotal'))}${kpi(st.perfect, t('perfectDays'))}${kpi(st.cards, t('statCards'))}${kpi(st.secrets, t('secretCards'))}${kpi(st.mastered, t('perfectRun'))}${kpi(st.contracts, t('contractCards'))}${kpi(st.challenges, t('challengeCards'))}${kpi(st.projects, t('statProjects'))}${kpi(fmtNum(st.xp), 'XP')}</div>`)}
       ${sec('🗓️', t('yearHeat'), yearHeatHtml())}
       ${sec('✨', t('achTitle'), ach.length ? `<div class="ach-list">${(achAll ? ach : ach.slice(0, 12)).map(e => `<div class="ach"><span class="ach-ico">${esc(e.icon)}</span><span class="grow">${esc(e.txt)}</span><span class="muted small">${esc(fmtShort(e.d))}</span></div>`).join('')}</div>${ach.length > 12 ? `<div class="center" style="margin-top:10px"><button class="chip" data-pf="ach-more">${esc(t(achAll ? 'achLess' : 'achMore', { n: ach.length }))}</button></div>` : ''}` : `<p class="muted small">${esc(t('achNone'))}</p>`)}
       ${sec('🏅', t('repTotal'), `<div id="pf-rep">${repHtml()}</div>`)}
@@ -3825,12 +4172,13 @@
     const pr = profileOf(), s = pr.show, out = { name: firstName(), lang: state.lang, at: todayKey(), bio: pr.bio || '', pet: petOf() };
     if (s.level) { const lv = levelInfo(); out.level = { n: lv.level, title: lv.title, xp: lv.xp }; }
     if (s.cards) {
-      out.cards = state.habits.filter(h => unlockedCount(h)).map(h => ({ name: h.name, icon: h.icon, ranks: RANKS.slice(0, unlockedCount(h)).map(([r]) => { const m = (state.mastery[h.id] || {})[r] || {}; return [r, m.date || todayKey(), m.serial || 0]; }) }));
+      const pm = RANKS.filter(([r]) => state.perfectMastery[r]).map(([r]) => [r, state.perfectMastery[r].date, state.perfectMastery[r].serial || 0]);
+      out.cards = [...(pm.length ? [{ name: t('perfectSeries'), icon: '🔥', ranks: pm }] : []), ...state.habits.filter(legacyCount).map(h => ({ name: h.name, icon: h.icon, ranks: RANKS.filter(([r]) => (state.mastery[h.id] || {})[r]).map(([r]) => { const m = state.mastery[h.id][r]; return [r, m.date || todayKey(), m.serial || 0]; }) }))];
       out.secrets = SECRETS.filter(([id]) => state.secrets[id]).map(([id, icon]) => [id, icon, state.secrets[id]]);
       out.challenges = state.challengeCards;
       out.showcase = showcaseKeys().map(k => {
         const it = showcaseItem(k); if (!it) return null;
-        if (it.h) { const m = (state.mastery[it.h.id] || {})[RANKS[it.i][0]] || {}; return { k: 'm', name: it.h.name, i: it.i, date: m.date || todayKey(), serial: m.serial || 0 }; }
+        if (it.h) { const m = cardMeta(it.h, RANKS[it.i][0]) || {}; return { k: 'm', name: it.h.name, i: it.i, date: m.date || todayKey(), serial: m.serial || 0 }; }
         return { k: 's', id: it.s[0], icon: it.s[1], date: state.secrets[it.s[0]] };
       }).filter(Boolean);
     }
@@ -4338,6 +4686,7 @@
     try {
       const [r, u] = await Promise.all([rpc('kg_my_rep'), sbFetch(`/rest/v1/kg_users?user_id=eq.${auth.uid}&select=nametag`)]);
       repState.total = r.total; repState.awards = r.awards; repState.golds = r.golds; repState.nametag = (u[0] && u[0].nametag) || null; repState.loaded = true;
+      cacheTag(repState.nametag);
     } catch (e) { /* sin conexión */ }
   }
   function repHtml() {
@@ -4348,13 +4697,15 @@
       <label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="pf-tag" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('nametagPh'))}" value="${esc(repState.nametag || '')}"><button class="btn" data-pf="tag">${esc(t('save'))}</button></div></label>
       <p class="muted small" style="margin:0">${esc(t('nametagHint'))}</p></div>`;
   }
+  // El @nametag se guarda también en el perfil local para mostrarlo junto al nivel sin esperar a la red
+  function cacheTag(tag) { if ((profileOf().tag || null) !== (tag || null)) { state.profile = { ...profileOf(), tag: tag || '' }; save(); } }
   async function saveNametag(raw) {
     const tag = GG.toNametag(raw);
     if (!GG.isNametag(tag)) { toast(t('nametagBad')); return false; }
     try {
       await ensureToken();
       await sbFetch('/rest/v1/kg_users?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: auth.uid, nametag: tag, display_name: (firstName() || tag).slice(0, 40), updated_at: new Date().toISOString() }) });
-      repState.nametag = tag; toast(t('nametagSaved')); sfx('toggle'); return true;
+      repState.nametag = tag; cacheTag(tag); render(); toast(t('nametagSaved')); sfx('toggle'); return true;
     } catch (e) { toast(e.status === 409 || /duplicate|unique/i.test(e.message) ? t('nametagTaken') : t('groupError', { e: e.message })); return false; }
   }
   // Unirse con ?join=CÓDIGO (se guarda hasta que haya sesión)
@@ -4429,7 +4780,7 @@
   // Pulsación larga en casillas y anillo → editor del día
   let lpTimer = null, lpFired = false, lpStart = null;
   function longPress(el) {
-    if (el.matches('.dot[data-k]')) { const h = getHabit(el.closest('.dots').dataset.id); if (h) openDay(h, el.dataset.k); }
+    if (el.matches('.dot[data-k]')) { const h = getHabit(el.closest('[data-hid]').dataset.hid); if (h) openDay(h, el.dataset.k); }
     else if (el.dataset.ring) { const h = getHabit(el.dataset.ring); if (h) openDay(h, todayKey()); }
   }
   document.addEventListener('pointerdown', e => {
@@ -4443,23 +4794,27 @@
     if (lpTimer && lpStart && Math.hypot(e.clientX - lpStart[0], e.clientY - lpStart[1]) > 8) { clearTimeout(lpTimer); lpTimer = null; }
   });
   ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, () => { clearTimeout(lpTimer); lpTimer = null; }));
-  // Pulsación larga en un hábito (fuera de casillas y anillo) → arrastrar para reordenar
+  // Pulsación larga en un hábito (fuera de casillas y anillo) → arrastrar para reordenar,
+  // soltarlo encima de otro hábito para crear una carpeta (proyecto) o encima de una carpeta para meterlo
   let rd = null, rdTimer = null, rdBlockClick = false;
   document.addEventListener('pointerdown', e => {
     if (e.button !== 0 || rd) return;
     const card = e.target.closest('#habit-grid > .habit');
-    if (!card || e.target.closest('.dot, .ring, .timer-btn, .grp-chip')) return;
+    if (!card || e.target.closest('.dot, .ring, .timer-btn, .grp-chip, .cal-nav')) return;
     const sx = e.clientX, sy = e.clientY;
     clearTimeout(rdTimer);
     rdTimer = setTimeout(() => {
       rdTimer = null;
-      const r = card.getBoundingClientRect();
-      rd = { card, grid: card.parentElement, ox: sx - r.left, oy: sy - r.top, x: sx, y: sy, moved: false, raf: 0 };
+      const r = card.getBoundingClientRect(), grid = card.parentElement;
+      rd = { card, grid, folder: grid.dataset.folder || null, ox: sx - r.left, oy: sy - r.top, x: sx, y: sy, moved: false, raf: 0, into: null, hover: null };
       card.classList.add('dragging'); document.body.classList.add('reordering'); vibrate(25);
+      // Dentro de una carpeta aparece una zona para sacar el hábito
+      if (rd.folder) { const z = document.createElement('div'); z.className = 'drop-out'; z.innerHTML = `${ico('up')} ${esc(t('folderTakeOut'))}`; document.body.appendChild(z); rd.zone = z; }
       const loop = () => { // autodesplazamiento cerca de los bordes
         if (!rd) return;
         const edge = 90, v = rd.y < edge ? -(edge - rd.y) / 6 : rd.y > innerHeight - edge ? (rd.y - innerHeight + edge) / 6 : 0;
-        if (v) { scrollBy(0, v); rdMove(); }
+        if (v) scrollBy(0, v);
+        rdMove();
         rd.raf = requestAnimationFrame(loop);
       };
       rd.raf = requestAnimationFrame(loop);
@@ -4468,36 +4823,76 @@
     document.addEventListener('pointermove', cancel);
     document.addEventListener('pointerup', () => { clearTimeout(rdTimer); rdTimer = null; document.removeEventListener('pointermove', cancel); }, { once: true });
   });
+  const setInto = el => {
+    if (!rd || rd.into === el) return;
+    if (rd.into && rd.into.classList) rd.into.classList.remove('drop-into', 'hot');
+    rd.into = el;
+    if (el && el.classList) { el.classList.add(el.classList.contains('drop-out') ? 'hot' : 'drop-into'); vibrate(12); }
+  };
   function rdMove() {
     const { card, grid } = rd;
     card.style.transform = '';
-    const under = document.elementFromPoint(rd.x, rd.y), target = under && under.closest('#habit-grid > .habit');
-    if (target && target !== card && target.parentElement === grid) {
-      const kids = [...grid.children], from = kids.indexOf(card), to = kids.indexOf(target);
-      grid.insertBefore(card, to > from ? target.nextSibling : target); rd.moved = true;
-    }
+    const under = document.elementFromPoint(rd.x, rd.y);
+    const zone = under && under.closest('.drop-out');
+    const target = !zone && under && under.closest('#habit-grid > .habit, #habit-grid > .folder');
+    if (zone) setInto(zone);
+    else if (target && target !== card && target.parentElement === grid) {
+      const r = target.getBoundingClientRect(), cx = (rd.x - r.left) / r.width, cy = (rd.y - r.top) / r.height;
+      const center = cx > .2 && cx < .8 && cy > .18 && cy < .82;
+      if (target.classList.contains('folder')) setInto(target);
+      else {
+        // Hay que quedarse un momento encima: en el centro crea la carpeta; en el borde reordena
+        // (así, al ir hacia el centro de otro hábito, no se reordena por el camino)
+        const zone = center && !rd.folder ? 'c' : 'e';
+        if (!rd.hover || rd.hover.el !== target || rd.hover.zone !== zone) { rd.hover = { el: target, zone, at: Date.now() }; if (zone === 'e') setInto(null); }
+        else if (zone === 'c' && Date.now() - rd.hover.at > 320) setInto(target);
+        else if (zone === 'e' && Date.now() - rd.hover.at > 180) {
+          rd.hover = null; setInto(null);
+          const kids = [...grid.children], from = kids.indexOf(card), to = kids.indexOf(target);
+          grid.insertBefore(card, to > from ? target.nextSibling : target); rd.moved = true;
+        }
+      }
+    } else { rd.hover = null; setInto(null); }
     const r = card.getBoundingClientRect();
-    card.style.transform = `translate(${rd.x - rd.ox - r.left}px, ${rd.y - rd.oy - r.top}px) scale(1.03)`;
+    card.style.transform = `translate(${rd.x - rd.ox - r.left}px, ${rd.y - rd.oy - r.top}px) scale(${rd.into ? .9 : 1.03})`;
   }
-  document.addEventListener('pointermove', e => { if (!rd) return; e.preventDefault(); rd.x = e.clientX; rd.y = e.clientY; rdMove(); });
+  document.addEventListener('pointermove', e => { if (!rd) return; e.preventDefault(); rd.x = e.clientX; rd.y = e.clientY; });
   // En móvil hay que frenar el desplazamiento de la página mientras se arrastra
   document.addEventListener('touchmove', e => { if (rd) e.preventDefault(); }, { passive: false });
-  ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, () => {
+  ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, ev => {
     if (!rd) return;
-    const { card, grid, moved } = rd; cancelAnimationFrame(rd.raf); rd = null;
+    const { card, grid, moved, into, folder, zone } = rd; cancelAnimationFrame(rd.raf); rd = null;
     card.classList.remove('dragging'); card.style.transform = ''; document.body.classList.remove('reordering');
+    if (zone) zone.remove();
+    if (into && into.classList) into.classList.remove('drop-into', 'hot');
     rdBlockClick = true; setTimeout(() => { rdBlockClick = false; }, 350);
+    const hid = card.dataset.id;
+    if (ev.type === 'pointerup' && into) {
+      if (into.classList.contains('drop-out')) { const p = state.projects.find(x => x.id === folder); if (p) { p.habitIds = p.habitIds.filter(x => x !== hid); save(); render(); toast(t('folderTookOut')); } return; }
+      if (into.classList.contains('folder')) { const p = state.projects.find(x => x.id === into.dataset.pid); if (p) { if (!p.habitIds.includes(hid)) p.habitIds.push(hid); save(); render(); sfx('complete'); toast(t('folderAdded', { name: p.name })); } return; }
+      createFolder(into.dataset.id, hid); return;
+    }
     if (!moved) return;
     // Los hábitos visibles ocupan sus mismos huecos en la lista completa, con el orden nuevo
-    const ids = [...grid.children].map(el => el.dataset.id), set = new Set(ids);
+    const ids = [...grid.children].filter(el => el.classList.contains('habit')).map(el => el.dataset.id), set = new Set(ids);
     const slots = state.habits.map((h, i) => set.has(h.id) ? i : -1).filter(i => i >= 0);
     const byId = Object.fromEntries(state.habits.map(h => [h.id, h]));
     const next = state.habits.slice(); slots.forEach((slot, j) => { next[slot] = byId[ids[j]]; });
-    state.habits = next; save(); render(); toast(t('reordered'));
+    state.habits = next;
+    // Dentro de una carpeta también se guarda su propio orden
+    if (folder) { const p = state.projects.find(x => x.id === folder); if (p) p.habitIds = [...ids, ...p.habitIds.filter(x => !set.has(x))]; }
+    save(); render(); toast(t('reordered'));
   }));
+  // Soltar un hábito encima de otro: nueva carpeta (proyecto) con los dos; luego se le pone nombre
+  function createFolder(aId, bId) {
+    const a = getHabit(aId), b = getHabit(bId); if (!a || !b) return;
+    const p = { id: uid(), name: t('folderNewName'), icon: '📁', color: null, desc: '', habitIds: [aId, bId], goal: { type: 'simple', start: 0, target: 0, unit: '', entries: [], items: [], achieved: false }, deadline: null, milestones: [], photos: {}, createdAt: todayKey() };
+    state.projects.push(p); save(); render(); sfx('complete'); vibrate([10, 30, 10]); toast(t('folderCreated'));
+    setTimeout(() => openProjectEditor(p), 260);
+  }
   window.addEventListener('click', e => { if (rdBlockClick) { e.preventDefault(); e.stopPropagation(); rdBlockClick = false; } }, true);
   document.addEventListener('contextmenu', e => {
-    if (rd || e.target.closest('#habit-grid > .habit')) { if (!e.target.closest('.dot[data-k], .ring[data-ring]')) { e.preventDefault(); return; } }
+    if (rd || e.target.closest('#habit-grid > .habit, #habit-grid > .folder')) { if (!e.target.closest('.dot[data-k], .ring[data-ring]')) { e.preventDefault(); return; } }
     const el = e.target.closest('.dot[data-k], .ring[data-ring]');
     if (!el) return;
     e.preventDefault();
@@ -4511,7 +4906,7 @@
     const dot = e.target.closest('.dot[data-k]');
     if (dot) {
       if (lpFired) { lpFired = false; return; }
-      const h = getHabit(dot.closest('.dots').dataset.id);
+      const h = getHabit(dot.closest('[data-hid]').dataset.hid);
       if (h) { tapDay(h, dot.dataset.k); refreshHabit(h.id); }
       return;
     }
@@ -4540,21 +4935,39 @@
     if ((el = e.target.closest('[data-energy]'))) { const v = +el.dataset.energy, k = todayKey(); if (state.energy[k] === v) delete state.energy[k]; else state.energy[k] = v; save(); checkSecrets(); vibrate(8); render(); return; }
     if ((el = e.target.closest('[data-routine-run]'))) { const r = state.routines.find(x => x.id === el.dataset.routineRun); if (r) runRoutine(r); return; }
     if ((el = e.target.closest('[data-routine-edit]'))) { const r = state.routines.find(x => x.id === el.dataset.routineEdit); if (r) openRoutineEditor(r); return; }
+    if ((el = e.target.closest('[data-cal]'))) { const box = el.closest('[data-hid]'); if (box) { moveCal(box.dataset.hid, +el.dataset.cal); vibrate(6); } return; }
     if ((el = e.target.closest('[data-timer]'))) { const h = getHabit(el.dataset.timer); if (h) openTimer(h); return; }
     if ((el = e.target.closest('[data-group]'))) { e.preventDefault(); openGroup(el.dataset.group); return; }
     if ((el = e.target.closest('[data-group-open]'))) { openGroup(el.dataset.groupOpen); return; }
     if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
+    if ((el = e.target.closest('[data-pin]'))) { pinKey(el.dataset.pin); return; }
     if ((el = e.target.closest('[data-ledger-edit]'))) { const en = LV.entries.find(x => x.id === el.dataset.ledgerEdit); if (en) openEntry(en); return; }
     const a = e.target.closest('[data-act]'); if (!a) return;
     const id = a.dataset.id;
     switch (a.dataset.act) {
-      case 'go': state.ui.tab = a.dataset.tab; save(); render(); window.scrollTo(0, 0); break;
+      case 'go': if (state.ui.tab === a.dataset.tab && state.ui.folder) state.ui.folder = null; state.ui.tab = a.dataset.tab; save(); render(); window.scrollTo(0, 0); break;
       case 'create': openCreateMenu(); break;
       case 'packs': openPacks(); break;
-      case 'hview': state.ui.habitsView = a.dataset.v; if (a.dataset.v === 'shared') myGroups.at = 0; save(); render(); break;
+      case 'hview': state.ui.habitsView = a.dataset.v; state.ui.folder = null; if (a.dataset.v === 'shared') myGroups.at = 0; save(); render(); break;
+      case 'folder-open': state.ui.folder = id; save(); render(); window.scrollTo(0, 0); break;
+      case 'folder-close': state.ui.folder = null; save(); render(); break;
+      case 'proj-edit': { const p = state.projects.find(x => x.id === id); if (p) openProjectEditor(p); break; }
       case 'vacations': openVacations(); break;
       case 'level': openLevel(); break;
       case 'privacy': setPrivacy(!privacyOn()); render(); sfx('toggle'); toast(t(privacyOn() ? 'privacyOnToast' : 'privacyOffToast')); break;
+      case 'caprice': openCaprice(); break;
+      case 'vault-sec': openVaultSecurity(); break;
+      case 'vault-bio': unlockWithBio(); break;
+      case 'vault-usepw': pwMode = true; pinBuf = ''; render(); setTimeout(() => $('#vault-pw')?.focus(), 50); break;
+      case 'vault-usepin': pwMode = false; render(); break;
+      case 'led-pie': state.ui.ledPie = a.dataset.v; save(); render(); break;
+      case 'led-pie-mode': state.ui.ledPieMode = a.dataset.v; save(); render(); break;
+      case 'led-line': state.ui.ledLine = a.dataset.v; save(); render(); break;
+      case 'led-range': {
+        const td = todayKey(), sp = LED.span(LV.entries), v = a.dataset.v;
+        const from = v === 'm' ? td.slice(0, 8) + '01' : v === 'y' ? td.slice(0, 4) + '-01-01' : v === '12' ? addMonths(td, -12) : (sp ? sp.from : td);
+        state.ui.ledFilter = { ...(state.ui.ledFilter || {}), from, to: td }; save(); render(); break;
+      }
       case 'vault-lock': ledgerLock(); render(); sfx('toggle'); toast(t('vaultLocked')); break;
       case 'vault-wipe': confirmVaultWipe(); break;
       case 'ledger-add': if (!ledgerOpen()) { state.ui.tab = 'ledger'; render(); break; } openEntry(null, a.dataset.d || state.ui.ledgerDay || todayKey()); break;
@@ -4585,6 +4998,7 @@
       case 'proj-open': { const p = state.projects.find(x => x.id === id); if (p) openProject(p); break; }
       case 'range': state.ui.range = a.dataset.v === 'all' ? 'all' : +a.dataset.v; save(); render(); break;
       case 'card-open': { const h = getHabit(id); if (h) openCard(h, +a.dataset.i); break; }
+      case 'pcard-open': openCard(PSUBJ(), +a.dataset.i); break;
       case 'ranks-info': openRanks(); break;
       case 'cc-open': { const cc = state.contractCards.find(x => x.id === id); if (cc) openContractCard(cc); break; }
     }
@@ -4598,6 +5012,13 @@
   }, true);
   document.addEventListener('change', e => {
     if (e.target.id === 'chart-habit') { state.ui.chartHabit = e.target.value; save(); render(); }
+    if (e.target.matches('[data-led-f]')) { state.ui.ledFilter = { cat: 'all', from: todayKey().slice(0, 4) + '-01-01', to: todayKey(), ...(state.ui.ledFilter || {}), [e.target.dataset.ledF]: e.target.value }; save(); render(); }
+    if (e.target.matches('[data-led-opt]')) {
+      const o = e.target.dataset.ledOpt, on = e.target.checked;
+      if (o === 'privacy') { setPrivacy(on); render(); sfx('toggle'); toast(t(on ? 'privacyOnToast' : 'privacyOffToast')); }
+      if (o === 'flip') setFlip(on);
+      if (o === 'cap') { state.ledgerPrefs = { ...state.ledgerPrefs, capHidden: !on }; save(); render(); }
+    }
     if (e.target.matches('[data-ledger-m], [data-ledger-y]')) {
       const y = $('[data-ledger-y]').value, m = $('[data-ledger-m]').value;
       state.ui.ledgerMonth = `${y}-${pad(+m)}`; save(); render();
@@ -4611,14 +5032,14 @@
 
   // Redimensionar: recalcula cuántas semanas caben en las tarjetas
   let rsz, lastW = window.innerWidth;
-  window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (!state.onboarded || window.innerWidth === lastW) return; lastW = window.innerWidth; if (state.ui.tab === 'habits') fitGrids(); else if (state.ui.tab === 'charts') render(); }, 150); });
+  window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (!state.onboarded || window.innerWidth === lastW) return; lastW = window.innerWidth; if (state.ui.tab === 'habits' && habitsView() === 'charts') render(); else { initCals($('#main')); placeNavInd(-1); } }, 150); });
   // Cambio de día (app abierta a medianoche o al volver)
   let lastDay = todayKey();
   // Los hábitos a dejar ganan cartas con el paso de los días: se comprueban al cambiar de día
   const dayCheck = () => {
     if (todayKey() === lastDay) return;
     lastDay = todayKey(); render();
-    state.habits.filter(isQuit).forEach(h => { checkMastery(h); checkChallenge(h); });
+    checkPerfectMastery(); state.habits.filter(isQuit).forEach(h => checkChallenge(h));
     checkSecrets(); offerShields(); maybeWeeklyReview();
   };
   setInterval(dayCheck, 60000);
@@ -4639,10 +5060,11 @@
   if (params.get('join')) { try { localStorage.setItem(JOIN_KEY, params.get('join').toUpperCase()); } catch (e) { /* nada */ } history.replaceState(null, '', location.pathname); }
 
   // Sincroniza cartas ya ganadas (por ejemplo, tras importar) y arranca
-  state.habits.forEach(h => { checkMastery(h, !isQuit(h)); checkChallenge(h, !isQuit(h)); });
+  checkPerfectMastery(true); state.habits.forEach(h => checkChallenge(h, !isQuit(h)));
   checkSecrets(true);
   render();
   if (auth) scheduleSync(400);
+  if (auth && !profileOf().tag) loadRep().then(() => { if (profileOf().tag) render(); });
   // Acción desde Atajos de iOS: ?check=<id del hábito> marca el hábito de hoy
   (() => {
     const id = new URLSearchParams(location.search).get('check'); if (!id || !state.onboarded) return;
