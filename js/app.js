@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.13.0';
+  const VERSION = '1.14.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -165,6 +165,8 @@
       ledgerEntries: [], ledgerCats: defaultLedgerCats(), ledgerRecurring: [], ledgerEvents: [], ledgerPrefs: { privacy: false },
       // Fase 3 (v1.10): sonidos activados por defecto
       soundOn: true, ledgerVault: null,
+      // v1.14: widgets ocultos desde el modo edición (se recuperan en Ajustes)
+      hiddenW: [],
       ui: { tab: 'habits', range: 30, chartHabit: 'all', showArchived: false, habitsView: 'all' }
     };
   }
@@ -198,6 +200,7 @@
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
+    out.hiddenW = Array.isArray(s.hiddenW) ? s.hiddenW.filter(k => typeof k === 'string') : [];
     out.stats = { timerMin: 0, ...(s.stats || {}) };
     if (!Array.isArray(out.commitHistory) || !out.commitHistory.length) out.commitHistory = [{ from: '0000-00-00', level: out.commitment || 'serio' }];
     const cp = s.caprice && typeof s.caprice === 'object' ? s.caprice : {}, dc = defaultCaprice();
@@ -228,7 +231,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.ledgerVault, s.kx];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.ledgerVault, s.kx, s.hiddenW];
   function stampChanges(prev, cur) {
     const now = Date.now();
     cur.deleted = cur.deleted || {};
@@ -299,7 +302,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.ledgerVault, out.kx] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.ledgerVault, out.kx, out.hiddenW] = settingsOf(R); out.smt = R.smt; }
     // Los puntos de compromiso empiezan en la fecha más antigua en que cualquier dispositivo migró
     const ps = [L.pointsSince, R.pointsSince].filter(Boolean).sort();
     out.pointsSince = ps[0] || null;
@@ -683,7 +686,7 @@
 
   // @nametag junto al nivel: abre tu perfil (insignias, logros, cartas…)
   const myTag = () => profileOf().tag || repState.nametag || '';
-  const tagPill = () => `<button class="tag-pill clay ${myTag() ? '' : 'empty'}" data-act="profile" aria-label="${esc(t('profileTitle'))}" title="${esc(t('profileTitle'))}">${myTag() ? `<b>@</b>${esc(myTag())}` : `<b>@</b>${esc(t('tagPillEmpty'))}`}</button>`;
+  const tagPill = () => `<button class="tag-pill clay ${myTag() ? '' : 'tag-empty'}" data-act="profile" aria-label="${esc(t('profileTitle'))}" title="${esc(t('profileTitle'))}">${myTag() ? `<b>@</b>${esc(myTag())}` : `<b>@</b>${esc(t('tagPillEmpty'))}`}</button>`;
   function topBar(actions = '') {
     return `<div class="top-bar"><div class="row top-left" style="gap:8px;min-width:0"><button class="icon-btn" data-act="settings" aria-label="${esc(t('settings'))}" title="${esc(t('settings'))}">${ico('gear')}</button>${state.habits.length ? levelPill() : ''}${tagPill()}</div>${actions ? `<div class="pill-group">${actions}</div>` : ''}</div>`;
   }
@@ -693,17 +696,21 @@
   function afterRender() {
     initCals($('#main'));
     if (state.ui.tab === 'habits') loadPhotos($('#main'));
+    decorateJiggle();
   }
+  // Widgets que se han quitado con el «−» del modo edición (se recuperan en Ajustes)
+  const hidW = k => (state.hiddenW || []).includes(k);
 
   /* ---------- HÁBITOS Y PROYECTOS ---------- */
   function contractBanner() {
+    if (hidW('contract')) return '';
     const c = state.contract;
-    if (!c) return `<div class="banner clay"><div class="banner-ico">${ico('doc')}</div><span class="grow">${esc(t('contractNone'))}</span><button class="chip" data-act="contract">${esc(t('contractSignNow'))}</button></div>`;
+    if (!c) return `<div class="banner clay" data-w="contract"><div class="banner-ico">${ico('doc')}</div><span class="grow">${esc(t('contractNone'))}</span><button class="chip" data-act="contract">${esc(t('contractSignNow'))}</button></div>`;
     const left = diffDays(todayKey(), c.endsAt);
-    if (left < 0) return `<div class="banner clay"><div class="banner-ico">${ico('doc')}</div><span class="grow"><b>${esc(t('contractEnded'))}</b></span><button class="chip on" data-act="contract-renew">${esc(t('contractRenew'))}</button></div>`;
+    if (left < 0) return `<div class="banner clay" data-w="contract"><div class="banner-ico">${ico('doc')}</div><span class="grow"><b>${esc(t('contractEnded'))}</b></span><button class="chip on" data-act="contract-renew">${esc(t('contractRenew'))}</button></div>`;
     const total = Math.max(1, diffDays(c.signedAt, c.endsAt));
     const pct = clamp((total - left) / total * 100, 0, 100);
-    return `<button class="banner clay" data-act="contract" style="width:100%;border:0;text-align:left;color:inherit"><div class="banner-ico">${ico('doc')}</div><span class="grow"><b>${esc(left === 1 ? t('contractActive1') : t('contractActive', { n: left }))}</b><span class="bar" style="display:block;height:6px;margin-top:6px;max-width:260px"><i style="width:${pct}%"></i></span></span>${ico('right')}</button>`;
+    return `<button class="banner clay" data-w="contract" data-act="contract" style="width:100%;border:0;text-align:left;color:inherit"><div class="banner-ico">${ico('doc')}</div><span class="grow"><b>${esc(left === 1 ? t('contractActive1') : t('contractActive', { n: left }))}</b><span class="bar" style="display:block;height:6px;margin-top:6px;max-width:260px"><i style="width:${pct}%"></i></span></span>${ico('right')}</button>`;
   }
 
   // Un hábito está «dentro» de una carpeta si pertenece a algún proyecto sin terminar
@@ -751,15 +758,16 @@
   function folderCard(p) {
     const s = projectStats(p), hs = p.habitIds.map(getHabit).filter(h => h && !h.archived);
     const due = hs.filter(h => todayStatus(h).due), done = due.filter(h => todayStatus(h).done && !isQuit(h)).length;
-    const minis = hs.slice(0, 6).map(h => { const st = todayStatus(h); return `<span class="fmini ${st.due && st.done && !st.quit ? 'on' : ''}" style="${habitVars(hColor(h))}">${esc(h.icon || '#')}</span>`; }).join('');
+    // Las casillas de los hábitos se marcan desde la carpeta, sin abrirla
+    const minis = hs.map(h => { const st = todayStatus(h), q = isQuit(h), slip = q && cnt(h, todayKey()); return `<button class="fmini ${!q && st.done ? 'on' : ''} ${slip ? 'slip' : ''} ${st.due || q ? '' : 'off'}" data-today="${q ? 'slip' : 'tap'}" data-id="${h.id}" style="${habitVars(hColor(h))}" title="${esc(h.name)}" aria-label="${esc(h.name)} · ${esc(t(q ? 'relapse' : 'markDone'))}" aria-pressed="${!q && st.done}">${esc(h.icon || '#')}${!q && st.done ? `<i class="fmini-ok">${ico('check')}</i>` : ''}</button>`; }).join('');
     return `<article class="folder clay" data-pid="${p.id}" style="--h:${p.color || 'var(--accent)'}">
       <button class="folder-main" data-act="folder-open" data-id="${p.id}" aria-label="${esc(t('folderOpen', { name: p.name }))}">
         <span class="folder-tab" aria-hidden="true"></span>
         <span class="folder-head"><span class="folder-ico">${esc(p.icon || '📁')}</span>${statusBadge(p, s)}</span>
         <h3>${esc(p.name)}${p.groupId ? ' 👥' : ''}</h3>
         <span class="muted small folder-sub">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}${hs.length ? ' · ' + esc(t('folderCount', { n: hs.length })) : ''}${due.length ? ' · ' + esc(t('folderToday', { a: done, b: due.length })) : ''}</span>
-        <span class="folder-minis">${minis || `<span class="muted small">${esc(t('folderEmpty'))}</span>`}</span>
       </button>
+      <div class="folder-minis">${minis || `<span class="muted small">${esc(t('folderEmpty'))}</span>`}</div>
       ${hs.length ? calHtml({ id: 'p:' + p.id, proj: p }) : ''}
       <button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button>
     </article>`;
@@ -1056,11 +1064,7 @@
             });
           }
           if (act === 'delete' && await confirmDialog(t('deleteHabitQ', { name: h.name }))) {
-            state.habits = state.habits.filter(x => x !== h);
-            for (const k of ['logs', 'mastery', 'rest', 'shields', 'ltime']) delete state[k][h.id];
-            state.routines.forEach(r => { r.habitIds = r.habitIds.filter(id => id !== h.id); });
-            state.projects.forEach(p => { p.habitIds = p.habitIds.filter(id => id !== h.id); });
-            save(); close(); render(); toast(t('deleted'));
+            close(); deleteHabit(h);
           }
           return;
         }
@@ -1625,11 +1629,12 @@
   function insightsHtml() {
     const ins = insightsList();
     const revs = Object.entries(state.reviews).sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 6);
+    if (hidW('insights') && hidW('reviews')) return '';
     return `<div class="chart-grid" style="margin-top:18px">
-      <section class="chart-card clay"><h3>💡<span class="grow">${esc(t('insightsTitle'))}</span></h3>
-        ${ins.length ? ins.map(i => `<div class="insight"><span>${i.icon}</span><span>${esc(i.text)}</span></div>`).join('') : `<p class="muted small" style="margin:0">${esc(t('insightsEmpty'))}</p>`}</section>
-      <section class="chart-card clay"><h3>📝<span class="grow">${esc(t('reviewsTitle'))}</span><button class="chip" data-act="review-now">${ico('plus')} ${esc(t('reviewNow'))}</button></h3>
-        ${revs.length ? revs.map(([w, v]) => `<button class="review-row" data-act="review-open" data-v="${w}"><b>${esc(fmtDate(w, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(w, 6), { day: 'numeric', month: 'short' }))}</b><span class="muted small">${esc((v.good || v.adjust || '').slice(0, 80))}</span><span class="rv-score">${v.score}/10</span></button>`).join('') : `<p class="muted small" style="margin:0">${esc(t('reviewsEmpty'))}</p>`}</section>
+      ${hidW('insights') ? '' : `<section class="chart-card clay" data-w="insights"><h3>💡<span class="grow">${esc(t('insightsTitle'))}</span></h3>
+        ${ins.length ? ins.map(i => `<div class="insight"><span>${i.icon}</span><span>${esc(i.text)}</span></div>`).join('') : `<p class="muted small" style="margin:0">${esc(t('insightsEmpty'))}</p>`}</section>`}
+      ${hidW('reviews') ? '' : `<section class="chart-card clay" data-w="reviews"><h3>📝<span class="grow">${esc(t('reviewsTitle'))}</span><button class="chip" data-act="review-now">${ico('plus')} ${esc(t('reviewNow'))}</button></h3>
+        ${revs.length ? revs.map(([w, v]) => `<button class="review-row" data-act="review-open" data-v="${w}"><b>${esc(fmtDate(w, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(w, 6), { day: 'numeric', month: 'short' }))}</b><span class="muted small">${esc((v.good || v.adjust || '').slice(0, 80))}</span><span class="rv-score">${v.score}/10</span></button>`).join('') : `<p class="muted small" style="margin:0">${esc(t('reviewsEmpty'))}</p>`}</section>`}
     </div>`;
 
   }
@@ -2115,7 +2120,9 @@
   }
 
   /* ---------- ONBOARDING ---------- */
-  const OB_STEPS = 5;
+  // Pasos: idioma, color, compromiso, hábitos (mínimo según el nivel), @nametag (opcional, con cuenta) y contrato
+  const OB_STEPS = 6;
+  const obMin = () => CAP.HABITS_PER_LEVEL[state.commitment] || 2;
   const COMMIT_EMO = { chill: '🌿', serio: '🎯', locked: '🔒' };
   let obPending = [], obForm = null;
   const SUGGESTIONS = [['sugTeeth', '🦷', 'daily', 2], ['sugWater', '💧', 'daily', 1], ['sugRead', '📚', 'daily', 1], ['sugGym', '💪', 'weekly', 3], ['sugMeditate', '🧘', 'daily', 1], ['sugSleep', '😴', 'daily', 1], ['sugWalk', '🚶', 'daily', 1], ['sugStudy', '✍️', 'daily', 1]];
@@ -2135,12 +2142,17 @@
       title = t('obCommitTitle'); lead = t('obCommitSub');
       body = `<div class="lang-list">${['chill', 'serio', 'locked'].map(l => { const on = state.commitment === l; return `<button class="lang-opt commit-opt clay ${on ? 'on' : ''}" data-ob-commit="${l}"><span class="flag">${COMMIT_EMO[l]}</span><span class="grow"><b>${esc(t('commit_' + l))}</b><span class="commit-sub">${esc(t('ct_sub_' + l))}</span><span class="muted small">${esc(t('commitd_' + l))}</span></span>${on ? ico('check') : ''}</button>`; }).join('')}</div>
         <label class="check ob-privacy clay"><input type="checkbox" data-ob-privacy ${privacyOn() ? 'checked' : ''}><span class="grow"><b>${esc(t('privacyModeLabel'))}</b><br><span class="muted small">${esc(t('privacyModeHint'))}</span></span></label>`;
-    } else if (s === 3) {
+    } else if (s === 5) {
       title = t('obContractTitle'); lead = t('obContractSub'); next = t('contractSignBtn');
       body = contractFormHtml(state.contract ? state.contract.name : '');
+    } else if (s === 4) {
+      title = t('obTagTitle'); lead = t('obTagSub'); next = auth && myTag() ? t('next') : t('obTagSkip');
+      body = auth ? `<label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="ob-tag" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(myTag())}" placeholder="${esc(t('nametagPh'))}"></div></label><p class="muted small">${esc(t('nametagHint'))}</p>`
+        : `<div class="clay card center"><div style="font-size:40px">🏷️</div><p class="muted" style="margin:6px 0 14px">${esc(t('obTagNeedAccount'))}</p><button class="btn primary" data-ob-login>${ico('user')} ${esc(t('obTagCreate'))}</button></div>`;
     } else {
-      title = t('obAddTitle'); lead = t('obAddSub'); next = t('obStart');
-      body = `<div class="field"><span>${esc(t('suggestions'))}</span><div class="sug-list">${SUGGESTIONS.map(([k, e]) => { const on = obPending.some(p => p.key === k); return `<button class="chip ${on ? 'on' : ''}" data-ob-sug="${k}">${e} ${esc(t(k))}${on ? ' ' + ico('check') : ''}</button>`; }).join('')}</div></div>
+      const min = obMin(), n = obPending.length;
+      title = t('obAddTitle'); lead = t('obAddSubMin', { n: min, level: t('commit_' + state.commitment) });
+      body = `<p class="ob-count ${n >= min ? 'ok' : ''}">${n >= min ? ico('check') : ''} ${esc(t('obHabitsCount', { n, m: min }))}</p><div class="field"><span>${esc(t('suggestions'))}</span><div class="sug-list">${SUGGESTIONS.map(([k, e]) => { const on = obPending.some(p => p.key === k); return `<button class="chip ${on ? 'on' : ''}" data-ob-sug="${k}">${e} ${esc(t(k))}${on ? ' ' + ico('check') : ''}</button>`; }).join('')}</div></div>
         <div class="field" style="margin-top:20px"><span>${esc(t('customHabit'))}</span><div class="row"><input class="input" id="ob-custom" maxlength="60" placeholder="${esc(t('habitNamePh'))}"><button class="btn" data-ob-add>${ico('plus')} ${esc(t('add'))}</button></div></div>
         ${obPending.filter(p => !p.key).length ? `<div class="sug-list" style="margin-top:14px">${obPending.filter(p => !p.key).map((p, i) => `<button class="chip on" data-ob-del="${i}"># ${esc(p.name)} ${ico('x')}</button>`).join('')}</div>` : ''}`;
     }
@@ -2154,8 +2166,10 @@
   function mountOnboarding() {
     const root = $('.ob');
     if (state.obStep === 1) bindThemeEditor($('#ob-theme'), () => { $('#ob-theme').innerHTML = themeEditorHtml(); $('#ob-preview').innerHTML = samplePreview(); });
-    if (state.obStep === 3) obForm = mountContractForm(root);
-    if (state.obStep === 4) $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
+    if (state.obStep === 5) obForm = mountContractForm(root);
+    if (state.obStep === 4 && auth && !repState.loaded) loadRep().then(() => { const i = $('#ob-tag'); if (i && !i.value && myTag()) i.value = myTag(); }).catch(() => {});
+    if (state.obStep === 4 && $('#ob-tag')) $('#ob-tag').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob="next"]').click(); } });
+    if (state.obStep === 3) $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
     window.scrollTo(0, 0);
   }
   function onboardingClick(e) {
@@ -2173,14 +2187,25 @@
     if ((el = q('[data-ob-del]'))) { const custom = obPending.filter(p => !p.key); obPending = obPending.filter(p => p !== custom[+el.dataset.obDel]); render(); return true; }
     if ((el = q('[data-ob]'))) {
       if (el.dataset.ob === 'back') { state.obStep = Math.max(0, state.obStep - 1); save(); render(); return true; }
+      // Hábitos: hace falta un mínimo según el nivel de compromiso (Chill 2, Serio 4, Locked-In 7)
       if (state.obStep === 3) {
+        const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 });
+        if (obPending.length < obMin()) { if (v) render(); toast(t('obNeedHabits', { n: obMin() - obPending.length, level: t('commit_' + state.commitment) })); return true; }
+      }
+      // @nametag: opcional y solo con cuenta
+      if (state.obStep === 4) {
+        const i = $('#ob-tag'), v = i ? i.value.trim().replace(/^@/, '') : '';
+        if (auth && v && v.toLowerCase() !== myTag().toLowerCase()) {
+          el.disabled = true;
+          saveNametag(v).then(ok => { if (ok) { state.obStep = 5; save(); render(); } else el.disabled = false; });
+          return true;
+        }
+      }
+      if (state.obStep === 5) {
         if (!obForm.name()) { toast(t('contractNeedName')); obForm.focus(); return true; }
         const prev = state.contract;
         const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
         if (!prev || prev.name !== obForm.name() || obForm.sig() || prev.g !== obForm.g() || prev.level !== state.commitment || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w, obForm.g());
-      }
-      if (state.obStep === 4) {
-        const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 });
         obPending.forEach(p => state.habits.push({ id: uid(), name: p.name, icon: p.icon, color: null, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], freq: p.freq, target: p.target, multi: false, note: '', createdAt: todayKey(), archived: false }));
         obPending = []; state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
       }
@@ -2309,6 +2334,7 @@
     openModal({
       title: esc(t('setAccount')), body: '<div id="acc"></div>',
       onMount: w => { wref = w; $('#acc', w).innerHTML = accountHtml(); },
+      onClose: () => { if (!state.onboarded) render(); }, // en el registro, el paso del @nametag se actualiza al entrar
       onClick: (e, close) => { const el = e.target.closest('[data-s]'); if (el) accountAction(el.dataset.s, wref, () => close()); }
     });
   }
@@ -2349,6 +2375,7 @@
           acc('amounts', ico('eyeOff'), t('privacyMode'), privacyOn() ? t('privacyModeOn') : t('privacyModeOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-privacy ${privacyOn() ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('privacyModeLabel'))}</b><br><span class="muted small">${esc(t('privacyModeHint'))}</span></span></label>`),
           acc('vault', ico('lock'), t('vaultTitle'), !state.ledgerVault ? t('vaultNone') : ledgerOpen() ? t('vaultIsOpen') : t('vaultIsLocked'), state.ledgerVault ? `<p class="muted small" style="margin-top:0">${esc(t('vaultSettingsHint'))}</p><div class="row wrap">${ledgerOpen() ? `<button class="chip" data-s="vault-lock">${ico('lock')} ${esc(t('vaultLock'))}</button><button class="chip" data-s="vault-change">${esc(t('vaultChange'))}</button><button class="chip" data-s="vault-sec">🔐 ${esc(t('vaultSecurity'))}</button>` : ''}<button class="chip" data-s="vault-wipe" style="color:#e5484d">${ico('trash')} ${esc(t('vaultForgot'))}</button></div>` : `<p class="muted small" style="margin:0">${esc(t('vaultNoneHint'))}</p>`),
           acc('priv', '🔒', t('privacyTitle'), profileOf().enabled ? t('setPublicOn') : t('setPublicOff'), `<div id="st-priv">${privacyHtml()}</div>`),
+          acc('hiddenw', '🧩', t('hwTitle'), (state.hiddenW || []).length ? t('hwN', { n: state.hiddenW.length }) : '', `<p class="muted small" style="margin-top:0">${esc(t('hwHint'))}</p><div id="st-hw">${hiddenWHtml()}</div>`),
           acc('data', ico('download'), t('setData'), '', `<p class="muted small" style="margin-top:0">${esc(t('dataHint'))}</p>
             <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button><button class="btn" data-s="report">📄 ${esc(t('reportTitle'))}</button></div>
             <input type="file" id="st-file" accept=".json,application/json" class="hidden">
@@ -2406,6 +2433,7 @@
           case 'export': exportData(); break;
           case 'report': close(); openReport(); break;
           case 'import': $('#st-file', w).click(); break;
+          case 'hw-restore': state.hiddenW = (state.hiddenW || []).filter(k => k !== el.dataset.v); save(); render(); draw(); toast(t('hwRestored')); break;
           case 'replay': close(); state.onboarded = false; state.obStep = 0; save(); render(); break;
           case 'reset':
             if (await confirmDialog(t('resetQ')) && await confirmDialog(t('resetQ2'))) {
@@ -2974,6 +3002,12 @@
     if (state.ui.tab !== 'ledger' || ledgerOpen() || !$('#pin-box') || $('#modal-root').children.length) return;
     if (/^\d$/.test(e.key)) { e.preventDefault(); pinKey(e.key); } else if (e.key === 'Backspace') { e.preventDefault(); pinKey('back'); }
   });
+  document.addEventListener('change', e => {
+    if (!e.target.matches || !e.target.matches('[data-pct-toggle]')) return;
+    state.ledgerPrefs = { ...(state.ledgerPrefs || {}), showPct: e.target.checked }; save();
+    const bd = e.target.closest('.backdrop'); if (bd && bd._redraw) bd._redraw();
+    render();
+  });
   document.addEventListener('submit', async e => {
     if (e.target.id === 'friend-form') { e.preventDefault(); const i = $('#friend-tag'); if (i.value.trim() && await sendFriendRequest(i.value)) i.value = ''; return; }
     const f = e.target.closest('[data-vault]'); if (!f) return;
@@ -3123,18 +3157,22 @@
   const IN_C = '#2fbf71', OUT_C = '#e5484d';
   const capHidden = () => !!(state.ledgerPrefs && state.ledgerPrefs.capHidden);
   // Tarta (anillo) con leyenda; en modo privacidad se ocultan los importes
-  function donutChart(segs, centerLabel) {
+  // «Mostrar porcentajes» (casilla bajo cada tarta): etiquetas sobre el anillo y en la leyenda
+  const showPct = () => !(state.ledgerPrefs && state.ledgerPrefs.showPct === false);
+  function donutChart(segs, centerLabel, centerValue = null) {
     const total = segs.reduce((a, s) => a + s.value, 0);
     if (!total) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
-    const R = 42, C = 2 * Math.PI * R; let acc = 0;
+    const R = 42, C = 2 * Math.PI * R, pct = showPct(); let acc = 0; const labels = [];
     const arcs = segs.map(s => {
       const f = s.value / total, len = Math.max(0, f * C - (segs.length > 1 ? 1.2 : 0));
       const a = `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${s.color}" stroke-width="16" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc * C).toFixed(2)}"><title>${esc(s.label)} · ${Math.round(f * 100)}%</title></circle>`;
+      if (pct && f >= .06) { const ang = (acc + f / 2) * 2 * Math.PI - Math.PI / 2; labels.push(`<text x="${(60 + R * Math.cos(ang)).toFixed(1)}" y="${(60 + R * Math.sin(ang) + 2.6).toFixed(1)}" text-anchor="middle" class="pie-pct">${Math.round(f * 100)}%</text>`); }
       acc += f; return a;
     }).join('');
-    return `<div class="pie-wrap"><svg class="pie" viewBox="0 0 120 120" role="img" aria-label="${esc(centerLabel)}"><g transform="rotate(-90 60 60)"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${arcs}</g>
-      <text x="60" y="57" text-anchor="middle" class="pie-c1">${esc(cents(total))}</text><text x="60" y="72" text-anchor="middle" class="pie-c2">${esc(centerLabel)}</text></svg>
-      <ul class="pie-legend">${segs.map(s => `<li><i style="background:${s.color}"></i><span class="grow">${esc(s.label)}</span><b>${Math.round(s.value / total * 100)}%</b><span class="muted small">${esc(cents(s.value))}</span></li>`).join('')}</ul></div>`;
+    return `<div class="pie-wrap"><svg class="pie" viewBox="0 0 120 120" role="img" aria-label="${esc(centerLabel)}"><g transform="rotate(-90 60 60)"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${arcs}</g>${labels.join('')}
+      <text x="60" y="57" text-anchor="middle" class="pie-c1">${esc(centerValue == null ? cents(total) : centerValue)}</text><text x="60" y="72" text-anchor="middle" class="pie-c2">${esc(centerLabel)}</text></svg>
+      <ul class="pie-legend">${segs.map(s => `<li><i style="background:${s.color}"></i><span class="grow">${esc(s.label)}</span>${pct ? `<b>${Math.round(s.value / total * 100)}%</b>` : ''}<span class="pie-amt ${pct ? 'muted small' : ''}">${esc(cents(s.value))}</span></li>`).join('')}</ul>
+      <label class="check pct-toggle"><input type="checkbox" data-pct-toggle ${pct ? 'checked' : ''}><span>${esc(t('showPct'))}</span></label></div>`;
   }
   // Dos series de puntos: verde = ingresos, rojo = gastos
   function twoDotChart(rows, o = {}) {
@@ -3167,22 +3205,23 @@
       : LED.byCategory(pList, pm).map((c, i) => { const cat = catOf(c.id); return { label: `${cat.icon} ${catName(cat)}`, value: c.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
     const pName = pp === 'month' ? fmtDate(ym + '-01', { month: 'long', year: 'numeric' }) : pp === 'year' ? ym.slice(0, 4) : t('ledAll');
     let html = `<h2 class="section-title led-h">📊 ${esc(t('ledCharts'))}</h2><div class="chart-grid">`;
-    html += `<section class="chart-card clay"><h3>🥧<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
+    if (!hidW('ledPie')) html += `<section class="chart-card clay" data-w="ledPie"><h3>🥧<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
       <div class="seg seg-sm" role="group">${[['month', 'ledThisMonth'], ['year', 'ledThisYear'], ['all', 'ledAll']].map(([v, k]) => `<button data-act="led-pie" data-v="${v}" class="${pp === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
       <div class="seg seg-sm" role="group" style="margin-top:8px">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-act="led-pie-mode" data-v="${v}" class="${pm === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
-      <div class="${privacyOn() ? 'priv' : ''}">${donutChart(segs, pm === 'io' ? t('ledNet', { v: cents(tot.net) }) : t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'))}</div></section>`;
+      <div class="${privacyOn() ? 'priv' : ''}">${pm === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net)) : donutChart(segs, t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'))}</div></section>`;
     // 2) Evolución a lo largo de los meses o años registrados
     const lu = ui.ledLine === 'year' ? 'year' : 'month';
     const from = span ? span.from : today, rows = LED.series(LV.entries, from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
-    html += `<section class="chart-card clay"><h3>📈<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
-      ${span ? twoDotChart(rows, { aria: t('ledLineTitle') }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section></div>`;
+    if (!hidW('ledLine')) html += `<section class="chart-card clay" data-w="ledLine"><h3>📈<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
+      ${span ? twoDotChart(rows, { aria: t('ledLineTitle') }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
+    html += '</div>';
     // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
     const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
     const fev = String(lf.cat).startsWith('ev:') ? LV.events.find(x => 'ev:' + x.id === lf.cat) : null;
     const fl = LED.inRange(fev ? eventEntries(fev) : LV.entries, lf.from, lf.to).filter(e => fev || lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
     const days = lf.from && lf.to ? diffDays(lf.from, lf.to) + 1 : 0, fu = days <= 62 ? 'day' : days <= 3 * 366 ? 'month' : 'year';
     const frows = lf.from && lf.to && lf.from <= lf.to ? LED.series(fl, lf.from, lf.to, fu).map(r => ({ ...r, label: bucketLabel(r.key, fu), sub: bucketSub(r.key, fu) })) : [];
-    html += `<section class="chart-card clay led-filter"><h3>🔎<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
+    if (!hidW('ledFilter')) html += `<section class="chart-card clay led-filter" data-w="ledFilter"><h3>🔎<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
       <div class="filter-row">
         <label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${lf.cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}${LV.events.length ? `<optgroup label="${esc(t('evTitle'))}">${LV.events.map(ev => `<option value="ev:${esc(ev.id)}" ${lf.cat === 'ev:' + ev.id ? 'selected' : ''}>${esc(ev.icon)} ${esc(ev.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
         <label class="field"><span>${esc(t('ledFrom'))}</span><input class="input" type="date" data-led-f="from" value="${esc(lf.from)}"></label>
@@ -3211,12 +3250,66 @@
   function ledgerDayHtml(k) {
     const list = LV.entries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(list);
     return `<section class="ledger-day clay" aria-live="polite"><div class="row"><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>
-      ${list.length ? `<ul class="ledger-list">${list.map(e => { const c = catOf(e.categoryId); return `<li><button class="ledger-item" data-ledger-edit="${e.id}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ' · 🔁' : ''}</span></span><b class="${e.type === 'income' ? 'amt-in' : 'amt-out'}">${privacyOn() ? '' : e.type === 'income' ? '+' : '−'}${cents(e.amountCents)}</b></button></li>`; }).join('')}</ul>
+      ${list.length ? `<ul class="ledger-list">${list.map(e => `<li>${entryRow(e)}</li>`).join('')}</ul>
         <div class="entry"><span class="muted">${esc(t('ledgerDayNet'))}</span><b>${cents(tot.net)}</b></div>` : `<p class="muted small" style="margin:10px 0 0">${esc(t('ledgerDayEmpty'))}</p>`}
     </section>`;
   }
 
   // Añadir o editar un movimiento
+  /* Movimiento en una lista: al deslizarlo hacia la izquierda (dedo o ratón) aparecen Editar y Borrar */
+  function entryRow(e, withDate = false) {
+    const c = catOf(e.categoryId), priv = privacyOn(), inc = e.type === 'income';
+    return `<div class="swipe" data-swipe="${esc(e.id)}"><div class="swipe-acts"><button class="sw-act edit" data-sw-edit="${esc(e.id)}" aria-label="${esc(t('edit'))}" title="${esc(t('edit'))}">${ico('edit')}</button><button class="sw-act del" data-sw-del="${esc(e.id)}" aria-label="${esc(t('delete'))}" title="${esc(t('delete'))}">${ico('trash')}</button></div>
+      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ' · 🔁' : ''}</span></span><b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + cents(e.amountCents)}</b></button></div>`;
+  }
+  const SW_W = 124;
+  let swg = null, swOpen = null, swBlock = false;
+  function closeSwipe() { if (swOpen) { const f = swOpen.querySelector('.swipe-front'); if (f) f.style.transform = ''; swOpen.classList.remove('open'); } swOpen = null; }
+  document.addEventListener('pointerdown', e => {
+    const front = e.target.closest('.swipe-front');
+    if (swOpen && !(front && front.parentElement === swOpen) && !e.target.closest('.swipe-acts')) closeSwipe();
+    if (!front || e.button !== 0) return;
+    const row = front.parentElement;
+    swg = { row, front, x: e.clientX, y: e.clientY, base: row === swOpen ? -SW_W : 0, dx: 0, on: false };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!swg) return;
+    const dx = e.clientX - swg.x, dy = e.clientY - swg.y;
+    if (!swg.on) {
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.3) { swg.on = true; swg.front.style.transition = 'none'; swg.row.classList.add('dragging'); }
+      else if (Math.abs(dy) > 10) { swg = null; return; } else return;
+    }
+    swg.dx = dx;
+    swg.front.style.transform = `translateX(${Math.min(0, Math.max(-SW_W - 36, swg.base + dx))}px)`;
+  });
+  ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, () => {
+    if (!swg) return;
+    const g = swg; swg = null;
+    if (!g.on) return;
+    g.front.style.transition = ''; g.row.classList.remove('dragging');
+    if (g.base + g.dx < -SW_W / 2) { if (swOpen && swOpen !== g.row) closeSwipe(); g.front.style.transform = `translateX(${-SW_W}px)`; g.row.classList.add('open'); swOpen = g.row; vibrate(8); }
+    else { g.front.style.transform = ''; g.row.classList.remove('open'); if (swOpen === g.row) swOpen = null; }
+    swBlock = true; setTimeout(() => { swBlock = false; }, 60);
+  }));
+  window.addEventListener('click', e => { if (swBlock && e.target.closest && e.target.closest('.swipe')) { e.preventDefault(); e.stopPropagation(); swBlock = false; } }, true);
+  // Clic en una fila deslizable (en la Libreta o dentro de una ventana). closeFn cierra la ventana antes de abrir el editor
+  function swipeClick(e, closeFn, redraw) {
+    let el;
+    const find = id => LV.entries.find(x => x.id === id);
+    if ((el = e.target.closest('[data-sw-del]'))) {
+      const id = el.dataset.swDel;
+      confirmDialog(t('ledgerDelQ')).then(ok => { closeSwipe(); if (!ok) return; LV.entries = LV.entries.filter(x => x.id !== id); ledgerSave(); render(); sfx('undo'); redraw && redraw(); });
+      return true;
+    }
+    if ((el = e.target.closest('[data-sw-edit], [data-ledger-edit]'))) {
+      const row = el.closest('.swipe');
+      if (el.matches('[data-ledger-edit]') && row && row === swOpen) { closeSwipe(); return true; }
+      const en = find(el.dataset.swEdit || el.dataset.ledgerEdit); closeSwipe();
+      if (en) { closeFn && closeFn(); openEntry(en); }
+      return true;
+    }
+    return false;
+  }
   function openEntry(entry, date) {
     const isNew = !entry;
     const f = entry ? { ...entry } : { type: 'expense', amountCents: 0, categoryId: 'food', note: '', method: 'card', date: date || todayKey(), every: '', to: '' };
@@ -3315,8 +3408,8 @@
     }
     return KX;
   }
-  function ledgerSlice(from, to) {
-    const entries = LED.inRange(LV.entries, from, to).map(e => ({ id: e.id, date: e.date, type: e.type, amountCents: e.amountCents, categoryId: e.categoryId, note: e.note || '', method: e.method || '' }));
+  function ledgerSlice(from, to, catIds = []) {
+    const entries = LED.inRange(LV.entries, from, to).filter(e => !catIds.length || catIds.includes(e.categoryId)).map(e => ({ id: e.id, date: e.date, type: e.type, amountCents: e.amountCents, categoryId: e.categoryId, note: e.note || '', method: e.method || '' }));
     const used = new Set(entries.map(e => e.categoryId));
     return {
       entries,
@@ -3333,10 +3426,12 @@
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
-  function openLedgerShare() {
+  function openLedgerShare(pre = null) {
     if (!ledgerOpen()) { toast(t('vaultOpenFirst')); return; }
     const td = todayKey(), sp = LED.span(LV.entries);
-    const S = { from: td.slice(0, 8) + '01', to: td, title: '', quick: 'm' };
+    const S = pre && pre.ev ? { from: pre.ev.from, to: pre.ev.to, title: pre.ev.name, quick: 'ev:' + pre.ev.id } : { from: td.slice(0, 8) + '01', to: td, title: '', quick: 'm' };
+    // Si la franja es un evento, solo entran sus categorías
+    const slice = () => { const ev = S.quick.startsWith('ev:') && LV.events.find(x => x.id === S.quick.slice(3)); return ledgerSlice(S.from, S.to, ev ? ev.catIds || [] : []); };
     const quick = v => {
       const pm = addMonths(td.slice(0, 8) + '01', -1);
       return v === 'm' ? [td.slice(0, 8) + '01', td] : v === 'pm' ? [pm, addDays(td.slice(0, 8) + '01', -1)] : v === 'y' ? [td.slice(0, 4) + '-01-01', td] : v === '12' ? [addMonths(td, -12), td] : [sp ? sp.from : td, td];
@@ -3345,7 +3440,7 @@
     let wref;
     const autoTitle = () => S.title || `${fmtShort(S.from)} – ${fmtShort(S.to)}`;
     const draw = () => {
-      const d = ledgerSlice(S.from, S.to), tot = LED.totals(d.entries), friends = (chatData.friends || []).filter(f => f.status === 'accepted');
+      const d = slice(), tot = LED.totals(d.entries), friends = (chatData.friends || []).filter(f => f.status === 'accepted');
       $('#lsh', wref).innerHTML = `<div class="stack" style="gap:14px">
         <div class="field"><span>${esc(t('lsRange'))}</span><div class="row wrap" style="gap:6px">${[['m', 'ledThisMonth'], ['pm', 'lsLastMonth'], ['y', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll']].map(([v, k]) => `<button class="chip ${S.quick === v ? 'on' : ''}" data-lq="${v}">${esc(t(k))}</button>`).join('')}</div>
           ${evs.length ? `<div class="row wrap" style="gap:6px;margin-top:8px">${evs.map(ev => `<button class="chip ${S.quick === 'ev:' + ev.id ? 'on' : ''}" data-lq="ev:${esc(ev.id)}">${esc(ev.icon || '🗂️')} ${esc(ev.name)}</button>`).join('')}</div>` : ''}
@@ -3378,7 +3473,7 @@
         }
         const ti = $('#ls-title', w); if (ti) S.title = ti.value.trim();
         if (e.target.closest('[data-ls="export"]')) {
-          const d = ledgerSlice(S.from, S.to), title = autoTitle();
+          const d = slice(), title = autoTitle();
           downloadFile(EXP.filename(S.title || 'libreta', S.from, S.to), exportHtml(d, title, S.from, S.to, profileName()));
           sfx('pop'); toast(t('lsExported')); return;
         }
@@ -3386,12 +3481,40 @@
           const f = (chatData.friends || []).find(x => x.user_id === el.dataset.lsTo); if (!f) return;
           el.disabled = true;
           try {
-            const me = await ensureKx(), d = ledgerSlice(S.from, S.to);
+            const me = await ensureKx(), d = slice();
             const box = await VAULT.sealFor({ v: 1, title: autoTitle(), from: S.from, to: S.to, by: profileName(), ...d }, [{ id: auth.uid, pub: me.pub }, { id: f.user_id, pub: f.pubkey }]);
             await rpc('kg_ledger_share', { p_to: f.user_id, p_title: autoTitle().slice(0, 80), p_from: S.from, p_to_date: S.to, p_box: box });
             sfx('unlock'); toast(t('lsSent', { tag: '@' + (f.nametag || '') })); chatData.at = 0; close();
           } catch (err) { el.disabled = false; toast(chatErr(err)); }
         }
+      }
+    });
+  }
+  // Compartir un evento: con importes solo a un amigo (cifrado); a un chat o grupo solo nombre, fechas y categorías
+  function shareEvent(ev) {
+    openModal({
+      title: `${ico('share')} ${esc(ev.icon || '🗂️')} ${esc(ev.name)}`,
+      body: `<div class="stack" style="gap:10px">
+        <button class="create-opt clay" data-es="friend"><span style="font-size:26px">🔒</span><span class="grow"><b>${esc(t('evShareFriend'))}</b><br><span class="muted small">${esc(t('evShareFriendSub'))}</span></span>${ico('right')}</button>
+        <button class="create-opt clay" data-es="chat"><span style="font-size:26px">👥</span><span class="grow"><b>${esc(t('evShareChat'))}</b><br><span class="muted small">${esc(t('evShareChatSub'))}</span></span>${ico('right')}</button></div>`,
+      onClick: async (e, close) => {
+        const b = e.target.closest('[data-es]'); if (!b) return;
+        if (b.dataset.es === 'friend') { close(); openLedgerShare({ ev }); return; }
+        if (!auth) { toast(t('groupNeedLogin')); return; }
+        close();
+        await refreshMyGroups(true);
+        const list = myGroups.list || [];
+        openModal({
+          title: esc(t('evShareChat')),
+          body: list.length ? `<div class="stack" style="gap:8px">${list.map(g => `<button class="btn block" style="justify-content:flex-start" data-esg="${esc(g.id)}">${g.chat === 'dm' ? avatarHtml(g.peer || {}, 'sm') : esc(g.icon || '👥')} ${esc(chatName(g))}</button>`).join('')}</div>` : `<p class="muted">${esc(t('evNoChats'))}</p>`,
+          onClick: async (e2, close2) => {
+            const g = e2.target.closest('[data-esg]'); if (!g) return;
+            g.disabled = true;
+            const cats = (ev.catIds || []).map(id => catOf(id)).filter(Boolean).map(c => ({ name: catName(c), icon: c.icon }));
+            try { await rpc('kg_post', { p_group: g.dataset.esg, p_kind: 'share', p_body: '', p_payload: { type: 'event', event: { name: ev.name, icon: ev.icon || '🗂️', from: ev.from, to: ev.to, cats } } }); sfx('pop'); toast(t('evShared')); close2(); }
+            catch (err) { g.disabled = false; toast(chatErr(err)); }
+          }
+        });
       }
     });
   }
@@ -3428,6 +3551,16 @@
     });
   }
 
+  // Evento recibido en un chat → se añade a tu Libreta con tus categorías del mismo nombre
+  function addSharedEvent(v) {
+    if (!ledgerOpen()) { toast(t('evAddNeedOpen')); return; }
+    const names = new Set((v.cats || []).map(c => String(c.name || '').toLowerCase()));
+    const catIds = LV.cats.filter(c => names.has(catName(c).toLowerCase())).map(c => c.id);
+    const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    if (!isDate(v.from) || !isDate(v.to)) return;
+    LV.events.push({ id: uid(), name: String(v.name || t('evTitle')).slice(0, 40), icon: String(v.icon || '🗂️').slice(0, 8), from: v.from, to: v.to, catIds, createdAt: Date.now() });
+    ledgerSave(); sfx('unlock'); toast(t('evAdded', { name: v.name || '' })); render();
+  }
   /* ---------- Eventos: una franja de fechas con sus categorías (p. ej. «Vacaciones»), para entender por qué un mes se gasta más ---------- */
   const eventEntries = ev => LED.inRange(LV.entries, ev.from, ev.to).filter(e => !(ev.catIds || []).length || ev.catIds.includes(e.categoryId));
   const eventState = ev => { const k = todayKey(); return k < ev.from ? 'soon' : k > ev.to ? 'done' : 'now'; };
@@ -3492,18 +3625,30 @@
   // Ficha de un evento: lo gastado e ingresado, por categorías y todos sus movimientos
   function openEvent(id) {
     const ev = LV.events.find(x => x.id === id); if (!ev) return;
-    const list = eventEntries(ev).sort((a, b) => a.date < b.date ? 1 : -1), tot = LED.totals(list), priv = privacyOn();
-    const out = LED.byCategory(list, 'expense').map((r, i) => { const c = catOf(r.id); return { label: `${c.icon} ${catName(c)}`, value: r.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
+    let mode = 'io', wref;
     const days = Math.max(1, diffDays(ev.from, ev.to) + 1);
-    openModal({
-      title: `${esc(ev.icon)} ${esc(ev.name)}`, cls: 'wide',
-      body: `<p class="muted" style="margin-top:0">${esc(fmtDate(ev.from))} – ${esc(fmtDate(ev.to))} · ${esc(t('evDays', { n: days }))} · <span class="ev-st ${eventState(ev)}">${esc(t('evSt_' + eventState(ev)))}</span></p>
+    const draw = () => {
+      const list = eventEntries(ev).sort((a, b) => a.date < b.date ? 1 : -1), tot = LED.totals(list), priv = privacyOn();
+      const segs = mode === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }].filter(s => s.value)
+        : LED.byCategory(list, mode).map((r, i) => { const c = catOf(r.id); return { label: `${c.icon} ${catName(c)}`, value: r.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
+      $('#evd', wref).innerHTML = `<p class="muted" style="margin-top:0">${esc(fmtDate(ev.from))} – ${esc(fmtDate(ev.to))} · ${esc(t('evDays', { n: days }))} · <span class="ev-st ${eventState(ev)}">${esc(t('evSt_' + eventState(ev)))}</span></p>
         <div class="month-sum"><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${priv ? '•••' : cents(tot.expense)}</b></div><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${priv ? '•••' : cents(tot.income)}</b></div><div><span>${esc(t('evPerDay'))}</span><b>${priv ? '•••' : cents(Math.round(tot.expense / days))}</b></div></div>
-        ${out.length ? `<div class="${priv ? 'priv' : ''}" style="margin-top:14px">${donutChart(out, t('ledgerExpense'))}</div>` : ''}
+        ${list.length ? `<div class="seg seg-sm" role="group" style="margin-top:14px;display:flex">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-evm="${v}" class="${mode === v ? 'on' : ''}" style="flex:1">${esc(t(k))}</button>`).join('')}</div>
+          <div class="${priv ? 'priv' : ''}">${mode === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net)) : donutChart(segs, t(mode === 'expense' ? 'ledgerExpense' : 'ledgerIncome'))}</div>` : ''}
         <h3 class="section-title" style="margin-top:18px">${esc(t('evEntries', { n: list.length }))}</h3>
-        ${list.length ? `<div class="stack" style="gap:6px">${list.map(x => { const c = catOf(x.categoryId); return `<div class="row ledger-item static"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(x.note || catName(c))}</b><span class="muted small">${esc(fmtShort(x.date))} · ${esc(catName(c))}</span></span><b class="${x.type === 'income' ? 'amt-in' : 'amt-out'}">${priv ? '•••' : cents(x.amountCents)}</b></div>`; }).join('')}</div>` : `<p class="muted">${esc(t('evNoEntries'))}</p>`}`,
-      foot: `<button class="btn" data-evx="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
-      onClick: (e, close) => { if (e.target.closest('[data-evx="edit"]')) { close(); openEventEditor(ev); } }
+        ${list.length ? `<div class="stack" style="gap:6px">${list.map(x => entryRow(x, true)).join('')}</div><p class="muted small center">${esc(t('swipeHint'))}</p>` : `<p class="muted">${esc(t('evNoEntries'))}</p>`}`;
+    };
+    openModal({
+      title: `${esc(ev.icon)} ${esc(ev.name)}`, cls: 'wide', body: '<div id="evd"></div>',
+      foot: `<button class="btn" data-evx="share">${ico('share')} ${esc(t('share'))}</button><button class="btn" data-evx="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
+      onMount: w => { wref = w; w._redraw = draw; draw(); },
+      onClick: (e, close) => {
+        let el;
+        if ((el = e.target.closest('[data-evm]'))) { mode = el.dataset.evm; draw(); return; }
+        if (swipeClick(e, () => { close(); }, draw)) return;
+        if (e.target.closest('[data-evx="edit"]')) { close(); openEventEditor(ev); }
+        if (e.target.closest('[data-evx="share"]')) shareEvent(ev);
+      }
     });
   }
 
@@ -3531,7 +3676,7 @@
   const ENERGY = ['🪫', '😴', '🙂', '😃', '🔥'];
   function energyHtml() {
     const v = state.energy[todayKey()] || 0;
-    return `<div class="clay card energy-card"><div class="row"><b class="grow">${esc(t('energyToday'))}</b><span class="muted small">${v ? esc(t('energyLvl', { n: v })) : ''}</span></div>
+    return `<div class="clay card energy-card" data-w="energy"><div class="row"><b class="grow">${esc(t('energyToday'))}</b><span class="muted small">${v ? esc(t('energyLvl', { n: v })) : ''}</span></div>
       <div class="energy-row">${ENERGY.map((e, i) => `<button class="energy-btn ${v === i + 1 ? 'on' : ''}" data-energy="${i + 1}" aria-label="${i + 1}"><span>${e}</span><small>${i + 1}</small></button>`).join('')}</div></div>`;
   }
 
@@ -3559,7 +3704,7 @@
     const action = st.quit
       ? `<button class="chip ${cnt(h, todayKey()) ? 'on' : ''}" data-today="slip" data-id="${h.id}">${esc(t('relapse'))}</button>`
       : `<button class="today-check ${st.done ? 'on' : ''}" data-today="tap" data-id="${h.id}" aria-label="${esc(t('markDone'))}">${isAmount(h) && !st.done ? ico('plus') : ico('check')}</button>`;
-    return `<div class="today-row clay ${st.done && !st.quit ? 'done' : ''}" style="${habitVars(c)}">
+    return `<div class="today-row clay ${st.done && !st.quit ? 'done' : ''}" data-trow="${h.id}" style="${habitVars(c)}">
       <button class="habit-ico sm" data-act="habit-edit" data-id="${h.id}">${esc(h.icon || '#')}</button>
       <div class="grow" style="min-width:0"><b class="ellipsis">${esc(h.name)}</b><div class="muted small">${esc(progressText(h))}</div></div>
       ${+h.duration > 0 && !st.quit ? `<button class="icon-btn sm" data-today="timer" data-id="${h.id}" aria-label="${esc(t('timer'))}">${ico('timer')}</button>` : ''}
@@ -3571,7 +3716,7 @@
     const pending = items.filter(h => !todayStatus(h).done || isQuit(h));
     const done = items.filter(h => todayStatus(h).done && !isQuit(h));
     const di = dayInfo(todayKey());
-    let html = petCardHtml() + energyHtml();
+    let html = (hidW('pet') ? '' : petCardHtml()) + (hidW('energy') ? '' : energyHtml());
     if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span></div>`;
     if (di.perfect && items.length) html += `<div class="perfect-banner clay">🎉 <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${fmtPts(di.cpts)} pts</span></div>`;
     const routs = state.routines.filter(r => r.habitIds.some(id => { const h = getHabit(id); return h && !h.archived && todayStatus(h).due; }));
@@ -3593,7 +3738,7 @@
   const routineSteps = r => r.habitIds.map(getHabit).filter(h => h && !h.archived && !isQuit(h));
   function routineCard(r) {
     const steps = routineSteps(r), doneN = steps.filter(h => todayStatus(h).done).length;
-    return `<div class="routine-card clay"><span style="font-size:28px">${esc(r.icon || '🔁')}</span>
+    return `<div class="routine-card clay" data-rid="${r.id}"><span style="font-size:28px">${esc(r.icon || '🔁')}</span>
       <div class="grow" style="min-width:0"><b class="ellipsis">${esc(r.name)}</b><div class="muted small">${esc(steps.map(h => h.icon).join(' '))} · ${doneN}/${steps.length}</div>
         <div class="bar ${doneN ? '' : 'zero'}" style="height:6px;margin-top:6px"><i style="width:${steps.length ? doneN / steps.length * 100 : 0}%"></i></div></div>
       <button class="btn ${doneN === steps.length ? '' : 'primary'}" data-routine-run="${r.id}">${ico('play')} ${esc(t(doneN === steps.length ? 'routineAgain' : doneN ? 'routineContinue' : 'routineStart'))}</button>
@@ -4241,7 +4386,7 @@
   let petIdx = 0;
   function petCardHtml() {
     const pet = petOf(), msgs = petMessages(), msg = msgs[petIdx % msgs.length];
-    return `<div class="pet-card clay"><button class="pet-btn" data-act="pet" aria-label="${esc(pet.name || t('petDefaultName'))}">${catSvg(pet, petMood(), 96)}</button>
+    return `<div class="pet-card clay" data-w="pet"><button class="pet-btn" data-act="pet" aria-label="${esc(pet.name || t('petDefaultName'))}">${catSvg(pet, petMood(), 96)}</button>
       <div class="bubble grow"><b>${esc(pet.name || t('petDefaultName'))}</b><span id="pet-msg">${esc(msg)}</span></div>
       <button class="icon-btn sm pet-edit" data-act="pet-edit" aria-label="${esc(t('petCustomize'))}" title="${esc(t('petCustomize'))}">${ico('edit')}</button></div>`;
   }
@@ -4390,6 +4535,7 @@
     const kpi = (v, l) => `<div class="kpi clay"><b>${v}</b><span>${esc(l)}</span></div>`;
     const sec = (icon, title, body) => `<section class="prof-sec"><h3 class="section-title">${icon} ${esc(title)}</h3>${body}</section>`;
     return `<div class="stack" style="gap:22px">
+      <section class="clay card prof-tag-box" id="pf-tag-box">${nametagHtml()}</section>
       <div class="prof-head"><div class="photo-wrap"><label class="avatar-pick" title="${esc(t('avatarChange'))}">${meAvatar(124)}<span class="photo-cam" aria-hidden="true">${ico('camera')}</span><input type="file" id="pf-photo" accept="image/*" class="sr-only" aria-label="${esc(t('avatarChange'))}"></label>${myAvatar() ? `<button class="link-btn small" data-pf="photo-rm">${esc(t('avatarRemove'))}</button>` : ''}</div>
         <div class="grow"><h2 class="prof-name">${esc(profileName())}</h2>${myTag() ? `<div class="prof-tag">@${esc(myTag())}</div>` : ''}<div class="prof-lvl">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</div><div class="muted small">${esc(t('memberSince', { d: fmtDate(st.since) }))}</div></div></div>
       <label class="field"><span>${esc(t('bioTitle'))}</span><textarea class="input" id="pf-bio" maxlength="140" rows="2" placeholder="${esc(t('ct_quote_' + (state.commitment || 'serio'), { perfecto: 'perfecto' }))}">${esc(pr.bio || '')}</textarea></label>
@@ -4409,7 +4555,7 @@
       onMount: w => {
         const draw = () => { $('#pf', w).innerHTML = profileHtml(); };
         w._draw = draw; draw();
-        if (auth) loadRep().then(() => { const el = $('#pf-rep', w); if (el) el.innerHTML = repHtml(); });
+        if (auth) loadRep().then(() => { const el = $('#pf-rep', w); if (el) el.innerHTML = repHtml(); const tb = $('#pf-tag-box', w); if (tb && !$('#pf-tag', w)?.matches(':focus')) tb.innerHTML = nametagHtml(); });
         w.addEventListener('change', e => {
           if (e.target.id === 'pf-bio') { state.profile = { ...profileOf(), bio: e.target.value.trim().slice(0, 140) }; save(); render(); toast(t('saved')); }
           if (e.target.id === 'pf-photo') setAvatar(e.target.files[0]).then(() => w._draw());
@@ -4424,6 +4570,7 @@
           case 'carnet': shareCanvas(profileCanvas, 'keepgoing-carnet.png', t('carnetTitle')); break;
           case 'public': close(); openAcc.add('priv'); openSettings(); break;
           case 'tag': saveNametag($('#pf-tag', w).value); break;
+          case 'login': close(); openLogin(); break;
         }
       }
     });
@@ -4864,6 +5011,9 @@
       else if (m.kind === 'invite') {
         const p = m.payload || {}, member = myGroupCodes().has(p.group_code);
         inner = `<div class="msg-card"><span class="g-icon">${esc(p.icon || '🎯')}</span><span class="grow"><b>${esc(t('chatInviteCard', { name: p.name || '' }))}</b><span class="muted small">${esc(t(p.kind === 'project' ? 'gProject' : 'gHabit'))}: ${esc(p.spec_name || p.name || '')}</span></span>${member ? `<span class="muted small">${esc(t('chatAlready'))}</span>` : `<button class="btn primary sm" data-gc-join="${esc(p.code)}">${esc(t('chatJoin'))}</button>`}</div>`;
+      } else if (m.kind === 'share' && (m.payload || {}).type === 'event') {
+        const v = (m.payload || {}).event || {};
+        inner = `<div class="msg-card"><span class="g-icon">${esc(v.icon || '🗂️')}</span><span class="grow"><b>${esc(v.name || '')}</b><span class="muted small">${esc(t('evTitle'))} · ${v.from ? esc(fmtShort(v.from)) : ''} – ${v.to ? esc(fmtShort(v.to)) : ''}${(v.cats || []).length ? ' · ' + (v.cats || []).map(c => esc(`${c.icon || ''} ${c.name || ''}`)).join(', ') : ''}</span></span><button class="btn sm" data-gc-add="${m.id}">${ico('plus')} ${esc(t('evAddMine'))}</button></div>`;
       } else if (m.kind === 'share') {
         const p = m.payload || {}, s = p.spec || {};
         inner = `<div class="msg-card"><span class="g-icon">${esc(s.icon || '📌')}</span><span class="grow"><b>${esc(s.name || '')}</b><span class="muted small">${esc(t('chatShareCard', { kind: t(p.type === 'project' ? 'gProject' : 'gHabit') }))}</span></span><button class="btn sm" data-gc-add="${m.id}">${ico('plus')} ${esc(t('chatAdd'))}</button></div>`;
@@ -5116,7 +5266,9 @@
           if (b.dataset.gv) { b.disabled = true; await rpc('kg_vote', { p_challenge: G.info.active.id, p_vote: b.dataset.gv === '1' }); sfx('toggle'); vibrate(15); await refresh(); return; }
           if (b.dataset.gcJoin) { try { localStorage.setItem(JOIN_KEY, b.dataset.gcJoin); } catch (err) { /* nada */ } close(); processJoin(); return; }
           if (b.dataset.gcAdd) {
-            const m = G.msgs.find(x => String(x.id) === b.dataset.gcAdd), p = m && m.payload; if (!p || !p.spec) return;
+            const m = G.msgs.find(x => String(x.id) === b.dataset.gcAdd), p = m && m.payload;
+            if (p && p.type === 'event') { addSharedEvent(p.event || {}); return; }
+            if (!p || !p.spec) return;
             const o = addFromSpec(p.type === 'project' ? 'project' : 'habit', p.spec, p.spec.name || '', p.spec.icon);
             sfx('unlock'); toast(t('chatAdded', { name: o.name })); render(); return;
           }
@@ -5154,9 +5306,13 @@
     if (!auth) return `<p class="muted small" style="margin:0">${esc(t('nametagNeedLogin'))}</p>`;
     return `<div class="stack" style="gap:12px">
       <div class="kpis" style="margin:0"><div class="kpi clay"><b>🏅 ${repState.total == null ? '…' : fmtNum(repState.total)}</b><span>${esc(t('repTotal'))}</span></div><div class="kpi clay"><b>🥇 ${repState.golds == null ? '…' : repState.golds}</b><span>1.º</span></div></div>
-      <p class="muted small" style="margin:0">${esc(t('repTotalSub'))}</p>
-      <label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="pf-tag" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('nametagPh'))}" value="${esc(repState.nametag || '')}"><button class="btn" data-pf="tag">${esc(t('save'))}</button></div></label>
-      <p class="muted small" style="margin:0">${esc(t('nametagHint'))}</p></div>`;
+      <p class="muted small" style="margin:0">${esc(t('repTotalSub'))}</p></div>`;
+  }
+  // Crear o cambiar el @nametag (arriba del todo en el perfil y en el registro)
+  function nametagHtml(cur = repState.nametag || myTag() || '') {
+    if (!auth) return `<div class="field" style="margin:0"><span>${esc(t('nametagTitle'))}</span><p class="muted small" style="margin:4px 0 10px">${esc(t('nametagNeedLogin'))}</p><button class="btn primary" data-pf="login">${esc(t('signIn'))}</button></div>`;
+    return `<label class="field" style="margin:0"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="pf-tag" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('nametagPh'))}" value="${esc(cur)}"><button class="btn" data-pf="tag">${esc(t('save'))}</button></div></label>
+      <p class="muted small" style="margin:8px 0 0">${esc(t('nametagHint'))}</p>`;
   }
   // El @nametag se guarda también en el perfil local para mostrarlo junto al nivel sin esperar a la red
   function cacheTag(tag) { if ((profileOf().tag || null) !== (tag || null)) { state.profile = { ...profileOf(), tag: tag || '' }; save(); } }
@@ -5261,14 +5417,14 @@
   document.addEventListener('pointerdown', e => {
     if (e.button !== 0 || rd) return;
     const card = e.target.closest('#habit-grid > .habit');
-    if (!card || e.target.closest('.dot, .ring, .timer-btn, .grp-chip, .cal-nav, .more-btn')) return;
+    if (!card || e.target.closest('.dot, .ring, .timer-btn, .grp-chip, .cal-nav, .more-btn, .w-del')) return;
     const sx = e.clientX, sy = e.clientY;
     clearTimeout(rdTimer);
     rdTimer = setTimeout(() => {
       rdTimer = null;
       const r = card.getBoundingClientRect(), grid = card.parentElement;
       rd = { card, grid, folder: grid.dataset.folder || null, ox: sx - r.left, oy: sy - r.top, x: sx, y: sy, moved: false, raf: 0, into: null, hover: null };
-      card.classList.add('dragging'); document.body.classList.add('reordering'); vibrate(25);
+      card.classList.add('dragging'); document.body.classList.add('reordering'); vibrate(25); enterJiggle();
       // Dentro de una carpeta aparece una zona para sacar el hábito
       if (rd.folder) { const z = document.createElement('div'); z.className = 'drop-out'; z.innerHTML = `${ico('up')} ${esc(t('folderTakeOut'))}`; document.body.appendChild(z); rd.zone = z; }
       const loop = () => { // autodesplazamiento cerca de los bordes
@@ -5279,7 +5435,7 @@
         rd.raf = requestAnimationFrame(loop);
       };
       rd.raf = requestAnimationFrame(loop);
-    }, 450);
+    }, jiggle ? 140 : 450);
     const cancel = ev => { if (rdTimer && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { clearTimeout(rdTimer); rdTimer = null; } };
     document.addEventListener('pointermove', cancel);
     document.addEventListener('pointerup', () => { clearTimeout(rdTimer); rdTimer = null; document.removeEventListener('pointermove', cancel); }, { once: true });
@@ -5326,7 +5482,8 @@
     card.classList.remove('dragging'); card.style.transform = ''; document.body.classList.remove('reordering');
     if (zone) zone.remove();
     if (into && into.classList) into.classList.remove('drop-into', 'hot');
-    rdBlockClick = true; setTimeout(() => { rdBlockClick = false; }, 350);
+    // El clic que llega al soltar no debe marcar nada ni sacar del modo edición
+    rdBlockClick = jigBlockClick = true; setTimeout(() => { rdBlockClick = jigBlockClick = false; }, 350);
     const hid = card.dataset.id;
     if (ev.type === 'pointerup' && into) {
       if (into.classList.contains('drop-out')) { const p = state.projects.find(x => x.id === folder); if (p) { p.habitIds = p.habitIds.filter(x => x !== hid); save(); render(); toast(t('folderTookOut')); } return; }
@@ -5344,6 +5501,13 @@
     if (folder) { const p = state.projects.find(x => x.id === folder); if (p) p.habitIds = [...ids, ...p.habitIds.filter(x => !set.has(x))]; }
     save(); render(); toast(t('reordered'));
   }));
+  function deleteHabit(h) {
+    state.habits = state.habits.filter(x => x !== h);
+    for (const k of ['logs', 'mastery', 'rest', 'shields', 'ltime']) delete state[k][h.id];
+    state.routines.forEach(r => { r.habitIds = r.habitIds.filter(id => id !== h.id); });
+    state.projects.forEach(p => { p.habitIds = p.habitIds.filter(id => id !== h.id); });
+    save(); render(); toast(t('deleted'));
+  }
   // Soltar un hábito encima de otro: nueva carpeta (proyecto) con los dos; luego se le pone nombre
   function createFolder(aId, bId) {
     const a = getHabit(aId), b = getHabit(bId); if (!a || !b) return;
@@ -5353,15 +5517,121 @@
   }
   window.addEventListener('click', e => { if (rdBlockClick) { e.preventDefault(); e.stopPropagation(); rdBlockClick = false; } }, true);
   document.addEventListener('contextmenu', e => {
-    if (rd || e.target.closest('#habit-grid > .habit, #habit-grid > .folder')) { if (!e.target.closest('.dot[data-k], .ring[data-ring]')) { e.preventDefault(); return; } }
+    if (rd || e.target.closest('#habit-grid > .habit, #habit-grid > .folder') || (e.target.closest(JIG_SEL) && e.target.closest('#main'))) { if (!e.target.closest('.dot[data-k], .ring[data-ring]')) { e.preventDefault(); return; } }
     const el = e.target.closest('.dot[data-k], .ring[data-ring]');
     if (!el) return;
     e.preventDefault();
     if (!lpFired) { lpFired = true; longPress(el); }
   });
 
+  /* ---------- Modo edición: pulsación larga en un widget → todos tiemblan y muestran un «−» rojo para quitarlos ----------
+     Hábitos, carpetas, retos, rutinas, chats, grupos, libretas compartidas y eventos se borran (o se dejan) con confirmación;
+     el resto de tarjetas (mascota, energía, contrato, gráficas…) solo se ocultan y se recuperan en Ajustes. */
+  const JIG_SEL = '.habit-grid > .habit, .habit-grid > .folder, .proj.finished, .today-row[data-trow], .routine-card[data-rid], .chat-row[data-chat-open], .chat-row[data-ls-open], .ev-card[data-ev-open], [data-w]';
+  const HW = { pet: '🐾', energy: '⚡', contract: '📜', insights: '💡', reviews: '📝', ledPie: '🥧', ledLine: '📈', ledFilter: '🔎' };
+  let jiggle = false, jgTimer = null, jigBlockClick = false;
+  function enterJiggle() {
+    if (jiggle) return;
+    jiggle = true; document.body.classList.add('jiggle'); vibrate(25); decorateJiggle();
+  }
+  function exitJiggle() {
+    if (!jiggle) return;
+    jiggle = false; document.body.classList.remove('jiggle');
+    $$('.w-del').forEach(x => x.remove()); $$('.jig').forEach(x => x.classList.remove('jig'));
+    const d = $('.jiggle-done'); if (d) d.remove();
+  }
+  function decorateJiggle() {
+    if (!jiggle) return;
+    const main = $('#main'); if (!main) return;
+    $$(JIG_SEL, main).forEach((el, i) => {
+      if (el.querySelector(':scope > .w-del')) return;
+      el.classList.add('jig'); el.style.setProperty('--jd', `${-(i % 4) * .09}s`);
+      el.insertAdjacentHTML('beforeend', `<span class="w-del" role="button" tabindex="0" data-w-del aria-label="${esc(t('jigRemove'))}" title="${esc(t('jigRemove'))}">−</span>`);
+    });
+    if (!$('.jiggle-done')) document.body.insertAdjacentHTML('beforeend', `<button class="btn primary jiggle-done" data-jig-done>${ico('check')} ${esc(t('jigDone'))}</button>`);
+  }
+  document.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || jiggle || !state.onboarded) return;
+    const el = e.target.closest(JIG_SEL);
+    // Los hábitos de la cuadrícula ya tienen su pulsación larga (la de arrastrar), que también activa este modo
+    if (!el || !el.closest('#main') || el.matches('#habit-grid > .habit')) return;
+    if (e.target.closest('input, select, textarea, .dot, .ring, .cal-nav, .seg, .more-btn')) return;
+    const sx = e.clientX, sy = e.clientY;
+    clearTimeout(jgTimer);
+    jgTimer = setTimeout(() => { jgTimer = null; jigBlockClick = true; enterJiggle(); }, 500);
+    const mv = ev => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) stop(); };
+    const stop = () => { clearTimeout(jgTimer); jgTimer = null; document.removeEventListener('pointermove', mv); };
+    document.addEventListener('pointermove', mv);
+    ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, () => { stop(); setTimeout(() => { jigBlockClick = false; }, 400); }, { once: true }));
+  });
+  window.addEventListener('click', e => {
+    if (jigBlockClick) { jigBlockClick = false; e.preventDefault(); e.stopPropagation(); return; }
+    if (!jiggle || e.target.closest('#modal-root')) return;
+    const del = e.target.closest('[data-w-del]');
+    if (del || e.target.closest('[data-jig-done]') || e.target.closest('.jig')) { e.preventDefault(); e.stopPropagation(); }
+    if (del) { jigRemove(del.parentElement); return; }
+    if (!e.target.closest('.jig')) exitJiggle(); // fuera de los widgets (o en «Listo») se sale del modo
+  }, true);
+  document.addEventListener('keydown', e => {
+    if (!jiggle) return;
+    if (e.key === 'Escape' && !$('#modal-root').children.length) exitJiggle();
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-w-del]')) { e.preventDefault(); jigRemove(e.target.parentElement); }
+  });
+  async function jigRemove(el) {
+    if (!el) return;
+    const retos = state.ui.tab === 'habits' && habitsView() === 'challenges';
+    try {
+      if (el.matches('.habit, .today-row')) {
+        const h = getHabit(el.dataset.id || el.dataset.trow); if (!h) return;
+        // En «Retos» el «−» quita el reto; el hábito se queda
+        if (retos && h.challenge) { if (await confirmDialog(t('jigRetoQ', { name: h.name }))) { delete h.challenge; save(); render(); toast(t('jigRetoGone')); } return; }
+        if (await confirmDialog(t('deleteHabitQ', { name: h.name }))) deleteHabit(h);
+        return;
+      }
+      if (el.matches('.folder, .proj')) {
+        const p = state.projects.find(x => x.id === (el.dataset.pid || el.dataset.id)); if (!p) return;
+        if (retos && p.deadline) { if (await confirmDialog(t('jigRetoQ', { name: p.name }))) { p.deadline = null; p.retoFrom = null; save(); render(); toast(t('jigRetoGone')); } return; }
+        if (await confirmDialog(t('deleteProjectQ', { name: p.name }))) { state.projects = state.projects.filter(x => x !== p); if (state.ui.folder === p.id) state.ui.folder = null; save(); render(); toast(t('deleted')); }
+        return;
+      }
+      if (el.matches('.routine-card')) {
+        const r = state.routines.find(x => x.id === el.dataset.rid); if (!r) return;
+        if (await confirmDialog(t('deleteRoutineQ', { name: r.name }))) { state.routines = state.routines.filter(x => x !== r); save(); render(); toast(t('deleted')); }
+        return;
+      }
+      if (el.matches('[data-chat-open]')) {
+        const gid = el.dataset.chatOpen, g = (myGroups.list || []).find(x => x.id === gid); if (!g) return;
+        if (!await confirmDialog(t(g.chat === 'dm' ? 'jigDmQ' : 'jigChatQ', { name: chatName(g) }))) return;
+        await rpc('kg_leave_group', { p_group: gid, p_user: null });
+        const o = findByGroup(gid); if (o) { delete o.groupId; save(); }
+        myGroups.list = myGroups.list.filter(x => x.id !== gid); myGroups.at = 0; render(); toast(t('groupLeft'));
+        return;
+      }
+      if (el.matches('[data-ls-open]')) {
+        const id = el.dataset.lsOpen;
+        if (!await confirmDialog(t('lsHideQ'))) return;
+        await rpc('kg_ledger_hide', { p_id: id });
+        chatData.shares = (chatData.shares || []).filter(x => x.id !== id); chatData.at = 0; render(); toast(t('deleted'));
+        return;
+      }
+      if (el.matches('.ev-card')) {
+        const ev = LV.events.find(x => x.id === el.dataset.evOpen); if (!ev) return;
+        if (await confirmDialog(t('evDeleteQ', { name: ev.name }))) { LV.events = LV.events.filter(x => x !== ev); ledgerSave(); render(); toast(t('deleted')); }
+        return;
+      }
+      const k = el.dataset.w;
+      if (k && HW[k]) { state.hiddenW = [...new Set([...(state.hiddenW || []), k])]; save(); render(); toast(t('jigHidden')); }
+    } catch (err) { toast(chatErr(err)); }
+  }
+  // Ajustes → «Widgets ocultos»
+  const hwName = k => t('hw_' + k);
+  const hiddenWHtml = () => (state.hiddenW || []).filter(k => HW[k]).length
+    ? `<div class="stack" style="gap:8px">${state.hiddenW.filter(k => HW[k]).map(k => `<div class="row" style="gap:10px"><span style="font-size:20px">${HW[k]}</span><b class="grow">${esc(hwName(k))}</b><button class="chip" data-s="hw-restore" data-v="${k}">${ico('refresh')} ${esc(t('hwRestore'))}</button></div>`).join('')}</div>`
+    : `<p class="muted small" style="margin:0">${esc(t('hwNone'))}</p>`;
+
   document.addEventListener('click', e => {
-    if (e.target.closest('#modal-root')) return;
+    // Un clic dentro de una ventana (aunque esa ventana ya se haya cerrado al pulsar) no llega a la vista de detrás
+    if (!e.target.isConnected || e.target.closest('#modal-root')) return;
     if (!state.onboarded) { onboardingClick(e); return; }
     // casillas
     const dot = e.target.closest('.dot[data-k]');
@@ -5403,7 +5673,8 @@
     if (state.ui.tab === 'chat' && chatClick(e)) return;
     if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
     if ((el = e.target.closest('[data-pin]'))) { pinKey(el.dataset.pin); return; }
-    if ((el = e.target.closest('[data-ledger-edit]'))) { const en = LV.entries.find(x => x.id === el.dataset.ledgerEdit); if (en) openEntry(en); return; }
+    if (swipeClick(e)) return;
+    if ((el = e.target.closest('[data-ev-open]'))) { openEvent(el.dataset.evOpen); return; }
     const a = e.target.closest('[data-act]'); if (!a) return;
     const id = a.dataset.id;
     switch (a.dataset.act) {
