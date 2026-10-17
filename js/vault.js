@@ -58,5 +58,38 @@
   async function pinWrap(pin, raw) { const salt = b64(rand(16)); return { salt, iter: PIN_ITER, box: await encBytes(await deriveKey(pin, salt, PIN_ITER), raw) }; }
   async function pinUnwrap(pin, rec) { try { return await decBytes(await deriveKey(pin, rec.salt, rec.iter || PIN_ITER), rec.box); } catch (e) { return null; } }
 
-  return { available, create, open, verify, rewrap, vidOf, encrypt, decrypt, encBytes, decBytes, importRaw, deriveKey, isPin, pinWrap, pinUnwrap, b64, unb64, ITER, PIN_ITER, CHECK };
+  /* Libretas compartidas con amigos (cifrado de extremo a extremo, ECDH P-256 + AES-GCM 256).
+     Cada persona tiene un par de claves: la pública se publica con su @nametag y la privada viaja cifrada con su clave de datos.
+     sealFor cifra una vez el contenido con una clave aleatoria y envuelve esa clave para cada destinatario
+     (clave efímera ECDH por destinatario), así lo pueden abrir quien lo envía y quien lo recibe. */
+  const EC = { name: 'ECDH', namedCurve: 'P-256' };
+  async function kxGenerate() {
+    const kp = await cr().subtle.generateKey(EC, true, ['deriveKey']);
+    const [pub, priv] = await Promise.all([cr().subtle.exportKey('jwk', kp.publicKey), cr().subtle.exportKey('jwk', kp.privateKey)]);
+    return { pub: { kty: pub.kty, crv: pub.crv, x: pub.x, y: pub.y }, priv };
+  }
+  const isPub = j => !!j && j.kty === 'EC' && j.crv === 'P-256' && typeof j.x === 'string' && typeof j.y === 'string';
+  const importPub = j => cr().subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x: j.x, y: j.y, ext: true }, EC, false, []);
+  const importPriv = j => cr().subtle.importKey('jwk', j, EC, false, ['deriveKey']);
+  const shared = (priv, pub) => cr().subtle.deriveKey({ name: 'ECDH', public: pub }, priv, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  // recipients: [{ id, pub }] → { v: 1, alg, iv, ct, keys: { id: { epk, iv, ct } } }
+  async function sealFor(obj, recipients) {
+    const raw = rand(32), key = await importRaw(raw), body = await encrypt(key, obj), keys = {};
+    for (const r of recipients) {
+      if (!isPub(r.pub)) throw new Error('bad key');
+      const eph = await cr().subtle.generateKey(EC, true, ['deriveKey']);
+      const k = await shared(eph.privateKey, await importPub(r.pub)), epk = await cr().subtle.exportKey('jwk', eph.publicKey);
+      keys[r.id] = { epk: { kty: epk.kty, crv: epk.crv, x: epk.x, y: epk.y }, ...(await encBytes(k, raw)) };
+    }
+    return { v: 1, alg: 'ECDH-P256+A256GCM', iv: body.iv, ct: body.ct, keys };
+  }
+  // Devuelve el objeto o lanza si esta persona no está entre los destinatarios o los datos se han alterado
+  async function openSealed(box, id, privJwk) {
+    const w = box && box.keys && box.keys[id]; if (!w) throw new Error('not for me');
+    const k = await shared(await importPriv(privJwk), await importPub(w.epk));
+    const raw = await decBytes(k, w);
+    return decrypt(await importRaw(raw), box);
+  }
+
+  return { kxGenerate, isPub, sealFor, openSealed, available, create, open, verify, rewrap, vidOf, encrypt, decrypt, encBytes, decBytes, importRaw, deriveKey, isPin, pinWrap, pinUnwrap, b64, unb64, ITER, PIN_ITER, CHECK };
 });

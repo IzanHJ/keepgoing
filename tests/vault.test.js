@@ -58,3 +58,18 @@ test('PIN de 4 cifras: abre la clave de datos solo con el PIN correcto', async (
   const raw2 = await V.pinUnwrap('0420', rec);
   assert.ok(await V.verify(await V.importRaw(raw2), header));
 });
+
+test('libreta compartida: la abren quien envía y quien recibe, nadie más', async () => {
+  const a = await V.kxGenerate(), b = await V.kxGenerate(), c = await V.kxGenerate();
+  assert.ok(V.isPub(a.pub) && !('d' in a.pub));
+  const data = { entries: [{ amountCents: 4200, note: 'Cena' }] };
+  const box = await V.sealFor(data, [{ id: 'A', pub: a.pub }, { id: 'B', pub: b.pub }]);
+  assert.ok(!JSON.stringify(box).includes('Cena'));
+  assert.deepEqual(await V.openSealed(box, 'A', a.priv), data);
+  assert.deepEqual(await V.openSealed(box, 'B', b.priv), data);
+  await assert.rejects(V.openSealed(box, 'C', c.priv));
+  await assert.rejects(V.openSealed({ ...box, keys: { C: box.keys.B } }, 'C', c.priv));
+  const bad = { ...box, ct: box.ct.slice(0, -4) + 'AAAA' };
+  await assert.rejects(V.openSealed(bad, 'B', b.priv));
+  await assert.rejects(V.sealFor(data, [{ id: 'X', pub: { kty: 'RSA' } }]));
+});
