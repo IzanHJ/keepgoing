@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.12.0';
+  const VERSION = '1.13.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -128,6 +128,11 @@
     image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
     shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
     wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="3.5" y="8" width="17" height="12" rx="2.5"/><path d="M16 14h.01M20.5 11.5h-4a2.5 2.5 0 0 0 0 5h4"/>',
+    chat: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z"/><path d="M8.5 9.5h7M8.5 12.5h4"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.4-6.5 8-6.5s7 2 8 6.5"/>',
+    camera: '<path d="M4 8h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13.5" r="3.5"/>',
+    send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/>',
+    share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>',
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     eyeOff: '<path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
   };
@@ -157,14 +162,14 @@
       // Fase 1 (v1.8): puntos de compromiso (desde pointsSince) y conversor a «Dinero Caprichable»
       pointsSince: null, caprice: defaultCaprice(), legacyShop: null,
       // Fase 2 (v1.9): Libreta de Gastos (importes en céntimos) y modo privacidad
-      ledgerEntries: [], ledgerCats: defaultLedgerCats(), ledgerRecurring: [], ledgerPrefs: { privacy: false },
+      ledgerEntries: [], ledgerCats: defaultLedgerCats(), ledgerRecurring: [], ledgerEvents: [], ledgerPrefs: { privacy: false },
       // Fase 3 (v1.10): sonidos activados por defecto
       soundOn: true, ledgerVault: null,
       ui: { tab: 'habits', range: 30, chartHabit: 'all', showArchived: false, habitsView: 'all' }
     };
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring'];
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt']]; // hábito → día → valor
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt']];             // clave → valor
   function normalize(s) {
@@ -172,10 +177,13 @@
     const out = { ...d, ...s };
     out.theme = { ...d.theme, ...(s.theme || {}) };
     if (out.theme.font === 'nunito') out.theme.font = 'quicksand'; // la letra Nunito ya no existe
+    // v1.13: una fecha límite pasa a ser un reto que empezó al crear el proyecto
+    if (Array.isArray(out.projects)) out.projects = out.projects.map(p => p && p.deadline && !p.retoFrom ? { ...p, retoFrom: p.createdAt || p.deadline } : p);
     out.ui = { ...d.ui, ...(s.ui || {}) };
     // v1.12: Proyectos y Gráficos viven dentro de la pestaña de Hábitos
     if (out.ui.tab === 'projects') { out.ui.tab = 'habits'; out.ui.habitsView = 'all'; }
-    if (out.ui.tab === 'charts') { out.ui.tab = 'habits'; out.ui.habitsView = 'charts'; }
+    if (out.ui.tab === 'charts') out.ui.tab = 'habits';
+    if (['charts', 'shared'].includes(out.ui.habitsView)) out.ui.habitsView = 'all'; // v1.13: Gráficos va en «Ver más» y Grupos en Chat
     if (!['habits', 'ledger', 'mastery'].includes(out.ui.tab)) out.ui.tab = 'habits';
     out.habits = Array.isArray(s.habits) ? s.habits : [];
     out.logs = s.logs && typeof s.logs === 'object' ? s.logs : {};
@@ -186,7 +194,7 @@
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'emt', 'rvmt', 'pmt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
@@ -220,7 +228,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.ledgerVault];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.ledgerVault, s.kx];
   function stampChanges(prev, cur) {
     const now = Date.now();
     cur.deleted = cur.deleted || {};
@@ -291,7 +299,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.ledgerVault] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.ledgerVault, out.kx] = settingsOf(R); out.smt = R.smt; }
     // Los puntos de compromiso empiezan en la fecha más antigua en que cualquier dispositivo migró
     const ps = [L.pointsSince, R.pointsSince].filter(Boolean).sort();
     out.pointsSince = ps[0] || null;
@@ -615,8 +623,8 @@
      ========================================================= */
   let lastView = null, lastTabIdx = -1;
   // Pestañas: Hábitos y Proyectos (con Gráficos dentro), Libreta y Maestrías
-  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['ledger', 'wallet', 'tabLedger'], ['mastery', 'crown', 'tabMastery']];
-  const HVIEWS = [['today', '☀️', 'viewToday'], ['all', '📋', 'viewAll'], ['challenges', '🏁', 'viewChallenges'], ['shared', '👥', 'viewShared'], ['charts', '📊', 'tabChartsShort']];
+  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['ledger', 'wallet', 'tabLedger'], ['chat', 'chat', 'tabChat'], ['mastery', 'crown', 'tabMastery']];
+  const HVIEWS = [['today', '☀️', 'viewToday'], ['all', '📋', 'viewAll'], ['challenges', '🏁', 'viewChallenges']];
   const habitsView = () => HVIEWS.some(v => v[0] === state.ui.habitsView) ? state.ui.habitsView : 'all';
   const openFolder = () => { const p = state.ui.folder && state.projects.find(x => x.id === state.ui.folder); return p && habitsView() === 'all' ? p : null; };
   // Posición de la vista (pestaña y subvista) para saber hacia qué lado se desliza al cambiar
@@ -644,6 +652,8 @@
     app.innerHTML = `<div class="app">${renderNav()}<main class="main ${anim}" id="main" data-tab="${esc(state.ui.tab)}">${renderView()}</main></div>`;
     placeNavInd(prevTab);
     afterRender();
+    if (ledgerOpen() && pendingShare) { const id = pendingShare; pendingShare = null; setTimeout(() => showLedgerShare(id), 150); }
+    else if (ledgerOpen() && auth && !KX.pushed && KX.vid !== LV.vid) ensureKx().catch(() => {});
     if (cc) setTimeout(() => whenFree(() => openContractCard(cc, true)), 400);
   }
 
@@ -666,6 +676,7 @@
     switch (state.ui.tab) {
       case 'ledger': return viewLedger();
       case 'mastery': return viewMastery();
+      case 'chat': return viewChat();
       default: return viewHabits();
     }
   }
@@ -711,15 +722,16 @@
     const view = habitsView();
     html += `<div class="seg view-seg" role="tablist">${HVIEWS.map(([v, e, k]) => `<button data-act="hview" data-v="${v}" role="tab" aria-selected="${view === v}" class="${view === v ? 'on' : ''}"><span class="vi">${e}</span> ${esc(t(k))}</button>`).join('')}</div>`;
     if (view === 'today') return html + contractBanner() + viewToday(active);
-    if (view === 'charts') return html + chartsHtml();
     const grid = list => `<div class="habit-grid" id="habit-grid">${list.map(habitCard).join('')}</div>${list.length > 1 ? `<p class="grid-hint">${esc(t('dragHint'))}</p>` : ''}`;
     if (view === 'challenges') {
       const on = active.filter(h => h.challenge && !h.challenge.done), done = active.filter(h => h.challenge && h.challenge.done);
-      html += on.length ? grid(on) : emptyState('target', t('challengesEmpty'), t('challengesEmptySub'), '');
+      const pr = activeProjects().filter(p => p.deadline);
+      if (pr.length) html += `<h2 class="section-title" style="margin:0 0 14px">🎯 ${esc(t('retoProjects'))}</h2><div class="habit-grid" style="margin-bottom:24px">${pr.map(folderCard).join('')}</div>`;
+      if (pr.length && on.length) html += `<h2 class="section-title" style="margin:0 0 14px">📋 ${esc(t('retoHabits'))}</h2>`;
+      html += on.length ? grid(on) : pr.length ? '' : emptyState('target', t('challengesEmpty'), t('challengesEmptySub'), '');
       if (done.length) html += `<h2 class="section-title" style="margin-top:24px">🏆 ${esc(t('challengesDone'))}</h2><div class="habit-grid">${done.map(habitCard).join('')}</div>`;
       return html;
     }
-    if (view === 'shared') return html + groupsViewHtml(active);
     if (folder) return html + folderViewHtml(folder);
     html += contractBanner();
     if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span><button class="chip" data-act="vacations">${esc(t('edit'))}</button></div>`;
@@ -739,17 +751,17 @@
   function folderCard(p) {
     const s = projectStats(p), hs = p.habitIds.map(getHabit).filter(h => h && !h.archived);
     const due = hs.filter(h => todayStatus(h).due), done = due.filter(h => todayStatus(h).done && !isQuit(h)).length;
-    const minis = hs.slice(0, 4).map(h => { const st = todayStatus(h); return `<span class="fmini ${st.due && st.done && !st.quit ? 'on' : ''}" style="${habitVars(hColor(h))}">${esc(h.icon || '#')}</span>`; }).join('');
+    const minis = hs.slice(0, 6).map(h => { const st = todayStatus(h); return `<span class="fmini ${st.due && st.done && !st.quit ? 'on' : ''}" style="${habitVars(hColor(h))}">${esc(h.icon || '#')}</span>`; }).join('');
     return `<article class="folder clay" data-pid="${p.id}" style="--h:${p.color || 'var(--accent)'}">
       <button class="folder-main" data-act="folder-open" data-id="${p.id}" aria-label="${esc(t('folderOpen', { name: p.name }))}">
         <span class="folder-tab" aria-hidden="true"></span>
-        <span class="folder-head"><span class="folder-ico">${esc(p.icon || '📁')}</span><span class="prob-badge"><b>${s.P}%</b><span>${esc(t('probability').split(' ')[0])}</span></span></span>
+        <span class="folder-head"><span class="folder-ico">${esc(p.icon || '📁')}</span>${statusBadge(p, s)}</span>
         <h3>${esc(p.name)}${p.groupId ? ' 👥' : ''}</h3>
-        <span class="muted small folder-sub">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</span>
-        <span class="bar ${s.G ? '' : 'zero'}"><i style="width:${Math.round(s.G * 100)}%"></i></span>
+        <span class="muted small folder-sub">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}${hs.length ? ' · ' + esc(t('folderCount', { n: hs.length })) : ''}${due.length ? ' · ' + esc(t('folderToday', { a: done, b: due.length })) : ''}</span>
         <span class="folder-minis">${minis || `<span class="muted small">${esc(t('folderEmpty'))}</span>`}</span>
-        <span class="muted small">${esc(t('folderCount', { n: hs.length }))}${due.length ? ' · ' + esc(t('folderToday', { a: done, b: due.length })) : ''}</span>
       </button>
+      ${hs.length ? calHtml({ id: 'p:' + p.id, proj: p }) : ''}
+      <button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button>
     </article>`;
   }
   function finishedCard(p) {
@@ -762,7 +774,7 @@
   function folderViewHtml(p) {
     const hs = p.habitIds.map(getHabit).filter(h => h && !h.archived);
     let html = `<div class="folder-bar"><button class="chip" data-act="folder-close">${ico('left')} ${esc(t('viewAll'))}</button><span class="muted small grow">${esc(t('folderInside'))}</span><button class="chip" data-act="proj-edit" data-id="${p.id}">${ico('edit')} ${esc(t('edit'))}</button></div>`;
-    html += `<div class="folder-summary">${projCard(p)}</div>`;
+    html += `<div class="folder-summary">${projCard(p)}${hs.length ? `<div class="clay card folder-cal">${calHtml({ id: 'p:' + p.id, proj: p })}<button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button></div>` : ''}</div>`;
     html += hs.length ? `<div class="habit-grid" id="habit-grid" data-folder="${p.id}">${hs.map(habitCard).join('')}</div><p class="grid-hint">${esc(t('folderOutHint'))}</p>`
       : `<p class="muted center">${esc(t('folderEmptyHint'))}</p>`;
     html += `<div class="center" style="margin-top:14px"><button class="btn" data-act="proj-edit" data-id="${p.id}">${ico('plus')} ${esc(t('folderAddHabits'))}</button></div>`;
@@ -823,6 +835,7 @@
         ${ring}
       </div>
       ${calHtml(h)}
+      <button class="more-btn" data-act="more" data-kind="habit" data-id="${h.id}">${esc(t('seeMore'))} ${ico('down')}</button>
     </article>`;
   }
 
@@ -831,8 +844,26 @@
   const ymAdd = (ym, n) => { const [y, m] = ym.split('-').map(Number), d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
   const ymDiff = (a, b) => { const [ya, ma] = a.split('-').map(Number), [yb, mb] = b.split('-').map(Number); return (yb - ya) * 12 + (mb - ma); };
   // Se puede ir desde el primer mes con datos (al menos 1 mes atrás) hasta 1 mes en el futuro
-  const calBounds = h => ({ min: -Math.max(1, ymDiff(firstKey(h).slice(0, 7), todayKey().slice(0, 7))), max: 1 });
+  const calBounds = h => ({ min: -Math.max(1, ymDiff((h.proj ? projFirst(h.proj) : firstKey(h)).slice(0, 7), todayKey().slice(0, 7))), max: 1 });
+  // Los proyectos también tienen calendario: cada día marca qué parte de sus hábitos se cumplió
+  const projHabits = p => p.habitIds.map(getHabit).filter(h => h && !h.archived);
+  const projFirst = p => projHabits(p).reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, p.createdAt || todayKey());
+  const calSubj = id => { if (!String(id).startsWith('p:')) return getHabit(id); const p = state.projects.find(x => x.id === id.slice(2)); return p ? { id, proj: p } : null; };
+  function projMonthCal(p, ym) {
+    const [y, m] = ym.split('-').map(Number), today = todayKey(), hs = projHabits(p), fk = projFirst(p);
+    let out = '';
+    for (const w of LED.monthGrid(y, m)) for (const k of w) {
+      if (!k) { out += '<i class="dot blank"></i>'; continue; }
+      const n = +k.slice(8);
+      if (k > today) { out += `<span class="dot future">${n}</span>`; continue; }
+      const sc = hs.map(h => dayScore(h, k)).filter(v => v != null), v = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : null;
+      const cls = 'dot' + (v == null ? ' off' : v >= 1 ? ' on' : v > 0 ? ' part' : '') + (k < fk ? ' pre' : '') + (k === today ? ' today' : '');
+      out += `<span class="${cls}" title="${esc(fmtDate(k))}${v == null ? '' : ': ' + Math.round(v * 100) + '%'}">${n}</span>`;
+    }
+    return `<div class="mcal" data-ym="${ym}"><div class="mcal-grid">${out}</div></div>`;
+  }
   function monthCal(h, ym) {
+    if (h.proj) return projMonthCal(h.proj, ym);
     const [y, m] = ym.split('-').map(Number), today = todayKey(), fk = firstKey(h), goal = dayGoal(h), L = state.logs[h.id] || {};
     let out = '';
     for (const w of LED.monthGrid(y, m)) {
@@ -873,7 +904,7 @@
   // Coloca cada calendario en su mes (sin animación)
   function initCals(root) { $$('.cal-swipe', root).forEach(sw => { sw.scrollLeft = (+sw.dataset.start || 0) * sw.clientWidth; sw._ready = true; }); }
   function moveCal(hid, d) {
-    const h = getHabit(hid); if (!h) return;
+    const h = calSubj(hid); if (!h) return;
     const b = calBounds(h); calOff[hid] = clamp((calOff[hid] || 0) + d, b.min, b.max);
     $$(`.cal-box[data-hid="${hid}"]`).forEach(box => { const tmp = document.createElement('div'); tmp.innerHTML = calHtml(h).trim(); const n = tmp.firstElementChild; box.replaceWith(n); initCals(n.parentElement); });
   }
@@ -1167,8 +1198,47 @@
     return { G, A: realA, T, pace, P, daysLeft, projection, neededPerDay, cur, achieved, hs, measurable };
   }
 
+  // Con reto activo se ve la probabilidad de conseguirlo; sin reto, un estado de 0/10 (nulo) a 10/10 (excelente)
+  function projStatus(p, s = projectStats(p)) {
+    const rs = projHabits(p).map(h => rate(h, 14)).filter(r => r != null);
+    const A = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
+    return clamp(Math.round((A == null ? s.G : .7 * A + .3 * s.G) * 10), 0, 10);
+  }
+  function statusBadge(p, s = projectStats(p)) {
+    if (p.deadline && !s.achieved) return `<span class="prob-badge" title="${esc(t('probability'))}"><b>${s.P}%</b><span>${esc(t('probability').split(' ')[0])}</span></span>`;
+    const n = s.achieved ? 10 : projStatus(p, s);
+    return `<span class="prob-badge status s${n}" title="${esc(t('statusHint'))}"><b>${n}/10</b><span>${esc(t('statusLabel'))}</span></span>`;
+  }
+  // Al acabar el plazo de un reto: pregunta que no se puede omitir (¿lo has conseguido?) y después si se repite
+  let retoAsking = false;
+  function checkRetos() {
+    if (retoAsking || !state.onboarded) return;
+    const today = todayKey(), p = state.projects.find(x => x.deadline && x.deadline < today && !projectStats(x).achieved);
+    if (!p) return;
+    retoAsking = true;
+    const from = p.retoFrom || p.createdAt || today, to = p.deadline, days = Math.max(1, diffDays(from, to));
+    whenFree(() => openModal({
+      title: `🏁 ${esc(t('retoEndTitle'))}`, dismissable: false,
+      body: `<div class="center"><div style="font-size:52px">${esc(p.icon || '🎯')}</div><h2 style="margin:6px 0">${esc(p.name)}</h2>
+        <p class="muted" style="margin:0 0 14px">${esc(t('retoEndSub', { from: fmtDate(from), to: fmtDate(to) }))}</p><p style="margin:0"><b>${esc(t('retoEndQ'))}</b></p></div>`,
+      foot: `<button class="btn" data-r="0">❌ ${esc(t('retoNo'))}</button><button class="btn primary" data-r="1">🏆 ${esc(t('retoYes'))}</button>`,
+      onClick: (e, close) => {
+        const b = e.target.closest('[data-r]'); if (!b) return;
+        const ok = b.dataset.r === '1';
+        p.retoLog = [...(p.retoLog || []), { from, to, ok, at: today }]; p.deadline = null; p.retoFrom = null; save(); close();
+        sfx(ok ? 'levelup' : 'undo'); vibrate(ok ? [20, 40, 20] : 15);
+        setTimeout(() => openModal({
+          title: `🔁 ${esc(t('retoRepeatQ'))}`,
+          body: `<p class="muted" style="margin-top:0">${esc(t(ok ? 'retoWellDone' : 'retoNextTime'))} ${esc(t('retoRepeatSub', { n: days }))}</p>`,
+          foot: `<button class="btn" data-x="0">${esc(t('retoRepeatNo'))}</button><button class="btn primary" data-x="1">${esc(t('retoRepeatYes', { n: days }))}</button>`,
+          onClick: (e2, close2) => { const x = e2.target.closest('[data-x]'); if (!x) return; if (x.dataset.x === '1') { p.retoFrom = today; p.deadline = addDays(today, days); save(); toast(t('retoRepeated', { date: fmtDate(p.deadline) })); } close2(); },
+          onClose: () => { retoAsking = false; render(); setTimeout(checkRetos, 500); }
+        }), 320);
+      }
+    }));
+  }
   function deadlineText(p, s) {
-    if (!p.deadline) return t('noDeadline');
+    if (!p.deadline) return t('noReto');
     if (s.daysLeft < 0) return t('overdue', { n: -s.daysLeft });
     return s.daysLeft === 1 ? t('dayLeft') : t('daysLeft', { n: s.daysLeft });
   }
@@ -1179,7 +1249,7 @@
         <div class="proj-top">
           <div class="habit-ico" style="--h-soft:var(--surface-2)">${esc(p.icon || '🎯')}</div>
           <div class="grow"><h3>${esc(p.name)}${p.groupId ? ' <span class="grp-chip" data-group="' + p.groupId + '">👥</span>' : ''}</h3><div class="muted small" style="font-weight:var(--fw-label)">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</div></div>
-          <div class="prob-badge"><b>${s.P}%</b><span>${esc(t('probability').split(' ')[0])}</span></div>
+          ${statusBadge(p, s)}
         </div>
         <div class="bar ${s.G ? '' : 'zero'}" style="margin-top:14px"><i style="width:${Math.round(s.G * 100)}%"></i></div>
         <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted small" style="font-weight:var(--fw-label)">${esc(t('progress'))} ${Math.round(s.G * 100)}%</span>${p.goal.type === 'numeric' ? `<span class="small" style="font-weight:var(--fw-num)">${fmtNum(s.cur)} / ${fmtNum(p.goal.target)} ${esc(p.goal.unit)}</span>` : ''}</div>
@@ -1210,9 +1280,10 @@
           <div>${g.items.map(it => `<div class="check-item"><span class="grow">${esc(it.text)}</span><button type="button" class="icon-btn sm" data-del-item="${it.id}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('')}</div>
           <div class="row"><input class="input" id="pf-item" maxlength="80" placeholder="${esc(t('goalItemPh'))}"><button type="button" class="btn" data-add-item>${esc(t('addItem'))}</button></div>
         </div>` : ''}
-        <div class="field"><span>${esc(t('deadline'))}</span>
-          <div class="seg"><button type="button" data-dl="0" class="${!f.deadline ? 'on' : ''}">${esc(t('deadlineNone'))}</button><button type="button" data-dl="1" class="${f.deadline ? 'on' : ''}">${esc(t('deadlineSet'))}</button></div>
-          ${f.deadline ? `<input class="input" id="pf-deadline" type="date" min="${todayKey()}" value="${f.deadline}">` : ''}
+        <div class="field reto-field ${f.deadline ? 'on' : ''}">
+          <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-dl ${f.deadline ? 'checked' : ''}><span></span></span><span class="grow"><b>🏁 ${esc(t('retoMake'))}</b><br><span class="muted small">${esc(t('retoMakeHint'))}</span></span></label>
+          ${f.deadline ? `<div class="row wrap" style="gap:8px;margin-top:10px">${[[7, 'retoWeek'], [30, 'retoMonth'], [90, 'reto3Months']].map(([d, k]) => `<button type="button" class="chip ${f.deadline === addDays(f.retoFrom || todayKey(), d) ? 'on' : ''}" data-reto-days="${d}">${esc(t(k))}</button>`).join('')}</div>
+            <label class="field" style="margin-top:10px"><span>${esc(t('retoEnds'))}</span><input class="input" id="pf-deadline" type="date" min="${addDays(todayKey(), 1)}" value="${f.deadline}"></label>` : ''}
         </div>
         <div class="field"><span>🚩 ${esc(t('milestones'))}</span>
           <div class="muted small">${esc(t('milestonesHint'))}</div>
@@ -1230,7 +1301,7 @@
       f.name = $('#pf-name', w).value.trim(); f.desc = $('#pf-desc', w).value.trim();
       if ($('#pf-share', w)) f.share = $('#pf-share', w).checked;
       if ($('#pf-start', w)) { f.goal.start = parseFloat($('#pf-start', w).value) || 0; f.goal.target = parseFloat($('#pf-target', w).value) || 0; f.goal.unit = $('#pf-unit', w).value.trim(); }
-      if ($('#pf-deadline', w)) f.deadline = $('#pf-deadline', w).value || f.deadline;
+      if ($('#pf-deadline', w)) { f.deadline = $('#pf-deadline', w).value || f.deadline; if (f.deadline && !f.retoFrom) f.retoFrom = todayKey(); }
     };
     const addItem = w => { const i = $('#pf-item', w); const v = i.value.trim(); if (!v) return; readInputs(w); f.goal.items.push({ id: uid(), text: v, done: false }); draw(w); setTimeout(() => $('#pf-item', w)?.focus(), 0); };
     openModal({
@@ -1242,7 +1313,8 @@
         const q = s => e.target.closest(s); let el;
         if ((el = q('[data-emoji]'))) { readInputs(w); f.icon = el.dataset.emoji; draw(w); return; }
         if ((el = q('[data-gtype]'))) { readInputs(w); f.goal.type = el.dataset.gtype; draw(w); return; }
-        if ((el = q('[data-dl]'))) { readInputs(w); f.deadline = el.dataset.dl === '1' ? (f.deadline || addMonths(todayKey(), 3)) : null; draw(w); return; }
+        if ((el = q('[data-dl]'))) { readInputs(w); if (el.checked) { f.retoFrom = todayKey(); f.deadline = addDays(todayKey(), 30); } else { f.deadline = null; f.retoFrom = null; } draw(w); return; }
+        if ((el = q('[data-reto-days]'))) { readInputs(w); f.retoFrom = f.retoFrom || todayKey(); f.deadline = addDays(f.retoFrom, +el.dataset.retoDays); draw(w); return; }
         if ((el = q('[data-link]'))) { readInputs(w); const id = el.dataset.link; f.habitIds = f.habitIds.includes(id) ? f.habitIds.filter(x => x !== id) : [...f.habitIds, id]; draw(w); return; }
         if (q('[data-add-item]')) { addItem(w); return; }
         if ((el = q('[data-del-item]'))) { readInputs(w); f.goal.items = f.goal.items.filter(i => i.id !== el.dataset.delItem); draw(w); return; }
@@ -1294,9 +1366,12 @@
       const factor = (label, v, txt) => `<div class="factor"><span>${esc(label)}</span><b>${txt ?? (v == null ? '—' : Math.round(v * 100) + '%')}</b><div class="bar ${v ? '' : 'zero'}"><i style="width:${v == null ? 0 : Math.round(clamp(v, 0, 1) * 100)}%"></i></div></div>`;
       const body = `<div class="stack" style="gap:16px">
         ${p.desc ? `<p class="muted" style="margin:0">${esc(p.desc)}</p>` : ''}
-        <div class="row wrap small" style="font-weight:var(--fw-label)">${ico('calendar')} <span>${esc(p.deadline ? fmtDate(p.deadline) + ' · ' + deadlineText(p, s) : t('noDeadline'))}</span></div>
+        <div class="row wrap small" style="font-weight:var(--fw-label)">🏁 <span>${esc(p.deadline ? t('retoUntil', { date: fmtDate(p.deadline) }) + ' · ' + deadlineText(p, s) : t('noReto'))}</span>${(p.retoLog || []).length ? `<span class="muted">· ${esc(t('retoRecord', { ok: p.retoLog.filter(r => r.ok).length, n: p.retoLog.length }))}</span>` : ''}</div>
         <section class="clay card"><h3 class="section-title">${esc(t('goal'))}${g.type === 'numeric' && g.unit ? ` <span class="muted small">(${esc(g.unit)})</span>` : ''}</h3>${goalHtml}</section>
-        <section class="clay card">
+        ${!p.deadline && !s.achieved ? `<section class="clay card"><h3 class="section-title">📊 ${esc(t('statusLabel'))}</h3>
+          <div class="gauge">${donut(projStatus(p, s) * 10)}<div class="grow"><div class="gauge-num">${projStatus(p, s)}/10</div><div class="muted small" style="font-weight:var(--fw-label)">${esc(t('statusHint'))}</div></div></div>
+          <button class="btn block" data-pd="reto" style="margin-top:12px">🏁 ${esc(t('retoMake'))}</button></section>` : ''}
+        <section class="clay card" ${!p.deadline && !s.achieved ? 'hidden' : ''}>
           <h3 class="section-title">${esc(t('probCalc'))}</h3>
           <div class="gauge">${donut(s.P)}<div class="grow"><div class="gauge-num">${s.P}%</div><div class="muted small" style="font-weight:var(--fw-label)">${esc(t('probability'))}</div></div></div>
           ${factor(t('probConsistency'), s.A)}
@@ -1340,7 +1415,7 @@
         w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pd-val') { e.preventDefault(); $('[data-pd="log"]', w).click(); } });
         w.addEventListener('change', async e => {
           const kind = e.target.dataset && e.target.dataset.photoUp; if (!kind || !e.target.files[0]) return;
-          try { toast(t('photoUploading')); await uploadPhoto(p, kind, e.target.files[0]); toast(t('photoSaved')); draw(); if (state.ui.tab === 'habits') render(); }
+          try { toast(t('photoUploading')); await uploadPhoto(p, kind, e.target.files[0]); toast(t('avatarSaved')); draw(); if (state.ui.tab === 'habits') render(); }
           catch (err) { toast(t('photoError', { e: err.message })); }
         });
         maybeAfterPhoto(p);
@@ -1361,6 +1436,7 @@
           case 'achieve': g.achieved = !g.achieved; break;
           case 'edit': close(); openProjectEditor(p); return;
           case 'group': openGroup(p.groupId); return;
+          case 'reto': close(); openProjectEditor(p); return;
           case 'delete':
             if (await confirmDialog(t('deleteProjectQ', { name: p.name }))) { state.projects = state.projects.filter(x => x !== p); save(); close(); render(); toast(t('deleted')); }
             return;
@@ -1441,28 +1517,17 @@
     </svg></div>`;
   }
 
-  function chartsHtml() {
+  // Gráficos de un hábito o de los hábitos de un proyecto («Ver más» bajo su calendario; antes, vista Gráficos)
+  function chartsFor(H, range, o = {}) {
     let html = '';
-    const active = state.habits.filter(h => !h.archived);
-    const anyLogs = state.habits.some(h => Object.keys(state.logs[h.id] || {}).length);
-    if (!state.habits.length || !anyLogs) {
-      return html + emptyState('chart', t('tabCharts'), t('chartsEmpty'), state.habits.length ? `<button class="btn primary" data-act="hview" data-v="all">${ico('checklist')} ${esc(t('tabHabits'))}</button>` : `<button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button>`);
-    }
-    if (state.ui.chartHabit !== 'all' && !getHabit(state.ui.chartHabit)) state.ui.chartHabit = 'all';
-    const single = state.ui.chartHabit !== 'all' ? getHabit(state.ui.chartHabit) : null;
-    const H = single ? [single] : active;
+    const single = H.length === 1 ? H[0] : null;
     const today = todayKey();
     const minFirst = H.reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, today);
-    const n = state.ui.range === 'all' ? Math.max(7, diffDays(minFirst, today) + 1) : state.ui.range;
+    const n = range === 'all' ? Math.max(7, diffDays(minFirst, today) + 1) : range;
     const from = addDays(today, -(n - 1));
-    const color = single ? hColor(single) : 'var(--accent)';
-
-    // filtros (una fila, encima de los gráficos)
-    html += `<div class="filters">
-      <div class="seg" role="group" aria-label="${esc(t('rangeLabel'))}">${[[7, 'range7'], [30, 'range30'], [90, 'range90'], [365, 'range365'], ['all', 'rangeAll']].map(([v, k]) => `<button data-act="range" data-v="${v}" class="${String(state.ui.range) === String(v) ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
-      <select class="input" id="chart-habit" aria-label="${esc(t('colHabit'))}"><option value="all">${esc(t('allHabits'))}</option>${state.habits.map(h => `<option value="${h.id}" ${single === h ? 'selected' : ''}>${esc(h.icon)} ${esc(h.name)}</option>`).join('')}</select>
-      <button class="btn" data-act="report">📄 ${esc(t('reportTitle'))}</button>
-    </div>`;
+    const color = single ? hColor(single) : o.color || 'var(--accent)';
+    html += `<div class="filters"><div class="seg" role="group" aria-label="${esc(t('rangeLabel'))}">${[[7, 'range7'], [30, 'range30'], [90, 'range90'], [365, 'range365'], ['all', 'rangeAll']].map(([v, k]) => `<button data-more-range="${v}" class="${String(range) === String(v) ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div></div>`;
+    if (!H.length) return html + `<p class="muted center">${esc(t('probNoHabits'))}</p>`;
 
     // KPIs
     const rates = H.map(h => rate(h, n)).filter(r => r != null);
@@ -1535,35 +1600,52 @@
     }
     html += `<div class="chart-grid">${cards.join('')}</div>`;
 
-    // descubrimientos y revisiones semanales
-    const ins = insightsList();
-    const revs = Object.entries(state.reviews).sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 6);
-    html += `<div class="chart-grid" style="margin-top:18px">
-      <section class="chart-card clay"><h3>💡<span class="grow">${esc(t('insightsTitle'))}</span></h3>
-        ${ins.length ? ins.map(i => `<div class="insight"><span>${i.icon}</span><span>${esc(i.text)}</span></div>`).join('') : `<p class="muted small" style="margin:0">${esc(t('insightsEmpty'))}</p>`}</section>
-      <section class="chart-card clay"><h3>📝<span class="grow">${esc(t('reviewsTitle'))}</span><button class="chip" data-act="review-now">${ico('plus')} ${esc(t('reviewNow'))}</button></h3>
-        ${revs.length ? revs.map(([w, v]) => `<button class="review-row" data-act="review-open" data-v="${w}"><b>${esc(fmtDate(w, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(w, 6), { day: 'numeric', month: 'short' }))}</b><span class="muted small">${esc((v.good || v.adjust || '').slice(0, 80))}</span><span class="rv-score">${v.score}/10</span></button>`).join('') : `<p class="muted small" style="margin:0">${esc(t('reviewsEmpty'))}</p>`}</section>
-    </div>`;
-
     // 5) tabla por hábito
-    const rows = (single ? [single] : state.habits.filter(h => !h.archived)).map(h => {
+    const rows = (single ? [] : H).map(h => {
       const r7 = rate(h, 7), r30 = rate(h, 30);
       return `<tr style="--h:${hColor(h)}"><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--h);margin-right:8px"></span>${esc(h.icon)} ${esc(h.name)}</td>
         <td>${isQuit(h) ? esc(t('kindQuit')) : esc(t(h.freq === 'daily' ? 'freqDaily' : h.freq === 'weekly' ? 'freqWeekly' : 'freqMonthly')) + (h.target > 1 ? ' ×' + h.target : '')}</td>
         <td class="num">${r7 == null ? '—' : Math.round(r7 * 100) + '%'}</td><td class="num">${r30 == null ? '—' : Math.round(r30 * 100) + '%'}</td>
         <td class="num">${totalEntries(h)}</td><td class="num">${currentStreak(h)}</td><td class="num">${bestStreak(h)}</td></tr>`;
     }).join('');
-    html += `<section class="chart-card clay" style="margin-top:18px"><h3>${ico('table')}<span class="grow">${esc(t('chartTable'))}</span></h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${esc(t('colHabit'))}</th><th>${esc(t('colFreq'))}</th><th class="num">${esc(t('col7'))}</th><th class="num">${esc(t('col30'))}</th><th class="num">${esc(t('colTotal'))}</th><th class="num">${esc(t('colStreak'))}</th><th class="num">${esc(t('colBest'))}</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    if (rows) html += `<section class="chart-card clay" style="margin-top:18px"><h3>${ico('table')}<span class="grow">${esc(t('chartTable'))}</span></h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${esc(t('colHabit'))}</th><th>${esc(t('colFreq'))}</th><th class="num">${esc(t('col7'))}</th><th class="num">${esc(t('col30'))}</th><th class="num">${esc(t('colTotal'))}</th><th class="num">${esc(t('colStreak'))}</th><th class="num">${esc(t('colBest'))}</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 
-    // 6) proyectos numéricos
-    const np = state.projects.filter(p => p.goal.type === 'numeric' && p.goal.entries.length);
+    // 6) progreso del proyecto (meta numérica)
+    const np = o.project && o.project.goal.type === 'numeric' && o.project.goal.entries.length ? [o.project] : [];
     if (np.length) {
-      html += `<h2 class="section-title" style="margin:26px 0 14px;font-size:22px">${esc(t('chartProjects'))}</h2><div class="chart-grid">${np.map(p => {
+      html += `<div class="chart-grid" style="margin-top:18px">${np.map(p => {
         const g = p.goal; const pts = [{ k: p.createdAt, v: g.start }, ...g.entries.map(e => ({ k: e.d, v: e.v }))].map(e => ({ label: dShort(e.k), v: e.v, tip: `${fmtNum(e.v)} ${g.unit}`, sub: fmtDate(e.k) }));
         return `<section class="chart-card clay"><h3>${esc(p.icon)} <span class="grow">${esc(p.name)}</span><span class="muted small">${esc(t('goal'))}: ${fmtNum(g.target)} ${esc(g.unit)}</span></h3>${lineChart(pts, { target: g.target, fmt: v => fmtNum(v), markers: true })}</section>`;
       }).join('')}</div>`;
     }
     return html;
+  }
+
+  // Descubrimientos y revisiones semanales (antes en Gráficos; ahora al final de la vista Hoy)
+  function insightsHtml() {
+    const ins = insightsList();
+    const revs = Object.entries(state.reviews).sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 6);
+    return `<div class="chart-grid" style="margin-top:18px">
+      <section class="chart-card clay"><h3>💡<span class="grow">${esc(t('insightsTitle'))}</span></h3>
+        ${ins.length ? ins.map(i => `<div class="insight"><span>${i.icon}</span><span>${esc(i.text)}</span></div>`).join('') : `<p class="muted small" style="margin:0">${esc(t('insightsEmpty'))}</p>`}</section>
+      <section class="chart-card clay"><h3>📝<span class="grow">${esc(t('reviewsTitle'))}</span><button class="chip" data-act="review-now">${ico('plus')} ${esc(t('reviewNow'))}</button></h3>
+        ${revs.length ? revs.map(([w, v]) => `<button class="review-row" data-act="review-open" data-v="${w}"><b>${esc(fmtDate(w, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(w, 6), { day: 'numeric', month: 'short' }))}</b><span class="muted small">${esc((v.good || v.adjust || '').slice(0, 80))}</span><span class="rv-score">${v.score}/10</span></button>`).join('') : `<p class="muted small" style="margin:0">${esc(t('reviewsEmpty'))}</p>`}</section>
+    </div>`;
+
+  }
+  // «Ver más»: ventana con los gráficos de un hábito o de un proyecto (con su propio rango de fechas)
+  function openMore(kind, id) {
+    const h = kind === 'habit' ? getHabit(id) : null, p = kind === 'project' ? state.projects.find(x => x.id === id) : null;
+    if (!h && !p) return;
+    let range = 30;
+    const H = h ? [h] : p.habitIds.map(getHabit).filter(x => x && !x.archived);
+    const draw = w => { $('#more', w).innerHTML = chartsFor(H, range, { project: p, color: p && (p.color || 'var(--accent)') }); };
+    openModal({
+      title: `${esc((h || p).icon || '')} ${esc((h || p).name)}`, cls: 'wide more-modal',
+      body: '<div id="more"></div>',
+      onMount: draw,
+      onClick: (e, close, w) => { const b = e.target.closest('[data-more-range]'); if (!b) return; range = b.dataset.moreRange === 'all' ? 'all' : +b.dataset.moreRange; draw(w); }
+    });
   }
 
   /* ---------- tooltip de gráficos ---------- */
@@ -2268,7 +2350,7 @@
           acc('vault', ico('lock'), t('vaultTitle'), !state.ledgerVault ? t('vaultNone') : ledgerOpen() ? t('vaultIsOpen') : t('vaultIsLocked'), state.ledgerVault ? `<p class="muted small" style="margin-top:0">${esc(t('vaultSettingsHint'))}</p><div class="row wrap">${ledgerOpen() ? `<button class="chip" data-s="vault-lock">${ico('lock')} ${esc(t('vaultLock'))}</button><button class="chip" data-s="vault-change">${esc(t('vaultChange'))}</button><button class="chip" data-s="vault-sec">🔐 ${esc(t('vaultSecurity'))}</button>` : ''}<button class="chip" data-s="vault-wipe" style="color:#e5484d">${ico('trash')} ${esc(t('vaultForgot'))}</button></div>` : `<p class="muted small" style="margin:0">${esc(t('vaultNoneHint'))}</p>`),
           acc('priv', '🔒', t('privacyTitle'), profileOf().enabled ? t('setPublicOn') : t('setPublicOff'), `<div id="st-priv">${privacyHtml()}</div>`),
           acc('data', ico('download'), t('setData'), '', `<p class="muted small" style="margin-top:0">${esc(t('dataHint'))}</p>
-            <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button></div>
+            <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button><button class="btn" data-s="report">📄 ${esc(t('reportTitle'))}</button></div>
             <input type="file" id="st-file" accept=".json,application/json" class="hidden">
             <div class="row wrap" style="margin-top:14px"><button class="chip" data-s="replay">${ico('refresh')} ${esc(t('replayOnboarding'))}</button><button class="chip" data-s="reset" style="color:#e5484d">${ico('trash')} ${esc(t('resetData'))}</button></div>`)
         ])}
@@ -2322,6 +2404,7 @@
           case 'contract': openContract(); break;
           case 'renew': renewContract(); draw(); break;
           case 'export': exportData(); break;
+          case 'report': close(); openReport(); break;
           case 'import': $('#st-file', w).click(); break;
           case 'replay': close(); state.onboarded = false; state.obStep = 0; save(); render(); break;
           case 'reset':
@@ -2705,8 +2788,8 @@
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
   const VAULT = window.KGVault, DEV = window.KGVaultDevice;
-  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring']];
-  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents']];
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
   const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
   const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
@@ -2745,7 +2828,7 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
   async function useKey(key, raw) { LV.key = key; LV.raw = raw; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
   // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
@@ -2892,6 +2975,7 @@
     if (/^\d$/.test(e.key)) { e.preventDefault(); pinKey(e.key); } else if (e.key === 'Backspace') { e.preventDefault(); pinKey('back'); }
   });
   document.addEventListener('submit', async e => {
+    if (e.target.id === 'friend-form') { e.preventDefault(); const i = $('#friend-tag'); if (i.value.trim() && await sendFriendRequest(i.value)) i.value = ''; return; }
     const f = e.target.closest('[data-vault]'); if (!f) return;
     e.preventDefault(); if (LV.busy) return;
     const pw = $('#vault-pw', f).value, btn = $('button[type="submit"]', f);
@@ -3029,7 +3113,8 @@
       }).join('')}</div>`).join('')}</div>
     </section>`;
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
-    html += `<div class="row wrap ledger-tools"><button class="chip" data-act="ledger-cats">🏷️ ${esc(t('ledgerCats'))}</button><button class="chip" data-act="ledger-recs">🔁 ${esc(t('ledgerRecs'))}${LV.recurring.filter(r => !r.archived).length ? ` <b class="chip-n">${LV.recurring.filter(r => !r.archived).length}</b>` : ''}</button><button class="chip" data-act="vault-sec">🔐 ${esc(t('vaultSecurity'))}</button></div>`;
+    html += `<div class="row wrap ledger-tools"><button class="chip" data-act="ledger-cats">🏷️ ${esc(t('ledgerCats'))}</button><button class="chip" data-act="ledger-recs">🔁 ${esc(t('ledgerRecs'))}${LV.recurring.filter(r => !r.archived).length ? ` <b class="chip-n">${LV.recurring.filter(r => !r.archived).length}</b>` : ''}</button><button class="chip" data-act="ledger-events">🗂️ ${esc(t('evTitle'))}${LV.events.length ? ` <b class="chip-n">${LV.events.length}</b>` : ''}</button><button class="chip" data-act="ledger-share">📤 ${esc(t('lsTool'))}</button><button class="chip" data-act="vault-sec">🔐 ${esc(t('vaultSecurity'))}</button></div>`;
+    html += eventsStripHtml();
     html += ledgerChartsHtml();
     return html;
   }
@@ -3093,12 +3178,13 @@
       ${span ? twoDotChart(rows, { aria: t('ledLineTitle') }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section></div>`;
     // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
     const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
-    const fl = LED.inRange(LV.entries, lf.from, lf.to).filter(e => lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
+    const fev = String(lf.cat).startsWith('ev:') ? LV.events.find(x => 'ev:' + x.id === lf.cat) : null;
+    const fl = LED.inRange(fev ? eventEntries(fev) : LV.entries, lf.from, lf.to).filter(e => fev || lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
     const days = lf.from && lf.to ? diffDays(lf.from, lf.to) + 1 : 0, fu = days <= 62 ? 'day' : days <= 3 * 366 ? 'month' : 'year';
     const frows = lf.from && lf.to && lf.from <= lf.to ? LED.series(fl, lf.from, lf.to, fu).map(r => ({ ...r, label: bucketLabel(r.key, fu), sub: bucketSub(r.key, fu) })) : [];
     html += `<section class="chart-card clay led-filter"><h3>🔎<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
       <div class="filter-row">
-        <label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${lf.cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}</select></label>
+        <label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${lf.cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}${LV.events.length ? `<optgroup label="${esc(t('evTitle'))}">${LV.events.map(ev => `<option value="ev:${esc(ev.id)}" ${lf.cat === 'ev:' + ev.id ? 'selected' : ''}>${esc(ev.icon)} ${esc(ev.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
         <label class="field"><span>${esc(t('ledFrom'))}</span><input class="input" type="date" data-led-f="from" value="${esc(lf.from)}"></label>
         <label class="field"><span>${esc(t('ledTo'))}</span><input class="input" type="date" data-led-f="to" value="${esc(lf.to)}"></label>
       </div>
@@ -3211,6 +3297,216 @@
     });
   }
 
+  /* ---------- Compartir y exportar una franja de la Libreta ----------
+     Exportar: un .html autocontenido con el mismo aspecto que la app. Compartir: solo con amigos, cifrado de extremo a extremo
+     (ECDH): el servidor guarda una caja que solo pueden abrir quien la envía y quien la recibe. Nunca se comparte con grupos. */
+  const EXP = window.KGLedgerExport;
+  const KX = { vid: null, priv: null, pub: null, pushed: false };
+  async function ensureKx() {
+    if (!ledgerOpen()) throw new Error('locked');
+    if (KX.vid === LV.vid && KX.priv && state.kx && state.kx.vid === LV.vid) return KX;
+    let kx = state.kx, priv = null;
+    if (kx && kx.vid === LV.vid) { try { priv = await VAULT.decrypt(LV.key, kx.priv); } catch (e) { priv = null; } }
+    if (!priv) { const g = await VAULT.kxGenerate(); priv = g.priv; kx = state.kx = { vid: LV.vid, pub: g.pub, priv: await VAULT.encrypt(LV.key, g.priv) }; save(); KX.pushed = false; }
+    Object.assign(KX, { vid: LV.vid, priv, pub: kx.pub });
+    if (auth && !KX.pushed) {
+      try { await ensureToken(); await sbFetch(`/rest/v1/kg_users?user_id=eq.${auth.uid}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ pubkey: kx.pub, updated_at: new Date().toISOString() }) }); KX.pushed = true; }
+      catch (e) { /* se reintenta en la próxima apertura */ }
+    }
+    return KX;
+  }
+  function ledgerSlice(from, to) {
+    const entries = LED.inRange(LV.entries, from, to).map(e => ({ id: e.id, date: e.date, type: e.type, amountCents: e.amountCents, categoryId: e.categoryId, note: e.note || '', method: e.method || '' }));
+    const used = new Set(entries.map(e => e.categoryId));
+    return {
+      entries,
+      cats: LV.cats.filter(c => used.has(c.id)).map(c => ({ id: c.id, name: c.name, icon: c.icon, color: c.color })),
+      events: LV.events.filter(ev => ev.from <= to && ev.to >= from).map(ev => ({ name: ev.name, icon: ev.icon, from: ev.from, to: ev.to, catIds: ev.catIds || [] }))
+    };
+  }
+  const exportHtml = (d, title, from, to, subtitle = '') => EXP.html({
+    lang: state.lang, title, subtitle, from, to, entries: d.entries, cats: d.cats, events: d.events,
+    money: { locale: state.lang, currency: 'EUR' }, generatedAt: new Date().toISOString(), footer: 'KeepGoing'
+  });
+  function downloadFile(name, text, type = 'text/html') {
+    const url = URL.createObjectURL(new Blob([text], { type: type + ';charset=utf-8' })), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  function openLedgerShare() {
+    if (!ledgerOpen()) { toast(t('vaultOpenFirst')); return; }
+    const td = todayKey(), sp = LED.span(LV.entries);
+    const S = { from: td.slice(0, 8) + '01', to: td, title: '', quick: 'm' };
+    const quick = v => {
+      const pm = addMonths(td.slice(0, 8) + '01', -1);
+      return v === 'm' ? [td.slice(0, 8) + '01', td] : v === 'pm' ? [pm, addDays(td.slice(0, 8) + '01', -1)] : v === 'y' ? [td.slice(0, 4) + '-01-01', td] : v === '12' ? [addMonths(td, -12), td] : [sp ? sp.from : td, td];
+    };
+    const evs = [...LV.events].sort((a, b) => a.from < b.from ? 1 : -1);
+    let wref;
+    const autoTitle = () => S.title || `${fmtShort(S.from)} – ${fmtShort(S.to)}`;
+    const draw = () => {
+      const d = ledgerSlice(S.from, S.to), tot = LED.totals(d.entries), friends = (chatData.friends || []).filter(f => f.status === 'accepted');
+      $('#lsh', wref).innerHTML = `<div class="stack" style="gap:14px">
+        <div class="field"><span>${esc(t('lsRange'))}</span><div class="row wrap" style="gap:6px">${[['m', 'ledThisMonth'], ['pm', 'lsLastMonth'], ['y', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll']].map(([v, k]) => `<button class="chip ${S.quick === v ? 'on' : ''}" data-lq="${v}">${esc(t(k))}</button>`).join('')}</div>
+          ${evs.length ? `<div class="row wrap" style="gap:6px;margin-top:8px">${evs.map(ev => `<button class="chip ${S.quick === 'ev:' + ev.id ? 'on' : ''}" data-lq="ev:${esc(ev.id)}">${esc(ev.icon || '🗂️')} ${esc(ev.name)}</button>`).join('')}</div>` : ''}
+          <div class="row" style="gap:8px;margin-top:8px"><input class="input grow" type="date" id="ls-from" value="${S.from}" aria-label="${esc(t('from'))}"><input class="input grow" type="date" id="ls-to" value="${S.to}" aria-label="${esc(t('to'))}"></div></div>
+        <label class="field"><span>${esc(t('lsName'))}</span><input class="input" id="ls-title" maxlength="80" value="${esc(S.title)}" placeholder="${esc(autoTitle())}"></label>
+        <div class="kpis ls-kpis" style="margin:0"><div class="kpi clay"><b>${d.entries.length}</b><span>${esc(t('evEntries'))}</span></div><div class="kpi clay"><b class="amt-in">${privacyOn() ? '•••' : cents(tot.income)}</b><span>${esc(t('ledgerIncome'))}</span></div><div class="kpi clay"><b class="amt-out">${privacyOn() ? '•••' : cents(tot.expense)}</b><span>${esc(t('ledgerExpense'))}</span></div></div>
+        <button class="btn primary" data-ls="export">${ico('download')} ${esc(t('lsExport'))}</button>
+        <section class="clay card"><h3 class="section-title" style="margin-top:0">🔒 ${esc(t('lsSendTitle'))}</h3><p class="muted small" style="margin-top:0">${esc(t('lsSendHint'))}</p>
+          ${!auth ? `<p class="muted small">${esc(t('groupNeedLogin'))}</p>` : !chatData.friends ? `<p class="muted small">${esc(t('groupsLoading'))}</p>` : friends.length ? `<div class="stack" style="gap:8px">${friends.map(f => VAULT.isPub(f.pubkey) ? `<button class="btn block" style="justify-content:flex-start" data-ls-to="${f.user_id}">${avatarHtml(f, 'sm')} ${esc(personName(f))} <span class="muted small">@${esc(f.nametag || '')}</span></button>` : `<div class="btn block disabled" style="justify-content:flex-start;opacity:.55">${avatarHtml(f, 'sm')} ${esc(personName(f))} <span class="muted small">${esc(t('lsNoKey'))}</span></div>`).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('chatNoFriends'))}</p>`}
+        </section></div>`;
+    };
+    openModal({
+      title: `📤 ${esc(t('lsTool'))}`, cls: 'wide', body: '<div id="lsh"></div>',
+      onMount: w => {
+        wref = w; draw();
+        if (auth) refreshChat(true).then(() => { if (wref.isConnected) draw(); });
+        ensureKx().catch(() => {});
+        w.addEventListener('change', e => {
+          if (e.target.id === 'ls-from' || e.target.id === 'ls-to') { const a = $('#ls-from', w).value, b = $('#ls-to', w).value; if (a && b) { [S.from, S.to] = a <= b ? [a, b] : [b, a]; S.quick = ''; draw(); } }
+          if (e.target.id === 'ls-title') S.title = e.target.value.trim();
+        });
+      },
+      onClick: async (e, close, w) => {
+        let el;
+        if ((el = e.target.closest('[data-lq]'))) {
+          const v = el.dataset.lq;
+          if (v.startsWith('ev:')) { const ev = LV.events.find(x => x.id === v.slice(3)); if (!ev) return; S.from = ev.from; S.to = ev.to; if (!S.title) S.title = ev.name; }
+          else [S.from, S.to] = quick(v);
+          S.quick = v; draw(); return;
+        }
+        const ti = $('#ls-title', w); if (ti) S.title = ti.value.trim();
+        if (e.target.closest('[data-ls="export"]')) {
+          const d = ledgerSlice(S.from, S.to), title = autoTitle();
+          downloadFile(EXP.filename(S.title || 'libreta', S.from, S.to), exportHtml(d, title, S.from, S.to, profileName()));
+          sfx('pop'); toast(t('lsExported')); return;
+        }
+        if ((el = e.target.closest('[data-ls-to]'))) {
+          const f = (chatData.friends || []).find(x => x.user_id === el.dataset.lsTo); if (!f) return;
+          el.disabled = true;
+          try {
+            const me = await ensureKx(), d = ledgerSlice(S.from, S.to);
+            const box = await VAULT.sealFor({ v: 1, title: autoTitle(), from: S.from, to: S.to, by: profileName(), ...d }, [{ id: auth.uid, pub: me.pub }, { id: f.user_id, pub: f.pubkey }]);
+            await rpc('kg_ledger_share', { p_to: f.user_id, p_title: autoTitle().slice(0, 80), p_from: S.from, p_to_date: S.to, p_box: box });
+            sfx('unlock'); toast(t('lsSent', { tag: '@' + (f.nametag || '') })); chatData.at = 0; close();
+          } catch (err) { el.disabled = false; toast(chatErr(err)); }
+        }
+      }
+    });
+  }
+  // «Libreta de @nametag» en Chat: cada vez que se entra se pide desbloquear tu Libreta (PIN, huella o contraseña)
+  let pendingShare = null;
+  function openLedgerShareView(id) {
+    if (!VAULT.available() || !state.ledgerVault) { toast(t('lsNeedVault')); state.ui.tab = 'ledger'; save(); render(); return; }
+    ledgerLock(); pendingShare = id;
+    state.ui.tab = 'ledger'; save(); render(); window.scrollTo(0, 0);
+    toast(t('lsUnlockToView'));
+  }
+  async function showLedgerShare(id) {
+    const s = (chatData.shares || []).find(x => x.id === id);
+    let html = '', err = '';
+    try {
+      const me = await ensureKx();
+      const rows = await sbFetch(`/rest/v1/kg_ledger_shares?id=eq.${encodeURIComponent(id)}&select=box`);
+      if (!rows[0]) throw new Error('gone');
+      const d = await VAULT.openSealed(rows[0].box, auth.uid, me.priv);
+      html = exportHtml(d, d.title || (s && s.title) || t('lsTool'), d.from, d.to, d.by || '');
+    } catch (e) { err = /not for me|OperationError/.test(String(e && (e.message || e.name))) ? t('lsCantOpen') : /gone/.test(e.message) ? t('lsGone') : t('groupError', { e: e.message }); }
+    const tag = s ? (s.peer.nametag || s.peer.display_name) : '';
+    openModal({
+      title: `${ico('wallet')} ${esc(s && s.mine ? t('lsSentTitle', { tag }) : t('lsTitle', { tag }))}`, cls: 'wide ls-view',
+      body: err ? `<p class="muted center">${esc(err)}</p>` : `<iframe class="ls-frame" sandbox title="${esc(t('lsTool'))}"></iframe>`,
+      foot: `${html ? `<button class="btn" data-lv="save">${ico('download')} ${esc(t('lsSave'))}</button>` : ''}<button class="chip danger-text" data-lv="hide">${esc(t('lsHide'))}</button>`,
+      onMount: w => { const f = $('.ls-frame', w); if (f) f.srcdoc = html; },
+      onClose: () => { ledgerLock(); state.ui.tab = 'chat'; save(); render(); },
+      onClick: async (e, close) => {
+        const b = e.target.closest('[data-lv]'); if (!b) return;
+        if (b.dataset.lv === 'save') { downloadFile(EXP.filename((s && s.title) || 'libreta', s && s.range_from, s && s.range_to), html); return; }
+        if (b.dataset.lv === 'hide' && await confirmDialog(t('lsHideQ'))) { try { await rpc('kg_ledger_hide', { p_id: id }); chatData.at = 0; close(); } catch (err2) { toast(chatErr(err2)); } }
+      }
+    });
+  }
+
+  /* ---------- Eventos: una franja de fechas con sus categorías (p. ej. «Vacaciones»), para entender por qué un mes se gasta más ---------- */
+  const eventEntries = ev => LED.inRange(LV.entries, ev.from, ev.to).filter(e => !(ev.catIds || []).length || ev.catIds.includes(e.categoryId));
+  const eventState = ev => { const k = todayKey(); return k < ev.from ? 'soon' : k > ev.to ? 'done' : 'now'; };
+  function eventCard(ev) {
+    const tot = LED.totals(eventEntries(ev)), st = eventState(ev), priv = privacyOn();
+    return `<button class="ev-card clay" data-ev-open="${esc(ev.id)}"><span class="ev-ico">${esc(ev.icon || '🗂️')}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(ev.name)}</b><span class="muted small">${esc(fmtShort(ev.from))} – ${esc(fmtShort(ev.to))} · <span class="ev-st ${st}">${esc(t('evSt_' + st))}</span></span></span>
+      <span class="ev-amt"><b class="amt-out">${priv ? '•••' : cents(tot.expense)}</b>${tot.income ? `<small class="amt-in">+${priv ? '•••' : cents(tot.income)}</small>` : ''}</span></button>`;
+  }
+  // Tira de eventos en la Libreta: los que están en curso y la «base de datos» de los ya terminados
+  function eventsStripHtml() {
+    if (!LV.events.length) return '';
+    const evs = [...LV.events].sort((a, b) => a.from < b.from ? 1 : -1), now = evs.filter(e => eventState(e) !== 'done'), done = evs.filter(e => eventState(e) === 'done');
+    return `<section class="ev-strip"><h2 class="section-title">🗂️ ${esc(t('evTitle'))}</h2>${now.length ? `<div class="ev-list">${now.map(eventCard).join('')}</div>` : ''}
+      ${done.length ? `<details class="ev-done" ${now.length ? '' : 'open'}><summary class="muted small">${esc(t('evFinished', { n: done.length }))}</summary><div class="ev-list">${done.map(eventCard).join('')}</div></details>` : ''}</section>`;
+  }
+  function openLedgerEvents() {
+    let wref;
+    const draw = () => {
+      $('#evl', wref).innerHTML = `<p class="muted small" style="margin-top:0">${esc(t('evHint'))}</p>${LV.events.length ? `<div class="ev-list">${[...LV.events].sort((a, b) => a.from < b.from ? 1 : -1).map(eventCard).join('')}</div>` : `<p class="muted center">${esc(t('evEmpty'))}</p>`}`;
+    };
+    openModal({
+      title: `🗂️ ${esc(t('evTitle'))}`, body: '<div id="evl"></div>',
+      foot: `<button class="btn primary block" data-ev-new>${ico('plus')} ${esc(t('evNew'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onClick: (e, close) => {
+        let el;
+        if (e.target.closest('[data-ev-new]')) { close(); openEventEditor(); return; }
+        if ((el = e.target.closest('[data-ev-open]'))) { close(); openEvent(el.dataset.evOpen); }
+      }
+    });
+  }
+  function openEventEditor(ev = null) {
+    const isNew = !ev, k = todayKey();
+    const f = ev ? JSON.parse(JSON.stringify(ev)) : { name: '', icon: '🏖️', from: addDays(k, -7), to: k, catIds: [] };
+    const icons = ['🏖️', '✈️', '🎄', '🎂', '💍', '🏠', '🚗', '🎓', '🩺', '🎉', '🛠️', '🗂️'];
+    const draw = w => {
+      $('#eve', w).innerHTML = `<div class="stack" style="gap:16px">
+        <label class="field"><span>${esc(t('evName'))}</span><input class="input" id="ev-name" maxlength="40" value="${esc(f.name)}" placeholder="${esc(t('evNamePh'))}"></label>
+        <div class="field"><span>${esc(t('habitIcon'))}</span><div class="emoji-grid" style="max-height:110px">${icons.map(i => `<button type="button" data-ev-icon="${i}" class="${f.icon === i ? 'on' : ''}">${i}</button>`).join('')}</div></div>
+        <div class="row" style="gap:12px"><label class="field grow"><span>${esc(t('ledFrom'))}</span><input class="input" id="ev-from" type="date" value="${f.from}"></label><label class="field grow"><span>${esc(t('ledTo'))}</span><input class="input" id="ev-to" type="date" value="${f.to}"></label></div>
+        <div class="field"><span>${esc(t('evCats'))}</span><div class="muted small">${esc(t('evCatsHint'))}</div>
+          <div class="row wrap" style="gap:8px;margin-top:6px">${LV.cats.filter(c => !c.archived || f.catIds.includes(c.id)).map(c => `<label class="check-chip"><input type="checkbox" data-ev-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon)} ${esc(catName(c))}</span></label>`).join('')}</div></div></div>`;
+    };
+    const read = w => { f.name = $('#ev-name', w).value.trim(); f.from = $('#ev-from', w).value || f.from; f.to = $('#ev-to', w).value || f.to; f.catIds = [...w.querySelectorAll('[data-ev-cat]')].filter(i => i.checked).map(i => i.dataset.evCat); };
+    openModal({
+      title: esc(t(isNew ? 'evNew' : 'evEdit')), body: '<div id="eve"></div>',
+      foot: `${isNew ? '' : `<button class="btn" data-ev="del">${ico('trash')}</button>`}<button class="btn primary" data-ev="save">${esc(t(isNew ? 'create' : 'save'))}</button>`,
+      onMount: draw,
+      onClick: async (e, close, w) => {
+        let el;
+        if ((el = e.target.closest('[data-ev-icon]'))) { read(w); f.icon = el.dataset.evIcon; draw(w); return; }
+        if (!(el = e.target.closest('[data-ev]'))) return;
+        if (el.dataset.ev === 'del') { if (await confirmDialog(t('evDeleteQ', { name: ev.name }))) { LV.events = LV.events.filter(x => x.id !== ev.id); ledgerSave(); close(); render(); } return; }
+        read(w);
+        if (!f.name) { toast(t('evNeedName')); $('#ev-name', w).focus(); return; }
+        if (f.to < f.from) [f.from, f.to] = [f.to, f.from];
+        if (isNew) LV.events.push({ id: uid(), ...f, createdAt: Date.now() }); else Object.assign(LV.events.find(x => x.id === ev.id), f);
+        ledgerSave(); close(); render(); sfx('complete'); toast(t('saved'));
+      }
+    });
+  }
+  // Ficha de un evento: lo gastado e ingresado, por categorías y todos sus movimientos
+  function openEvent(id) {
+    const ev = LV.events.find(x => x.id === id); if (!ev) return;
+    const list = eventEntries(ev).sort((a, b) => a.date < b.date ? 1 : -1), tot = LED.totals(list), priv = privacyOn();
+    const out = LED.byCategory(list, 'expense').map((r, i) => { const c = catOf(r.id); return { label: `${c.icon} ${catName(c)}`, value: r.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
+    const days = Math.max(1, diffDays(ev.from, ev.to) + 1);
+    openModal({
+      title: `${esc(ev.icon)} ${esc(ev.name)}`, cls: 'wide',
+      body: `<p class="muted" style="margin-top:0">${esc(fmtDate(ev.from))} – ${esc(fmtDate(ev.to))} · ${esc(t('evDays', { n: days }))} · <span class="ev-st ${eventState(ev)}">${esc(t('evSt_' + eventState(ev)))}</span></p>
+        <div class="month-sum"><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${priv ? '•••' : cents(tot.expense)}</b></div><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${priv ? '•••' : cents(tot.income)}</b></div><div><span>${esc(t('evPerDay'))}</span><b>${priv ? '•••' : cents(Math.round(tot.expense / days))}</b></div></div>
+        ${out.length ? `<div class="${priv ? 'priv' : ''}" style="margin-top:14px">${donutChart(out, t('ledgerExpense'))}</div>` : ''}
+        <h3 class="section-title" style="margin-top:18px">${esc(t('evEntries', { n: list.length }))}</h3>
+        ${list.length ? `<div class="stack" style="gap:6px">${list.map(x => { const c = catOf(x.categoryId); return `<div class="row ledger-item static"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(x.note || catName(c))}</b><span class="muted small">${esc(fmtShort(x.date))} · ${esc(catName(c))}</span></span><b class="${x.type === 'income' ? 'amt-in' : 'amt-out'}">${priv ? '•••' : cents(x.amountCents)}</b></div>`; }).join('')}</div>` : `<p class="muted">${esc(t('evNoEntries'))}</p>`}`,
+      foot: `<button class="btn" data-evx="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
+      onClick: (e, close) => { if (e.target.closest('[data-evx="edit"]')) { close(); openEventEditor(ev); } }
+    });
+  }
+
   // Repeticiones: ver y detener (los movimientos ya creados se conservan)
   function openLedgerRecs() {
     let wref;
@@ -3289,6 +3585,7 @@
     html += groups || (!quits.length ? `<div class="empty" style="padding:28px 10px"><div style="font-size:48px">✨</div><h2>${esc(t(items.length ? 'allDoneToday' : 'nothingToday'))}</h2></div>` : '');
     if (quits.length) html += `<section class="today-group"><h3 class="today-h">🚫 ${esc(t('tod_avoid'))}</h3>${quits.map(todayRow).join('')}</section>`;
     if (done.length) html += `<details class="today-group" ${pending.length ? '' : 'open'}><summary class="today-h">✅ ${esc(t('doneToday', { n: done.length }))}</summary>${done.map(todayRow).join('')}</details>`;
+    html += insightsHtml();
     return html;
   }
 
@@ -3647,7 +3944,7 @@
         if (auto) readDontRemind(w, 'weeklyReview');
         if (b.dataset.rv === 'skip') { if (auto) { state.ui.reviewSkip = week; save(); } close(); return; }
         state.reviews[week] = { good: $('#rv-good', w).value.trim(), adjust: $('#rv-adj', w).value.trim(), score: +$('#rv-score', w).value, date: todayKey() };
-        save(); close(); toast(t('saved')); if (state.ui.tab === 'habits' && habitsView() === 'charts') render();
+        save(); close(); toast(t('saved')); if (state.ui.tab === 'habits' && habitsView() === 'today') render();
       }
     });
   }
@@ -3759,7 +4056,7 @@
       onMount: (w, close) => w.addEventListener('change', async e => {
         if (e.target.id !== 'after-up' || !e.target.files[0]) return;
         readDontRemind(w, 'afterPhoto');
-        try { toast(t('photoUploading')); await uploadPhoto(p, 'after', e.target.files[0]); toast(t('photoSaved')); close(); render(); } catch (err) { toast(t('photoError', { e: err.message })); }
+        try { toast(t('photoUploading')); await uploadPhoto(p, 'after', e.target.files[0]); toast(t('avatarSaved')); close(); render(); } catch (err) { toast(t('photoError', { e: err.message })); }
       }),
       onClick: (e, close, w) => { if (e.target.closest('[data-m="later"]')) { readDontRemind(w, 'afterPhoto'); close(); } }
     });
@@ -3902,48 +4199,12 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? { name: $('#ct-wit-name', root).value.trim(), email } : 'bad';
   }
 
-  /* ---------- mascota: gato de plastilina (sin IA por ahora) ---------- */
-  const CAT_COLORS = [['negro', '#1c1c1e'], ['blanco', '#f4f1ea'], ['gris', '#8b9097'], ['naranja', '#e8892b'], ['crema', '#efd0a0'], ['marron', '#6b4428']];
-  const petOf = () => ({ kind: 'cat', name: '', fur: true, colors: ['#1c1c1e'], ...(state.pet || {}) });
-  function catSvg(pet, mood = 'neutral', size = 120) {
-    const [c1, c2raw, c3] = pet.colors;
-    const c2 = c2raw || mix(c1, '#ffffff', lum(c1) > .5 ? .35 : .18);
-    const line = mix(ink(c1), c1, .15), dark = lum(c1) > .5 ? '#3a3a3a' : '#0b0b0b';
-    const gid = 'cg' + uid();
-    const ear = pet.fur ? 0 : 6; // los gatos sin pelo tienen orejas más grandes
-    const eyes = {
-      happy: `<path d="M74 80 Q83 70 92 80 M108 80 Q117 70 126 80" stroke="${line}" stroke-width="5" fill="none" stroke-linecap="round"/>`,
-      excited: `<circle cx="83" cy="78" r="11" fill="#ffd54a"/><circle cx="117" cy="78" r="11" fill="#ffd54a"/><circle cx="83" cy="79" r="6" fill="${dark}"/><circle cx="117" cy="79" r="6" fill="${dark}"/><circle cx="86" cy="75" r="3" fill="#fff"/><circle cx="120" cy="75" r="3" fill="#fff"/><path d="M60 52 l4 -8 l4 8 l8 4 l-8 4 l-4 8 l-4 -8 l-8 -4z" fill="#ffd54a"/><path d="M140 46 l3 -6 l3 6 l6 3 l-6 3 l-3 6 l-3 -6 l-6 -3z" fill="#ffd54a"/>`,
-      sad: `<ellipse cx="83" cy="82" rx="8" ry="9" fill="#9ad15b"/><ellipse cx="117" cy="82" rx="8" ry="9" fill="#9ad15b"/><ellipse cx="83" cy="84" rx="3.5" ry="6" fill="${dark}"/><ellipse cx="117" cy="84" rx="3.5" ry="6" fill="${dark}"/><path d="M72 70 L92 75 M128 70 L108 75" stroke="${line}" stroke-width="4" stroke-linecap="round"/>`,
-      sleepy: `<path d="M74 82 Q83 88 92 82 M108 82 Q117 88 126 82" stroke="${line}" stroke-width="5" fill="none" stroke-linecap="round"/><text x="140" y="44" font-size="22" font-weight="900" fill="${mix(c1, '#ffffff', .6)}" font-family="sans-serif">z</text><text x="154" y="28" font-size="15" font-weight="900" fill="${mix(c1, '#ffffff', .6)}" font-family="sans-serif">z</text>`,
-      neutral: `<ellipse cx="83" cy="80" rx="9" ry="10" fill="#9ad15b"/><ellipse cx="117" cy="80" rx="9" ry="10" fill="#9ad15b"/><ellipse cx="83" cy="81" rx="3.5" ry="7.5" fill="${dark}"/><ellipse cx="117" cy="81" rx="3.5" ry="7.5" fill="${dark}"/><circle cx="86" cy="76" r="2.5" fill="#fff"/><circle cx="120" cy="76" r="2.5" fill="#fff"/>`
-    };
-    const mouth = mood === 'sad' ? `<path d="M92 110 Q100 103 108 110" stroke="${line}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`
-      : `<path d="M100 101 v4 M100 105 Q94 112 88 107 M100 105 Q106 112 112 107" stroke="${line}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
-    const blush = mood === 'happy' || mood === 'excited' ? `<ellipse cx="70" cy="96" rx="8" ry="5" fill="#ff7aa2" opacity=".45"/><ellipse cx="130" cy="96" rx="8" ry="5" fill="#ff7aa2" opacity=".45"/>` : '';
-    const whiskers = pet.fur ? `<path d="M78 100 L50 96 M78 105 L52 108 M122 100 L150 96 M122 105 L148 108" stroke="${mix(line, c1, .3)}" stroke-width="2" stroke-linecap="round"/>` : '';
-    const wrinkles = pet.fur ? '' : `<path d="M88 52 Q100 47 112 52 M90 59 Q100 55 110 59" stroke="${mix(c1, '#000000', .25)}" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
-    // mechones en las mejillas si tiene pelo
-    const fluff = pet.fur ? `<path d="M56 92 l-8 4 l8 2 M144 92 l8 4 l-8 2" stroke="${c1}" stroke-width="5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>` : '';
-    const patches = c3 ? `<ellipse cx="128" cy="134" rx="18" ry="14" fill="${c3}"/><ellipse cx="70" cy="150" rx="12" ry="10" fill="${c3}"/><path d="M58 60 Q66 42 84 48 Q74 62 62 70z" fill="${c3}"/>` : '';
-    return `<svg viewBox="0 0 200 200" width="${size}" height="${size}" aria-hidden="true">
-      <defs><radialGradient id="${gid}" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="${mix(c1, '#ffffff', .22)}"/><stop offset=".55" stop-color="${c1}"/><stop offset="1" stop-color="${mix(c1, '#000000', .25)}"/></radialGradient></defs>
-      <ellipse cx="100" cy="188" rx="58" ry="8" fill="#000" opacity=".25"/>
-      <path d="M146 160 Q186 150 176 112 Q172 98 162 104" stroke="${c1}" stroke-width="15" fill="none" stroke-linecap="round"/>
-      <ellipse cx="100" cy="146" rx="54" ry="42" fill="url(#${gid})"/>
-      <ellipse cx="100" cy="154" rx="28" ry="28" fill="${c2}"/>
-      ${patches}
-      <ellipse cx="78" cy="182" rx="15" ry="8" fill="${c2}"/><ellipse cx="122" cy="182" rx="15" ry="8" fill="${c2}"/>
-      <path d="M${62 - ear} 62 L${56 - ear} ${16 - ear} Q${59 - ear} ${11 - ear} ${66} ${17} L94 44 Z" fill="${c1}"/><path d="M${138 + ear} 62 L${144 + ear} ${16 - ear} Q${141 + ear} ${11 - ear} ${134} ${17} L106 44 Z" fill="${c1}"/>
-      <path d="M66 54 L63 26 L85 44 Z" fill="#f4a7b9" opacity=".9"/><path d="M134 54 L137 26 L115 44 Z" fill="#f4a7b9" opacity=".9"/>
-      <circle cx="100" cy="82" r="46" fill="url(#${gid})"/>
-      ${c3 ? `<path d="M118 40 Q146 48 144 78 Q128 66 112 64z" fill="${c3}"/>` : ''}
-      <ellipse cx="100" cy="102" rx="22" ry="15" fill="${c2}"/>
-      ${wrinkles}${eyes[mood] || eyes.neutral}${blush}
-      <path d="M94 95 h12 l-6 7z" fill="#f28aa3"/>
-      ${mouth}${whiskers}${fluff}
-    </svg>`;
-  }
+  /* ---------- mascota de plastilina: gato, perro o ninfa (dibujos en js/pets.js) ---------- */
+  const PETS = window.KGPets;
+  const safeImg = s => typeof s === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(s) ? s : '';
+  const PET_EMOJI = { cat: '🐈', dog: '🐕', cockatiel: '🐦' };
+  const petOf = () => { const p = { kind: 'cat', name: '', fur: true, ...(state.pet || {}) }; if (!PETS.KINDS.includes(p.kind)) p.kind = 'cat'; if (!Array.isArray(p.colors) || !p.colors.length) p.colors = PETS.defaults(p.kind); return p; };
+  const catSvg = (pet, mood = 'neutral', size = 120) => PETS.svg(pet, mood, size);
   function petMood() {
     const today = todayKey(), hour = new Date().getHours(), di = dayInfo(today);
     const active = state.habits.filter(h => !h.archived);
@@ -3981,23 +4242,33 @@
   function petCardHtml() {
     const pet = petOf(), msgs = petMessages(), msg = msgs[petIdx % msgs.length];
     return `<div class="pet-card clay"><button class="pet-btn" data-act="pet" aria-label="${esc(pet.name || t('petDefaultName'))}">${catSvg(pet, petMood(), 96)}</button>
-      <div class="bubble"><b>${esc(pet.name || t('petDefaultName'))}</b><span id="pet-msg">${esc(msg)}</span></div></div>`;
+      <div class="bubble grow"><b>${esc(pet.name || t('petDefaultName'))}</b><span id="pet-msg">${esc(msg)}</span></div>
+      <button class="icon-btn sm pet-edit" data-act="pet-edit" aria-label="${esc(t('petCustomize'))}" title="${esc(t('petCustomize'))}">${ico('edit')}</button></div>`;
+  }
+  // Personalizar la mascota (solo desde su tarjeta en la vista Hoy)
+  function openPetEditor() {
+    openModal({
+      title: `${PET_EMOJI[petOf().kind]} ${esc(t('petTitle'))}`, cls: 'wide',
+      body: `<div id="st-pet">${petSettingsHtml()}</div>`,
+      onMount: w => w.addEventListener('change', e => { if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); render(); toast(t('saved')); } }),
+      onClick: (e, close, w) => { if (petSettingsClick(e, w)) render(); }
+    });
   }
   function petSettingsHtml() {
-    const pet = petOf(), n = pet.colors.length;
+    const pet = petOf();
     return `<div class="pet-settings"><div class="pet-preview">${catSvg(pet, 'happy', 120)}</div><div class="stack grow" style="gap:12px;min-width:200px">
       <label class="field"><span>${esc(t('petName'))}</span><input class="input" id="pet-name" maxlength="20" value="${esc(pet.name)}" placeholder="${esc(t('petDefaultName'))}"></label>
-      <div class="field"><span>${esc(t('petKind'))}</span><div class="row wrap"><span class="chip on">🐈 ${esc(t('petCat'))}</span><span class="chip" style="opacity:.5">🐕 ${esc(t('petSoon'))}</span></div></div>
-      <div class="field"><span>${esc(t('petFur'))}</span><div class="seg"><button data-pet-fur="1" class="${pet.fur ? 'on' : ''}">${esc(t('petWithFur'))}</button><button data-pet-fur="0" class="${pet.fur ? '' : 'on'}">${esc(t('petHairless'))}</button></div></div>
-      <div class="field"><span>${esc(t('petColors'))}</span><div class="seg">${[1, 2, 3].map(k => `<button data-pet-n="${k}" class="${n === k ? 'on' : ''}">${k}</button>`).join('')}</div>
-        ${pet.colors.map((c, i) => `<div class="swatches" style="margin-top:8px"><span class="small muted" style="width:70px">${esc(t('petColor' + (i + 1)))}</span>${CAT_COLORS.map(([k, hex]) => `<button class="sw ${c === hex ? 'on' : ''}" data-pet-c="${i}:${hex}" style="--c:${hex}" title="${esc(t('cc_' + k))}" aria-label="${esc(t('cc_' + k))}"></button>`).join('')}</div>`).join('')}</div>
+      <div class="field"><span>${esc(t('petKind'))}</span><div class="seg">${PETS.KINDS.map(k => `<button data-pet-kind="${k}" class="${pet.kind === k ? 'on' : ''}">${PET_EMOJI[k]} ${esc(t('petKind_' + k))}</button>`).join('')}</div></div>
+      ${pet.kind === 'cockatiel' ? '' : `<div class="field"><span>${esc(t(pet.kind === 'dog' ? 'petEars' : 'petFur'))}</span><div class="seg"><button data-pet-fur="1" class="${pet.fur ? 'on' : ''}">${esc(t(pet.kind === 'dog' ? 'petLongEars' : 'petWithFur'))}</button><button data-pet-fur="0" class="${pet.fur ? '' : 'on'}">${esc(t(pet.kind === 'dog' ? 'petShortHair' : 'petHairless'))}</button></div></div>`}
+      <div class="field"><span>${esc(t('petColors'))}</span>
+        ${PETS.palettes(pet.kind).map((slot, i) => `<div class="swatches" style="margin-top:8px"><span class="small muted" style="width:78px">${esc(t('petSlot_' + slot.key))}</span>${i ? `<button class="sw auto ${pet.colors[i] ? '' : 'on'}" data-pet-c="${i}:" title="${esc(t('petAuto'))}" aria-label="${esc(t('petAuto'))}">∅</button>` : ''}${slot.options.filter(([, hex]) => hex).map(([k, hex]) => `<button class="sw ${pet.colors[i] === hex ? 'on' : ''}" data-pet-c="${i}:${hex}" style="--c:${hex}" title="${esc(t('pc_' + k))}" aria-label="${esc(t('pc_' + k))}"></button>`).join('')}</div>`).join('')}</div>
     </div></div>`;
   }
   function petSettingsClick(e, root) {
     let el; const pet = petOf();
-    if ((el = e.target.closest('[data-pet-fur]'))) pet.fur = el.dataset.petFur === '1';
-    else if ((el = e.target.closest('[data-pet-n]'))) { const k = +el.dataset.petN; const def = ['#1c1c1e', '#f4f1ea', '#e8892b']; pet.colors = Array.from({ length: k }, (_, i) => pet.colors[i] || def[i]); }
-    else if ((el = e.target.closest('[data-pet-c]'))) { const [i, hex] = el.dataset.petC.split(':'); pet.colors[+i] = hex; }
+    if ((el = e.target.closest('[data-pet-kind]'))) { if (pet.kind !== el.dataset.petKind) { pet.kind = el.dataset.petKind; pet.colors = PETS.defaults(pet.kind); pet.fur = true; } }
+    else if ((el = e.target.closest('[data-pet-fur]'))) pet.fur = el.dataset.petFur === '1';
+    else if ((el = e.target.closest('[data-pet-c]'))) { const [i, hex] = el.dataset.petC.split(':'); while (pet.colors.length <= +i) pet.colors.push(''); pet.colors[+i] = hex || (pet.kind === 'cockatiel' && +i === 2 ? 'none' : ''); while (pet.colors.length > 1 && !pet.colors[pet.colors.length - 1]) pet.colors.pop(); }
     else return false;
     state.pet = pet; save(); $('#st-pet', root).innerHTML = petSettingsHtml(); return true;
   }
@@ -4068,9 +4339,38 @@
     eachDay(k => { xp += Math.max(0, dayInfo(k).pts); while (xp >= xpFor(L + 1)) { L++; ev.push({ d: k, icon: '⬆️', txt: t('achLevel', { n: L, title: levelTitle(L) }) }); } });
     return ev.filter(e => e.d).sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0);
   }
+  // Foto de perfil: se reduce a 160×160 (JPEG) en el dispositivo; sin foto se ve la inicial
+  const myAvatar = () => safeImg(profileOf().avatar);
+  const meAvatar = (size, extra = '') => { const img = myAvatar(); return `<span class="me-avatar ${img ? 'photo' : ''} ${extra}" style="--s:${size}px">${img ? `<img src="${img}" alt="">` : esc(profileName().charAt(0).toUpperCase())}</span>`; };
+  function resizePhoto(file) {
+    return new Promise((res, rej) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const S = 160, cv = document.createElement('canvas'); cv.width = cv.height = S;
+        const ctx = cv.getContext('2d'), m = Math.min(img.naturalWidth, img.naturalHeight);
+        ctx.drawImage(img, (img.naturalWidth - m) / 2, (img.naturalHeight - m) / 2, m, m, 0, 0, S, S);
+        URL.revokeObjectURL(url);
+        let q = .85, out = cv.toDataURL('image/jpeg', q);
+        while (out.length > 38000 && q > .3) { q -= .1; out = cv.toDataURL('image/jpeg', q); }
+        res(out);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
+      img.src = url;
+    });
+  }
+  async function pushAvatar() {
+    if (!auth) return;
+    try { await ensureToken(); await sbFetch(`/rest/v1/kg_users?user_id=eq.${auth.uid}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ avatar: myAvatar() || null, ...(state.kx ? { pubkey: state.kx.pub } : {}), updated_at: new Date().toISOString() }) }); }
+    catch (e) { /* se reintenta al guardar el @nametag */ }
+  }
+  async function setAvatar(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    try { state.profile = { ...profileOf(), avatar: await resizePhoto(file) }; save(); render(); toast(t('avatarSaved')); sfx('toggle'); pushAvatar(); }
+    catch (e) { toast(t('avatarError')); }
+  }
   function profileCardHtml() {
     const lv = levelInfo(), bio = profileOf().bio;
-    return `<button class="prof-card clay" data-act="profile"><span class="prof-pet">${catSvg(petOf(), 'happy', 74)}</span><span class="grow"><b class="prof-card-name">${esc(profileName())}</b><span class="muted small">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</span>${bio ? `<span class="prof-bio">${esc(bio)}</span>` : `<span class="muted small">${esc(t('profileTapHint'))}</span>`}</span>${ico('right')}</button>`;
+    return `<button class="prof-card clay" data-act="profile"><span class="prof-pet">${meAvatar(74)}</span><span class="grow"><b class="prof-card-name">${esc(profileName())}</b><span class="muted small">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</span>${bio ? `<span class="prof-bio">${esc(bio)}</span>` : `<span class="muted small">${esc(t('profileTapHint'))}</span>`}</span>${ico('right')}</button>`;
   }
   // Insignias: lo que has ganado de un vistazo (maestrías de racha, cartas secretas, contratos, retos y reputación)
   function badgesHtml() {
@@ -4090,7 +4390,7 @@
     const kpi = (v, l) => `<div class="kpi clay"><b>${v}</b><span>${esc(l)}</span></div>`;
     const sec = (icon, title, body) => `<section class="prof-sec"><h3 class="section-title">${icon} ${esc(title)}</h3>${body}</section>`;
     return `<div class="stack" style="gap:22px">
-      <div class="prof-head"><button class="pet-btn" data-pf="pet" aria-label="${esc(petOf().name || t('petDefaultName'))}">${catSvg(petOf(), 'happy', 124)}</button>
+      <div class="prof-head"><div class="photo-wrap"><label class="avatar-pick" title="${esc(t('avatarChange'))}">${meAvatar(124)}<span class="photo-cam" aria-hidden="true">${ico('camera')}</span><input type="file" id="pf-photo" accept="image/*" class="sr-only" aria-label="${esc(t('avatarChange'))}"></label>${myAvatar() ? `<button class="link-btn small" data-pf="photo-rm">${esc(t('avatarRemove'))}</button>` : ''}</div>
         <div class="grow"><h2 class="prof-name">${esc(profileName())}</h2>${myTag() ? `<div class="prof-tag">@${esc(myTag())}</div>` : ''}<div class="prof-lvl">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</div><div class="muted small">${esc(t('memberSince', { d: fmtDate(st.since) }))}</div></div></div>
       <label class="field"><span>${esc(t('bioTitle'))}</span><textarea class="input" id="pf-bio" maxlength="140" rows="2" placeholder="${esc(t('ct_quote_' + (state.commitment || 'serio'), { perfecto: 'perfecto' }))}">${esc(pr.bio || '')}</textarea></label>
       <div class="row wrap"><button class="btn primary" data-pf="carnet">${ico('upload')} ${esc(t('carnetShare'))}</button>${pr.enabled && pr.slug ? `<a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${ico('globe')} ${esc(t('profileOpen'))}</a>` : `<button class="btn" data-pf="public">${ico('globe')} ${esc(t('profilePublicSetup'))}</button>`}</div>
@@ -4100,7 +4400,6 @@
       ${sec('🗓️', t('yearHeat'), yearHeatHtml())}
       ${sec('✨', t('achTitle'), ach.length ? `<div class="ach-list">${(achAll ? ach : ach.slice(0, 12)).map(e => `<div class="ach"><span class="ach-ico">${esc(e.icon)}</span><span class="grow">${esc(e.txt)}</span><span class="muted small">${esc(fmtShort(e.d))}</span></div>`).join('')}</div>${ach.length > 12 ? `<div class="center" style="margin-top:10px"><button class="chip" data-pf="ach-more">${esc(t(achAll ? 'achLess' : 'achMore', { n: ach.length }))}</button></div>` : ''}` : `<p class="muted small">${esc(t('achNone'))}</p>`)}
       ${sec('🏅', t('repTotal'), `<div id="pf-rep">${repHtml()}</div>`)}
-      ${sec('🐈', t('petTitle'), `<div id="st-pet">${petSettingsHtml()}</div>`)}
     </div>`;
   }
   function openProfile() {
@@ -4113,14 +4412,13 @@
         if (auth) loadRep().then(() => { const el = $('#pf-rep', w); if (el) el.innerHTML = repHtml(); });
         w.addEventListener('change', e => {
           if (e.target.id === 'pf-bio') { state.profile = { ...profileOf(), bio: e.target.value.trim().slice(0, 140) }; save(); render(); toast(t('saved')); }
-          if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); render(); toast(t('saved')); }
+          if (e.target.id === 'pf-photo') setAvatar(e.target.files[0]).then(() => w._draw());
         });
       },
       onClick: (e, close, w) => {
-        if (petSettingsClick(e, w)) { w._draw(); render(); return; }
         const b = e.target.closest('[data-pf]'); if (!b) return;
         switch (b.dataset.pf) {
-          case 'pet': b.classList.remove('bounce'); void b.offsetWidth; b.classList.add('bounce'); vibrate([8, 30, 8]); break;
+          case 'photo-rm': { const p = profileOf(); delete p.avatar; state.profile = p; save(); render(); w._draw(); pushAvatar(); break; }
           case 'slot': openShowcasePicker(+b.dataset.i, () => { w._draw(); render(); }); break;
           case 'ach-more': achAll = !achAll; w._draw(); break;
           case 'carnet': shareCanvas(profileCanvas, 'keepgoing-carnet.png', t('carnetTitle')); break;
@@ -4144,8 +4442,11 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const txt = (s, y, size, color, weight = 700) => { ctx.font = `${weight} ${size}px "${fam}", sans-serif`; ctx.fillStyle = color; ctx.fillText(s, W / 2, y); };
     txt('KEEPGOING', 130, 30, mut, 700);
-    const svg = catSvg(petOf(), 'happy', 330).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
-    try { const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); await img.decode(); ctx.drawImage(img, W / 2 - 165, 160, 330, 330); } catch (e) { /* sin mascota */ }
+    ctx.save(); ctx.beginPath(); ctx.arc(W / 2, 325, 160, 0, Math.PI * 2); ctx.closePath(); ctx.fillStyle = rgba(th.accent, .9); ctx.fill(); ctx.clip();
+    let drawn = false;
+    if (myAvatar()) { try { const img = new Image(); img.src = myAvatar(); await img.decode(); ctx.drawImage(img, W / 2 - 160, 165, 320, 320); drawn = true; } catch (e) { /* sin foto */ } }
+    ctx.restore();
+    if (!drawn) txt(profileName().charAt(0).toUpperCase(), 330, 160, '#fff', 700);
     let ns = 64; ctx.font = `700 ${ns}px "${fam}", sans-serif`; while (ns > 34 && ctx.measureText(profileName()).width > W - 180) { ns -= 2; ctx.font = `700 ${ns}px "${fam}", sans-serif`; }
     txt(profileName(), 560, ns, fg, 700);
     txt(t('lvShortTitle', { n: lv.level, title: lv.title }), 630, 36, th.accent, 700);
@@ -4169,7 +4470,7 @@
   const slugify = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
   const profileUrl = slug => `${APP_URL}?u=${encodeURIComponent(slug)}`;
   function profileSnapshot() {
-    const pr = profileOf(), s = pr.show, out = { name: firstName(), lang: state.lang, at: todayKey(), bio: pr.bio || '', pet: petOf() };
+    const pr = profileOf(), s = pr.show, out = { name: firstName(), lang: state.lang, at: todayKey(), bio: pr.bio || '', ...(myAvatar() ? { avatar: myAvatar() } : {}) };
     if (s.level) { const lv = levelInfo(); out.level = { n: lv.level, title: lv.title, xp: lv.xp }; }
     if (s.cards) {
       const pm = RANKS.filter(([r]) => state.perfectMastery[r]).map(([r]) => [r, state.perfectMastery[r].date, state.perfectMastery[r].serial || 0]);
@@ -4227,7 +4528,7 @@
     try { const rows = await sbFetch(`/rest/v1/kg_profiles?slug=eq.${encodeURIComponent(slug)}&enabled=eq.true&select=data,updated_at`, {}, false); row = rows && rows[0]; } catch (e) { row = null; }
     if (!row) { app.innerHTML = `<div class="main">${emptyState('crown', t('profileNotFound'), t('profileNotFoundSub'), `<a class="btn primary" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a>`)}</div>`; return; }
     const d = row.data;
-    let html = `<div class="main"><div class="public-head clay"><div class="lvl-big">${d.level ? d.level.n : '★'}</div><div class="grow"><div class="muted small" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1 style="margin:2px 0;font-size:30px">${esc(d.name || 'KeepGoing')}</h1>${d.level ? `<div class="muted">${esc(d.level.title)} · ${fmtNum(d.level.xp)} XP</div>` : ''}${d.bio ? `<div class="prof-bio" style="margin-top:6px">${esc(d.bio)}</div>` : ''}</div>${d.pet ? `<span class="prof-pet">${catSvg({ kind: 'cat', name: '', fur: true, colors: ['#1c1c1e'], ...d.pet }, 'happy', 84)}</span>` : ''}</div>`;
+    let html = `<div class="main"><div class="public-head clay"><div class="lvl-big">${d.level ? d.level.n : '★'}</div><div class="grow"><div class="muted small" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1 style="margin:2px 0;font-size:30px">${esc(d.name || 'KeepGoing')}</h1>${d.level ? `<div class="muted">${esc(d.level.title)} · ${fmtNum(d.level.xp)} XP</div>` : ''}${d.bio ? `<div class="prof-bio" style="margin-top:6px">${esc(d.bio)}</div>` : ''}</div>${safeImg(d.avatar) ? `<span class="me-avatar photo" style="--s:84px"><img src="${safeImg(d.avatar)}" alt=""></span>` : ''}</div>`;
     if (d.showcase && d.showcase.length) html += `<h2 class="section-title" style="margin:24px 0 12px">🏆 ${esc(t('showcaseTitle'))}</h2><div class="show-row">${d.showcase.map(x => x.k === 'm'
       ? `<div class="kcard-btn">${cardFace({ id: '_', name: x.name }, x.i, 'front', '', { date: x.date, serial: x.serial })}<span class="cap">${esc(t('rank_' + RANKS[x.i][0]))} · ${esc(x.name)}</span></div>`
       : `<div class="kcard-btn">${secretCardHtml(x.id, x.icon, x.date)}<span class="cap">${esc(t('sec_' + x.id))}</span></div>`).join('')}</div>`;
@@ -4334,24 +4635,144 @@
     try { await pushGroupProgress(); myGroups.list = await rpc('kg_my_groups'); myGroups.error = false; }
     catch (e) { myGroups.error = true; }
     myGroups.at = Date.now(); myGroups.busy = false;
-    if (state.ui.tab === 'habits' && state.ui.habitsView === 'shared' && !$('#modal-root').children.length) render();
+    if (state.ui.tab === 'chat' && !$('#modal-root').children.length) render();
   }
-  const avatarHtml = (m, extra = '') => `<span class="avatar ${extra}" title="${esc(m.display_name)}">${esc((m.display_name || '?').charAt(0).toUpperCase())}</span>`;
+  // Foto de perfil (si la hay) o la inicial del nombre
+  const avatarHtml = (m, extra = '') => { const img = safeImg(m.avatar || (auth && m.user_id === auth.uid && state.profile && state.profile.avatar)); return `<span class="avatar ${extra} ${img ? 'photo' : ''}" title="${esc(m.display_name || '')}">${img ? `<img src="${img}" alt="">` : esc((m.display_name || m.nametag || '?').charAt(0).toUpperCase())}</span>`; };
   const liveBadge = st => st === 'live' ? `<span class="live-chip">🔴 ${esc(t('gLiveNow'))}</span>` : st === 'voting' ? `<span class="vote-chip">🗳️ ${esc(t('gVotingNow'))}</span>` : '';
-  function groupsViewHtml(active) {
-    const hs = active.filter(h => h.groupId), ps = state.projects.filter(p => p.groupId);
-    const localList = () => (hs.length ? `<div class="habit-grid">${hs.map(habitCard).join('')}</div>` : '') + (ps.length ? `<h2 class="section-title" style="margin-top:24px">🎯 ${esc(t('sharedProjects'))}</h2><div class="proj-grid">${ps.map(projCard).join('')}</div>` : '');
-    if (!auth) return (hs.length || ps.length) ? `<div class="banner clay">👥<span class="grow">${esc(t('groupNeedLogin'))}</span></div>` + localList() : emptyState('globe', t('sharedEmpty'), t('groupNeedLogin'), '');
-    refreshMyGroups();
-    if (!myGroups.list) return myGroups.error ? `<div class="banner clay">📡<span class="grow">${esc(t('groupsOffline'))}</span></div>` + localList() : `<p class="muted center">${esc(t('groupsLoading'))}</p>` + localList();
-    if (!myGroups.list.length) return emptyState('globe', t('sharedEmpty'), t('sharedEmptySub'), '');
-    return `<div class="g-list">${myGroups.list.map(g => {
-      const mine = findByGroup(g.id), wl = `${g.wins}-${g.losses}`;
-      return `<button class="g-card clay" data-group-open="${esc(g.id)}">
-        <span class="g-card-head"><span class="g-icon">${esc(g.icon || '🎯')}</span><span class="grow"><b class="ellipsis">${esc(g.name)}</b><span class="muted small">${esc(t(g.kind === 'habit' ? 'gHabit' : 'gProject'))} · ${esc((g.spec && g.spec.name) || g.name)} · ${esc(t('gWL'))} ${wl}</span></span>${liveBadge(g.live)}</span>
-        <span class="g-people">${g.members.map(m => `<span class="g-person ${g.kind === 'habit' ? (m.done_today ? 'done' : 'pending') : ''}">${avatarHtml(m, 'sm')}<span class="small ellipsis">${esc(m.user_id === auth.uid ? t('gYou') : m.display_name)}</span>${g.kind === 'habit' ? `<span class="g-dot" aria-label="${esc(t(m.done_today ? 'gDoneToday' : 'gNotToday'))}">${m.done_today ? '✓' : '·'}</span>` : ''}</span>`).join('')}</span>
-      </button>`;
-    }).join('')}</div>`;
+  /* ---------- pestaña Chat: amigos por @nametag, conversaciones (privadas y grupos) y libretas compartidas ---------- */
+  const chatData = { friends: null, shares: null, at: 0, busy: false, error: false };
+  const READ_KEY = 'keepgoing.chatRead';
+  const readMap = () => { try { return JSON.parse(localStorage.getItem(READ_KEY)) || {}; } catch (e) { return {}; } };
+  function markRead(gid, id) {
+    if (!id) return;
+    const m = readMap(); if ((m[gid] || 0) >= id) return;
+    m[gid] = id; try { localStorage.setItem(READ_KEY, JSON.stringify(m)); } catch (e) { /* nada */ }
+  }
+  const unread = g => !!(auth && g.last && g.last.user_id !== auth.uid && g.last.id > (readMap()[g.id] || 0));
+  async function refreshChat(force = false) {
+    if (!auth || chatData.busy || (!force && Date.now() - chatData.at < 30000)) return;
+    chatData.busy = true;
+    try { [chatData.friends, chatData.shares] = await Promise.all([rpc('kg_friends'), rpc('kg_ledger_list')]); chatData.error = false; }
+    catch (e) { chatData.error = true; }
+    chatData.at = Date.now(); chatData.busy = false;
+    if (state.ui.tab === 'chat' && !$('#modal-root').children.length) render();
+  }
+  const myName = () => (firstName() || myTag() || 'Yo').slice(0, 40);
+  const personName = p => (p && (p.display_name || (p.nametag ? '@' + p.nametag : ''))) || '—';
+  const chatName = g => g.chat === 'dm' ? personName(g.peer) : g.name;
+  const chatAvatar = g => g.chat === 'dm' ? avatarHtml(g.peer || {}, 'lg') : `<span class="avatar lg g-av">${esc(g.icon || '👥')}</span>`;
+  function chatPreview(g) {
+    const l = g.last; if (!l) return t('chatNoMsgs');
+    if (l.kind === 'system') return t('chatPrevSys');
+    const txt = l.kind === 'text' ? l.body : l.kind === 'invite' ? '🔗 ' + t('chatPrevInvite') : '📌 ' + t('chatPrevShare');
+    if (l.user_id === auth.uid) return t('chatYou') + ': ' + txt;
+    if (g.chat === 'dm') return txt;
+    const m = (g.members || []).find(x => x.user_id === l.user_id);
+    return (m ? m.display_name + ': ' : '') + txt;
+  }
+  const kindTag = g => g.chat === 'group' ? '' : g.chat === 'dm' ? '' : `<span class="chat-kind">${g.kind === 'habit' ? '📋' : '🎯'} ${esc(t(g.kind === 'habit' ? 'gHabit' : 'gProject'))}</span>`;
+  const shareRange = s => s.range_from && s.range_to ? `${fmtShort(s.range_from)} – ${fmtShort(s.range_to)}` : '';
+  function shareRow(s) {
+    const tag = s.peer.nametag || s.peer.display_name || '?';
+    return `<button class="chat-row" data-ls-open="${esc(s.id)}"><span class="avatar lg wallet">${ico('wallet')}</span>
+      <span class="chat-mid"><b class="ellipsis">${esc(s.mine ? t('lsSentTitle', { tag }) : t('lsTitle', { tag }))}</b><span class="muted small ellipsis">🔒 ${esc([s.title, shareRange(s)].filter(Boolean).join(' · '))}</span></span>
+      <span class="chat-end"><span class="small muted">${esc(fmtTime(s.created_at))}</span></span></button>`;
+  }
+  function convRow(g) {
+    const u = unread(g);
+    return `<button class="chat-row ${u ? 'unread' : ''}" data-chat-open="${esc(g.id)}">${chatAvatar(g)}
+      <span class="chat-mid"><b class="ellipsis">${esc(chatName(g))}${g.chat === 'group' ? ` <span class="muted small">· ${g.members.length}</span>` : ''}</b><span class="muted small ellipsis">${kindTag(g)}${esc(chatPreview(g))}</span></span>
+      <span class="chat-end"><span class="small muted">${g.last ? esc(fmtTime(g.last.created_at)) : ''}</span>${u ? '<span class="unread-dot" aria-label="•"></span>' : liveBadge(g.live)}</span></button>`;
+  }
+  function friendsHtml(fr) {
+    const inc = fr.filter(f => f.status === 'incoming'), acc = fr.filter(f => f.status === 'accepted'), out = fr.filter(f => f.status === 'outgoing');
+    const row = (f, actions) => `<div class="chat-row static">${avatarHtml(f, 'lg')}<span class="chat-mid"><b class="ellipsis">${esc(personName(f))}</b><span class="muted small ellipsis">@${esc(f.nametag || '')}</span></span><span class="chat-end row" style="gap:6px">${actions}</span></div>`;
+    let html = `<form class="clay card friend-add" id="friend-form"><label class="field" style="margin:0"><span>${esc(t('friendAdd'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="friend-tag" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('nametagPh'))}"><button class="btn primary" type="submit">${esc(t('friendSend'))}</button></div></label></form>`;
+    if (inc.length) html += `<h2 class="section-title">📨 ${esc(t('friendRequests'))}</h2><div class="chat-rows clay">${inc.map(f => row(f, `<button class="btn primary sm" data-fr-yes="${f.user_id}">${esc(t('friendAccept'))}</button><button class="chip sm" data-fr-no="${f.user_id}">${esc(t('friendDecline'))}</button>`)).join('')}</div>`;
+    html += `<h2 class="section-title">👋 ${esc(t('friendsTitle'))} · ${acc.length}</h2>`;
+    html += acc.length ? `<div class="chat-rows clay">${acc.map(f => row(f, `<button class="icon-btn sm" data-fr-dm="${f.user_id}" aria-label="${esc(t('friendMessage'))}" title="${esc(t('friendMessage'))}">${ico('chat')}</button><button class="icon-btn sm" data-fr-rm="${f.user_id}" aria-label="${esc(t('friendRemove'))}" title="${esc(t('friendRemove'))}">${ico('x')}</button>`)).join('')}</div>` : `<p class="muted">${esc(t('friendsEmpty'))}</p>`;
+    if (out.length) html += `<h2 class="section-title">⏳ ${esc(t('friendPending'))}</h2><div class="chat-rows clay">${out.map(f => row(f, `<button class="chip sm" data-fr-rm="${f.user_id}">${esc(t('cancel'))}</button>`)).join('')}</div>`;
+    return html;
+  }
+  function viewChat() {
+    const v = state.ui.chatView === 'friends' ? 'friends' : 'chats';
+    let html = topBar(auth ? `<button class="icon-btn" data-act="chat-friends" aria-label="${esc(t('friendAdd'))}" title="${esc(t('friendAdd'))}">${ico('user')}</button><button class="icon-btn" data-act="chat-new" aria-label="${esc(t('chatNewGroup'))}" title="${esc(t('chatNewGroup'))}">${ico('plus')}</button>` : '');
+    html += `<h1 class="page-title">${esc(t('tabChat'))}</h1>`;
+    if (!auth) return html + emptyState('chat', t('chatLoginTitle'), t('chatLoginSub'), `<button class="btn primary" data-act="chat-login">${esc(t('signIn'))}</button>`);
+    refreshMyGroups(); refreshChat();
+    const fr = chatData.friends || [], inc = fr.filter(f => f.status === 'incoming').length;
+    html += `<div class="seg view-seg" role="tablist">${[['chats', '💬', 'chatChats'], ['friends', '👋', 'chatFriends']].map(([k, e, l]) => `<button data-act="cview" data-v="${k}" role="tab" aria-selected="${v === k}" class="${v === k ? 'on' : ''}"><span class="vi">${e}</span> ${esc(t(l))}${k === 'friends' && inc ? ` <span class="count-dot">${inc}</span>` : ''}</button>`).join('')}</div>`;
+    if (!myTag()) html += `<div class="banner clay">🏷️<span class="grow">${esc(t('chatNeedTag'))}</span><button class="chip" data-act="profile">${esc(t('chatSetTag'))}</button></div>`;
+    if (v === 'friends') return html + (chatData.friends ? friendsHtml(fr) : `<p class="muted center">${esc(t(chatData.error ? 'groupsOffline' : 'groupsLoading'))}</p>`);
+    if (inc) html += `<button class="banner clay" data-act="cview" data-v="friends" style="width:100%;border:0;text-align:left;color:inherit">📨<span class="grow"><b>${esc(t('friendRequestsN', { n: inc }))}</b></span>${ico('right')}</button>`;
+    if (!myGroups.list) return html + `<p class="muted center">${esc(t(myGroups.error ? 'groupsOffline' : 'groupsLoading'))}</p>`;
+    const shares = chatData.shares || [], convs = myGroups.list;
+    if (!shares.length && !convs.length) return html + emptyState('chat', t('chatEmptyTitle'), t('chatEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="cview" data-v="friends">${ico('user')} ${esc(t('friendAdd'))}</button><button class="btn" data-act="chat-new">${ico('plus')} ${esc(t('chatNewGroup'))}</button></div>`);
+    if (shares.length) html += `<h2 class="section-title">👛 ${esc(t('lsShared'))}</h2><div class="chat-rows clay">${shares.map(shareRow).join('')}</div>`;
+    if (convs.length) html += `<h2 class="section-title">💬 ${esc(t('chatChats'))}</h2><div class="chat-rows clay">${convs.map(convRow).join('')}</div>`;
+    return html;
+  }
+  async function chatAction(fn, okMsg) {
+    try { const r = await fn(); if (okMsg) toast(okMsg); sfx('toggle'); chatData.at = 0; myGroups.at = 0; await Promise.all([refreshChat(true), refreshMyGroups(true)]); return r; }
+    catch (e) { toast(chatErr(e)); return null; }
+  }
+  const chatErr = e => {
+    const m = String(e && e.message || e);
+    for (const [re, k] of [[/no such user/, 'friendNoUser'], [/self/, 'friendSelf'], [/slow down/, 'chatSlow'], [/not a friend/, 'friendNotFriend'], [/group full/, 'chatFull'], [/not allowed/, 'chatNoPerm']]) if (re.test(m)) return t(k);
+    return t('groupError', { e: m });
+  };
+  async function sendFriendRequest(raw) {
+    const tag = GG.toNametag(raw);
+    if (!GG.isNametag(tag)) { toast(t('nametagBad')); return false; }
+    const r = await chatAction(() => rpc('kg_friend_request', { p_tag: tag }));
+    if (r) toast(t(r.status === 'accepted' ? 'friendNowFriends' : 'friendSent', { tag: '@' + tag }));
+    return !!r;
+  }
+  async function openDm(userId) {
+    const gid = await chatAction(() => rpc('kg_dm_open', { p_user: userId, p_display_name: myName() }));
+    if (gid) openGroup(gid, null, 'chat');
+  }
+  function openNewChat() {
+    const friends = (chatData.friends || []).filter(f => f.status === 'accepted');
+    const ICONS_G = ['💬', '👥', '🔥', '🏋️', '📚', '🎮', '✈️', '🍕', '💼', '🎵'];
+    let icon = ICONS_G[0];
+    openModal({
+      title: `${ico('plus')} ${esc(t('chatNewGroup'))}`,
+      body: `<div class="stack" style="gap:14px">
+        <label class="field"><span>${esc(t('chatGroupName'))}</span><input class="input" id="cg-name" maxlength="80" placeholder="${esc(t('chatGroupNamePh'))}"></label>
+        <div class="field"><span>${esc(t('habitIcon'))}</span><div class="row wrap" style="gap:6px">${ICONS_G.map((e, i) => `<button type="button" class="chip ${i ? '' : 'on'}" data-cg-ico="${e}">${e}</button>`).join('')}</div></div>
+        <div class="field"><span>${esc(t('chatPickFriends'))}</span>${friends.length ? `<div class="row wrap" style="gap:8px">${friends.map(f => `<label class="check-chip"><input type="checkbox" data-cg-user="${f.user_id}"><span>${esc(personName(f))}</span></label>`).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('chatNoFriends'))}</p>`}</div>
+        <p class="muted small" style="margin:0">${esc(t('chatGroupHint'))}</p></div>`,
+      foot: `<button class="btn primary block" data-cg="go">${esc(t('chatCreate'))}</button>`,
+      onClick: async (e, close, w) => {
+        const ib = e.target.closest('[data-cg-ico]');
+        if (ib) { icon = ib.dataset.cgIco; $$('[data-cg-ico]', w).forEach(b => b.classList.toggle('on', b === ib)); return; }
+        const b = e.target.closest('[data-cg]'); if (!b) return;
+        const name = $('#cg-name', w).value.trim();
+        if (!name) { toast(t('chatGroupName')); $('#cg-name', w).focus(); return; }
+        const members = $$('[data-cg-user]', w).filter(i => i.checked).map(i => i.dataset.cgUser);
+        b.disabled = true;
+        const r = await chatAction(() => rpc('kg_chat_create', { p_name: name, p_icon: icon, p_display_name: myName(), p_members: members }));
+        if (!r) { b.disabled = false; return; }
+        close(); openGroup(r.group_id, r.code, 'chat');
+      }
+    });
+  }
+  function chatClick(e) {
+    let el;
+    if ((el = e.target.closest('[data-chat-open]'))) { openGroup(el.dataset.chatOpen, null, 'chat'); return true; }
+    if ((el = e.target.closest('[data-ls-open]'))) { openLedgerShareView(el.dataset.lsOpen); return true; }
+    if ((el = e.target.closest('[data-fr-dm]'))) { openDm(el.dataset.frDm); return true; }
+    if ((el = e.target.closest('[data-fr-yes]'))) { el.disabled = true; chatAction(() => rpc('kg_friend_respond', { p_user: el.dataset.frYes, p_accept: true }), t('friendAccepted')); return true; }
+    if ((el = e.target.closest('[data-fr-no]'))) { el.disabled = true; chatAction(() => rpc('kg_friend_respond', { p_user: el.dataset.frNo, p_accept: false })); return true; }
+    if ((el = e.target.closest('[data-fr-rm]'))) {
+      const f = (chatData.friends || []).find(x => x.user_id === el.dataset.frRm);
+      const u = el.dataset.frRm;
+      (f && f.status === 'accepted' ? confirmDialog(t('friendRemoveQ', { name: personName(f) })) : Promise.resolve(true)).then(ok => { if (ok) chatAction(() => rpc('kg_friend_remove', { p_user: u })); });
+      return true;
+    }
+    return false;
   }
 
   /* ---- pantalla de un grupo ---- */
@@ -4370,6 +4791,9 @@
     const me = () => G.info && G.info.members.find(m => m.user_id === auth.uid);
     const can = p => GG.can(me(), p);
     const isLeader = () => !!me() && me().role === 'lider';
+    const isDm = () => !!G.info && G.info.group.chat === 'dm';
+    const isChat = () => !!G.info && !!G.info.group.chat;
+    const peer = () => G.info && G.info.members.find(m => m.user_id !== auth.uid);
     const memberName = id => { const m = G.info && G.info.members.find(x => x.user_id === id); return m ? m.display_name : '—'; };
     const loadInfo = async () => {
       try { G.info = await rpc('kg_group_info', { p_group: gid }); }
@@ -4385,13 +4809,24 @@
       if (sig === G.sig) return false;
       const fresh = G.msgs.length && rows.length && rows[0].id > G.msgs[G.msgs.length - 1].id && rows[0].user_id !== auth.uid;
       G.msgs = rows.reverse(); G.sig = sig;
+      if (G.msgs.length) markRead(gid, G.msgs[G.msgs.length - 1].id);
       if (fresh) sfx('pop');
       return true;
     };
     const body = () => wref && $('#grp', wref);
 
     /* --- perfil del grupo --- */
+    const chatProfileTab = () => {
+      const { group: g, members, max_members: max } = G.info, link = G.code ? `${APP_URL}?join=${G.code}` : '';
+      return `<div class="stack" style="gap:16px">
+        <section class="clay card g-profile"><div class="g-head"><span class="g-icon lg">${esc(g.icon || '👥')}</span><div class="grow" style="min-width:0"><h2 class="ellipsis" style="margin:0">${esc(g.name)}</h2><div class="muted">${esc(t('chatGroupKind'))} · ${members.length}${max ? `/${max}` : ''} ${esc(t('gMembersN')).toLowerCase()}</div></div></div>
+          <div class="g-people" style="margin-top:12px">${members.map(m => `<span class="g-person">${avatarHtml(m, 'sm')}<span class="small ellipsis">${esc(m.user_id === auth.uid ? t('gYou') : m.display_name)}</span></span>`).join('')}</div></section>
+        ${can('invite') ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button>${link ? `<div class="row wrap" style="margin-top:12px"><input class="input grow" readonly value="${esc(link)}" onclick="this.select()" style="flex:1 1 220px"><button class="btn" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p>` : ''}</section>` : ''}
+        <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('chatLeave'))}</button></div>
+      </div>`;
+    };
     const profileTab = () => {
+      if (isChat()) return chatProfileTab();
       const { group: g, members, max_members: max, launched, wins, losses, active } = G.info;
       const stat = (label, val, extra = '') => `<div class="g-stat"><span class="muted small">${esc(label)}</span><b>${val}</b>${extra}</div>`;
       const link = G.code ? `${APP_URL}?join=${G.code}` : '';
@@ -4423,7 +4858,7 @@
     const myGroupCodes = () => new Set(((myGroups.list) || []).map(g => g.code));
     const msgHtml = m => {
       if (m.kind === 'system') return `<div class="msg sys">${esc(sysText(m))}</div>`;
-      const mine = m.user_id === auth.uid, canDel = !m.deleted && (mine || can('moderate'));
+      const mine = m.user_id === auth.uid, canDel = !m.deleted && (mine || (!isDm() && can('moderate')));
       let inner;
       if (m.deleted) inner = `<i class="muted">${esc(t('chatDeleted'))}</i>`;
       else if (m.kind === 'invite') {
@@ -4433,11 +4868,11 @@
         const p = m.payload || {}, s = p.spec || {};
         inner = `<div class="msg-card"><span class="g-icon">${esc(s.icon || '📌')}</span><span class="grow"><b>${esc(s.name || '')}</b><span class="muted small">${esc(t('chatShareCard', { kind: t(p.type === 'project' ? 'gProject' : 'gHabit') }))}</span></span><button class="btn sm" data-gc-add="${m.id}">${ico('plus')} ${esc(t('chatAdd'))}</button></div>`;
       } else inner = `<span class="msg-text">${esc(m.body)}</span>`;
-      return `<div class="msg ${mine ? 'mine' : ''}">${mine ? '' : `<span class="msg-who small">${esc(memberName(m.user_id))}</span>`}<div class="msg-bubble">${inner}</div><span class="msg-meta small muted">${esc(fmtTime(m.created_at))}${canDel ? ` · <button class="link-btn" data-gc-del="${m.id}">${esc(t('chatDelete'))}</button>` : ''}</span></div>`;
+      return `<div class="msg ${mine ? 'mine' : ''}">${mine || isDm() ? '' : `<span class="msg-who small">${esc(memberName(m.user_id))}</span>`}<div class="msg-bubble">${inner}</div><span class="msg-meta small muted">${esc(fmtTime(m.created_at))}${canDel ? ` · <button class="link-btn" data-gc-del="${m.id}">${esc(t('chatDelete'))}</button>` : ''}</span></div>`;
     };
     const chatTab = () => `<div class="chat">
         <div class="chat-list" id="chat-list" role="log" aria-live="polite">${G.msgs.length ? G.msgs.map(msgHtml).join('') : `<p class="muted center">${esc(t('chatEmpty'))}</p>`}</div>
-        <form class="chat-compose" id="chat-form">${can('share') ? `<button type="button" class="icon-btn" data-g="chat-more" aria-label="${esc(t('chatMore'))}">${ico('plus')}</button>` : ''}<input class="input grow" id="chat-in" maxlength="1000" autocomplete="off" placeholder="${esc(t('chatPh'))}" aria-label="${esc(t('chatPh'))}"><button class="btn primary" type="submit">${esc(t('chatSend'))}</button></form>
+        <form class="chat-compose" id="chat-form">${can('share') ? `<button type="button" class="icon-btn" data-g="chat-more" aria-label="${esc(t('chatMore'))}">${ico('plus')}</button>` : ''}<input class="input grow" id="chat-in" maxlength="1000" autocomplete="off" placeholder="${esc(t('chatPh'))}" aria-label="${esc(t('chatPh'))}"><button class="btn primary send-btn" type="submit" aria-label="${esc(t('chatSend'))}">${ico('send')}</button></form>
       </div>`;
     const scrollChat = () => { const l = wref && $('#chat-list', wref); if (l) l.scrollTop = l.scrollHeight; };
 
@@ -4546,20 +4981,30 @@
             <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${roleCtl}${status}<span class="rep-chip" title="${esc(t('repInGroup'))}">🏅 ${esc(t('repShort', { n: m.rep || 0 }))}</span></div>${perms}</div>
           ${leader && !self ? `<button class="icon-btn sm" data-g-kick="${m.user_id}" aria-label="${esc(t('gKick'))}">${ico('x')}</button>` : ''}
         </div>`;
-      }).join('')}</section>${isLeader() ? `<p class="muted small center">${esc(t('gPermsLeader'))}</p>` : ''}`;
+      }).join('')}</section>${isChat() && can('invite') ? `<div class="center" style="margin-top:12px"><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button></div>` : ''}${isLeader() ? `<p class="muted small center">${esc(t('gPermsLeader'))}</p>` : ''}`;
     };
 
-    const TABS = [['profile', '🪪', 'gTabProfile'], ['chat', '💬', 'gTabChat'], ['live', '🔴', 'gTabLive'], ['rank', '🏅', 'gTabRank'], ['members', '👥', 'gTabMembers']];
+    const ALL_TABS = [['profile', '🪪', 'gTabProfile'], ['chat', '💬', 'gTabChat'], ['live', '🔴', 'gTabLive'], ['rank', '🏅', 'gTabRank'], ['members', '👥', 'gTabMembers']];
+    // Conversación privada: solo el chat. Grupo de chat: chat, miembros (roles y permisos) y perfil
+    const tabsFor = () => isDm() ? ALL_TABS.filter(x => x[0] === 'chat') : isChat() ? [ALL_TABS[1], ALL_TABS[4], ALL_TABS[0]] : ALL_TABS;
+    const setTitle = () => {
+      const h = wref && $('.sheet-head h2', wref); if (!h || !G.info) return;
+      const g = G.info.group, p = peer();
+      h.innerHTML = isDm() ? `<span class="row" style="gap:10px;min-width:0">${avatarHtml(p || {}, 'sm')}<span class="ellipsis">${esc(p ? p.display_name : '—')}${p && p.nametag ? ` <span class="muted small">@${esc(p.nametag)}</span>` : ''}</span></span>` : `<span class="ellipsis">${esc(g.icon || '👥')} ${esc(g.name)}</span>`;
+    };
     const draw = (keepChat = false) => {
       const el = body(); if (!el) return;
       if (G.gone || !G.info) { el.innerHTML = `<p class="muted">${esc(t('groupGone'))}</p>`; return; }
+      const TABS = tabsFor();
+      if (!TABS.some(x => x[0] === G.tab)) G.tab = TABS[0][0];
+      setTitle();
       if (keepChat && G.tab === 'chat' && $('#chat-list', el)) {
         const l = $('#chat-list', el), atEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 60;
         l.innerHTML = G.msgs.length ? G.msgs.map(msgHtml).join('') : `<p class="muted center">${esc(t('chatEmpty'))}</p>`;
         if (atEnd) scrollChat(); return;
       }
       const draft = $('#chat-in', el) ? $('#chat-in', el).value : '';
-      el.innerHTML = `<div class="seg g-tabs" role="tablist">${TABS.map(([k, e, l]) => `<button role="tab" aria-selected="${G.tab === k}" class="${G.tab === k ? 'on' : ''}" data-gt="${k}"><span aria-hidden="true">${e}</span> <span class="g-tab-l">${esc(t(l))}</span></button>`).join('')}</div>
+      el.innerHTML = `${TABS.length < 2 ? '' : `<div class="seg g-tabs" role="tablist">${TABS.map(([k, e, l]) => `<button role="tab" aria-selected="${G.tab === k}" class="${G.tab === k ? 'on' : ''}" data-gt="${k}"><span aria-hidden="true">${e}</span> <span class="g-tab-l">${esc(t(l))}</span></button>`).join('')}</div>`}
         <div class="g-pane" role="tabpanel">${G.tab === 'chat' ? chatTab() : G.tab === 'live' ? liveTab() : G.tab === 'rank' ? rankTab() : G.tab === 'members' ? membersTab() : profileTab()}</div>`;
       if (G.tab === 'chat') { const i = $('#chat-in', el); if (draft) i.value = draft; scrollChat(); }
     };
@@ -4569,7 +5014,7 @@
       G.timers.push(setInterval(async () => { if (document.hidden) return; try { const before = JSON.stringify(G.info && G.info.active); await loadInfo(); if (G.tab !== 'chat' && JSON.stringify(G.info.active) !== before) draw(); } catch (e) { /* sin conexión */ } }, 20000));
     };
     async function chatShare() {
-      const opts = [['invite', '🔗', 'chatShareInvite'], ['habit', '📋', 'chatShareHabit'], ['project', '🎯', 'chatShareProject']];
+      const opts = [['invite', '🔗', 'chatShareInvite'], ['habit', '📋', 'chatShareHabit'], ['project', '🎯', 'chatShareProject']].filter(o => !(isDm() && o[0] === 'invite'));
       openModal({
         title: esc(t('chatMore')),
         body: `<div class="stack" style="gap:10px">${opts.map(([k, e, l]) => `<button class="btn block" data-cs="${k}">${e} ${esc(t(l))}</button>`).join('')}</div>`,
@@ -4602,6 +5047,21 @@
         });
       }
     }
+    async function addFriendsToChat() {
+      if (!chatData.friends) await refreshChat(true);
+      const inside = new Set(G.info.members.map(m => m.user_id));
+      const list = (chatData.friends || []).filter(f => f.status === 'accepted' && !inside.has(f.user_id));
+      openModal({
+        title: esc(t('chatAddFriends')),
+        body: list.length ? `<div class="stack" style="gap:8px">${list.map(f => `<button class="btn block" style="justify-content:flex-start" data-af="${f.user_id}">${avatarHtml(f, 'sm')} ${esc(personName(f))} <span class="muted small">@${esc(f.nametag || '')}</span></button>`).join('')}</div>` : `<p class="muted">${esc(t('chatNoFriendsToAdd'))}</p>`,
+        onClick: async (e, close) => {
+          const b = e.target.closest('[data-af]'); if (!b) return;
+          b.disabled = true;
+          try { await rpc('kg_chat_add', { p_group: gid, p_user: b.dataset.af }); sfx('pop'); b.remove(); await refresh(); }
+          catch (err) { b.disabled = false; toast(chatErr(err)); }
+        }
+      });
+    }
     async function saveRanking() {
       const w = body(), g = G.info.group;
       const on = $('#rk-on', w).checked, freq = ($('[data-rk-freq].on', w) || {}).dataset ? $('[data-rk-freq].on', w).dataset.rkFreq : g.ranking_freq;
@@ -4617,7 +5077,7 @@
     }
 
     openModal({
-      title: `👥 ${esc(t('groupTitle'))}`, cls: 'wide g-modal', body: `<div id="grp"><p class="muted">${esc(t('loading'))}</p></div>`,
+      title: `👥 ${esc(t('groupTitle'))}`, cls: `wide g-modal${tab === 'chat' ? ' chat-full' : ''}`, body: `<div id="grp"><p class="muted">${esc(t('loading'))}</p></div>`,
       onMount: async w => {
         wref = w;
         try { await pushGroupProgress(); await refresh(); } catch (e) { G.gone = true; draw(); }
@@ -4644,7 +5104,7 @@
           i.focus();
         });
       },
-      onClose: () => { G.timers.forEach(clearInterval); myGroups.at = 0; if (state.ui.habitsView === 'shared') refreshMyGroups(true); },
+      onClose: () => { G.timers.forEach(clearInterval); myGroups.at = 0; if (state.ui.tab === 'chat') { render(); refreshMyGroups(true); } },
       onClick: async (e, close) => {
         const tabB = e.target.closest('[data-gt]');
         if (tabB) { G.tab = tabB.dataset.gt; draw(); if (G.tab === 'chat') { try { await loadMsgs(); } catch (err) { /* nada */ } draw(); $('#chat-in', body()) && $('#chat-in', body()).focus(); } return; }
@@ -4666,6 +5126,7 @@
           if (a === 'copy-id') { try { await navigator.clipboard.writeText(G.info.group.code); toast(t('copied')); } catch (err) { /* nada */ } }
           if (a === 'newcode') { G.code = await rpc('kg_new_invite', { p_group: gid }); draw(); }
           if (a === 'chat-more') chatShare();
+          if (a === 'add-friends') addFriendsToChat();
           if (a === 'launch') openLaunch();
           if (a === 'cancel' && await confirmDialog(t('liveCancelQ'))) { await rpc('kg_cancel_challenge', { p_challenge: G.info.active.id }); await refresh(); }
           if (a === 'rank-save') await saveRanking();
@@ -4704,7 +5165,7 @@
     if (!GG.isNametag(tag)) { toast(t('nametagBad')); return false; }
     try {
       await ensureToken();
-      await sbFetch('/rest/v1/kg_users?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: auth.uid, nametag: tag, display_name: (firstName() || tag).slice(0, 40), updated_at: new Date().toISOString() }) });
+      await sbFetch('/rest/v1/kg_users?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: auth.uid, nametag: tag, display_name: (firstName() || tag).slice(0, 40), avatar: myAvatar() || null, ...(state.kx ? { pubkey: state.kx.pub } : {}), updated_at: new Date().toISOString() }) });
       repState.nametag = tag; cacheTag(tag); render(); toast(t('nametagSaved')); sfx('toggle'); return true;
     } catch (e) { toast(e.status === 409 || /duplicate|unique/i.test(e.message) ? t('nametagTaken') : t('groupError', { e: e.message })); return false; }
   }
@@ -4736,11 +5197,11 @@
     const root = $('#modal-root');
     const wrap = document.createElement('div'); wrap.className = 'backdrop';
     const isCard = cls.includes('card-view');
-    wrap.innerHTML = `<div class="sheet ${cls}" role="dialog" aria-modal="true">${isCard ? '' : '<div class="sheet-grab"></div>'}${title ? `<div class="sheet-head"><h2>${title}</h2><button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button></div>` : ''}<div class="sheet-body">${body}</div>${foot ? `<div class="sheet-foot">${foot}</div>` : ''}</div>`;
+    wrap.innerHTML = `<div class="sheet ${cls}" role="dialog" aria-modal="true">${isCard ? '' : '<div class="sheet-grab"></div>'}${title ? `<div class="sheet-head"><h2>${title}</h2>${dismissable ? `<button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button>` : ''}</div>` : ''}<div class="sheet-body">${body}</div>${foot ? `<div class="sheet-foot">${foot}</div>` : ''}</div>`;
     if (isCard) { wrap.style.background = 'rgba(0,0,0,.9)'; wrap.style.backdropFilter = wrap.style.webkitBackdropFilter = 'blur(8px)'; }
     root.appendChild(wrap);
     document.body.style.overflow = 'hidden';
-    const onKey = e => { if (e.key === 'Escape' && root.lastElementChild === wrap) close(); };
+    const onKey = e => { if (e.key === 'Escape' && dismissable && root.lastElementChild === wrap) close(); };
     const close = () => {
       wrap.remove(); document.removeEventListener('keydown', onKey);
       if (!root.children.length) document.body.style.overflow = '';
@@ -4800,7 +5261,7 @@
   document.addEventListener('pointerdown', e => {
     if (e.button !== 0 || rd) return;
     const card = e.target.closest('#habit-grid > .habit');
-    if (!card || e.target.closest('.dot, .ring, .timer-btn, .grp-chip, .cal-nav')) return;
+    if (!card || e.target.closest('.dot, .ring, .timer-btn, .grp-chip, .cal-nav, .more-btn')) return;
     const sx = e.clientX, sy = e.clientY;
     clearTimeout(rdTimer);
     rdTimer = setTimeout(() => {
@@ -4939,16 +5400,17 @@
     if ((el = e.target.closest('[data-timer]'))) { const h = getHabit(el.dataset.timer); if (h) openTimer(h); return; }
     if ((el = e.target.closest('[data-group]'))) { e.preventDefault(); openGroup(el.dataset.group); return; }
     if ((el = e.target.closest('[data-group-open]'))) { openGroup(el.dataset.groupOpen); return; }
+    if (state.ui.tab === 'chat' && chatClick(e)) return;
     if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
     if ((el = e.target.closest('[data-pin]'))) { pinKey(el.dataset.pin); return; }
     if ((el = e.target.closest('[data-ledger-edit]'))) { const en = LV.entries.find(x => x.id === el.dataset.ledgerEdit); if (en) openEntry(en); return; }
     const a = e.target.closest('[data-act]'); if (!a) return;
     const id = a.dataset.id;
     switch (a.dataset.act) {
-      case 'go': if (state.ui.tab === a.dataset.tab && state.ui.folder) state.ui.folder = null; state.ui.tab = a.dataset.tab; save(); render(); window.scrollTo(0, 0); break;
+      case 'go': pendingShare = null; if (state.ui.tab === a.dataset.tab && state.ui.folder) state.ui.folder = null; state.ui.tab = a.dataset.tab; save(); render(); window.scrollTo(0, 0); break;
       case 'create': openCreateMenu(); break;
       case 'packs': openPacks(); break;
-      case 'hview': state.ui.habitsView = a.dataset.v; state.ui.folder = null; if (a.dataset.v === 'shared') myGroups.at = 0; save(); render(); break;
+      case 'hview': state.ui.habitsView = a.dataset.v; state.ui.folder = null; save(); render(); break;
       case 'folder-open': state.ui.folder = id; save(); render(); window.scrollTo(0, 0); break;
       case 'folder-close': state.ui.folder = null; save(); render(); break;
       case 'proj-edit': { const p = state.projects.find(x => x.id === id); if (p) openProjectEditor(p); break; }
@@ -4974,14 +5436,22 @@
       case 'ledger-month': { const [yy, mm] = ledgerMonth().split('-').map(Number), d = new Date(yy, mm - 1 + +a.dataset.d, 1); state.ui.ledgerMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; save(); render(); break; }
       case 'ledger-cats': openLedgerCats(); break;
       case 'ledger-recs': openLedgerRecs(); break;
+      case 'ledger-events': openLedgerEvents(); break;
+      case 'ledger-share': openLedgerShare(); break;
       case 'profile': openProfile(); break;
+      case 'cview': state.ui.chatView = a.dataset.v; save(); render(); break;
+      case 'chat-friends': state.ui.chatView = 'friends'; save(); render(); setTimeout(() => $('#friend-tag')?.focus(), 60); break;
+      case 'chat-new': if (!chatData.friends) refreshChat(true); openNewChat(); break;
+      case 'chat-login': openLogin(); break;
       case 'm-rank': state.ui.mRank = a.dataset.v; save(); render(); break;
       case 'm-habit': state.ui.mHabit = a.dataset.v; save(); render(); break;
       case 'proj-tpl': openProjectTemplates(); break;
       case 'report': openReport(); break;
+      case 'more': openMore(a.dataset.kind, a.dataset.id); break;
       case 'review-now': openReview(weekStart(todayKey())); break;
       case 'review-open': openReview(a.dataset.v); break;
       case 'secret-open': { const s = SECRETS.find(x => x[0] === id); if (s) openTrophy(secretCardHtml(s[0], s[1]), state.secrets[id] ? t('sec_' + id) : '???', state.secrets[id] ? t('secd_' + id) : t('secretHidden'), state.secrets[id] ? () => trophyCanvas('secret', { id, icon: s[1] }) : null); break; }
+      case 'pet-edit': openPetEditor(); break;
       case 'pet': {
         petIdx++; const msgs = petMessages(), m = $('#pet-msg'); if (m) m.textContent = msgs[petIdx % msgs.length];
         a.classList.remove('bounce'); void a.offsetWidth; a.classList.add('bounce'); vibrate([8, 30, 8, 30, 8]);
@@ -5032,7 +5502,7 @@
 
   // Redimensionar: recalcula cuántas semanas caben en las tarjetas
   let rsz, lastW = window.innerWidth;
-  window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (!state.onboarded || window.innerWidth === lastW) return; lastW = window.innerWidth; if (state.ui.tab === 'habits' && habitsView() === 'charts') render(); else { initCals($('#main')); placeNavInd(-1); } }, 150); });
+  window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (!state.onboarded || window.innerWidth === lastW) return; lastW = window.innerWidth; { initCals($('#main')); placeNavInd(-1); } }, 150); });
   // Cambio de día (app abierta a medianoche o al volver)
   let lastDay = todayKey();
   // Los hábitos a dejar ganan cartas con el paso de los días: se comprueban al cambiar de día
@@ -5040,7 +5510,7 @@
     if (todayKey() === lastDay) return;
     lastDay = todayKey(); render();
     checkPerfectMastery(); state.habits.filter(isQuit).forEach(h => checkChallenge(h));
-    checkSecrets(); offerShields(); maybeWeeklyReview();
+    checkSecrets(); offerShields(); maybeWeeklyReview(); checkRetos();
   };
   setInterval(dayCheck, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) dayCheck(); });
@@ -5076,7 +5546,7 @@
     else if (isMulti(h) || !cnt(h, k)) setCount(h, k, cnt(h, k) + 1);
     render(); vibrate(20); toast(t('shortcutDone', { name: h.name }));
   })();
-  setTimeout(() => { if (state.onboarded) { offerShields(); maybeWeeklyReview(); processJoin(); } }, 1200);
+  setTimeout(() => { if (state.onboarded) { offerShields(); maybeWeeklyReview(); processJoin(); checkRetos(); } }, 1200);
   // Solo para pruebas en local
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') window.__kg = { mergeStates, stampChanges };
 })();
