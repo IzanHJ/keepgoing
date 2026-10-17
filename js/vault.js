@@ -91,5 +91,21 @@
     return decrypt(await importRaw(raw), box);
   }
 
-  return { kxGenerate, isPub, sealFor, openSealed, available, create, open, verify, rewrap, vidOf, encrypt, decrypt, encBytes, decBytes, importRaw, deriveKey, isPin, pinWrap, pinUnwrap, b64, unb64, ITER, PIN_ITER, CHECK };
+  /* Libretas compartidas con contraseña (v1.16): la elige quien comparte y quien la recibe tiene que acertarla.
+     El contenido se cifra con una clave sacada de la contraseña; aparte se envía una «prueba» (PBKDF2 con otra sal)
+     para que el servidor solo entregue el contenido cifrado a quien la conoce, con intentos limitados. */
+  const SHARE_ITER = 310000;
+  async function pwProof(password, saltB64, iter = SHARE_ITER) {
+    const base = await cr().subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    return b64(await cr().subtle.deriveBits({ name: 'PBKDF2', salt: unb64(saltB64), iterations: iter, hash: 'SHA-256' }, base, 256));
+  }
+  async function pwSeal(obj, password) {
+    const ksalt = b64(rand(16)), psalt = b64(rand(16));
+    const body = await encrypt(await deriveKey(password, ksalt, SHARE_ITER), obj);
+    return { head: { v: 2, alg: 'PBKDF2-SHA256+A256GCM', iter: SHARE_ITER, ksalt, psalt }, body, proof: await pwProof(password, psalt) };
+  }
+  // Lanza si la contraseña no es la correcta o los datos se han alterado
+  async function pwOpen(head, body, password) { return decrypt(await deriveKey(password, head.ksalt, head.iter || SHARE_ITER), body); }
+
+  return { pwProof, pwSeal, pwOpen, kxGenerate, isPub, sealFor, openSealed, available, create, open, verify, rewrap, vidOf, encrypt, decrypt, encBytes, decBytes, importRaw, deriveKey, isPin, pinWrap, pinUnwrap, b64, unb64, ITER, PIN_ITER, CHECK };
 });

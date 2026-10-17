@@ -33,7 +33,7 @@
   const store = (vid, rec) => put('v:' + vid, rec);
   async function methods(vid) {
     if (!supported() || !vid) return { pin: false, bio: false };
-    try { const r = await record(vid); return { pin: !!r.pin, bio: !!r.bio, bioMode: r.bio && r.bio.mode }; } catch (e) { return { pin: false, bio: false }; }
+    try { const r = await record(vid); return { pin: !!r.pin, bio: !!r.bio, bioMode: r.bio && r.bio.mode, sess: !!r.sess, once: r.once !== false }; } catch (e) { return { pin: false, bio: false }; }
   }
 
   /* ---------- PIN ---------- */
@@ -101,8 +101,19 @@
     if (!r.uv) return null;
     return V.decBytes(dk, box);
   }
-  async function clearBio(vid) { const rec = await record(vid); delete rec.bio; await store(vid, rec); }
+  async function clearBio(vid) { const rec = await record(vid); delete rec.bio; delete rec.sess; await store(vid, rec); }
+
+  /* ---------- «permiso una sola vez» ----------
+     Tras usar la huella o Face ID una vez, la clave queda guardada en este dispositivo (cifrada con la clave del navegador)
+     y la Libreta se abre sola hasta que la bloqueas a mano. Se puede cambiar a «pedirla cada vez». */
+  async function setSession(vid, raw) { const rec = await record(vid); if (!rec.bio || rec.once === false) return; rec.sess = await V.encBytes(await devKey(), raw); await store(vid, rec); }
+  async function getSession(vid) {
+    const rec = await record(vid); if (!rec.sess || !rec.bio || rec.once === false) return null;
+    try { return await V.decBytes(await devKey(), rec.sess); } catch (e) { delete rec.sess; await store(vid, rec); return null; }
+  }
+  async function clearSession(vid) { if (!vid || !supported()) return; try { const rec = await record(vid); if (rec.sess) { delete rec.sess; await store(vid, rec); } } catch (e) { /* nada */ } }
+  async function setOnce(vid, on) { const rec = await record(vid); rec.once = !!on; if (!on) delete rec.sess; await store(vid, rec); }
   async function forget(vid) { if (vid && supported()) try { await del('v:' + vid); } catch (e) { /* nada */ } }
 
-  root.KGVaultDevice = { supported, methods, setPin, unlockPin, clearPin, bioAvailable, setBio, unlockBio, clearBio, forget, MAX_FAILS };
+  root.KGVaultDevice = { supported, methods, setPin, unlockPin, clearPin, bioAvailable, setBio, unlockBio, clearBio, setSession, getSession, clearSession, setOnce, forget, MAX_FAILS };
 })(typeof self !== 'undefined' ? self : this);
