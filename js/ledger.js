@@ -92,5 +92,32 @@
   const recEntryId = (recId, date) => `rec-${recId}-${date}`;
 
   const mask = (txt, on) => (on ? MASK : txt);
-  return { MASK, DEFAULT_CATEGORIES, METHODS, REPEATS, parseCents, signed, totals, byDay, inMonth, monthGrid, daysIn, occurrences, recEntryId, mask };
+
+  /* ---------- gráficas y filtros ---------- */
+  // Movimientos entre dos fechas (incluidas; vacío = sin límite)
+  const inRange = (entries, from, to) => (entries || []).filter(e => (!from || e.date >= from) && (!to || e.date <= to));
+  // Primera y última fecha con movimientos (o null)
+  function span(entries) {
+    let from = null, to = null;
+    for (const e of entries || []) { if (!from || e.date < from) from = e.date; if (!to || e.date > to) to = e.date; }
+    return from ? { from, to } : null;
+  }
+  // Suma por categoría de un tipo ('income' | 'expense'), de mayor a menor
+  function byCategory(entries, type) {
+    const m = {};
+    for (const e of entries || []) if (e.type === type) { const c = e.categoryId || 'other'; m[c] = (m[c] || 0) + (e.amountCents || 0); }
+    return Object.entries(m).map(([id, cents]) => ({ id, cents })).sort((a, b) => b.cents - a.cents || (a.id < b.id ? -1 : 1));
+  }
+  // Serie de ingresos y gastos por día, mes o año entre dos fechas (incluye los huecos a 0)
+  function series(entries, from, to, unit = 'month') {
+    const keyFor = d => unit === 'year' ? d.slice(0, 4) : unit === 'month' ? d.slice(0, 7) : d;
+    const keys = [];
+    if (unit === 'year') for (let y = +from.slice(0, 4); y <= +to.slice(0, 4) && keys.length < 500; y++) keys.push(String(y));
+    else if (unit === 'month') { let y = +from.slice(0, 4), m = +from.slice(5, 7); const end = to.slice(0, 7); while (keys.length < 2000) { const k = `${y}-${pad(m)}`; if (k > end) break; keys.push(k); if (++m > 12) { m = 1; y++; } } }
+    else { const [y0, m0, d0] = from.split('-').map(Number); for (let i = 0; i < 4000; i++) { const d = new Date(y0, m0 - 1, d0 + i), k = keyOf(d.getFullYear(), d.getMonth() + 1, d.getDate()); if (k > to) break; keys.push(k); } }
+    const map = new Map(keys.map(k => [k, { key: k, income: 0, expense: 0 }]));
+    for (const e of inRange(entries, from, to)) { const b = map.get(keyFor(e.date)); if (b) b[e.type === 'income' ? 'income' : 'expense'] += e.amountCents || 0; }
+    return keys.map(k => map.get(k));
+  }
+  return { MASK, DEFAULT_CATEGORIES, METHODS, REPEATS, parseCents, signed, totals, byDay, inMonth, monthGrid, daysIn, occurrences, recEntryId, mask, inRange, span, byCategory, series };
 });
