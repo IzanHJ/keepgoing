@@ -1089,7 +1089,7 @@
             const url = `${APP_URL}?check=${h.id}`;
             openModal({
               title: `🔗 ${esc(t('shortcutLink'))}`,
-              body: `<p class="muted" style="margin-top:0">${esc(t('shortcutHelp'))}</p><input class="input" readonly value="${esc(url)}" id="sc-url" onclick="this.select()"><ol class="small muted" style="padding-left:18px;line-height:1.6">${t('shortcutSteps').split('|').map(s => `<li>${esc(s)}</li>`).join('')}</ol>`,
+              body: `<p class="muted" style="margin-top:0">${esc(t('shortcutHelp'))}</p><input class="input" readonly value="${esc(url)}" id="sc-url"><ol class="small muted" style="padding-left:18px;line-height:1.6">${t('shortcutSteps').split('|').map(s => `<li>${esc(s)}</li>`).join('')}</ol>`,
               foot: `<button class="btn primary block" data-m="copy">${esc(t('copy'))}</button>`,
               onClick: async (ev, cl, ww) => { if (ev.target.closest('[data-m="copy"]')) { try { await navigator.clipboard.writeText(url); toast(t('copied')); } catch (err) { $('#sc-url', ww).select(); } } }
             });
@@ -4206,7 +4206,7 @@
       <style>body{padding:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.rep{max-width:960px;margin:0 auto}.rep h1{font-size:40px;margin:0;text-transform:capitalize}.rep h2{font-size:20px;margin:26px 0 12px}
       .chart-grid{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}@page{size:A4;margin:10mm}@media print{.no-print{display:none}body{padding:0}.clay{break-inside:avoid}}</style></head>
       <body><div class="rep">
-        <div class="row" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap"><div><div class="muted" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1>${esc(t('reportOf', { m: monthName }))}</h1>${state.contract ? `<div class="muted">${esc(state.contract.name)}</div>` : ''}</div><div class="no-print"><button class="btn primary" onclick="print()">${esc(t('reportSave'))}</button></div></div>
+        <div class="row" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap"><div><div class="muted" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1>${esc(t('reportOf', { m: monthName }))}</h1>${state.contract ? `<div class="muted">${esc(state.contract.name)}</div>` : ''}</div><div class="no-print"><button class="btn primary" id="rep-print">${esc(t('reportSave'))}</button></div></div>
         <h2>${esc(t('reportSummary'))}</h2>
         <div class="kpis">${kpi(rateP == null ? '—' : rateP + '%', t('kpiRate'))}${kpi(perfect, t('perfectDays'))}${kpi(fmtPts(pts), t('ptsEarned'))}${kpi(entries, t('kpiTotal'))}${kpi(act.size, t('kpiActiveDays'))}${kpi(en.length ? fmtNum(en.reduce((a, b) => a + b, 0) / en.length) + '/5' : '—', t('energyAvg'))}</div>
         <div class="chart-grid"><section class="chart-card clay"><h3>${esc(t('chartDaily'))}</h3>${lineChart(linePts, { min: 0, max: 100, fmt: v => Math.round(v) + '%' })}</section>
@@ -4216,10 +4216,13 @@
         ${cards.length ? `<h2>${esc(t('reportCards'))}</h2><div class="clay card">${cards.map(c => `<div class="entry">${esc(c)}</div>`).join('')}</div>` : ''}
         ${reviews.length ? `<h2>${esc(t('reviewsTitle'))}</h2>${reviews.map(([w, v]) => `<div class="clay card" style="margin-bottom:12px"><b>${esc(fmtDate(w, { day: 'numeric', month: 'long' }))} · ${v.score}/10</b>${v.good ? `<p>👍 ${esc(v.good)}</p>` : ''}${v.adjust ? `<p>🔧 ${esc(v.adjust)}</p>` : ''}</div>`).join('')}` : ''}
         <p class="muted small center" style="margin-top:26px">KeepGoing · ${esc(fmtDate(todayKey()))}</p>
-      </div><script>setTimeout(function(){try{print()}catch(e){}},1000)<\/script></body></html>`;
+      </div></body></html>`;
     const win = window.open('', '_blank');
     if (!win) { toast(t('reportBlocked')); return; }
     win.document.open(); win.document.write(html); win.document.close();
+    // La CSP bloquea scripts y manejadores en línea: la impresión se enlaza desde aquí
+    const pb = win.document.getElementById('rep-print'); if (pb) pb.addEventListener('click', () => win.print());
+    setTimeout(() => { try { win.print(); } catch (e) { /* nada */ } }, 1000);
     const root = win.document.documentElement;
     root.setAttribute('style', r.getAttribute('style') || '');
     ['light', 'style', 'gradient'].forEach(k => { root.dataset[k] = r.dataset[k]; });
@@ -4342,7 +4345,7 @@
     // El correo se abre con un toque (en iPhone no se puede abrir solo tras esperar a la nube)
     openModal({
       title: `📧 ${esc(t('witnessTitle'))}`,
-      body: `<p style="margin-top:0">${esc(t(link ? 'witnessLinkReady' : auth ? 'witnessNoLink' : 'witnessLinkNeedLogin', { w: w.name || w.email }))}</p>${link ? `<input class="input" readonly value="${esc(link)}" onclick="this.select()">` : ''}`,
+      body: `<p style="margin-top:0">${esc(t(link ? 'witnessLinkReady' : auth ? 'witnessNoLink' : 'witnessLinkNeedLogin', { w: w.name || w.email }))}</p>${link ? `<input class="input" readonly value="${esc(link)}">` : ''}`,
       foot: `<a class="btn primary" href="${esc(href)}" data-m="mail">📧 ${esc(t('witnessOpenMail'))}</a>${link ? `<button class="btn" data-m="copy">${esc(t('copy'))}</button>` : ''}`,
       onClick: async (e, close) => {
         if (e.target.closest('[data-m="copy"]')) { try { await navigator.clipboard.writeText(link); toast(t('copied')); } catch (err) { /* nada */ } }
@@ -4727,7 +4730,7 @@
       <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-on" ${pr.enabled ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('profileEnable'))}</b><br><span class="muted small">${esc(t('profileHint'))}</span></span></label>
       <label class="field"><span>${esc(t('profileSlug'))}</span><input class="input" id="pf-slug" maxlength="30" value="${esc(pr.slug)}" placeholder="${esc(slugify(firstName()) || 'mi-perfil')}"></label>
       <div class="field"><span>${esc(t('profileShow'))}</span>${['level', 'cards', 'habits', 'contracts'].map(k => `<label class="check"><input type="checkbox" data-pf-show="${k}" ${pr.show[k] ? 'checked' : ''}> ${esc(t('profileShow_' + k))}</label>`).join('')}</div>
-      ${pr.enabled && pr.slug ? `<div class="row wrap"><input class="input grow" readonly value="${esc(profileUrl(pr.slug))}" onclick="this.select()" style="flex:1 1 220px"><button class="btn" data-s="pf-copy">${esc(t('copy'))}</button><a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${esc(t('profileOpen'))}</a></div>` : ''}
+      ${pr.enabled && pr.slug ? `<div class="row wrap"><input class="input grow" readonly value="${esc(profileUrl(pr.slug))}" style="flex:1 1 220px"><button class="btn" data-s="pf-copy">${esc(t('copy'))}</button><a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${esc(t('profileOpen'))}</a></div>` : ''}
     </div>`;
   }
   async function privacyChange(e, root) {
@@ -5267,7 +5270,7 @@
       return `<div class="stack" style="gap:16px">
         <section class="clay card g-profile"><div class="g-head">${groupPic(g)}<div class="grow" style="min-width:0"><h2 class="ellipsis" style="margin:0">${esc(g.name)}</h2><div class="muted">${esc(t('chatGroupKind'))} · ${members.length}${max ? `/${max}` : ''} ${esc(t('gMembersN')).toLowerCase()}</div>${g.code ? `<div class="row" style="gap:8px;margin-top:6px"><span class="muted small">${esc(t('gId'))}</span><b class="mono">${esc(g.code)}</b><button class="chip sm" data-g="copy-id">${esc(t('gCopyId'))}</button></div>` : ''}${picRm(g)}</div></div>
           <div class="g-people" style="margin-top:12px">${members.map(m => `<span class="g-person">${avatarHtml(m, 'sm')}<span class="small ellipsis">${esc(m.user_id === auth.uid ? t('gYou') : m.display_name)}</span></span>`).join('')}</div></section>
-        ${can('invite') ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button>${link ? `<div class="row wrap" style="margin-top:12px"><input class="input grow" readonly value="${esc(link)}" onclick="this.select()" style="flex:1 1 220px"><button class="btn" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p>` : ''}</section>` : ''}
+        ${can('invite') ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button>${link ? `<div class="row wrap" style="margin-top:12px"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p>` : ''}</section>` : ''}
         ${isLeader() ? `<section class="clay card banner-cta"><span style="font-size:26px">🏆</span><span class="grow"><b>${esc(t('gUpgrade'))}</b><br><span class="muted small">${esc(t('gUpgradeSub'))}</span></span><button class="btn primary" data-g="upgrade">${esc(t('gUpgradeBtn'))}</button></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('chatLeave'))}</button></div>
       </div>`;
@@ -5297,7 +5300,7 @@
           </div>
           ${live}
         </section>
-        ${can('invite') && link ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" onclick="this.select()" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p></section>` : ''}
+        ${can('invite') && link ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('groupLeave'))}</button></div>
       </div>`;
     };
@@ -6226,6 +6229,8 @@
     ? `<div class="stack" style="gap:8px">${state.hiddenW.filter(k => HW[k]).map(k => `<div class="row" style="gap:10px"><span style="font-size:20px">${HW[k]}</span><b class="grow">${esc(hwName(k))}</b><button class="chip" data-s="hw-restore" data-v="${k}">${ico('refresh')} ${esc(t('hwRestore'))}</button></div>`).join('')}</div>`
     : `<p class="muted small" style="margin:0">${esc(t('hwNone'))}</p>`;
 
+  // Campos de solo lectura (enlaces para copiar): seleccionar todo al tocar (antes onclick en línea, incompatible con la CSP)
+  document.addEventListener('click', e => { const el = e.target; if (el && el.tagName === 'INPUT' && el.readOnly) el.select(); });
   document.addEventListener('click', e => {
     // Un clic dentro de una ventana (aunque esa ventana ya se haya cerrado al pulsar) no llega a la vista de detrás
     if (!e.target.isConnected || e.target.closest('#modal-root')) return;
