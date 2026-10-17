@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.14.0';
+  const VERSION = '1.15.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -130,6 +130,8 @@
     wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="3.5" y="8" width="17" height="12" rx="2.5"/><path d="M16 14h.01M20.5 11.5h-4a2.5 2.5 0 0 0 0 5h4"/>',
     chat: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z"/><path d="M8.5 9.5h7M8.5 12.5h4"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.4-6.5 8-6.5s7 2 8 6.5"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+    smile: '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/><circle cx="9" cy="10" r=".6"/><circle cx="15" cy="10" r=".6"/>',
     camera: '<path d="M4 8h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13.5" r="3.5"/>',
     send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/>',
     share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>',
@@ -167,6 +169,8 @@
       soundOn: true, ledgerVault: null,
       // v1.14: widgets ocultos desde el modo edición (se recuperan en Ajustes)
       hiddenW: [],
+      // v1.15: orden propio de los widgets que no salen de una lista (chats, eventos, mascota, gráficas…)
+      wOrder: [],
       ui: { tab: 'habits', range: 30, chartHabit: 'all', showArchived: false, habitsView: 'all' }
     };
   }
@@ -201,6 +205,7 @@
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
     out.hiddenW = Array.isArray(s.hiddenW) ? s.hiddenW.filter(k => typeof k === 'string') : [];
+    out.wOrder = Array.isArray(s.wOrder) ? s.wOrder.filter(k => typeof k === 'string').slice(0, 400) : [];
     out.stats = { timerMin: 0, ...(s.stats || {}) };
     if (!Array.isArray(out.commitHistory) || !out.commitHistory.length) out.commitHistory = [{ from: '0000-00-00', level: out.commitment || 'serio' }];
     const cp = s.caprice && typeof s.caprice === 'object' ? s.caprice : {}, dc = defaultCaprice();
@@ -231,7 +236,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.ledgerVault, s.kx, s.hiddenW];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.ledgerVault, s.kx, s.hiddenW, s.wOrder];
   function stampChanges(prev, cur) {
     const now = Date.now();
     cur.deleted = cur.deleted || {};
@@ -302,7 +307,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.ledgerVault, out.kx, out.hiddenW] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.ledgerVault, out.kx, out.hiddenW, out.wOrder] = settingsOf(R); out.smt = R.smt; }
     // Los puntos de compromiso empiezan en la fecha más antigua en que cualquier dispositivo migró
     const ps = [L.pointsSince, R.pointsSince].filter(Boolean).sort();
     out.pointsSince = ps[0] || null;
@@ -696,6 +701,7 @@
   function afterRender() {
     initCals($('#main'));
     if (state.ui.tab === 'habits') loadPhotos($('#main'));
+    applyWOrder($('#main'));
     decorateJiggle();
   }
   // Widgets que se han quitado con el «−» del modo edición (se recuperan en Ajustes)
@@ -755,11 +761,14 @@
   }
 
   // Carpeta (proyecto) en la cuadrícula: mismo tamaño que un hábito; muestra sus hábitos y el progreso de hoy
+  // Hábitos que se cuentan más de una vez: a partir de 2 el número sustituye al icono
+  const multiN = h => !isQuit(h) && !isAmount(h) && (+h.target > 1 || h.multi) ? (h.freq === 'daily' ? cnt(h, todayKey()) : periodSum(h, todayKey())) : 0;
+  const icoOrN = (h, fb) => { const n = multiN(h); return n >= 2 ? `<b class="cnt-n">${n}</b>` : fb; };
   function folderCard(p) {
     const s = projectStats(p), hs = p.habitIds.map(getHabit).filter(h => h && !h.archived);
     const due = hs.filter(h => todayStatus(h).due), done = due.filter(h => todayStatus(h).done && !isQuit(h)).length;
     // Las casillas de los hábitos se marcan desde la carpeta, sin abrirla
-    const minis = hs.map(h => { const st = todayStatus(h), q = isQuit(h), slip = q && cnt(h, todayKey()); return `<button class="fmini ${!q && st.done ? 'on' : ''} ${slip ? 'slip' : ''} ${st.due || q ? '' : 'off'}" data-today="${q ? 'slip' : 'tap'}" data-id="${h.id}" style="${habitVars(hColor(h))}" title="${esc(h.name)}" aria-label="${esc(h.name)} · ${esc(t(q ? 'relapse' : 'markDone'))}" aria-pressed="${!q && st.done}">${esc(h.icon || '#')}${!q && st.done ? `<i class="fmini-ok">${ico('check')}</i>` : ''}</button>`; }).join('');
+    const minis = hs.map(h => { const st = todayStatus(h), q = isQuit(h), slip = q && cnt(h, todayKey()); return `<button class="fmini ${!q && st.done ? 'on' : ''} ${slip ? 'slip' : ''} ${st.due || q ? '' : 'off'}" data-today="${q ? 'slip' : 'tap'}" data-id="${h.id}" style="${habitVars(hColor(h))}" title="${esc(h.name)}" aria-label="${esc(h.name)} · ${esc(t(q ? 'relapse' : 'markDone'))}" aria-pressed="${!q && st.done}">${icoOrN(h, esc(h.icon || '#'))}${!q && st.done ? `<i class="fmini-ok">${ico('check')}</i>` : ''}</button>`; }).join('');
     return `<article class="folder clay" data-pid="${p.id}" style="--h:${p.color || 'var(--accent)'}">
       <button class="folder-main" data-act="folder-open" data-id="${p.id}" aria-label="${esc(t('folderOpen', { name: p.name }))}">
         <span class="folder-tab" aria-hidden="true"></span>
@@ -1741,10 +1750,6 @@
       </div></section>`;
     html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">👑</div><div class="grow"><h3>${esc(t('perfectSeries'))}</h3><div class="muted small">${esc(t('perfectHow', { n: CAP.HABITS_PER_LEVEL[commitOn(todayKey())] }))}</div></div><b style="font-size:20px">${got}/${RANKS.length}</b></div>
       <div class="cards-row">${RANKS.map(([r, th], i) => { const m = state.perfectMastery[r]; return `<button class="kcard-btn" data-act="pcard-open" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${m ? cardFace(PSUBJ(), i, 'front') : cardLocked(i)}<span class="cap">${esc(t('rank_' + r))}<small>${m ? esc(fmtShort(m.date)) : esc(t('perfectReq', { n: th }))}</small></span></button>`; }).join('')}</div></section>`;
-    // Cartas secretas (ocultas hasta conseguirlas)
-    const nSec = SECRETS.filter(([id]) => state.secrets[id]).length;
-    html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">🔮</div><div class="grow"><h3>${esc(t('secretCards'))}</h3><div class="muted small">${esc(t('secretCardsHint'))}</div></div><b style="font-size:20px">${nSec}/${SECRETS.length}</b></div>
-      <div class="cards-row">${SECRETS.map(([id, icon]) => `<button class="kcard-btn" data-act="secret-open" data-id="${id}">${secretCardHtml(id, icon)}<span class="cap">${state.secrets[id] ? esc(t('sec_' + id)) : '???'}</span></button>`).join('')}</div></section>`;
     if (state.challengeCards.length) {
       html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">🏁</div><div class="grow"><h3>${esc(t('challengeCards'))}</h3></div><b style="font-size:20px">${state.challengeCards.length}</b></div>
         <div class="cards-row">${[...state.challengeCards].reverse().map(c => `<button class="kcard-btn" data-act="chal-open" data-id="${c.id}">${challengeCardHtml(c)}<span class="cap">${esc(c.name)}<small>${esc(fmtShort(c.end))}</small></span></button>`).join('')}</div></section>`;
@@ -3703,7 +3708,7 @@
     const st = todayStatus(h), c = hColor(h);
     const action = st.quit
       ? `<button class="chip ${cnt(h, todayKey()) ? 'on' : ''}" data-today="slip" data-id="${h.id}">${esc(t('relapse'))}</button>`
-      : `<button class="today-check ${st.done ? 'on' : ''}" data-today="tap" data-id="${h.id}" aria-label="${esc(t('markDone'))}">${isAmount(h) && !st.done ? ico('plus') : ico('check')}</button>`;
+      : `<button class="today-check ${st.done ? 'on' : ''}" data-today="tap" data-id="${h.id}" aria-label="${esc(t('markDone'))}">${icoOrN(h, isAmount(h) && !st.done ? ico('plus') : ico('check'))}</button>`;
     return `<div class="today-row clay ${st.done && !st.quit ? 'done' : ''}" data-trow="${h.id}" style="${habitVars(c)}">
       <button class="habit-ico sm" data-act="habit-edit" data-id="${h.id}">${esc(h.icon || '#')}</button>
       <div class="grow" style="min-width:0"><b class="ellipsis">${esc(h.name)}</b><div class="muted small">${esc(progressText(h))}</div></div>
@@ -3945,7 +3950,9 @@
     }
     return false;
   }
-  const SECRETS = [
+  // v1.15: cartas secretas retiradas a petición de Izan. Lo ya ganado sigue guardado en state.secrets (no se borra), pero no se muestra.
+  const SECRETS = [];
+  const SECRETS_RETIRED = [
     ['perfectWeek', '🌟', () => pointsInfo().bestPerfectRun >= 7],
     ['perfect30', '💎', () => pointsInfo().perfectDays >= 30],
     ['earlyBird', '🌅', () => countTimes(tm => tm < '08:00') >= 15],
@@ -4542,7 +4549,7 @@
       <div class="row wrap"><button class="btn primary" data-pf="carnet">${ico('upload')} ${esc(t('carnetShare'))}</button>${pr.enabled && pr.slug ? `<a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${ico('globe')} ${esc(t('profileOpen'))}</a>` : `<button class="btn" data-pf="public">${ico('globe')} ${esc(t('profilePublicSetup'))}</button>`}</div>
       ${sec('🎖️', t('badgesTitle'), badgesHtml())}
       ${sec('🏆', t('showcaseTitle'), `<div class="show-row">${[0, 1, 2].map(i => { const it = showcaseItem(sc[i]); return `<button class="kcard-btn show-slot" data-pf="slot" data-i="${i}">${it ? it.html : `<div class="slot-empty">${ico('plus')}</div>`}<span class="cap">${it ? esc(it.label) : esc(t('showcaseAdd'))}</span></button>`; }).join('')}</div>`)}
-      ${sec('📊', t('lifeStats'), `<div class="kpis prof-kpis">${kpi(fmtNum(st.activeDays), t('kpiActiveDays'))}${kpi(st.best, t('kpiBest'))}${kpi(fmtNum(st.entries), t('kpiTotal'))}${kpi(st.perfect, t('perfectDays'))}${kpi(st.cards, t('statCards'))}${kpi(st.secrets, t('secretCards'))}${kpi(st.mastered, t('perfectRun'))}${kpi(st.contracts, t('contractCards'))}${kpi(st.challenges, t('challengeCards'))}${kpi(st.projects, t('statProjects'))}${kpi(fmtNum(st.xp), 'XP')}</div>`)}
+      ${sec('📊', t('lifeStats'), `<div class="kpis prof-kpis">${kpi(fmtNum(st.activeDays), t('kpiActiveDays'))}${kpi(st.best, t('kpiBest'))}${kpi(fmtNum(st.entries), t('kpiTotal'))}${kpi(st.perfect, t('perfectDays'))}${kpi(st.cards, t('statCards'))}${kpi(st.mastered, t('perfectRun'))}${kpi(st.contracts, t('contractCards'))}${kpi(st.challenges, t('challengeCards'))}${kpi(st.projects, t('statProjects'))}${kpi(fmtNum(st.xp), 'XP')}</div>`)}
       ${sec('🗓️', t('yearHeat'), yearHeatHtml())}
       ${sec('✨', t('achTitle'), ach.length ? `<div class="ach-list">${(achAll ? ach : ach.slice(0, 12)).map(e => `<div class="ach"><span class="ach-ico">${esc(e.icon)}</span><span class="grow">${esc(e.txt)}</span><span class="muted small">${esc(fmtShort(e.d))}</span></div>`).join('')}</div>${ach.length > 12 ? `<div class="center" style="margin-top:10px"><button class="chip" data-pf="ach-more">${esc(t(achAll ? 'achLess' : 'achMore', { n: ach.length }))}</button></div>` : ''}` : `<p class="muted small">${esc(t('achNone'))}</p>`)}
       ${sec('🏅', t('repTotal'), `<div id="pf-rep">${repHtml()}</div>`)}
@@ -4681,7 +4688,6 @@
       : `<div class="kcard-btn">${secretCardHtml(x.id, x.icon, x.date)}<span class="cap">${esc(t('sec_' + x.id))}</span></div>`).join('')}</div>`;
     if (d.habits && d.habits.length) html += `<h2 class="section-title" style="margin:24px 0 12px">🔥 ${esc(t('publicHabits'))}</h2><div class="stack" style="gap:10px">${d.habits.map(h => `<div class="today-row clay" style="${habitVars(h.color || '#3ddc97')}"><div class="habit-ico sm">${esc(h.icon || '#')}</div><div class="grow"><b>${esc(h.name)}</b><div class="muted small">${esc(h.quit ? t('quitDays', { n: h.streak }) : t('streak', { n: h.streak }))} · ${esc(t('bestStreak'))} ${h.best}</div></div></div>`).join('')}</div>`;
     if (d.cards && d.cards.length) html += `<h2 class="section-title" style="margin:24px 0 12px">👑 ${esc(t('tabMastery'))}</h2>${d.cards.map(c => `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${esc(c.icon || '#')}</div><div class="grow"><h3>${esc(c.name)}</h3></div><b>${c.ranks.length}/10</b></div><div class="cards-row">${c.ranks.map(([r, date, serial]) => { const i = RANKS.findIndex(x => x[0] === r); return `<div class="kcard-btn">${cardFace({ id: '_', name: c.name }, i, 'front', '', { date, serial })}<span class="cap">${esc(t('rank_' + r))}</span></div>`; }).join('')}</div></section>`).join('')}`;
-    if (d.secrets && d.secrets.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>🔮 ${esc(t('secretCards'))}</h3></div><b>${d.secrets.length}</b></div><div class="cards-row">${d.secrets.map(([id, icon, date]) => `<div class="kcard-btn">${secretCardHtml(id, icon, date)}<span class="cap">${esc(t('sec_' + id))}</span></div>`).join('')}</div></section>`;
     if (d.challenges && d.challenges.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>🏁 ${esc(t('challengeCards'))}</h3></div></div><div class="cards-row">${d.challenges.map(c => `<div class="kcard-btn">${challengeCardHtml(c)}</div>`).join('')}</div></section>`;
     if (d.contracts && d.contracts.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>📜 ${esc(t('contractCards'))}</h3></div></div><div class="cards-row">${d.contracts.map(cc => `<div class="kcard-btn">${contractCardHtml(cc)}<span class="cap">${esc(t('tier_' + cc.tier))}</span></div>`).join('')}</div></section>`;
     html += `<div class="center" style="margin:30px 0"><p class="muted small">${esc(t('publicUpdated', { d: fmtDate(d.at || todayKey()) }))}</p><a class="btn primary" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a></div></div>`;
@@ -4741,7 +4747,22 @@
   const ROLE_ICON = { lider: '👑', colider: '⭐', experto: '🎓', veterano: '🛡️', novato: '🌱' };
   const rpc = async (fn, args = {}) => { await ensureToken(); return sbFetch(`/rest/v1/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) }); };
   const habitSpec = h => ({ name: h.name, icon: h.icon, kind: h.kind || 'build', freq: h.freq, target: h.target, multi: h.multi, measure: h.measure, unit: h.unit, step: h.step, days: h.days, duration: h.duration, timeOfDay: h.timeOfDay });
-  const projectSpec = p => ({ name: p.name, icon: p.icon, desc: p.desc, deadline: p.deadline, goal: { type: p.goal.type, start: p.goal.start, target: p.goal.target, unit: p.goal.unit, items: (p.goal.items || []).map(i => i.text) }, milestones: (p.milestones || []).map(m => ({ text: m.text, date: m.date })) });
+  // El proyecto viaja con sus hábitos vinculados (sin registros: cada persona lleva los suyos)
+  const projectSpec = p => ({ name: p.name, icon: p.icon, desc: p.desc, deadline: p.deadline, goal: { type: p.goal.type, start: p.goal.start, target: p.goal.target, unit: p.goal.unit, items: (p.goal.items || []).map(i => i.text) }, milestones: (p.milestones || []).map(m => ({ text: m.text, date: m.date })),
+    habits: p.habitIds.map(getHabit).filter(h => h && !h.archived).slice(0, 30).map(habitSpec) });
+  // Hábitos de la ficha que aún no están en el proyecto local (por nombre)
+  const missingSpecHabits = (p, s) => { const have = new Set(p.habitIds.map(getHabit).filter(Boolean).map(h => h.name.trim().toLowerCase())); return ((s && s.habits) || []).filter(x => x && x.name && !have.has(String(x.name).trim().toLowerCase())); };
+  // Crea (o reutiliza, si ya tienes uno con el mismo nombre) los hábitos vinculados y los mete en el proyecto
+  function addSpecHabits(p, s) {
+    const miss = missingSpecHabits(p, s);
+    for (const x of miss) {
+      const same = state.habits.find(h => !h.archived && h.name.trim().toLowerCase() === String(x.name).trim().toLowerCase());
+      const h = same || objFromSpec('habit', x, x.name, x.icon || '#');
+      if (!same) state.habits.push(h);
+      if (!p.habitIds.includes(h.id)) p.habitIds.push(h.id);
+    }
+    return miss.length;
+  }
   // Crea un hábito o proyecto local a partir de lo que llega de un grupo o del chat
   function objFromSpec(kind, s = {}, fbName = '', fbIcon = '🎯') {
     if (kind === 'habit') return newHabitFrom(s.name || fbName, s.icon || fbIcon, { kind: s.kind || 'build', freq: s.freq || 'daily', target: s.target || 1, multi: !!s.multi, measure: s.measure || 'count', unit: s.unit || '', step: s.step || 1, days: s.days || [0, 1, 2, 3, 4, 5, 6], duration: s.duration || 0, timeOfDay: s.timeOfDay || 'any' });
@@ -4750,7 +4771,33 @@
   }
   function addFromSpec(kind, spec, fbName, fbIcon) {
     const obj = objFromSpec(kind, spec, fbName, fbIcon);
-    (kind === 'habit' ? state.habits : state.projects).push(obj); save(); return obj;
+    (kind === 'habit' ? state.habits : state.projects).push(obj);
+    if (kind === 'project') addSpecHabits(obj, spec);
+    save(); return obj;
+  }
+  // «Ver» lo que alguien comparte en el chat antes de añadirlo (sin importes en los eventos)
+  function openSpecPreview(type, s = {}, onAdd) {
+    const li = arr => `<ul class="pv-list">${arr.join('')}</ul>`;
+    let html = '';
+    if (type === 'event') {
+      html = `<p class="muted" style="margin-top:0">${s.from ? esc(fmtShort(s.from)) : ''} – ${s.to ? esc(fmtShort(s.to)) : ''}</p>${(s.cats || []).length ? `<h3 class="section-title">${esc(t('ledgerCats'))}</h3>${li(s.cats.map(c => `<li>${esc(c.icon || '')} ${esc(c.name || '')}</li>`))}` : ''}`;
+    } else if (type === 'project') {
+      const g = s.goal || {};
+      html = `${s.desc ? `<p style="margin-top:0">${esc(s.desc)}</p>` : ''}
+        <div class="entry"><span>${esc(t('progress'))}</span><b>${esc(t(g.type === 'numeric' ? 'goalNumeric' : g.type === 'checklist' ? 'goalChecklist' : 'goalSimple'))}${g.type === 'numeric' ? ` · ${fmtNum(+g.start || 0)} → ${fmtNum(+g.target || 0)} ${esc(g.unit || '')}` : ''}</b></div>
+        ${s.deadline ? `<div class="entry"><span>📅</span><b>${esc(fmtShort(s.deadline))}</b></div>` : ''}
+        ${g.type === 'checklist' && (g.items || []).length ? li(g.items.map(x => `<li>☐ ${esc(x)}</li>`)) : ''}
+        ${(s.milestones || []).length ? `<h3 class="section-title">🏁 ${esc(t('milestones'))}</h3>${li(s.milestones.map(m => `<li>${esc(m.text || '')}${m.date ? ` <span class="muted small">· ${esc(fmtShort(m.date))}</span>` : ''}</li>`))}` : ''}
+        ${(s.habits || []).length ? `<h3 class="section-title">📋 ${esc(t('pvHabits'))}</h3>${li(s.habits.map(h => `<li>${esc(h.icon || '')} <b>${esc(h.name || '')}</b> <span class="muted small">· ${esc(packSub(h))}</span></li>`))}` : ''}`;
+    } else {
+      html = `<div class="entry"><span>${esc(t('habitFreq'))}</span><b>${esc(packSub(s))}</b></div>${s.timeOfDay && s.timeOfDay !== 'any' ? `<div class="entry"><span>🕒</span><b>${esc(t('tod_' + s.timeOfDay))}</b></div>` : ''}`;
+    }
+    openModal({
+      title: `${esc(s.icon || (type === 'event' ? '🗂️' : '📌'))} ${esc(s.name || '')}`,
+      body: `<p class="muted small" style="margin-top:0">${esc(type === 'event' ? t('evTitle') : t(type === 'project' ? 'gProject' : 'gHabit'))}</p>${html}`,
+      foot: `<button class="btn primary block" data-pv="add">${ico('plus')} ${esc(t(type === 'event' ? 'evAddMine' : 'chatAdd'))}</button>`,
+      onClick: (e, close) => { if (e.target.closest('[data-pv]')) { close(); onAdd(); } }
+    });
   }
   async function shareAsGroup(kind, obj) {
     if (!auth) { toast(t('groupNeedLogin')); return; }
@@ -4808,11 +4855,13 @@
   const myName = () => (firstName() || myTag() || 'Yo').slice(0, 40);
   const personName = p => (p && (p.display_name || (p.nametag ? '@' + p.nametag : ''))) || '—';
   const chatName = g => g.chat === 'dm' ? personName(g.peer) : g.name;
-  const chatAvatar = g => g.chat === 'dm' ? avatarHtml(g.peer || {}, 'lg') : `<span class="avatar lg g-av">${esc(g.icon || '👥')}</span>`;
+  // Foto del grupo (si la hay) o su icono
+  const groupAv = (g, size = 'lg') => { const img = safeImg(g && g.avatar); return img ? `<span class="avatar ${size} photo g-av"><img src="${img}" alt=""></span>` : `<span class="avatar ${size} g-av">${esc((g && g.icon) || '👥')}</span>`; };
+  const chatAvatar = g => g.chat === 'dm' ? avatarHtml(g.peer || {}, 'lg') : groupAv(g, 'lg');
   function chatPreview(g) {
     const l = g.last; if (!l) return t('chatNoMsgs');
     if (l.kind === 'system') return t('chatPrevSys');
-    const txt = l.kind === 'text' ? l.body : l.kind === 'invite' ? '🔗 ' + t('chatPrevInvite') : '📌 ' + t('chatPrevShare');
+    const txt = l.kind === 'text' ? l.body : l.kind === 'invite' ? '🔗 ' + t('chatPrevInvite') : l.kind === 'photo' ? '📷 ' + t('chatPrevPhoto') : l.kind === 'audio' ? '🎤 ' + t('chatPrevAudio') : l.kind === 'sticker' ? '🙂 Sticker' : '📌 ' + t('chatPrevShare');
     if (l.user_id === auth.uid) return t('chatYou') + ': ' + txt;
     if (g.chat === 'dm') return txt;
     const m = (g.members || []).find(x => x.user_id === l.user_id);
@@ -4827,10 +4876,11 @@
       <span class="chat-end"><span class="small muted">${esc(fmtTime(s.created_at))}</span></span></button>`;
   }
   function convRow(g) {
-    const u = unread(g);
-    return `<button class="chat-row ${u ? 'unread' : ''}" data-chat-open="${esc(g.id)}">${chatAvatar(g)}
+    const u = unread(g), live = g.live === 'live';
+    // Con un reto en vivo, toda la fila va en rojo con la banda «RETO EN VIVO»
+    return `<button class="chat-row ${u ? 'unread' : ''} ${live ? 'live-row' : ''}" data-chat-open="${esc(g.id)}">${live ? `<span class="live-band" aria-hidden="true">${esc(t('liveBand'))}</span>` : ''}${chatAvatar(g)}
       <span class="chat-mid"><b class="ellipsis">${esc(chatName(g))}${g.chat === 'group' ? ` <span class="muted small">· ${g.members.length}</span>` : ''}</b><span class="muted small ellipsis">${kindTag(g)}${esc(chatPreview(g))}</span></span>
-      <span class="chat-end"><span class="small muted">${g.last ? esc(fmtTime(g.last.created_at)) : ''}</span>${u ? '<span class="unread-dot" aria-label="•"></span>' : liveBadge(g.live)}</span></button>`;
+      <span class="chat-end"><span class="small muted">${g.last ? esc(fmtTime(g.last.created_at)) : ''}</span>${g.reqs ? `<span class="count-dot" title="${esc(t('reqPending', { n: g.reqs }))}">${g.reqs}</span>` : ''}${u ? '<span class="unread-dot" aria-label="•"></span>' : live ? '' : liveBadge(g.live)}</span></button>`;
   }
   function friendsHtml(fr) {
     const inc = fr.filter(f => f.status === 'incoming'), acc = fr.filter(f => f.status === 'accepted'), out = fr.filter(f => f.status === 'outgoing');
@@ -4906,6 +4956,36 @@
       }
     });
   }
+  // «+» del Chat: crear un grupo o pedir unirse a uno con su ID
+  function openChatPlus() {
+    openModal({
+      title: `${ico('plus')} ${esc(t('tabChat'))}`,
+      body: `<div class="stack" style="gap:10px">
+        <button class="create-opt clay" data-cp="new"><span style="font-size:28px">👥</span><span class="grow"><b>${esc(t('chatNewGroup'))}</b><br><span class="muted small">${esc(t('chatGroupHint'))}</span></span>${ico('right')}</button>
+        <button class="create-opt clay" data-cp="join"><span style="font-size:28px">🆔</span><span class="grow"><b>${esc(t('reqJoinTitle'))}</b><br><span class="muted small">${esc(t('reqJoinSub'))}</span></span>${ico('right')}</button></div>`,
+      onClick: (e, close) => {
+        const b = e.target.closest('[data-cp]'); if (!b) return;
+        close();
+        if (b.dataset.cp === 'new') openNewChat(); else openJoinById();
+      }
+    });
+  }
+  function openJoinById() {
+    openModal({
+      title: `🆔 ${esc(t('reqJoinTitle'))}`,
+      body: `<form id="jid-f" class="stack" style="gap:12px"><label class="field"><span>${esc(t('gId'))}</span><input class="input mono" id="jid" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC123"></label>
+        <p class="muted small" style="margin:0">${esc(t('reqJoinHint'))}</p></form>`,
+      foot: `<button class="btn primary block" data-jid="go">${esc(t('reqSend'))}</button>`,
+      onMount: w => { $('#jid', w).focus(); w.addEventListener('submit', e => { e.preventDefault(); $('[data-jid]', w).click(); }); },
+      onClick: async (e, close, w) => {
+        const b = e.target.closest('[data-jid]'); if (!b) return;
+        const code = $('#jid', w).value.trim().toUpperCase(); if (!code) { $('#jid', w).focus(); return; }
+        b.disabled = true;
+        try { const r = await rpc('kg_request_join', { p_code: code, p_display_name: myName() }); sfx('pop'); toast(t('reqSent', { name: `${r.icon || ''} ${r.name}` })); close(); }
+        catch (err) { b.disabled = false; const m = String(err.message); toast(/no such group/.test(m) ? t('reqNoGroup') : /already member/.test(m) ? t('reqAlready') : chatErr(err)); }
+      }
+    });
+  }
   function chatClick(e) {
     let el;
     if ((el = e.target.closest('[data-chat-open]'))) { openGroup(el.dataset.chatOpen, null, 'chat'); return true; }
@@ -4931,9 +5011,45 @@
     if (p.rate != null) p.rate = fmtNum(+p.rate);
     return t('sys_' + m.body, p);
   }
+  const AUDIO = new Map(); // audios ya descargados (id → URL del blob) mientras dura la sesión
+  const fmtDur = s => `${Math.floor(s / 60)}:${pad(Math.floor(s % 60))}`;
+  // Biblioteca de stickers de este dispositivo (imágenes .webp/.png, p. ej. los guardados o copiados de WhatsApp)
+  const STK_KEY = 'keepgoing.stickers', STK_RE = /^data:image\/(webp|png|gif|jpeg);base64,[A-Za-z0-9+/=]+$/;
+  const stickersGet = () => { try { const a = JSON.parse(localStorage.getItem(STK_KEY) || '[]'); return Array.isArray(a) ? a.filter(s => STK_RE.test(s)) : []; } catch (e) { return []; } };
+  const stickersSet = a => { try { localStorage.setItem(STK_KEY, JSON.stringify(a.slice(0, 80))); return true; } catch (e) { toast(t('stkFull')); return false; } };
+  function stickerFromFile(file) {
+    return new Promise((res, rej) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        for (const S of [160, 128, 96]) {
+          const cv = document.createElement('canvas'); cv.width = cv.height = S;
+          const k = Math.min(S / img.naturalWidth, S / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k;
+          cv.getContext('2d').drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+          for (const [mime, q] of [['image/webp', .85], ['image/webp', .6], ['image/png']]) {
+            const d = cv.toDataURL(mime, q);
+            if (d.startsWith(`data:${mime};`) && d.length <= 15000) { res(d); return; }
+          }
+        }
+        rej(new Error('big'));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
+      img.src = url;
+    });
+  }
+  async function importStickers(files) {
+    const list = stickersGet(); let n = 0;
+    for (const file of files) {
+      if (!/^image\//.test(file.type || 'image/')) continue;
+      try { const s = await stickerFromFile(file); if (!list.includes(s)) { list.unshift(s); n++; } } catch (e) { /* se salta */ }
+    }
+    if (n && stickersSet(list)) toast(t('stkImported', { n }));
+    else if (!n) toast(t('stkNone'));
+    return n;
+  }
   async function openGroup(gid, freshCode = null, tab = 'profile') {
     if (!auth) { toast(t('groupNeedLogin')); return; }
-    const G = { tab, info: null, code: freshCode, msgs: [], sig: '', gone: false, timers: [] };
+    const G = { tab, info: null, code: freshCode, msgs: [], sig: '', gone: false, timers: [], seen: new Set(), seenFor: '', rates: {}, rec: null };
     let wref = null;
     const me = () => G.info && G.info.members.find(m => m.user_id === auth.uid);
     const can = p => GG.can(me(), p);
@@ -4942,9 +5058,20 @@
     const isChat = () => !!G.info && !!G.info.group.chat;
     const peer = () => G.info && G.info.members.find(m => m.user_id !== auth.uid);
     const memberName = id => { const m = G.info && G.info.members.find(x => x.user_id === id); return m ? m.display_name : '—'; };
+    const isMod = () => !!me() && ['lider', 'colider'].includes(me().role);
+    // El líder mantiene al día la ficha del grupo (p. ej., los hábitos vinculados del proyecto)
+    const canon = v => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter(k => v[k] != null).sort().map(k => [k, canon(v[k])])) : v;
+    const syncSpec = () => {
+      if (!G.info || isChat() || !isLeader()) return;
+      const o = findByGroup(gid); if (!o) return;
+      const s = G.info.group.kind === 'habit' ? habitSpec(o) : projectSpec(o);
+      if (JSON.stringify(canon(s)) === JSON.stringify(canon(G.info.group.spec || {}))) return;
+      G.info.group.spec = s; rpc('kg_set_spec', { p_group: gid, p_spec: s }).catch(() => {});
+    };
     const loadInfo = async () => {
       try { G.info = await rpc('kg_group_info', { p_group: gid }); }
       catch (e) { if (/not a member/.test(e.message)) { G.gone = true; return; } throw e; }
+      syncSpec();
       if (!G.code && can('invite')) {
         const inv = await sbFetch(`/rest/v1/kg_invites?group_id=eq.${gid}&expires_at=gt.${new Date().toISOString()}&select=code&order=created_at.desc&limit=1`);
         G.code = inv[0] && inv[0].code;
@@ -4956,19 +5083,33 @@
       if (sig === G.sig) return false;
       const fresh = G.msgs.length && rows.length && rows[0].id > G.msgs[G.msgs.length - 1].id && rows[0].user_id !== auth.uid;
       G.msgs = rows.reverse(); G.sig = sig;
+      const photos = G.msgs.filter(m => m.kind === 'photo' && m.user_id !== auth.uid && !m.deleted).map(m => m.payload && m.payload.media).join(',');
+      if (photos && photos !== G.seenFor) { try { (await rpc('kg_media_seen', { p_group: gid })).forEach(id => G.seen.add(id)); G.seenFor = photos; } catch (e) { /* sin conexión */ } }
       if (G.msgs.length) markRead(gid, G.msgs[G.msgs.length - 1].id);
       if (fresh) sfx('pop');
       return true;
     };
     const body = () => wref && $('#grp', wref);
+    const groupPic = g => isMod() && !isDm()
+      ? `<label class="g-pic edit" title="${esc(t('gPicChange'))}">${groupAv(g, 'xl')}<span class="photo-cam" aria-hidden="true">${ico('camera')}</span><input type="file" accept="image/*" class="sr-only" data-g-pic aria-label="${esc(t('gPicChange'))}"></label>`
+      : `<span class="g-pic">${groupAv(g, 'xl')}</span>`;
+    const picRm = g => isMod() && g.avatar ? `<button class="link-btn small" data-g="pic-rm">${esc(t('gPicRemove'))}</button>` : '';
+    // Hábito o proyecto del grupo en tu dispositivo (al entrar por solicitud o al convertirse el grupo)
+    const localBanner = () => {
+      const g = G.info.group, o = findByGroup(gid);
+      if (!o) return `<section class="clay card banner-cta"><span style="font-size:26px">${esc(g.icon || '🎯')}</span><span class="grow"><b>${esc(t(g.kind === 'habit' ? 'gLinkHabit' : 'gLinkProject', { name: (g.spec && g.spec.name) || g.name }))}</b><br><span class="muted small">${esc(t('gLinkSub'))}</span></span><button class="btn primary" data-g="link-local">${ico('plus')} ${esc(t('chatAdd'))}</button></section>`;
+      const miss = g.kind === 'project' ? missingSpecHabits(o, g.spec) : [];
+      return miss.length ? `<section class="clay card banner-cta"><span style="font-size:26px">📋</span><span class="grow"><b>${esc(t('gLinkHabits', { n: miss.length }))}</b><br><span class="muted small">${esc(miss.map(x => `${x.icon || ''} ${x.name}`).join(' · '))}</span></span><button class="btn primary" data-g="link-habits">${ico('plus')} ${esc(t('chatAdd'))}</button></section>` : '';
+    };
 
     /* --- perfil del grupo --- */
     const chatProfileTab = () => {
       const { group: g, members, max_members: max } = G.info, link = G.code ? `${APP_URL}?join=${G.code}` : '';
       return `<div class="stack" style="gap:16px">
-        <section class="clay card g-profile"><div class="g-head"><span class="g-icon lg">${esc(g.icon || '👥')}</span><div class="grow" style="min-width:0"><h2 class="ellipsis" style="margin:0">${esc(g.name)}</h2><div class="muted">${esc(t('chatGroupKind'))} · ${members.length}${max ? `/${max}` : ''} ${esc(t('gMembersN')).toLowerCase()}</div></div></div>
+        <section class="clay card g-profile"><div class="g-head">${groupPic(g)}<div class="grow" style="min-width:0"><h2 class="ellipsis" style="margin:0">${esc(g.name)}</h2><div class="muted">${esc(t('chatGroupKind'))} · ${members.length}${max ? `/${max}` : ''} ${esc(t('gMembersN')).toLowerCase()}</div>${g.code ? `<div class="row" style="gap:8px;margin-top:6px"><span class="muted small">${esc(t('gId'))}</span><b class="mono">${esc(g.code)}</b><button class="chip sm" data-g="copy-id">${esc(t('gCopyId'))}</button></div>` : ''}${picRm(g)}</div></div>
           <div class="g-people" style="margin-top:12px">${members.map(m => `<span class="g-person">${avatarHtml(m, 'sm')}<span class="small ellipsis">${esc(m.user_id === auth.uid ? t('gYou') : m.display_name)}</span></span>`).join('')}</div></section>
         ${can('invite') ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button>${link ? `<div class="row wrap" style="margin-top:12px"><input class="input grow" readonly value="${esc(link)}" onclick="this.select()" style="flex:1 1 220px"><button class="btn" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p>` : ''}</section>` : ''}
+        ${isLeader() ? `<section class="clay card banner-cta"><span style="font-size:26px">🏆</span><span class="grow"><b>${esc(t('gUpgrade'))}</b><br><span class="muted small">${esc(t('gUpgradeSub'))}</span></span><button class="btn primary" data-g="upgrade">${esc(t('gUpgradeBtn'))}</button></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('chatLeave'))}</button></div>
       </div>`;
     };
@@ -4985,8 +5126,9 @@
         live = `<button class="g-live voting" data-gt="live"><span>🗳️</span><span class="grow"><b>${esc(t('gVotingNow'))}</b><span>${esc(active.title)}</span><span class="small">${esc(t('liveVoteEnds', { when: fmtWhen(active.vote_ends_at) }))}</span></span>${ico('right')}</button>`;
       } else live = `<div class="g-live off"><span>⚪</span><span class="grow"><b>${esc(t('gNoLive'))}</b></span></div>`;
       return `<div class="stack" style="gap:16px">
+        ${localBanner()}
         <section class="clay card g-profile">
-          <div class="g-head"><span class="g-icon lg">${esc(g.icon || '🎯')}</span><div class="grow" style="min-width:0"><h2 class="ellipsis" style="margin:0">${esc(g.name)}</h2><div class="muted">${esc(t(g.kind === 'habit' ? 'gHabit' : 'gProject'))}: <b>${esc((g.spec && g.spec.name) || g.name)}</b></div></div></div>
+          <div class="g-head">${groupPic(g)}<div class="grow" style="min-width:0"><h2 class="ellipsis" style="margin:0">${esc(g.name)}</h2><div class="muted">${esc(t(g.kind === 'habit' ? 'gHabit' : 'gProject'))}: <b>${esc((g.spec && g.spec.name) || g.name)}</b></div>${picRm(g)}</div></div>
           <div class="g-stats">
             ${stat(t('gId'), `<span class="mono">${esc(g.code || '—')}</span>`, g.code ? `<button class="chip sm" data-g="copy-id">${esc(t('gCopyId'))}</button>` : '')}
             ${stat(t('gMembersN'), `${members.length}${max ? `<small>/${max}</small>` : ''}`, max ? `<span class="beta-chip">${esc(t('gBeta', { n: max }))}</span>` : '')}
@@ -5003,8 +5145,25 @@
 
     /* --- chat --- */
     const myGroupCodes = () => new Set(((myGroups.list) || []).map(g => g.code));
+    // Puntuaciones entre compañeros: se publican en el chat cuando cierra el periodo del ranking
+    const ratesHtml = p => {
+      const rows = G.rates[p.period];
+      if (!rows) return `<div class="rate-pub"><span class="muted small">${esc(t('loading'))}</span></div>`;
+      if (!rows.length) return '';
+      return `<div class="rate-pub clay"><b>⭐ ${esc(t('ratePubTitle'))}</b>${rows.map(r => `<div class="rate-row"><span class="grow">${esc(memberName(r.from_user))} → <b>${esc(memberName(r.to_user))}</b></span><b class="rate-pts">${r.points}/10</b>${r.note ? `<p class="small rate-note">«${esc(r.note)}»</p>` : ''}</div>`).join('')}</div>`;
+    };
+    const loadRates = () => {
+      for (const m of G.msgs) {
+        const p = m.payload || {};
+        if (m.kind !== 'system' || m.body !== 'rank_awarded' || !(+p.rates > 0) || G.rates[p.period] !== undefined) continue;
+        G.rates[p.period] = null;
+        sbFetch(`/rest/v1/kg_rank_rates?group_id=eq.${gid}&period=eq.${encodeURIComponent(p.period)}&select=from_user,to_user,points,note&order=to_user`)
+          .then(rows => { G.rates[p.period] = rows; draw(true); }).catch(() => { delete G.rates[p.period]; });
+      }
+    };
+    const stickerSrc = p => /^image\/(webp|png|gif|jpeg)$/.test(p.mime || '') && /^[A-Za-z0-9+/=]+$/.test(p.data || '') ? `data:${p.mime};base64,${p.data}` : '';
     const msgHtml = m => {
-      if (m.kind === 'system') return `<div class="msg sys">${esc(sysText(m))}</div>`;
+      if (m.kind === 'system') return `<div class="msg sys">${esc(sysText(m))}${m.body === 'rank_awarded' && +(m.payload || {}).rates > 0 ? ratesHtml(m.payload) : ''}</div>`;
       const mine = m.user_id === auth.uid, canDel = !m.deleted && (mine || (!isDm() && can('moderate')));
       let inner;
       if (m.deleted) inner = `<i class="muted">${esc(t('chatDeleted'))}</i>`;
@@ -5013,16 +5172,29 @@
         inner = `<div class="msg-card"><span class="g-icon">${esc(p.icon || '🎯')}</span><span class="grow"><b>${esc(t('chatInviteCard', { name: p.name || '' }))}</b><span class="muted small">${esc(t(p.kind === 'project' ? 'gProject' : 'gHabit'))}: ${esc(p.spec_name || p.name || '')}</span></span>${member ? `<span class="muted small">${esc(t('chatAlready'))}</span>` : `<button class="btn primary sm" data-gc-join="${esc(p.code)}">${esc(t('chatJoin'))}</button>`}</div>`;
       } else if (m.kind === 'share' && (m.payload || {}).type === 'event') {
         const v = (m.payload || {}).event || {};
-        inner = `<div class="msg-card"><span class="g-icon">${esc(v.icon || '🗂️')}</span><span class="grow"><b>${esc(v.name || '')}</b><span class="muted small">${esc(t('evTitle'))} · ${v.from ? esc(fmtShort(v.from)) : ''} – ${v.to ? esc(fmtShort(v.to)) : ''}${(v.cats || []).length ? ' · ' + (v.cats || []).map(c => esc(`${c.icon || ''} ${c.name || ''}`)).join(', ') : ''}</span></span><button class="btn sm" data-gc-add="${m.id}">${ico('plus')} ${esc(t('evAddMine'))}</button></div>`;
+        inner = `<div class="msg-card"><span class="g-icon">${esc(v.icon || '🗂️')}</span><span class="grow"><b>${esc(v.name || '')}</b><span class="muted small">${esc(t('evTitle'))} · ${v.from ? esc(fmtShort(v.from)) : ''} – ${v.to ? esc(fmtShort(v.to)) : ''}${(v.cats || []).length ? ' · ' + (v.cats || []).map(c => esc(`${c.icon || ''} ${c.name || ''}`)).join(', ') : ''}</span></span><span class="msg-acts"><button class="btn sm" data-gc-view="${m.id}">${esc(t('chatView'))}</button><button class="btn sm primary" data-gc-add="${m.id}">${ico('plus')} ${esc(t('evAddMine'))}</button></span></div>`;
       } else if (m.kind === 'share') {
         const p = m.payload || {}, s = p.spec || {};
-        inner = `<div class="msg-card"><span class="g-icon">${esc(s.icon || '📌')}</span><span class="grow"><b>${esc(s.name || '')}</b><span class="muted small">${esc(t('chatShareCard', { kind: t(p.type === 'project' ? 'gProject' : 'gHabit') }))}</span></span><button class="btn sm" data-gc-add="${m.id}">${ico('plus')} ${esc(t('chatAdd'))}</button></div>`;
+        inner = `<div class="msg-card"><span class="g-icon">${esc(s.icon || '📌')}</span><span class="grow"><b>${esc(s.name || '')}</b><span class="muted small">${esc(t('chatShareCard', { kind: t(p.type === 'project' ? 'gProject' : 'gHabit') }))}</span></span><span class="msg-acts"><button class="btn sm" data-gc-view="${m.id}">${esc(t('chatView'))}</button><button class="btn sm primary" data-gc-add="${m.id}">${ico('plus')} ${esc(t('chatAdd'))}</button></span></div>`;
+      } else if (m.kind === 'photo') {
+        // Foto de una sola vez: cada persona la abre una vez; quien la envía no puede volver a verla
+        const p = m.payload || {};
+        inner = mine ? `<span class="media-chip">📷 ${esc(t('photoOnceSent'))}</span>` : G.seen.has(p.media) ? `<span class="media-chip muted">📷 ${esc(t('photoOpened'))}</span>` : `<button class="media-chip once" data-gc-photo="${esc(p.media)}">📷 ${esc(t('photoOnceOpen'))}</button>`;
+      } else if (m.kind === 'audio') {
+        const p = m.payload || {}, url = AUDIO.get(p.media);
+        inner = url ? `<audio class="audio-msg" controls src="${url}"></audio>` : `<button class="media-chip" data-gc-audio="${esc(p.media)}">${ico('play')} 🎤 ${esc(fmtDur(+p.dur || 0))}</button>`;
+      } else if (m.kind === 'sticker') {
+        const src = stickerSrc(m.payload || {});
+        inner = src ? `<img class="sticker" src="${src}" alt="Sticker" draggable="false">` : '🙂';
       } else inner = `<span class="msg-text">${esc(m.body)}</span>`;
-      return `<div class="msg ${mine ? 'mine' : ''}">${mine || isDm() ? '' : `<span class="msg-who small">${esc(memberName(m.user_id))}</span>`}<div class="msg-bubble">${inner}</div><span class="msg-meta small muted">${esc(fmtTime(m.created_at))}${canDel ? ` · <button class="link-btn" data-gc-del="${m.id}">${esc(t('chatDelete'))}</button>` : ''}</span></div>`;
+      const bare = m.kind === 'sticker' && !m.deleted;
+      return `<div class="msg ${mine ? 'mine' : ''}">${mine || isDm() ? '' : `<span class="msg-who small">${esc(memberName(m.user_id))}</span>`}<div class="msg-bubble ${bare ? 'bare' : ''}">${inner}</div><span class="msg-meta small muted">${esc(fmtTime(m.created_at))}${bare && !mine ? ` · <button class="link-btn" data-gc-stk="${m.id}">${esc(t('stkSave'))}</button>` : ''}${canDel ? ` · <button class="link-btn" data-gc-del="${m.id}">${esc(t('chatDelete'))}</button>` : ''}</span></div>`;
     };
-    const chatTab = () => `<div class="chat">
+    const chatTab = () => `<div class="chat">${isChat() ? '' : localBanner()}
         <div class="chat-list" id="chat-list" role="log" aria-live="polite">${G.msgs.length ? G.msgs.map(msgHtml).join('') : `<p class="muted center">${esc(t('chatEmpty'))}</p>`}</div>
-        <form class="chat-compose" id="chat-form">${can('share') ? `<button type="button" class="icon-btn" data-g="chat-more" aria-label="${esc(t('chatMore'))}">${ico('plus')}</button>` : ''}<input class="input grow" id="chat-in" maxlength="1000" autocomplete="off" placeholder="${esc(t('chatPh'))}" aria-label="${esc(t('chatPh'))}"><button class="btn primary send-btn" type="submit" aria-label="${esc(t('chatSend'))}">${ico('send')}</button></form>
+        <form class="chat-compose ${G.rec ? 'recording' : ''}" id="chat-form">${can('share') ? `<button type="button" class="icon-btn" data-g="chat-more" aria-label="${esc(t('chatMore'))}">${ico('plus')}</button>` : ''}<button type="button" class="icon-btn" data-g="stk" aria-label="Stickers" title="Stickers">${ico('smile')}</button><input class="input grow" id="chat-in" maxlength="1000" autocomplete="off" placeholder="${esc(t('chatPh'))}" aria-label="${esc(t('chatPh'))}">
+          <span class="rec-info grow" aria-live="polite"><span class="rec-dot"></span><span id="rec-t">0:00</span> <span class="muted small">${esc(t('recHint'))}</span></span>
+          <label class="icon-btn photo-btn-chat" title="${esc(t('photoOnceSend'))}">${ico('camera')}<input type="file" accept="image/*" class="sr-only" data-g-photo aria-label="${esc(t('photoOnceSend'))}"></label><button type="button" class="icon-btn rec-cancel" data-g="rec-cancel" aria-label="${esc(t('cancel'))}">${ico('x')}</button><button type="button" class="icon-btn mic-btn" data-g="mic" aria-label="${esc(t('recStart'))}" title="${esc(t('recStart'))}">${ico('mic')}</button><button class="btn primary send-btn" type="submit" aria-label="${esc(t('chatSend'))}">${ico('send')}</button></form>
       </div>`;
     const scrollChat = () => { const l = wref && $('#chat-list', wref); if (l) l.scrollTop = l.scrollHeight; };
 
@@ -5112,14 +5284,20 @@
           <label class="field"><span>${esc(t('rankWhoTags'))}</span><input class="input" id="rk-tags" value="${esc(tags)}" placeholder="${esc(t('rankTagsPh'))}" autocomplete="off"></label>
           <button class="btn primary" data-g="rank-save">${esc(t('rankSave'))}</button></section>`;
       }
+      if (g.ranking_on && g.ranking_freq !== 'MAX') {
+        const others = members.filter(m => m.user_id !== auth.uid), done = new Set(G.info.my_rates || []);
+        html += `<section class="clay card"><h3 class="section-title" style="margin-top:0">⭐ ${esc(t('rateTitle'))}</h3><p class="muted small" style="margin-top:0">${esc(t('rateHint'))}</p>
+          ${others.length ? others.map(m => `<div class="member-row">${avatarHtml(m, 'sm')}<b class="grow ellipsis">${esc(m.display_name)}</b>${done.has(m.user_id) ? `<span class="ok-chip">✓ ${esc(t('rateDone'))}</span>` : `<button class="btn sm primary" data-rate="${m.user_id}">${esc(t('rateBtn'))}</button>`}</div>`).join('') : `<p class="muted small" style="margin:0">${esc(t('rateNobody'))}</p>`}</section>`;
+      }
       html += `<p class="muted small center">${esc(t('rankRepNote'))}</p>`;
       return `<div class="stack" style="gap:16px">${html}</div>`;
     };
 
     /* --- miembros, roles y permisos --- */
     const membersTab = () => {
-      const { members, group: g } = G.info, leader = isLeader();
-      return `<section class="clay card">${members.map(m => {
+      const { members, group: g } = G.info, leader = isLeader(), reqs = G.info.requests || [];
+      const reqHtml = isMod() && reqs.length ? `<section class="clay card" style="margin-bottom:14px"><h3 class="section-title" style="margin-top:0">🆔 ${esc(t('reqTitle', { n: reqs.length }))}</h3>${reqs.map(r => `<div class="member-row">${avatarHtml(r, 'sm')}<div class="grow" style="min-width:0"><b class="ellipsis">${esc(r.display_name)}</b>${r.nametag ? ` <span class="muted small">@${esc(r.nametag)}</span>` : ''}</div><button class="btn primary sm" data-jr-yes="${r.user_id}">${esc(t('friendAccept'))}</button><button class="chip sm" data-jr-no="${r.user_id}">${esc(t('friendDecline'))}</button></div>`).join('')}</section>` : '';
+      return `${reqHtml}<section class="clay card">${members.map(m => {
         const self = m.user_id === auth.uid;
         const roleCtl = leader && !self ? `<select class="role-select" data-role-user="${m.user_id}" aria-label="${esc(t('gRole'))}">${ROLES.map(r => `<option value="${r}" ${m.role === r ? 'selected' : ''}>${ROLE_ICON[r]} ${esc(t('role_' + r))}</option>`).join('')}</select>` : `<span class="role-chip">${ROLE_ICON[m.role] || ''} ${esc(t('role_' + m.role))}</span>`;
         const perms = m.role === 'lider' ? '' : leader && !self
@@ -5140,7 +5318,7 @@
     const setTitle = () => {
       const h = wref && $('.sheet-head h2', wref); if (!h || !G.info) return;
       const g = G.info.group, p = peer();
-      h.innerHTML = isDm() ? `<span class="row" style="gap:10px;min-width:0">${avatarHtml(p || {}, 'sm')}<span class="ellipsis">${esc(p ? p.display_name : '—')}${p && p.nametag ? ` <span class="muted small">@${esc(p.nametag)}</span>` : ''}</span></span>` : `<span class="ellipsis">${esc(g.icon || '👥')} ${esc(g.name)}</span>`;
+      h.innerHTML = isDm() ? `<span class="row" style="gap:10px;min-width:0">${avatarHtml(p || {}, 'sm')}<span class="ellipsis">${esc(p ? p.display_name : '—')}${p && p.nametag ? ` <span class="muted small">@${esc(p.nametag)}</span>` : ''}</span></span>` : `<span class="row" style="gap:10px;min-width:0">${groupAv(g, 'sm')}<span class="ellipsis">${esc(g.name)}</span></span>`;
     };
     const draw = (keepChat = false) => {
       const el = body(); if (!el) return;
@@ -5151,12 +5329,12 @@
       if (keepChat && G.tab === 'chat' && $('#chat-list', el)) {
         const l = $('#chat-list', el), atEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 60;
         l.innerHTML = G.msgs.length ? G.msgs.map(msgHtml).join('') : `<p class="muted center">${esc(t('chatEmpty'))}</p>`;
-        if (atEnd) scrollChat(); return;
+        loadRates(); if (atEnd) scrollChat(); return;
       }
       const draft = $('#chat-in', el) ? $('#chat-in', el).value : '';
       el.innerHTML = `${TABS.length < 2 ? '' : `<div class="seg g-tabs" role="tablist">${TABS.map(([k, e, l]) => `<button role="tab" aria-selected="${G.tab === k}" class="${G.tab === k ? 'on' : ''}" data-gt="${k}"><span aria-hidden="true">${e}</span> <span class="g-tab-l">${esc(t(l))}</span></button>`).join('')}</div>`}
         <div class="g-pane" role="tabpanel">${G.tab === 'chat' ? chatTab() : G.tab === 'live' ? liveTab() : G.tab === 'rank' ? rankTab() : G.tab === 'members' ? membersTab() : profileTab()}</div>`;
-      if (G.tab === 'chat') { const i = $('#chat-in', el); if (draft) i.value = draft; scrollChat(); }
+      if (G.tab === 'chat') { const i = $('#chat-in', el); if (draft) { i.value = draft; i.form.classList.add('has-text'); } loadRates(); scrollChat(); }
     };
     const refresh = async (info = true) => { if (info) await loadInfo(); if (G.tab === 'chat') await loadMsgs(); draw(); };
     const poll = () => {
@@ -5226,6 +5404,138 @@
       toast(t('rankSaved')); sfx('toggle'); await refresh();
     }
 
+    /* --- fotos de una vez, audios, stickers, puntuaciones y mejora a grupo con ranking --- */
+    const b64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
+    const afterPost = async () => { sfx('pop'); await loadMsgs(); draw(true); scrollChat(); };
+    async function sendPhoto(file) {
+      let q = .8, max = 1280, data = await b64(await compressImage(file, max, q));
+      while (data.length > 2200000 && q > .35) { q -= .15; max = Math.round(max * .8); data = await b64(await compressImage(file, max, q)); }
+      await rpc('kg_post_media', { p_group: gid, p_kind: 'photo', p_mime: 'image/jpeg', p_data: data, p_meta: {} });
+      await afterPost();
+    }
+    async function openPhoto(id) {
+      let r;
+      try { r = await rpc('kg_media_get', { p_id: id }); }
+      catch (err) { if (/viewed|sender/.test(err.message)) { G.seen.add(id); draw(true); toast(t('photoAlready')); return; } throw err; }
+      G.seen.add(id); draw(true);
+      if (!/^image\/(jpeg|png|webp|gif)$/.test(r.mime || '') || !/^[A-Za-z0-9+/=]+$/.test(r.data || '')) return;
+      openModal({ title: `📷 ${esc(t('photoOnceOpen'))}`, cls: 'photo-view', body: `<img class="once-img" src="data:${r.mime};base64,${r.data}" alt=""><p class="muted small center" style="margin-bottom:0">${esc(t('photoOnceNote'))}</p>` });
+    }
+    async function loadAudio(id) {
+      const r = await rpc('kg_media_get', { p_id: id });
+      if (!/^audio\//.test(r.mime || '')) return;
+      const bin = atob(r.data || ''), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([u8], { type: r.mime.split(';')[0] }));
+      AUDIO.set(id, url); draw(true);
+      const a = body() && [...body().querySelectorAll('audio')].find(x => x.getAttribute('src') === url);
+      if (a) a.play().catch(() => {});
+    }
+    // Notas de voz: se graban al tocar el micro (el navegador pide permiso) y se envían al tocarlo otra vez
+    const REC_MAX = 120;
+    const recUi = () => { const f = body() && $('#chat-form', body()); if (f) f.classList.toggle('recording', !!G.rec); };
+    async function startRec() {
+      if (G.rec) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { toast(t('recUnsupported')); return; }
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { toast(t('recDenied')); return; }
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].find(m => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : {});
+      const R = G.rec = { rec, chunks: [], t0: Date.now(), cancel: false };
+      rec.ondataavailable = e => { if (e.data && e.data.size) R.chunks.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach(tr => tr.stop()); clearInterval(R.tick);
+        G.rec = null; recUi();
+        const dur = Math.min(REC_MAX, Math.round((Date.now() - R.t0) / 1000));
+        if (R.cancel || dur < 1 || !R.chunks.length) return;
+        try {
+          const blob = new Blob(R.chunks, { type: rec.mimeType || mime || 'audio/webm' });
+          await rpc('kg_post_media', { p_group: gid, p_kind: 'audio', p_mime: blob.type || 'audio/webm', p_data: await b64(blob), p_meta: { dur } });
+          await afterPost();
+        } catch (err) { toast(t('groupError', { e: err.message })); }
+      };
+      rec.start(1000); recUi(); vibrate(15);
+      R.tick = setInterval(() => {
+        const s = (Date.now() - R.t0) / 1000, el = body() && $('#rec-t', body());
+        if (el) el.textContent = fmtDur(s);
+        if (s >= REC_MAX && rec.state === 'recording') rec.stop();
+      }, 250);
+    }
+    const stopRec = (cancel = false) => { if (!G.rec) return; G.rec.cancel = cancel; if (G.rec.rec.state !== 'inactive') G.rec.rec.stop(); };
+    function openStickers() {
+      let edit = false;
+      const grid = w => {
+        const list = stickersGet();
+        $('#stk-grid', w).innerHTML = list.length ? list.map((s, i) => `<span class="stk-cell"><button type="button" class="stk-btn" data-stk="${i}" aria-label="Sticker ${i + 1}"><img src="${s}" alt=""></button>${edit ? `<button type="button" class="stk-del" data-stk-del="${i}" aria-label="${esc(t('delete'))}">${ico('x')}</button>` : ''}</span>`).join('') : `<p class="muted small" style="grid-column:1/-1;margin:0">${esc(t('stkEmpty'))}</p>`;
+        $('[data-stk-edit]', w).textContent = t(edit ? 'done' : 'edit');
+      };
+      openModal({
+        title: `${ico('smile')} Stickers`,
+        body: `<div class="stk-grid" id="stk-grid"></div>
+          <div class="row wrap" style="gap:8px;margin-top:12px"><label class="btn primary">${ico('plus')} ${esc(t('stkImport'))}<input type="file" accept="image/webp,image/png,image/gif,image/jpeg" multiple class="sr-only" id="stk-file"></label><button type="button" class="chip" data-stk-edit></button></div>
+          <input class="input" id="stk-paste" style="margin-top:10px" placeholder="${esc(t('stkPaste'))}" aria-label="${esc(t('stkPaste'))}" autocomplete="off">
+          <details class="muted small" style="margin-top:10px"><summary>${esc(t('stkWaTitle'))}</summary><p style="margin:8px 0 0">${esc(t('stkWaHint'))}</p></details>`,
+        onMount: w => {
+          grid(w);
+          w.addEventListener('change', async e => { if (e.target.id === 'stk-file' && e.target.files.length) { await importStickers([...e.target.files]); e.target.value = ''; grid(w); } });
+          $('#stk-paste', w).addEventListener('paste', async e => {
+            const files = [...((e.clipboardData && e.clipboardData.files) || [])].filter(x => /^image\//.test(x.type));
+            e.preventDefault(); e.target.value = '';
+            if (!files.length) { toast(t('stkNone')); return; }
+            await importStickers(files); grid(w);
+          });
+        },
+        onClick: async (e, close, w) => {
+          if (e.target.closest('[data-stk-edit]')) { edit = !edit; grid(w); return; }
+          const d = e.target.closest('[data-stk-del]');
+          if (d) { const list = stickersGet(); list.splice(+d.dataset.stkDel, 1); stickersSet(list); grid(w); return; }
+          const b = e.target.closest('[data-stk]'); if (!b || edit) return;
+          const m = /^data:([^;]+);base64,(.+)$/.exec(stickersGet()[+b.dataset.stk] || ''); if (!m) return;
+          b.disabled = true;
+          try { await rpc('kg_post_media', { p_group: gid, p_kind: 'sticker', p_mime: m[1], p_data: m[2], p_meta: {} }); close(); await afterPost(); }
+          catch (err) { b.disabled = false; toast(t('groupError', { e: err.message })); }
+        }
+      });
+    }
+    function openRate(to) {
+      const m = G.info.members.find(x => x.user_id === to); if (!m) return;
+      let pts = null;
+      openModal({
+        title: `⭐ ${esc(m.display_name)}`,
+        body: `<div class="stack" style="gap:14px"><div class="field" style="margin:0"><span>${esc(t('ratePoints'))}</span><div class="rate-grid" role="radiogroup" aria-label="${esc(t('ratePoints'))}">${Array.from({ length: 11 }, (_, i) => `<button type="button" class="chip" role="radio" aria-checked="false" data-pts="${i}">${i}</button>`).join('')}</div></div>
+          <label class="field" style="margin:0"><span>${esc(t('rateNote'))}</span><textarea class="input" id="rt-note" maxlength="200" rows="3" placeholder="${esc(t('rateNotePh'))}"></textarea></label>
+          <p class="muted small" style="margin:0">${esc(t('rateHint'))}</p></div>`,
+        foot: `<button class="btn primary block" data-rt="go">${esc(t('rateSend'))}</button>`,
+        onClick: async (e, close, w) => {
+          const c = e.target.closest('[data-pts]');
+          if (c) { pts = +c.dataset.pts; w.querySelectorAll('[data-pts]').forEach(x => { x.classList.toggle('on', x === c); x.setAttribute('aria-checked', x === c); }); return; }
+          const b = e.target.closest('[data-rt]'); if (!b) return;
+          if (pts == null) { toast(t('ratePick')); return; }
+          b.disabled = true;
+          try { await rpc('kg_rank_rate', { p_group: gid, p_to: to, p_points: pts, p_note: $('#rt-note', w).value.trim() }); sfx('toggle'); toast(t('rateSaved')); close(); await refresh(); }
+          catch (err) { b.disabled = false; toast(/already rated/.test(err.message) ? t('rateAlready') : t('groupError', { e: err.message })); }
+        }
+      });
+    }
+    function openUpgrade() {
+      const items = [...state.projects.filter(p => !p.groupId && !p.archived).map(o => ['project', o]), ...state.habits.filter(h => !h.groupId && !h.archived).map(o => ['habit', o])];
+      openModal({
+        title: `🏆 ${esc(t('gUpgrade'))}`,
+        body: `<p class="muted small" style="margin-top:0">${esc(t('gUpgradePick'))}</p>${items.length ? `<div class="stack" style="gap:8px">${items.map(([k, o]) => `<button class="btn block" style="justify-content:flex-start" data-up="${esc(o.id)}" data-up-kind="${k}">${esc(o.icon || '🎯')} ${esc(o.name)} <span class="muted small">· ${esc(t(k === 'project' ? 'gProject' : 'gHabit'))}</span></button>`).join('')}</div>` : `<p class="muted">${esc(t('gUpgradeNone'))}</p>`}`,
+        onClick: async (e, close) => {
+          const b = e.target.closest('[data-up]'); if (!b) return;
+          const k = b.dataset.upKind, o = (k === 'project' ? state.projects : state.habits).find(x => x.id === b.dataset.up); if (!o) return;
+          if (!(await confirmDialog(t('gUpgradeQ', { name: o.name })))) return;
+          b.disabled = true;
+          try {
+            await rpc('kg_chat_upgrade', { p_group: gid, p_kind: k, p_spec: k === 'project' ? projectSpec(o) : habitSpec(o), p_local_id: o.id });
+            o.groupId = gid; save(); sfx('unlock'); close(); G.tab = 'profile'; myGroups.at = 0;
+            await pushGroupProgress(); await refresh(); toast(t('gUpgraded'));
+          } catch (err) { b.disabled = false; toast(t('groupError', { e: err.message })); }
+        }
+      });
+    }
+
     openModal({
       title: `👥 ${esc(t('groupTitle'))}`, cls: `wide g-modal${tab === 'chat' ? ' chat-full' : ''}`, body: `<div id="grp"><p class="muted">${esc(t('loading'))}</p></div>`,
       onMount: async w => {
@@ -5239,32 +5549,47 @@
               const m = G.info.members.find(x => x.user_id === el.dataset.roleUser);
               if (el.value === 'lider' && !(await confirmDialog(t('gMakeLeaderQ', { name: m ? m.display_name : '' })))) { draw(); return; }
               await rpc('kg_set_role', { p_group: gid, p_user: el.dataset.roleUser, p_role: el.value }); toast(t('saved')); await refresh();
+            } else if (el.matches('[data-g-pic]') && el.files[0]) {
+              const img = await resizePhoto(el.files[0]); el.value = '';
+              await rpc('kg_set_group_avatar', { p_group: gid, p_avatar: img }); toast(t('saved')); myGroups.at = 0; await refresh();
+            } else if (el.matches('[data-g-photo]') && el.files[0]) {
+              const file = el.files[0]; el.value = '';
+              toast(t('photoSending')); await sendPhoto(file);
             } else if (el.dataset.permUser) {
               const u = el.dataset.permUser, perms = [...body().querySelectorAll(`[data-perm-user="${u}"]`)].filter(i => i.checked).map(i => i.dataset.perm);
               await rpc('kg_set_perms', { p_group: gid, p_user: u, p_perms: perms }); toast(t('gPermsSaved')); await loadInfo();
             }
           } catch (err) { toast(t('groupError', { e: err.message })); await refresh(); }
         });
+        // Como en WhatsApp: con texto aparece «Enviar»; sin texto, la cámara y el micro
+        w.addEventListener('input', e => { if (e.target.id === 'chat-in') e.target.form.classList.toggle('has-text', !!e.target.value.trim()); });
         w.addEventListener('submit', async e => {
           if (e.target.id !== 'chat-form') return; e.preventDefault();
+          if (G.rec) { stopRec(); return; }
           const i = $('#chat-in', w), text = i.value.trim(); if (!text) return;
-          i.value = '';
+          i.value = ''; e.target.classList.remove('has-text');
           try { await rpc('kg_post', { p_group: gid, p_kind: 'text', p_body: text, p_payload: {} }); sfx('tap'); await loadMsgs(); draw(true); scrollChat(); }
-          catch (err) { i.value = text; toast(t('groupError', { e: err.message })); }
+          catch (err) { i.value = text; e.target.classList.add('has-text'); toast(t('groupError', { e: err.message })); }
           i.focus();
         });
       },
-      onClose: () => { G.timers.forEach(clearInterval); myGroups.at = 0; if (state.ui.tab === 'chat') { render(); refreshMyGroups(true); } },
+      onClose: () => { stopRec(true); G.timers.forEach(clearInterval); myGroups.at = 0; if (state.ui.tab === 'chat') { render(); refreshMyGroups(true); } },
       onClick: async (e, close) => {
         const tabB = e.target.closest('[data-gt]');
         if (tabB) { G.tab = tabB.dataset.gt; draw(); if (G.tab === 'chat') { try { await loadMsgs(); } catch (err) { /* nada */ } draw(); $('#chat-in', body()) && $('#chat-in', body()).focus(); } return; }
         const fr = e.target.closest('[data-rk-freq]');
         if (fr) { body().querySelectorAll('[data-rk-freq]').forEach(b => { b.classList.toggle('on', b === fr); b.setAttribute('aria-checked', b === fr); }); return; }
-        const b = e.target.closest('[data-g],[data-g-kick],[data-gv],[data-gc-join],[data-gc-add],[data-gc-del]'); if (!b || !G.info) return;
+        const b = e.target.closest('[data-g],[data-g-kick],[data-gv],[data-gc-join],[data-gc-add],[data-gc-view],[data-gc-del],[data-gc-photo],[data-gc-audio],[data-gc-stk],[data-rate],[data-jr-yes],[data-jr-no]'); if (!b || !G.info) return;
         try {
           if (b.dataset.gKick) { if (await confirmDialog(t('groupKickQ'))) { await rpc('kg_leave_group', { p_group: gid, p_user: b.dataset.gKick }); await refresh(); } return; }
           if (b.dataset.gv) { b.disabled = true; await rpc('kg_vote', { p_challenge: G.info.active.id, p_vote: b.dataset.gv === '1' }); sfx('toggle'); vibrate(15); await refresh(); return; }
           if (b.dataset.gcJoin) { try { localStorage.setItem(JOIN_KEY, b.dataset.gcJoin); } catch (err) { /* nada */ } close(); processJoin(); return; }
+          if (b.dataset.gcView) {
+            const m = G.msgs.find(x => String(x.id) === b.dataset.gcView), p = m && m.payload; if (!p) return;
+            const add = () => { const x = body() && body().querySelector(`[data-gc-add="${m.id}"]`); if (x) x.click(); };
+            if (p.type === 'event') openSpecPreview('event', p.event || {}, add); else if (p.spec) openSpecPreview(p.type === 'project' ? 'project' : 'habit', p.spec, add);
+            return;
+          }
           if (b.dataset.gcAdd) {
             const m = G.msgs.find(x => String(x.id) === b.dataset.gcAdd), p = m && m.payload;
             if (p && p.type === 'event') { addSharedEvent(p.event || {}); return; }
@@ -5272,12 +5597,38 @@
             const o = addFromSpec(p.type === 'project' ? 'project' : 'habit', p.spec, p.spec.name || '', p.spec.icon);
             sfx('unlock'); toast(t('chatAdded', { name: o.name })); render(); return;
           }
+          if (b.dataset.gcPhoto) { b.disabled = true; await openPhoto(b.dataset.gcPhoto); return; }
+          if (b.dataset.gcAudio) { b.disabled = true; await loadAudio(b.dataset.gcAudio); return; }
+          if (b.dataset.gcStk) {
+            const m = G.msgs.find(x => String(x.id) === b.dataset.gcStk), s = m && stickerSrc(m.payload || {});
+            if (s) { const list = stickersGet(); if (!list.includes(s)) { list.unshift(s); if (stickersSet(list)) toast(t('stkSaved')); } else toast(t('stkSaved')); }
+            return;
+          }
+          if (b.dataset.rate) { openRate(b.dataset.rate); return; }
+          if (b.dataset.jrYes || b.dataset.jrNo) {
+            b.disabled = true;
+            await rpc('kg_join_respond', { p_group: gid, p_user: b.dataset.jrYes || b.dataset.jrNo, p_accept: !!b.dataset.jrYes });
+            sfx(b.dataset.jrYes ? 'pop' : 'tap'); myGroups.at = 0; await refresh(); return;
+          }
           if (b.dataset.gcDel) { if (await confirmDialog(t('chatDeleteQ'))) { await rpc('kg_delete_message', { p_id: +b.dataset.gcDel }); await loadMsgs(); draw(true); } return; }
           const a = b.dataset.g, link = `${APP_URL}?join=${G.code}`;
           if (a === 'share') { const text = t('gShareText', { name: G.info.group.name }); if (navigator.share) navigator.share({ title: 'KeepGoing', text, url: link }).catch(() => {}); else { await navigator.clipboard.writeText(`${text} ${link}`); toast(t('copied')); } }
           if (a === 'copy-id') { try { await navigator.clipboard.writeText(G.info.group.code); toast(t('copied')); } catch (err) { /* nada */ } }
           if (a === 'newcode') { G.code = await rpc('kg_new_invite', { p_group: gid }); draw(); }
           if (a === 'chat-more') chatShare();
+          if (a === 'stk') openStickers();
+          if (a === 'mic') { if (G.rec) stopRec(); else await startRec(); }
+          if (a === 'rec-cancel') stopRec(true);
+          if (a === 'upgrade') openUpgrade();
+          if (a === 'pic-rm' && await confirmDialog(t('gPicRemoveQ'))) { await rpc('kg_set_group_avatar', { p_group: gid, p_avatar: null }); myGroups.at = 0; await refresh(); }
+          if (a === 'link-local' || a === 'link-habits') {
+            const g = G.info.group, kind = g.kind === 'habit' ? 'habit' : 'project';
+            let o = findByGroup(gid);
+            if (!o) { o = objFromSpec(kind, g.spec || {}, g.name, g.icon); o.groupId = gid; (kind === 'habit' ? state.habits : state.projects).push(o); }
+            const n = kind === 'project' ? addSpecHabits(o, g.spec) : 0;
+            save(); sfx('unlock'); toast(a === 'link-habits' ? t('gHabitsAdded', { n }) : t('chatAdded', { name: o.name })); render();
+            await pushGroupProgress(); await refresh();
+          }
           if (a === 'add-friends') addFriendsToChat();
           if (a === 'launch') openLaunch();
           if (a === 'cancel' && await confirmDialog(t('liveCancelQ'))) { await rpc('kg_cancel_challenge', { p_challenge: G.info.active.id }); await refresh(); }
@@ -5341,6 +5692,7 @@
     try { await rpc('kg_join_group', { p_code: code, p_display_name: firstName() || 'Amigo', p_local_id: obj.id }); }
     catch (e) { toast(/group full/.test(e.message) ? t('joinFull', { n: info.max_members || GG.MAX_MIEMBROS }) : t('groupError', { e: e.message })); return; }
     obj.groupId = info.group_id; (info.kind === 'habit' ? state.habits : state.projects).push(obj);
+    if (info.kind === 'project') addSpecHabits(obj, info.spec);
     save(); myGroups.at = 0; render(); toast(t('joined', { name: info.name }));
     openGroup(info.group_id);
   }
@@ -5577,6 +5929,88 @@
     if (e.key === 'Escape' && !$('#modal-root').children.length) exitJiggle();
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-w-del]')) { e.preventDefault(); jigRemove(e.target.parentElement); }
   });
+  /* Reordenar en modo edición: mantén pulsado un widget que tiembla y arrástralo entre los de su mismo tipo.
+     Hábitos, carpetas y rutinas cambian su orden en la lista; el resto guarda su orden en state.wOrder. */
+  const reslot = (arr, ids) => {
+    const byId = Object.fromEntries(arr.map(x => [x.id, x])); ids = ids.filter(id => byId[id]);
+    const set = new Set(ids), slots = arr.map((x, i) => set.has(x.id) ? i : -1).filter(i => i >= 0), next = arr.slice();
+    slots.forEach((s, j) => { next[s] = byId[ids[j]]; }); return next;
+  };
+  const ordKey = el => el.dataset.chatOpen ? 'c:' + el.dataset.chatOpen : el.dataset.lsOpen ? 'l:' + el.dataset.lsOpen : el.dataset.evOpen ? 'e:' + el.dataset.evOpen : el.dataset.w ? 'w:' + el.dataset.w : '';
+  const DOM_ORD = '.chat-row[data-chat-open], .chat-row[data-ls-open], .ev-card[data-ev-open], [data-w]';
+  const ORD = [
+    { sel: '.habit-grid > .folder', id: el => el.dataset.pid, save: ids => { state.projects = reslot(state.projects, ids); } },
+    { sel: '.proj.finished', id: el => el.dataset.id, save: ids => { state.projects = reslot(state.projects, ids); } },
+    { sel: '.habit-grid > .habit', id: el => el.dataset.id, save: ids => { state.habits = reslot(state.habits, ids); } },
+    { sel: '.today-row[data-trow]', id: el => el.dataset.trow, save: ids => { state.habits = reslot(state.habits, ids); } },
+    { sel: '.routine-card[data-rid]', id: el => el.dataset.rid, save: ids => { state.routines = reslot(state.routines, ids); } },
+    { sel: DOM_ORD, id: ordKey, save: keys => { const set = new Set(keys); state.wOrder = [...keys, ...(state.wOrder || []).filter(k => !set.has(k))].slice(0, 400); } }
+  ];
+  // Coloca los widgets según state.wOrder, cada uno dentro de su mismo contenedor (los nuevos van primero)
+  function applyWOrder(root) {
+    const ord = state.wOrder || []; if (!ord.length || !root) return;
+    const idx = new Map(ord.map((k, i) => [k, i])), groups = new Map();
+    $$(DOM_ORD, root).forEach(el => { if (!ordKey(el)) return; const p = el.parentElement; if (!groups.has(p)) groups.set(p, []); groups.get(p).push(el); });
+    for (const els of groups.values()) {
+      if (els.length < 2) continue;
+      const pos = el => idx.has(ordKey(el)) ? idx.get(ordKey(el)) : -1;
+      const sorted = els.map((el, i) => [el, pos(el), i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]);
+      if (sorted.every((el, i) => el === els[i])) continue;
+      const marks = els.map(el => { const c = document.createComment(''); el.before(c); return c; });
+      marks.forEach((c, i) => c.replaceWith(sorted[i]));
+    }
+  }
+  let od = null, odTimer = null;
+  document.addEventListener('pointerdown', e => {
+    if (!jiggle || e.button !== 0 || od || rd) return;
+    const el = e.target.closest('.jig');
+    if (!el || !el.closest('#main') || el.matches('#habit-grid > .habit') || e.target.closest('.w-del, input, select, textarea')) return;
+    const kind = ORD.find(k => el.matches(k.sel)); if (!kind) return;
+    const sx = e.clientX, sy = e.clientY;
+    clearTimeout(odTimer);
+    odTimer = setTimeout(() => {
+      odTimer = null;
+      const r = el.getBoundingClientRect();
+      od = { el, kind, parent: el.parentElement, ox: sx - r.left, oy: sy - r.top, x: sx, y: sy, moved: false, raf: 0, hover: null };
+      el.classList.add('dragging'); document.body.classList.add('reordering'); vibrate(20);
+      const loop = () => {
+        if (!od) return;
+        const edge = 90, v = od.y < edge ? -(edge - od.y) / 6 : od.y > innerHeight - edge ? (od.y - innerHeight + edge) / 6 : 0;
+        if (v) scrollBy(0, v);
+        odMove(); od.raf = requestAnimationFrame(loop);
+      };
+      od.raf = requestAnimationFrame(loop);
+    }, 140);
+    const cancel = ev => { if (odTimer && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { clearTimeout(odTimer); odTimer = null; } };
+    document.addEventListener('pointermove', cancel);
+    document.addEventListener('pointerup', () => { clearTimeout(odTimer); odTimer = null; document.removeEventListener('pointermove', cancel); }, { once: true });
+  });
+  function odMove() {
+    const { el, parent, kind } = od;
+    el.style.transform = '';
+    const under = document.elementFromPoint(od.x, od.y), target = under && under.closest('.jig');
+    if (target && target !== el && target.parentElement === parent && target.matches(kind.sel)) {
+      if (!od.hover || od.hover.el !== target) od.hover = { el: target, at: Date.now() };
+      else if (Date.now() - od.hover.at > 120) {
+        od.hover = null;
+        const kids = [...parent.children], from = kids.indexOf(el), to = kids.indexOf(target);
+        parent.insertBefore(el, to > from ? target.nextSibling : target); od.moved = true;
+      }
+    } else od.hover = null;
+    const r = el.getBoundingClientRect();
+    el.style.transform = `translate(${od.x - od.ox - r.left}px, ${od.y - od.oy - r.top}px) scale(1.03)`;
+  }
+  document.addEventListener('pointermove', e => { if (!od) return; e.preventDefault(); od.x = e.clientX; od.y = e.clientY; });
+  document.addEventListener('touchmove', e => { if (od) e.preventDefault(); }, { passive: false });
+  ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, () => {
+    if (!od) return;
+    const { el, parent, kind, moved } = od; cancelAnimationFrame(od.raf); od = null;
+    el.classList.remove('dragging'); el.style.transform = ''; document.body.classList.remove('reordering');
+    jigBlockClick = true; setTimeout(() => { jigBlockClick = false; }, 350);
+    if (!moved) return;
+    kind.save([...parent.children].filter(x => x.matches(kind.sel)).map(kind.id));
+    save(); render(); toast(t('reordered'));
+  }));
   async function jigRemove(el) {
     if (!el) return;
     const retos = state.ui.tab === 'habits' && habitsView() === 'challenges';
@@ -5712,7 +6146,7 @@
       case 'profile': openProfile(); break;
       case 'cview': state.ui.chatView = a.dataset.v; save(); render(); break;
       case 'chat-friends': state.ui.chatView = 'friends'; save(); render(); setTimeout(() => $('#friend-tag')?.focus(), 60); break;
-      case 'chat-new': if (!chatData.friends) refreshChat(true); openNewChat(); break;
+      case 'chat-new': if (!chatData.friends) refreshChat(true); openChatPlus(); break;
       case 'chat-login': openLogin(); break;
       case 'm-rank': state.ui.mRank = a.dataset.v; save(); render(); break;
       case 'm-habit': state.ui.mHabit = a.dataset.v; save(); render(); break;
