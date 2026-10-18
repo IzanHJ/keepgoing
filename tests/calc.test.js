@@ -188,3 +188,27 @@ test('datos de la calculadora independiente: se importan con sus vínculos', () 
   assert.equal(m.presets[0].name, 'Viaje');
   assert.ok(Number.isFinite(C.compute(m).final));
 });
+
+test('cambio de ingreso o gasto: sustituye a la nómina o a los gastos desde su mes (los datos antiguos siguen siendo nómina)', () => {
+  const r = C.compute(model({ salary: 1000, expenses: 500, horizon: 6 }, [ap('g', 'salaryChange', { what: 'expense', newSalary: 800, at: 3, unit: 'months' })]));
+  assert.equal(r.totalExpenses, 2 * 500 + 4 * 800);
+  assert.equal(r.totalIncome, 6000);
+  assert.equal(C.cleanValues('salaryChange', { newSalary: 2000, at: 4, unit: 'months' }).what, 'income');
+});
+
+test('techo de liquidez: lo que supera el techo en Digital va a los destinos (porcentaje o importe fijo)', () => {
+  const base = { digital: 15000, salary: 2000, expenses: 1000, horizon: 3 };
+  const pct = C.compute(model(base, [inv('a', 0), inv('b', 0, true, 2), ap('c', 'liquidityCap', { limit: 15000, split: 'pct', allocations: [{ target: 'a', value: 60 }, { target: 'b', value: 40 }] })]));
+  close(pct.digital, 15000);
+  close(pct.perInvestment[0].value, 1800);
+  close(pct.perInvestment[1].value, 1200);
+  close(pct.final, 15000 + 3000);
+  const fixed = C.compute(model(base, [inv('a', 0), ap('c', 'liquidityCap', { limit: 15000, split: 'fixed', allocations: [{ target: 'a', value: 400 }] })]));
+  close(fixed.perInvestment[0].value, 1200);
+  close(fixed.digital, 15000 + 3 * 600);
+  // Por debajo del techo no se mueve nada, y el destino queda protegido
+  const low = C.compute(model({ ...base, digital: 0 }, [inv('a', 0), ap('c', 'liquidityCap', { limit: 15000, split: 'pct', allocations: [{ target: 'a', value: 100 }] })]));
+  close(low.perInvestment[0].value, 0);
+  const m = model(base, [inv('a', 0), ap('c', 'liquidityCap', { limit: 1, split: 'pct', allocations: [{ target: 'a', value: 100 }] })]);
+  assert.equal(C.usesOf(m, 'a').formulas, 1);
+});

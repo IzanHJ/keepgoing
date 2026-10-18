@@ -20,10 +20,12 @@
   const MODULES = [
     { id: 'savings', icon: '🏦', fields: [['rate', 'pct', 3.5], ['type', 'select', null, ['apy', 'tin']], ['compound', 'select', null, ['365', '12', '1']], ['accumulate', 'select', null, ['yes', 'no']]] },
     { id: 'periodic', icon: '📈', fields: [['target', 'inv'], ['amount', 'money', 50], ['frequency', 'select', null, ['weekly', 'monthly', 'yearly']], ['timing', 'select', null, ['end', 'begin']]] },
-    { id: 'salaryChange', icon: '💼', fields: [['newSalary', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']]] },
+    // «Cambio de ingreso o gasto» (antes «Cambio de nómina neta»: se guarda con el mismo id y el importe en newSalary para no perder datos)
+    { id: 'salaryChange', icon: '💼', fields: [['what', 'select', null, ['income', 'expense']], ['newSalary', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']]] },
     { id: 'movement', icon: '↕️', fields: [['kind', 'select', null, ['income', 'expense']], ['amount', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']]] },
     { id: 'cashback', icon: '💳', fields: [['spend', 'money', 0, null, true], ['rate', 'pct', 1], ['excluded', 'money', 0, null, true], ['delay', 'int', 0], ['target', 'invOpt'], ['percent', 'pct', 100]] },
     { id: 'roundup', icon: '🪙', fields: [['count', 'int', 30, null, true], ['average', 'money', 12.1], ['percent', 'pct', 100], ['target', 'inv']] },
+    { id: 'liquidityCap', icon: '🪣', fields: [['limit', 'money', 15000, null, true], ['split', 'select', null, ['pct', 'fixed'], true]] },
     { id: 'loan', icon: '🤝', fields: [['principal', 'money', 1000], ['rate', 'pct', 5], ['term', 'int', 12], ['unit', 'select', null, ['months', 'years']], ['payment', 'select', null, ['monthly', 'yearly', 'end']], ['target', 'inv']] }
   ];
   const moduleOf = id => MODULES.find(m => m.id === id) || null;
@@ -78,6 +80,9 @@
     if (type === 'cashback' && v.percent === undefined) out.percent = 100;
     if (type === 'periodic') out.futureChanges = (Array.isArray(v.futureChanges) ? v.futureChanges : [])
       .map(c => ({ at: Math.max(1, Math.round(num(c && c.at, 1))), unit: c && c.unit === 'years' ? 'years' : 'months', amount: pos(c && c.amount) }));
+    // Techo de liquidez: reparto del exceso entre uno o varios destinos (porcentaje del exceso o importe fijo al mes)
+    if (type === 'liquidityCap') out.allocations = (Array.isArray(v.allocations) ? v.allocations : []).slice(0, 20)
+      .map(x => ({ target: typeof (x && x.target) === 'string' ? x.target : '', value: pos(x && x.value) }));
     return out;
   }
 
@@ -101,11 +106,12 @@
   // Elementos que dependen de un destino (no se puede borrar hasta reasignarlos)
   const usesOf = (model, invId) => ({
     funds: model.funds.filter(f => f.target === invId).length,
-    formulas: [...model.applied, ...model.presets].filter(a => a.values && a.values.target === invId).length
+    formulas: [...model.applied, ...model.presets].filter(a => a.values && (a.values.target === invId || (a.values.allocations || []).some(x => x.target === invId))).length
   });
 
   /* ---------- proyección ----------
-     Mes a mes: nómina e ingresos/gastos puntuales al inicio de cada mes; luego las fórmulas en su orden; al final crecen los destinos.
+     Mes a mes: nómina e ingresos/gastos puntuales al inicio de cada mes; luego las fórmulas en su orden; después crecen los destinos
+     y, al cierre, el techo de liquidez manda a inversión lo que sobre en Digital.
      Patrimonio = Digital + Efectivo + saldo de los destinos + capital pendiente de cobro de los préstamos. */
   function compute(model) {
     const s = model.start, months = horizonMonths(s), startDate = parseDate(s.date) || new Date();
@@ -134,14 +140,15 @@
     const receivable = () => Object.values(loans).reduce((a, L) => a + Math.max(0, L.balance), 0);
     for (let m = 1; m <= months; m++) {
       const when = dateAtMonth(startDate, m - 1);
-      let salary = pos(s.salary);
-      for (const c of salaryChanges) if (scheduleMonth(c.values.at, c.values.unit) <= m) salary = pos(c.values.newSalary);
+      // Cambios de ingreso o gasto: desde su mes sustituyen a la nómina o a los gastos mensuales (el más reciente manda)
+      let salary = pos(s.salary), baseExpenses = pos(s.expenses);
+      for (const c of salaryChanges) if (scheduleMonth(c.values.at, c.values.unit) <= m) { if (c.values.what === 'expense') baseExpenses = pos(c.values.newSalary); else salary = pos(c.values.newSalary); }
       for (const c of salaryChanges) if (scheduleMonth(c.values.at, c.values.unit) === m) out[c.id] = pos(c.values.newSalary);
       let movIn = 0, movOut = 0;
       for (const a of applied) if (a.type === 'movement' && scheduleMonth(a.values.at, a.values.unit) === m) {
         const v = pos(a.values.amount); if (a.values.kind === 'income') movIn += v; else movOut += v; bump(a.id, v);
       }
-      const baseExpenses = pos(s.expenses), monthIncome = salary + movIn, monthExpenses = baseExpenses + movOut;
+      const monthIncome = salary + movIn, monthExpenses = baseExpenses + movOut;
       digital += monthIncome - monthExpenses;
       totalIncome += monthIncome; totalExpenses += monthExpenses; cumIncome += monthIncome; cumExpenses += monthExpenses;
       schedIncome += monthIncome; schedExpenses += monthExpenses;
@@ -210,6 +217,18 @@
           if (i.accumulative === false) { digital += gross; returns += gross; }
           else { const nb = Math.max(0, lot.balance + gross); returns += nb - lot.balance; lot.balance = nb; }
         }
+      }
+      // Techo de liquidez: al cierre del mes, lo que supere el techo en Digital se invierte (empieza a rendir el mes siguiente)
+      for (const a of applied) {
+        if (a.type !== 'liquidityCap') continue;
+        const excess = digital - pos(a.values.limit); if (!(excess > 0)) continue;
+        let left = excess;
+        for (const al of a.values.allocations || []) {
+          const want = a.values.split === 'fixed' ? pos(al.value) : excess * Math.min(100, pos(al.value)) / 100;
+          const amount = Math.min(left, want);
+          if (amount > 1e-9 && addInvestment(al.target, amount)) left -= amount;
+        }
+        const sent = excess - left; digital -= sent; bump(a.id, sent);
       }
       const invested = invs.reduce((a, i) => a + balanceOf(i.id), 0) + orphanFunds, rec = receivable();
       monthly.push(snapshot(dateAtMonth(startDate, m), digital + cash + invested + rec, { investments: invested + rec, funds: balances(), principal: { ...principal } }));

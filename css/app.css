@@ -164,6 +164,9 @@ button, select { font-weight: var(--fw-ui); }
   outline: none;
 }
 .input:focus { box-shadow: inset 0 3px 8px rgba(0, 0, 0, .28), 0 0 0 2px var(--accent); }
+/* Safari en iPhone da a las fechas un ancho propio que ignora la columna y las solapa: se quita su aspecto nativo para que encojan */
+input[type="date"].input { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
+input[type="date"].input::-webkit-date-and-time-value { text-align: left; min-height: 1.25em; }
 textarea.input { min-height: 84px; resize: vertical; }
 :root[data-style="minimal"] .input { box-shadow: none; border: 1px solid var(--line); }
 .check { display: flex; align-items: center; gap: 12px; font-weight: var(--fw-ui); cursor: pointer; }
@@ -1590,4 +1593,12 @@ details[open] > summary > .calc-arrow { transform: rotate(90deg); }
   #calc-print .calc-table th[scope="col"] { color: #5b6577; font-size: 8pt; border-bottom: 1px solid #d4d8df; padding: 3pt 4pt; }
   #calc-print .calc-table td, #calc-print .calc-table th[scope="row"] { background: none; border-bottom: 1px solid #eceef2; border-radius: 0; padding: 3pt 4pt; color: #1f2737; }
   #calc-print .amt-in { color: #14865f; } #calc-print .amt-out { color: #c13d4b; }
+}
+
+/* v1.18 — techo de liquidez: filas destino + parte o importe */
+.calc-change-row.calc-alloc-row { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto; }
+.calc-change-row .field { min-width: 0; }
+@media (max-width: 560px) {
+  .calc-change-row.calc-alloc-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .calc-alloc-row .field:first-child { grid-column: 1 / -1; }
 }
