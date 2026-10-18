@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.17.1';
+  const VERSION = '1.18.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -3327,13 +3327,16 @@
     const p = {
       savings: {}, roundup: {},
       periodic: { freq: optLabel('periodic', 'frequency', v.frequency), dest: invName(model, v.target), changes: (v.futureChanges || []).map(c => t('cqChange', { v: money(c.amount), when: when(c.at, c.unit) })).join('; ') || t('cqNoChanges') },
-      salaryChange: { when: when(v.at, v.unit), v: money(v.newSalary) },
+      salaryChange: { what: optLabel('salaryChange', 'what', v.what).toLowerCase(), when: when(v.at, v.unit), v: money(v.newSalary) },
+      liquidityCap: { limit: money(v.limit), alloc: calcAllocText(v, model) },
       movement: { kind: optLabel('movement', 'kind', v.kind).toLowerCase(), v: money(v.amount), when: when(v.at, v.unit) },
       cashback: { rate: cpct(v.rate), delay: v.delay, dest: v.target === 'none' ? t('cqDigital') : invName(model, v.target), pct: cpct(v.target === 'none' ? 0 : v.percent) },
       loan: { p: money(v.principal), rate: cpct(v.rate), term: v.unit === 'years' ? t(v.term === 1 ? 'calcYear1' : 'calcYearsN', { n: v.term }) : t(v.term === 1 ? 'calcMonth1' : 'calcMonthsN', { n: v.term }), dest: invName(model, v.target) }
     }[a.type] || {};
-    return [t('cq_' + a.type, p), t('cr_' + a.type, { v: money(a.type === 'salaryChange' ? v.newSalary : out) })];
+    return [t('cq_' + a.type, p), t((a.type === 'salaryChange' && v.what === 'expense' ? 'cr_expenseChange' : 'cr_' + a.type), { v: money(a.type === 'salaryChange' ? v.newSalary : out) })];
   }
+  // «Indexado 60 %, Oro 40 %» o «Indexado 300 € al mes»
+  const calcAllocText = (v, model) => (v.allocations || []).map(x => `${invName(model, x.target)} ${v.split === 'fixed' ? t('cqPerMonth', { v: money(x.value) }) : cpct(x.value)}`).join(', ') || t('cqNoAlloc');
   function calcVarsText(type, v, model) {
     const mod = CALC.moduleOf(type); if (!mod) return '';
     const parts = mod.fields.map(([k, kind]) => {
@@ -3341,6 +3344,7 @@
       return `${t(`cf_${type}_${k}`)}: ${val}`;
     });
     for (const c of v.futureChanges || []) parts.push(t('cqChange', { v: money(c.amount), when: t(c.unit === 'years' ? 'cqWhenYear' : 'cqWhenMonth', { n: c.at }) }));
+    if (type === 'liquidityCap') parts.push(`${t('calcAllocTitle')}: ${calcAllocText(v, model)}`);
     return parts.join(' · ');
   }
   const calcLegacyRaw = () => { for (const k of LEGACY_KEYS) { try { const r = JSON.parse(localStorage.getItem(k) || 'null'); if (r && typeof r === 'object') return r; } catch (e) { /* nada */ } } return null; };
@@ -3586,8 +3590,20 @@
       else if (kind === 'select') input = `<select class="input" data-fv="${k}" data-kind="select" aria-label="${esc(label)}">${opts.map((o, j) => `<option value="${o}" ${(has ? v[k] === o : j === 0) ? 'selected' : ''}>${esc(optLabel(type, k, o))}</option>`).join('')}</select>`;
       else input = `<input class="input" data-fv="${k}" data-kind="${kind}" inputmode="${kind === 'int' ? 'numeric' : 'decimal'}" autocomplete="off" aria-label="${esc(label)}" placeholder="${esc(fmtPctIn(ex || 0))}" value="${has ? calcInVal(v[k]) : ''}">`;
       return `<div class="field"><span>${esc(label)}</span>${input}${help ? calcHelp(t(`cfh_${type}_${k}`)) : ''}</div>`;
-    }).join('')}</div>${type === 'periodic' ? `<div class="calc-changes"><p class="calc-fine">${esc(t('calcChangesHint'))}</p><div class="calc-change-rows">${(v && v.futureChanges || []).map(calcChangeRow).join('')}</div></div>` : ''}`;
+    }).join('')}</div>${type === 'periodic' ? `<div class="calc-changes"><p class="calc-fine">${esc(t('calcChangesHint'))}</p><div class="calc-change-rows">${(v && v.futureChanges || []).map(calcChangeRow).join('')}</div></div>` : ''}${type === 'liquidityCap' ? `<div class="calc-changes"><p class="calc-fine">${esc(t('calcAllocHint'))}</p><div class="calc-change-rows calc-alloc-rows">${(v && v.allocations && v.allocations.length ? v.allocations : [{}]).map(x => calcAllocRow(model, x, v && v.split)).join('')}</div></div>` : ''}`;
   }
+  // Fila de reparto del techo de liquidez: destino + porcentaje del exceso o importe fijo al mes
+  const calcAllocLabel = split => t(split === 'fixed' ? 'calcAllocFixed' : 'calcAllocPct');
+  const calcAllocRow = (model, x = {}, split) => `<div class="calc-change-row calc-alloc-row" data-al><label class="field"><span>${esc(t('calcAllocDest'))}</span><select class="input" data-al-target><option value="" ${model.investments.some(i => i.id === x.target) ? '' : 'selected'} disabled>${esc(t(model.investments.length ? 'calcSelectDest' : 'calcNeedDestFirst'))}</option>${model.investments.map(i => `<option value="${esc(i.id)}" ${x.target === i.id ? 'selected' : ''}>${esc(i.name)} · ${esc(cpct(i.rate))}</option>`).join('')}</select></label><label class="field"><span data-al-lbl>${esc(calcAllocLabel(split))}</span><input class="input" inputmode="decimal" data-al-value value="${x.value != null ? calcInVal(x.value) : ''}" placeholder="${split === 'fixed' ? '300' : '100'}"></label><button type="button" class="icon-btn sm calc-del" data-f-act="del-change" aria-label="${esc(t('calcAllocDel'))}" title="${esc(t('calcAllocDel'))}">${ico('x')}</button></div>`;
+  // El «+» verde: un cambio futuro (inversión periódica) o un destino más (techo de liquidez)
+  function calcAddRow(scope, type) {
+    const rows = $('.calc-change-rows', scope); if (!rows) return;
+    if (type === 'liquidityCap') { const sp = $('[data-fv="split"]', scope); rows.insertAdjacentHTML('beforeend', calcAllocRow(calcData().model, {}, sp && sp.value)); $('[data-al]:last-child [data-al-target]', scope).focus(); }
+    else { rows.insertAdjacentHTML('beforeend', calcChangeRow()); $('[data-fc]:last-child [data-fc-at]', scope).focus(); }
+  }
+  // Al cambiar «porcentaje / importe fijo» se actualiza la etiqueta de cada fila
+  const calcSplitSync = e => { const el = e.target; if (!el.matches || !el.matches('[data-fv="split"]')) return; const box = el.closest('.calc-mod, #cfe-form'); if (box) $$('[data-al-lbl]', box).forEach(x => { x.textContent = calcAllocLabel(el.value); }); };
+  const calcPlusBtn = type => ['periodic', 'liquidityCap'].includes(type) ? `<button type="button" class="calc-plus" data-f-act="add-change" data-mod="${type}" aria-label="${esc(t(type === 'liquidityCap' ? 'calcAddAlloc' : 'calcAddChange'))}" title="${esc(t(type === 'liquidityCap' ? 'calcAddAlloc' : 'calcAddChange'))}">${ico('plus')}</button>` : '';
   const calcChangeRow = (c = {}) => `<div class="calc-change-row" data-fc><label class="field"><span>${esc(t('calcChangeFrom'))}</span><input class="input" inputmode="numeric" data-fc-at value="${c.at ? esc(c.at) : ''}" placeholder="3"></label><label class="field"><span>${esc(t('calcChangeUnit'))}</span><select class="input" data-fc-unit><option value="months" ${c.unit !== 'years' ? 'selected' : ''}>${esc(t('cuMonth'))}</option><option value="years" ${c.unit === 'years' ? 'selected' : ''}>${esc(t('cuYear'))}</option></select></label><label class="field"><span>${esc(t('calcChangeAmount'))}</span><input class="input" inputmode="decimal" data-fc-amount value="${c.amount != null ? calcInVal(c.amount) : ''}"></label><button type="button" class="icon-btn sm calc-del" data-f-act="del-change" aria-label="${esc(t('calcChangeDel'))}" title="${esc(t('calcChangeDel'))}">${ico('x')}</button></div>`;
   // Lee y valida las variables de un formulario → { values } o { err }
   function calcReadForm(box, type, model) {
@@ -3612,6 +3628,17 @@
         values.futureChanges.push({ at: Math.round(at), unit: r.querySelector('[data-fc-unit]').value, amount });
       }
     }
+    if (type === 'liquidityCap') {
+      values.allocations = [];
+      for (const r of box.querySelectorAll('[data-al]')) {
+        const target = r.querySelector('[data-al-target]').value, el = r.querySelector('[data-al-value]'), value = calcReadNum(el.value, values.split === 'fixed' ? 'money' : 'pct');
+        if (!model.investments.some(i => i.id === target)) return { err: t(model.investments.length ? 'calcNeedDest' : 'calcNeedDestFirst') };
+        if (value == null || Number.isNaN(value) || !(value > 0)) return { err: t('calcAllocFill'), el };
+        values.allocations.push({ target, value });
+      }
+      if (!values.allocations.length) return { err: t('calcAllocNone') };
+      if (values.split === 'pct' && values.allocations.reduce((a, x) => a + x.value, 0) > 100.0001) return { err: t('calcAllocOver') };
+    }
     return { values: CALC.cleanValues(type, values) };
   }
   // Nombre para Mi Biblioteca sin repetir («Movimiento puntual 2»)
@@ -3631,7 +3658,7 @@
     const drawTpl = () => {
       const { model } = calcData();
       $('#cm-tpl', wref).innerHTML = CALC.MODULES.map(m => `<details class="calc-mod" data-mod="${m.id}" name="calc-mod"><summary><span class="calc-f-ico" aria-hidden="true">${m.icon}</span><span class="calc-sum-t"><strong>${esc(t('m_' + m.id))}</strong><small>${esc(t('md_' + m.id))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
-        <div class="calc-mod-form">${calcFieldsHtml(m.id, null, model)}<div class="calc-form-acts">${m.id === 'periodic' ? `<button type="button" class="calc-plus" data-f-act="add-change" aria-label="${esc(t('calcAddChange'))}" title="${esc(t('calcAddChange'))}">${ico('plus')}</button>` : ''}<button class="btn sm calc-blue" data-f-act="apply" data-mod="${m.id}">${esc(t('calcApply'))}</button></div></div></details>`).join('');
+        <div class="calc-mod-form">${calcFieldsHtml(m.id, null, model)}<div class="calc-form-acts">${calcPlusBtn(m.id)}<button class="btn sm calc-blue" data-f-act="apply" data-mod="${m.id}">${esc(t('calcApply'))}</button></div></div></details>`).join('');
     };
     openModal({
       title: calcHead(t('calcModEyebrow'), t('calcModules')), cls: 'wide calc-sheet',
@@ -3642,11 +3669,12 @@
         // Solo una plantilla abierta a la vez (también en navegadores sin <details name>)
         w.addEventListener('toggle', e => { const d = e.target; if (d.matches && d.matches('.calc-mod') && d.open) $$('.calc-mod', w).forEach(o => { if (o !== d) o.open = false; }); }, true);
       },
+      onInput: calcSplitSync,
       onClick: async (e, close) => {
         const b = e.target.closest('[data-f-act]'); if (!b) return;
         const act = b.dataset.fAct, { model } = calcData();
-        if (act === 'add-change') { b.closest('.calc-mod').querySelector('.calc-change-rows').insertAdjacentHTML('beforeend', calcChangeRow()); b.closest('.calc-mod').querySelector('[data-fc]:last-child [data-fc-at]').focus(); return; }
-        if (act === 'del-change') { b.closest('[data-fc]').remove(); return; }
+        if (act === 'add-change') { calcAddRow(b.closest('.calc-mod'), b.dataset.mod); return; }
+        if (act === 'del-change') { b.closest('[data-fc], [data-al]').remove(); return; }
         if (act === 'apply') {
           const type = b.dataset.mod, box = b.closest('.calc-mod'), r = calcReadForm(box, type, model);
           if (r.err) { toast(r.err); if (r.el) r.el.focus(); return; }
@@ -3656,7 +3684,7 @@
         }
         const p = model.presets.find(x => x.id === b.dataset.id); if (!p) return;
         if (act === 'use') {
-          if (CALC.moduleOf(p.type).fields.some(([k, kind]) => kind === 'inv' && !model.investments.some(i => i.id === p.values[k]))) { toast(t('calcNeedDest')); openCalcFormula(p, 'preset', drawLib); return; }
+          if (CALC.moduleOf(p.type).fields.some(([k, kind]) => kind === 'inv' && !model.investments.some(i => i.id === p.values[k])) || (p.values.allocations || []).some(x => !model.investments.some(i => i.id === x.target))) { toast(t('calcNeedDest')); openCalcFormula(p, 'preset', drawLib); return; }
           LV.calc.push({ id: uid(), kind: 'applied', type: p.type, name: p.name, values: JSON.parse(JSON.stringify(p.values)), ord: calcOrd() });
           close(); calcOpenD.set('lib', true); calcCommit(t('calcAppliedCopy')); sfx('money');
         } else if (act === 'edit') openCalcFormula(p, 'preset', drawLib);
@@ -3670,12 +3698,13 @@
     openModal({
       title: calcHead(t(kind === 'preset' ? 'calcEditPresetEyebrow' : 'calcLibrary'), t(kind === 'preset' ? 'calcEditPreset' : 'calcEditFormula')), cls: 'wide calc-sheet',
       body: `<div class="stack"><p class="muted small" style="margin:0">${CALC.moduleOf(item.type).icon} ${esc(t('m_' + item.type))}</p><label class="field"><span>${esc(t('calcName'))}</span><input class="input" id="cfe-name" maxlength="60" value="${esc(item.name)}"></label><div id="cfe-form">${calcFieldsHtml(item.type, item.values, calcData().model)}</div></div>`,
-      foot: `${item.type === 'periodic' ? `<button type="button" class="calc-plus" data-f-act="add-change" aria-label="${esc(t('calcAddChange'))}" title="${esc(t('calcAddChange'))}">${ico('plus')}</button>` : ''}<button class="btn calc-blue" data-f-act="save">${esc(t('calcSave'))}</button>`,
+      foot: `${calcPlusBtn(item.type)}<button class="btn calc-blue" data-f-act="save">${esc(t('calcSave'))}</button>`,
       onMount: w => { wref = w; },
+      onInput: calcSplitSync,
       onClick: (e, close) => {
         const b = e.target.closest('[data-f-act]'); if (!b) return;
-        if (b.dataset.fAct === 'add-change') { $('.calc-change-rows', wref).insertAdjacentHTML('beforeend', calcChangeRow()); $('[data-fc]:last-child [data-fc-at]', wref).focus(); return; }
-        if (b.dataset.fAct === 'del-change') { b.closest('[data-fc]').remove(); return; }
+        if (b.dataset.fAct === 'add-change') { calcAddRow($('#cfe-form', wref), item.type); return; }
+        if (b.dataset.fAct === 'del-change') { b.closest('[data-fc], [data-al]').remove(); return; }
         if (b.dataset.fAct !== 'save') return;
         const name = $('#cfe-name', wref).value.trim().slice(0, 60), r = calcReadForm($('#cfe-form', wref), item.type, calcData().model);
         if (!name) { toast(t('calcNeedName')); return; }
