@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.16.0';
+  const VERSION = '1.17.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -136,6 +136,8 @@
     send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/>',
     share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>',
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    calc: '<rect x="5" y="2.5" width="14" height="19" rx="3"/><path d="M8.5 6.5h7v3h-7zM8.5 13h.01M12 13h.01M15.5 13h.01M8.5 17h.01M12 17h.01M15.5 17h.01"/>',
+    trend: '<path d="M4 19V5M4 19h16M7 15l4-4 3 2 5-6"/>',
     eyeOff: '<path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
   };
   const ico = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -165,6 +167,8 @@
       pointsSince: null, caprice: defaultCaprice(), legacyShop: null,
       // Fase 2 (v1.9): Libreta de Gastos (importes en céntimos) y modo privacidad
       ledgerEntries: [], ledgerCats: defaultLedgerCats(), ledgerRecurring: [], ledgerEvents: [], ledgerPrefs: { privacy: false },
+      // v1.17: Calculadora de Patrimonio Proyectado (cifrada con la Libreta, un elemento por pieza)
+      ledgerCalc: [],
       // Fase 3 (v1.10): sonidos activados por defecto
       soundOn: true, ledgerVault: null,
       // v1.14: widgets ocultos desde el modo edición (se recuperan en Ajustes)
@@ -176,7 +180,7 @@
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
   const ORDER_LISTS = ['projects', 'routines'];
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents'];
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt']]; // hábito → día → valor
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt']];             // clave → valor
   function normalize(s) {
@@ -201,7 +205,7 @@
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'emt', 'rvmt', 'pmt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
@@ -660,6 +664,7 @@
   // Posición de la vista (pestaña y subvista) para saber hacia qué lado se desliza al cambiar
   function viewPos() {
     const ti = Math.max(0, TABS.findIndex(x => x[0] === state.ui.tab));
+    if (state.ui.tab === 'ledger' && state.ui.ledgerView === 'calc') return { key: 'ledger:calc', n: ti * 100 + 5 };
     if (state.ui.tab !== 'habits') return { key: state.ui.tab, n: ti * 100 };
     const vi = HVIEWS.findIndex(v => v[0] === habitsView()), f = openFolder();
     return { key: 'habits:' + habitsView() + (f ? ':' + f.id : ''), n: vi * 10 + (f ? 5 : 0) };
@@ -2805,8 +2810,8 @@
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
   const VAULT = window.KGVault, DEV = window.KGVaultDevice;
-  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents']];
-  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc']];
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
   const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
   const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
@@ -2845,7 +2850,7 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
   async function useKey(key, raw) { LV.key = key; LV.raw = raw; sessTried = ''; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
   // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
@@ -3134,10 +3139,11 @@
   const monthIncome = (ym = todayKey().slice(0, 7)) => LED.totals(LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7))).income;
 
   function viewLedger() {
+    if (ledgerOpen() && state.ui.ledgerView === 'calc') return viewCalc();
     const priv = privacyOn(), ym = ledgerMonth(), y = +ym.slice(0, 4), m = +ym.slice(5, 7);
     const sel = state.ui.ledgerDay && state.ui.ledgerDay.startsWith(ym) ? state.ui.ledgerDay : (todayKey().startsWith(ym) ? todayKey() : null);
     const monthEntries = LED.inMonth(LV.entries, y, m), tot = LED.totals(monthEntries), days = LED.byDay(monthEntries);
-    let html = topBar(ledgerOpen() ? `<button class="icon-btn" data-act="vault-lock" aria-label="${esc(t('vaultLock'))}" title="${esc(t('vaultLock'))}">${ico('lock')}</button><button class="icon-btn" data-act="ledger-add" aria-label="${esc(t('ledgerAdd'))}">${ico('plus')}</button>` : '');
+    let html = topBar(ledgerOpen() ? calcTopActions(false) : '');
     html += `<h1 class="page-title">${esc(t('tabLedger'))}</h1>`;
     if (!ledgerOpen()) return html + ledgerLockedHtml();
     // Opciones de la pestaña: privacidad (casilla), boca abajo (móvil) y mostrar el Dinero Caprichable
@@ -3170,6 +3176,559 @@
     html += ledgerChartsHtml();
     return html;
   }
+  /* =========================================================
+     CALCULADORA DE PATRIMONIO PROYECTADO (v1.17)
+     Vive dentro de la Libreta (botón de la calculadora junto al candado y el «+») y sus datos van cifrados con ella:
+     cada pieza (punto de partida, destino, fondo, fórmula aplicada o guardada) es un elemento de LV.calc, que se cifra
+     y se fusiona por id entre dispositivos como los movimientos. La proyección se calcula en js/calc.js.
+     ========================================================= */
+  const CALC = window.KGCalc;
+  const CALC_COLORS = ['#34b68a', '#4585ed', '#e6a23c', '#a66bea', '#ef8b74', '#34a7b6'];
+  const CALC_SER = { patrimony: '#586ff0', income: '#4585ed', expenses: '#ef8b74', investments: '#34b68a' };
+  const CALC_METRICS = [['digital', 'cmDigital'], ['cash', 'cmCash'], ['investments', 'cmInvestments'], ['returns', 'cmReturns'], ['cashback', 'cmCashback'], ['growth', 'cmGrowth']];
+  const LEGACY_KEYS = ['patrimonioProjected', 'patrimonioClay'];
+  // Desplegables abiertos (solo en esta sesión; se conservan entre redibujados)
+  const calcOpenD = new Map([['proj', true], ['funds', true], ['lib', true], ['tpl', true]]);
+  const calcIsOpen = k => !!calcOpenD.get(k);
+  const calcOn = () => state.ui.tab === 'ledger' && state.ui.ledgerView === 'calc';
+  // Preferencias de la vista (en este dispositivo): modo del gráfico, series, métricas de «Ver» y fondos ocultos
+  function calcUi() {
+    const u = state.ui.calc && typeof state.ui.calc === 'object' ? state.ui.calc : {};
+    state.ui.calc = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) },
+      metrics: Array.isArray(u.metrics) ? u.metrics.filter(k => CALC_METRICS.some(m => m[0] === k)) : ['digital', 'investments'], hideGraph: !!u.hideGraph, off: Array.isArray(u.off) ? u.off : [] };
+    return state.ui.calc;
+  }
+  let calcMemo = { key: '' };
+  function calcData() {
+    const key = JSON.stringify(LV.calc) + todayKey();
+    if (calcMemo.key !== key) {
+      const model = CALC.fromItems(LV.calc, todayKey()), res = CALC.compute(model);
+      calcMemo = { key, model, res, rows: CALC.daily(res) };
+    }
+    return calcMemo;
+  }
+  const calcItem = id => LV.calc.find(x => x.id === id);
+  const calcOrd = () => Math.max(0, ...LV.calc.map(x => +x.ord || 0)) + 1;
+  function calcStartItem() { let s = calcItem(CALC.START_ID); if (!s) { s = { ...calcData().model.start }; LV.calc.push(s); } return s; }
+  function calcPut(item) { const i = LV.calc.findIndex(x => x.id === item.id); if (i >= 0) LV.calc[i] = item; else LV.calc.push(item); }
+  function calcCommit(msg) { ledgerSave(); render(); if (msg) toast(msg); }
+  // Formatos (los importes respetan el modo privacidad)
+  const cpct = v => v == null || !Number.isFinite(v) ? '—' : new Intl.NumberFormat(state.lang, { maximumFractionDigits: 2 }).format(v) + ' %';
+  const csign = v => privacyOn() ? money(v) : (v > 0 ? '+' : '') + fmtMoney(v);
+  const cspct = v => v == null || !Number.isFinite(v) ? '—' : (v > 0 ? '+' : '') + cpct(v);
+  const cmonths = n => n % 12 === 0 ? t(n === 12 ? 'calcYear1' : 'calcYearsN', { n: n / 12 }) : t(n === 1 ? 'calcMonth1' : 'calcMonthsN', { n });
+  const cdate = d => fmtDate(CALC.keyOf(d), { day: 'numeric', month: 'short', year: 'numeric' });
+  const calcHead = (eyebrow, title) => `<span class="calc-eyebrow">${esc(eyebrow)}</span>${esc(title)}`;
+  const calcHelp = txt => `<details class="calc-help"><summary aria-label="${esc(t('calcHelp'))}" title="${esc(t('calcHelp'))}">?</summary><p>${esc(txt)}</p></details>`;
+  const optLabel = (mod, k, o) => { const a = `co_${mod}_${k}_${o}`, s = t(a); return s !== a ? s : t(`co_${k}_${o}`); };
+  const invName = (model, id) => id === 'none' ? t('calcNoDestOpt') : (model.investments.find(i => i.id === id) || {}).name || '—';
+  const calcTopActions = on => `<button class="icon-btn ${on ? 'on' : ''}" data-act="${on ? 'calc-close' : 'calc-open'}" aria-pressed="${on}" aria-label="${esc(t(on ? 'calcBack' : 'calcOpen'))}" title="${esc(t(on ? 'calcBack' : 'calcOpen'))}">${ico('calc')}</button><button class="icon-btn" data-act="vault-lock" aria-label="${esc(t('vaultLock'))}" title="${esc(t('vaultLock'))}">${ico('lock')}</button><button class="icon-btn" data-act="ledger-add" aria-label="${esc(t('ledgerAdd'))}">${ico('plus')}</button>`;
+
+  /* ---------- gráfico de área (en pantalla con tooltip, ratón, dedo y teclado; en el PDF sin controles) ---------- */
+  const calcCharts = new Map();
+  const calcVal = (pt, s) => s.fund ? (pt.funds[s.fund] || 0) : pt[s.key];
+  function calcChart(id, rows, series, o = {}) {
+    if (!series.length) return `<p class="muted small calc-empty">${esc(t('calcPickSeries'))}</p>`;
+    const pts = CALC.sample(rows, o.print ? 160 : 240), n = pts.length;
+    const W = o.print ? 640 : chartW(), H = o.print ? 250 : (W < 500 ? 220 : 260), pl = 58, pr = 14, pt = 16, pb = 30, iw = W - pl - pr, ih = H - pt - pb;
+    const all = pts.flatMap(p => series.map(s => calcVal(p, s)));
+    const lo = Math.min(0, ...all), hi = Math.max(1, ...all), span = hi - lo || 1;
+    const x = i => pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => pt + ih - (v - lo) / span * ih, base = y(Math.max(lo, 0));
+    const lbl = v => privacyOn() ? '•••' : compactMoney(v);
+    const grid = [0, 1, 2, 3, 4].map(k => lo + span * k / 4).map(v => `<line class="grid-line" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="axis-label" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(lbl(v))}</text>`).join('');
+    const shapes = series.map(s => {
+      const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(calcVal(p, s)).toFixed(1)}`).join(' ');
+      return `<polygon points="${pl},${base.toFixed(1)} ${line} ${(W - pr)},${base.toFixed(1)}" fill="${s.color}" fill-opacity="${o.print ? '.16' : '.2'}"/><polyline points="${line}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round"/>`;
+    }).join('');
+    const d0 = pts[0].date, d1 = pts[n - 1].date, mid = pts[Math.floor((n - 1) / 2)].date;
+    const xl = `<text class="axis-label" x="${pl}" y="${H - 8}">${esc(cdate(d0))}</text>${W >= 420 ? `<text class="axis-label" x="${x(Math.floor((n - 1) / 2)).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(cdate(mid))}</text>` : ''}<text class="axis-label" x="${W - pr}" y="${H - 8}" text-anchor="end">${esc(cdate(d1))}</text>`;
+    const legend = `<div class="dot-legend calc-legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')}</div>`;
+    if (o.print) return `<div class="calc-print-chart">${legend}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">${grid}${shapes}${xl}</svg></div>`;
+    calcCharts.set(id, { pts, series, W, pl, iw, x, y, single: !!o.single, idx: -1 });
+    return `<div class="chart calc-chart" data-cc="${esc(id)}" tabindex="0" role="img" aria-label="${esc((o.aria || '') + '. ' + t('calcChartKeys'))}">${legend}<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${shapes}${xl}
+      <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".45" stroke-dasharray="4 4" style="display:none"/>
+      ${series.map((s, i) => `<circle class="cdot" data-i="${i}" r="4.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2" style="display:none"/>`).join('')}
+      <rect class="hit" x="${pl}" y="${pt}" width="${iw}" height="${ih}"/></svg></div>`;
+  }
+  function calcTipShow(box, idx) {
+    const c = calcCharts.get(box.dataset.cc), svg = box.querySelector('svg'); if (!c || !svg) return;
+    idx = clamp(idx, 0, c.pts.length - 1); c.idx = idx;
+    const p = c.pts[idx], cx = c.x(idx), sx = svg.clientWidth / c.W, priv = privacyOn();
+    const xh = svg.querySelector('.xhair'); xh.setAttribute('x1', cx); xh.setAttribute('x2', cx); xh.style.display = '';
+    let top = Infinity;
+    c.series.forEach((s, i) => { const d = svg.querySelector(`.cdot[data-i="${i}"]`), cy = c.y(calcVal(p, s)); top = Math.min(top, cy); if (d) { d.setAttribute('cx', cx); d.setAttribute('cy', cy); d.style.display = ''; } });
+    let tip = box.querySelector(':scope > .tip');
+    if (!tip) { tip = document.createElement('div'); tip.className = 'tip calc-tip'; box.appendChild(tip); }
+    const v = n => priv ? '•••••' : fmtMoney(n);
+    tip.innerHTML = `<b>${esc(fmtDate(CALC.keyOf(p.date), { day: 'numeric', month: 'long', year: 'numeric' }))}</b>${c.single ? '' : `<span>${esc(t('calcSerPat'))}: ${esc(v(p.patrimony))}</span>`}${c.series.filter(s => !(s.key === 'patrimony')).map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}: ${esc(v(calcVal(p, s)))}</span>`).join('')}`;
+    tip.style.display = 'block';
+    const half = tip.offsetWidth / 2 + 4, legendH = svg.offsetTop;
+    tip.style.left = clamp(cx * sx, half, Math.max(half, box.clientWidth - half)) + 'px';
+    tip.style.top = Math.max(tip.offsetHeight + 12, legendH + top * (svg.clientHeight / svg.viewBox.baseVal.height)) + 'px';
+  }
+  function calcTipHide(box) {
+    (box ? [box] : $$('.calc-chart')).forEach(b => { $$('.xhair, .cdot', b).forEach(n => { n.style.display = 'none'; }); const tp = b.querySelector(':scope > .tip'); if (tp) tp.style.display = 'none'; });
+  }
+  function calcTipAt(box, clientX) {
+    const c = calcCharts.get(box.dataset.cc), svg = box.querySelector('svg'); if (!c || !svg) return;
+    const r = svg.getBoundingClientRect(), sx = (clientX - r.left) / r.width * c.W;
+    calcTipShow(box, Math.round(clamp((sx - c.pl) / c.iw, 0, 1) * (c.pts.length - 1)));
+  }
+  document.addEventListener('pointermove', e => { const box = e.target.closest && e.target.closest('.calc-chart'); if (box && e.target.closest('svg')) calcTipAt(box, e.clientX); else if (!box) calcTipHide(); });
+  document.addEventListener('pointerdown', e => { const box = e.target.closest && e.target.closest('.calc-chart'); if (box && e.target.closest('svg')) calcTipAt(box, e.clientX); else calcTipHide(); });
+  document.addEventListener('keydown', e => {
+    const box = e.target.closest && e.target.closest('.calc-chart');
+    if (box) {
+      const c = calcCharts.get(box.dataset.cc); if (!c) return;
+      const step = e.shiftKey ? Math.max(1, Math.round(c.pts.length / 12)) : 1;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); calcTipShow(box, (c.idx < 0 ? 0 : c.idx) + (e.key === 'ArrowRight' ? step : -step)); }
+      else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); calcTipShow(box, e.key === 'Home' ? 0 : c.pts.length - 1); }
+      else if (e.key === 'Escape') calcTipHide(box);
+      return;
+    }
+    // Filas de fondos (role="button"): Intro o espacio las activan
+    const row = e.target.closest && e.target.closest('.calc-fund-row[role="button"]');
+    if (row && e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); row.click(); }
+  });
+  document.addEventListener('focusout', e => { const box = e.target.closest && e.target.closest('.calc-chart'); if (box) calcTipHide(box); });
+  // Los desplegables recuerdan si estaban abiertos al redibujar
+  document.addEventListener('toggle', e => { const d = e.target; if (d && d.matches && d.matches('details[data-cd]')) calcOpenD.set(d.dataset.cd, d.open); }, true);
+
+  // Series del gráfico principal según el modo
+  function calcSeries(model, u) {
+    if (u.mode === 'investments') return model.investments.filter(i => !u.off.includes(i.id)).map(i => ({ fund: i.id, label: i.name, color: CALC_COLORS[model.investments.indexOf(i) % CALC_COLORS.length] }));
+    return [{ key: 'patrimony', label: t('calcSerPat'), color: CALC_SER.patrimony }, ...['income', 'expenses', 'investments'].filter(k => u.ser[k]).map(k => ({ key: k, label: t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]), color: CALC_SER[k] }))];
+  }
+  const calcPeriodLabel = (m, horizon) => m % 12 === 0 ? t('calcYearN', { n: m / 12 }) : m < 12 ? cmonths(m) : t('calcEndPeriod', { n: cmonths(m) });
+  const cls = v => v < 0 ? 'amt-out' : 'amt-in';
+  // «Más detalles»: una fila por año (y el periodo final si no es un año entero)
+  function calcTable(res, kind, ids) {
+    const per = CALC.periods(res.months), M = res.monthly;
+    if (kind === 'patrimony') {
+      return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['calcPeriod', 'calcDate', 'calcPatrimony', 'calcIncAcc', 'calcExpAcc', 'calcInvCol', 'calcVariation', 'calcRentab'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${per.map(m => {
+        const p = M[m], d = p.patrimony - res.initial, r = res.initial ? d / res.initial * 100 : null;
+        return `<tr><th scope="row">${esc(calcPeriodLabel(m, res.months))}</th><td>${esc(cdate(p.date))}</td><td>${money(p.patrimony)}</td><td>${money(p.income)}</td><td>${money(p.expenses)}</td><td>${money(p.investments)}</td><td class="${cls(d)}">${csign(d)}</td><td class="${cls(d)}">${cspct(r)}</td></tr>`;
+      }).join('')}</tbody></table></div>`;
+    }
+    if (!ids.length) return `<p class="muted small calc-empty">${esc(t('calcNoInv'))}</p>`;
+    return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['calcPeriod', 'calcDate', 'calcDeposited', 'calcReturnCol', 'calcRentab', ids.length === 1 ? 'calcProjected' : 'calcProjectedAll'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${per.map(m => {
+      const p = M[m], dep = ids.reduce((a, id) => a + (p.principal[id] || 0), 0), bal = ids.reduce((a, id) => a + (p.funds[id] || 0), 0), g = bal - dep;
+      return `<tr><th scope="row">${esc(calcPeriodLabel(m, res.months))}</th><td>${esc(cdate(p.date))}</td><td>${money(dep)}</td><td class="${cls(g)}">${csign(g)}</td><td class="${cls(g)}">${cspct(dep ? g / dep * 100 : null)}</td><td>${money(bal)}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+  }
+  // Valor de cada métrica de la Proyección
+  function calcMetricVal(res, k) {
+    return { digital: money(res.digital), cash: money(res.cash), investments: money(res.investValue), returns: money(res.returns), cashback: `${money(res.cashReceived)} / ${money(res.pending)}`, growth: csign(res.growth) }[k];
+  }
+  // Expresión, resultado y variables de una fórmula aplicada
+  function calcFormulaText(a, model, res) {
+    const v = a.values, out = (res.outputs || {})[a.id] || 0;
+    const when = (n, unit) => t(unit === 'years' ? 'cqWhenYear' : 'cqWhenMonth', { n });
+    const p = {
+      savings: {}, roundup: {},
+      periodic: { freq: optLabel('periodic', 'frequency', v.frequency), dest: invName(model, v.target), changes: (v.futureChanges || []).map(c => t('cqChange', { v: money(c.amount), when: when(c.at, c.unit) })).join('; ') || t('cqNoChanges') },
+      salaryChange: { when: when(v.at, v.unit), v: money(v.newSalary) },
+      movement: { kind: optLabel('movement', 'kind', v.kind).toLowerCase(), v: money(v.amount), when: when(v.at, v.unit) },
+      cashback: { rate: cpct(v.rate), delay: v.delay, dest: v.target === 'none' ? t('cqDigital') : invName(model, v.target), pct: cpct(v.target === 'none' ? 0 : v.percent) },
+      loan: { p: money(v.principal), rate: cpct(v.rate), term: v.unit === 'years' ? t(v.term === 1 ? 'calcYear1' : 'calcYearsN', { n: v.term }) : t(v.term === 1 ? 'calcMonth1' : 'calcMonthsN', { n: v.term }), dest: invName(model, v.target) }
+    }[a.type] || {};
+    return [t('cq_' + a.type, p), t('cr_' + a.type, { v: money(a.type === 'salaryChange' ? v.newSalary : out) })];
+  }
+  function calcVarsText(type, v, model) {
+    const mod = CALC.moduleOf(type); if (!mod) return '';
+    const parts = mod.fields.map(([k, kind]) => {
+      const val = kind === 'money' ? money(v[k]) : kind === 'pct' ? cpct(v[k]) : kind === 'int' ? String(v[k]) : kind === 'select' ? optLabel(type, k, v[k]) : invName(model, v[k]);
+      return `${t(`cf_${type}_${k}`)}: ${val}`;
+    });
+    for (const c of v.futureChanges || []) parts.push(t('cqChange', { v: money(c.amount), when: t(c.unit === 'years' ? 'cqWhenYear' : 'cqWhenMonth', { n: c.at }) }));
+    return parts.join(' · ');
+  }
+  const calcLegacyRaw = () => { for (const k of LEGACY_KEYS) { try { const r = JSON.parse(localStorage.getItem(k) || 'null'); if (r && typeof r === 'object') return r; } catch (e) { /* nada */ } } return null; };
+
+  function viewCalc() {
+    const { model, res, rows } = calcData(), u = calcUi();
+    let html = topBar(calcTopActions(true));
+    html += `<div class="calc-head"><button class="icon-btn sm" data-act="calc-close" aria-label="${esc(t('calcBack'))}" title="${esc(t('calcBack'))}">${ico('left')}</button><div class="grow"><h1 class="calc-title">${esc(t('calcTitle'))}</h1><p class="muted small">${esc(t('calcSub'))}</p></div></div>`;
+    if (!LV.calc.length && !state.ui.calcLegacyDone && calcLegacyRaw()) html += `<div class="banner clay">🧮<span class="grow small">${esc(t('calcLegacyFound'))}</span><button class="chip sm" data-calc="legacy">${esc(t('calcLegacyImport'))}</button></div>`;
+    html += `<section class="calc-hub clay" aria-label="${esc(t('calcTitle'))}">${[['start', 'calcStart', '🧭'], ['modules', 'calcModules', '🧩'], ['time', 'calcTime', '⏳'], ['reset', 'calcReset', '↺'], ['pdf', 'calcPdf', '📄']].map(([k, l, i]) => `<button class="chip" data-calc="${k}"><span aria-hidden="true">${i}</span> ${esc(t(l))}</button>`).join('')}</section>`;
+    // Patrimonio proyectado y Proyección
+    const metric = k => u.metrics.includes(k);
+    html += `<section class="calc-card clay" aria-labelledby="calc-total-l">
+      <div class="calc-hero"><div class="calc-eyebrow" id="calc-total-l">${esc(t('calcHeroEyebrow'))}</div><strong class="calc-total">${money(res.final)}</strong>
+        <div class="calc-trend ${res.delta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.delta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.pct) }))}</span></div>
+        <p class="muted small">${esc(t('calcHorizonLine', { n: cmonths(res.months), date: cdate(res.endDate), v: money(res.initial) }))}</p></div>
+      <details class="calc-box" data-cd="proj" ${calcIsOpen('proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-pill">${esc(t(res.formulas === 1 ? 'calcFormula1' : 'calcFormulasN', { n: res.formulas }))}</span><button type="button" class="chip sm calc-view-btn" data-calc="view" aria-label="${esc(t('calcViewAria'))}">${ico('eye')} ${esc(t('calcView'))}</button><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        ${metric('digital') || metric('investments') ? `<div class="calc-headline">${metric('digital') ? `<div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(res.digital)}</strong><div class="calc-hl-st ${res.digitalDelta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.digitalDelta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.digitalPct) }))}</span></div></div>` : ''}${metric('investments') ? `<div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(res.investValue)}</strong><div class="calc-hl-st ${res.fundDelta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.fundDelta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.fundPct) }))}</span></div></div>` : ''}</div>` : ''}
+        ${['cash', 'returns', 'cashback', 'growth'].some(metric) ? `<div class="calc-metrics">${['cash', 'returns', 'cashback', 'growth'].filter(metric).map(k => `<div class="calc-metric"><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><strong>${calcMetricVal(res, k)}</strong></div>`).join('')}</div>` : ''}
+        ${res.perInvestment.length ? `<div class="calc-breakdown">${res.perInvestment.map(i => `<button type="button" class="calc-inv" data-calc="fund-chart" data-id="${esc(i.id)}"><strong>${esc(i.name)}</strong><small>${esc(t('calcInvValue', { v: money(i.value), p: cpct(i.share) }))}</small><small>${esc(t('calcInvRate', { p: cpct(i.rate), acc: t(i.accumulative ? 'calcAccumulative' : 'calcNonAccumulative') }))}</small><small class="${cls(i.gain)}">${esc(t('calcInvVar', { v: csign(i.gain) }))}</small></button>`).join('')}</div>` : ''}
+        <p class="calc-fine">${esc(t('calcHypothesis'))}</p>
+        <details class="calc-box inner" data-cd="savings" ${calcIsOpen('savings') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcSavingsEyebrow'))}</span><strong>${esc(t('calcSavings'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+          <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${money(res.totalIncome)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${money(res.totalExpenses)}</strong></div><div class="calc-metric wide"><span>${esc(t('calcNetT'))}</span><strong>${money(res.net)}</strong></div></div>
+          <p class="calc-fine">${esc(t('calcInPeriod', { n: cmonths(res.months) }))}</p></details>
+      </details>`;
+    // Gráfico
+    const inv = u.mode === 'investments';
+    html += `<div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('calcTrajEyebrow'))}</div><h2>${esc(t(inv ? 'calcGraphInv' : 'calcGraphPat'))}</h2></div><div class="row wrap calc-sec-acts"><button class="chip sm" data-calc="mode">${esc(t(inv ? 'calcModePat' : 'calcModeInv'))}</button><button class="chip sm" data-calc="graph" aria-expanded="${!u.hideGraph}">${esc(t(u.hideGraph ? 'calcShowGraph' : 'calcHideGraph'))}</button></div></div>`;
+    if (!u.hideGraph) {
+      if (!inv) html += `<div class="row wrap calc-toggles" role="group" aria-label="${esc(t('calcSeriesAria'))}">${['income', 'expenses', 'investments'].map(k => `<button type="button" class="calc-toggle ${u.ser[k] ? 'on' : ''}" data-calc="ser" data-v="${k}" aria-pressed="${u.ser[k]}">${esc(t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]))}</button>`).join('')}</div>`;
+      else html += `<details class="calc-box inner" data-cd="funds" ${calcIsOpen('funds') ? 'open' : ''}><summary><strong>${esc(t('calcFundsDetail'))}</strong><span class="calc-pill">${esc(t(model.investments.length === 1 ? 'calcFund1' : 'calcFundsN', { n: model.investments.length }))}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        ${res.perInvestment.length ? `<p class="muted small calc-hint-line">${esc(t('calcFundsHint'))}</p><div class="calc-fund-rows">${res.perInvestment.map(i => { const on = !u.off.includes(i.id); return `<div class="calc-fund-row ${on ? 'on' : ''}" role="button" tabindex="0" aria-pressed="${on}" data-calc="fund-toggle" data-id="${esc(i.id)}"><strong>${esc(i.name)}</strong><div><span>${esc(t('calcDeposited'))}</span><b>${money(i.principal)}</b></div><div><span>${esc(t('calcEstReturn'))}</span><b class="${cls(i.gain)}">${csign(i.gain)}</b></div><div><span>${esc(t('calcRentab'))}</span><b class="${cls(i.gain)}">${cspct(i.pct)}</b></div><div><span>${esc(t('calcProjected'))}</span><b>${money(i.value)}</b></div><button type="button" class="calc-graph-ico" data-calc="fund-chart" data-id="${esc(i.id)}" aria-label="${esc(t('calcFundChart', { name: i.name }))}" title="${esc(t('calcFundChart', { name: i.name }))}">${ico('trend')}</button></div>`; }).join('')}</div>` : `<p class="muted small calc-empty">${esc(t('calcNoInv'))}</p>`}</details>`;
+      html += calcChart('main', rows, calcSeries(model, u), { aria: t(inv ? 'calcGraphInv' : 'calcGraphPat') });
+      html += `<details class="calc-box inner" data-cd="details" ${calcIsOpen('details') ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, inv ? 'investments' : 'patrimony', model.investments.filter(i => !u.off.includes(i.id)).map(i => i.id))}</details>`;
+    }
+    html += `</section>`;
+    // Mi Biblioteca: fórmulas que forman el resultado
+    html += `<details class="calc-card clay calc-lib" data-cd="lib" ${calcIsOpen('lib') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcLibEyebrow'))}</span><strong>${esc(t('calcLibrary'))}</strong></span><span class="calc-pill">${model.applied.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      ${model.applied.length ? model.applied.map(a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(a.type).icon}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        <div class="calc-eq">${esc(eq)}</div><div class="calc-res">${esc(r)}</div><p class="calc-fine">${esc(calcVarsText(a.type, a.values, model))}</p>
+        <div class="row wrap calc-f-acts"><button class="chip sm" data-calc="edit-applied" data-id="${esc(a.id)}">${ico('edit')} ${esc(t('calcEditFormula'))}</button><button class="chip sm calc-danger" data-calc="remove-applied" data-id="${esc(a.id)}">${ico('trash')} ${esc(t('calcRemoveFormula'))}</button></div></details>`; }).join('') : `<p class="muted small calc-empty">${esc(t('calcNoApplied'))}</p>`}
+    </details>`;
+    return html;
+  }
+
+  function calcClick(e) {
+    const el = e.target.closest('[data-calc]'); if (!el) return false;
+    const k = el.dataset.calc, id = el.dataset.id, u = calcUi();
+    if (el.closest('summary')) e.preventDefault(); // «Ver» dentro del encabezado no pliega la Proyección
+    switch (k) {
+      case 'start': openCalcStart(); break;
+      case 'modules': openCalcModules(); break;
+      case 'time': openCalcTime(); break;
+      case 'reset': openCalcReset(); break;
+      case 'pdf': openCalcPdf(); break;
+      case 'view': openCalcView(); break;
+      case 'mode': u.mode = u.mode === 'investments' ? 'patrimony' : 'investments'; save(); render(); break;
+      case 'graph': u.hideGraph = !u.hideGraph; save(); render(); break;
+      case 'ser': u.ser[el.dataset.v] = !u.ser[el.dataset.v]; save(); render(); break;
+      case 'fund-toggle': u.off = u.off.includes(id) ? u.off.filter(x => x !== id) : [...u.off, id]; save(); render(); $(`.calc-fund-row[data-id="${CSS.escape(id)}"]`)?.focus(); break;
+      case 'fund-chart': openCalcFund(id); break;
+      case 'edit-applied': { const a = calcData().model.applied.find(x => x.id === id); if (a) openCalcFormula(a, 'applied'); break; }
+      case 'remove-applied': {
+        const a = calcItem(id); if (!a) break;
+        confirmDialog(t('calcRemoveQ', { name: a.name || t('m_' + a.type) })).then(ok => { if (!ok) return; LV.calc = LV.calc.filter(x => x.id !== id); calcCommit(t('calcRemoved')); });
+        break;
+      }
+      case 'legacy': calcImportLegacy(); break;
+      default: return false;
+    }
+    return true;
+  }
+  async function calcImportLegacy() {
+    const raw = calcLegacyRaw(); if (!raw) return;
+    if (LV.calc.length && !(await confirmDialog(t('calcLegacyQ')))) return;
+    LV.calc = CALC.fromLegacy(raw, todayKey(), uid);
+    state.ui.calcLegacyDone = true; calcCommit(t('calcLegacyDone'));
+  }
+
+  // Campo de importe o número: vacío → null; texto no válido → NaN
+  const calcReadNum = (str, kind) => {
+    const s = String(str ?? '').trim(); if (!s) return null;
+    if (kind === 'money') { if (/^-/.test(s)) return -1; const c = LED.parseCents(s); return c == null ? NaN : c / 100; }
+    return CALC.parseNum(s);
+  };
+  const calcInVal = v => v == null || v === '' ? '' : esc(fmtPctIn(v));
+
+  /* ---------- Punto de partida: saldos, fondos iniciales y destinos de inversión ---------- */
+  function openCalcStart() {
+    let wref;
+    const draw = () => {
+      const { model } = calcData(), s = model.start, invs = model.investments;
+      const optsInv = sel => invs.map(i => `<option value="${esc(i.id)}" ${i.id === sel ? 'selected' : ''}>${esc(i.name)} · ${esc(cpct(i.rate))}</option>`).join('');
+      $('#cs', wref).innerHTML = `<div class="calc-grid">
+          ${[['digital', 'csDigital'], ['cash', 'csCash'], ['salary', 'csSalary'], ['expenses', 'csExpenses']].map(([k, l]) => `<label class="field"><span>${esc(t(l))}</span><input class="input" inputmode="decimal" autocomplete="off" data-cs="${k}" value="${calcInVal(s[k])}" placeholder="0,00"></label>`).join('')}
+          <label class="field"><span>${esc(t('csDate'))}</span><input class="input" type="date" data-cs="date" value="${esc(s.date)}"></label></div>
+        <p class="calc-fine">${esc(t('calcStartHint'))}</p>
+        <div class="calc-part"><div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('calcFundsEyebrow'))}</div><h3>${esc(t('calcFundsTitle'))}</h3></div><button class="btn sm calc-blue" data-cs-act="add-fund">${ico('plus')} ${esc(t('calcAddFund'))}</button></div>
+          ${model.funds.length ? model.funds.map(f => `<div class="calc-fund-edit" data-fund="${esc(f.id)}"><label class="field"><span>${esc(t('calcFundName'))}</span><input class="input" maxlength="60" data-cf="name" value="${esc(f.name)}"></label><label class="field"><span>${esc(t('calcFundAmount'))}</span><input class="input" inputmode="decimal" data-cf="amount" value="${calcInVal(f.amount)}" placeholder="0,00"></label><label class="field calc-fund-target"><span>${esc(t('calcFundTarget'))}</span><select class="input" data-cf="target">${invs.some(i => i.id === f.target) ? '' : `<option value="" selected disabled>${esc(t('calcSelectDest'))}</option>`}${optsInv(f.target)}</select></label><button class="icon-btn sm calc-del" data-cs-act="del-fund" data-id="${esc(f.id)}" aria-label="${esc(t('calcFundDel'))}" title="${esc(t('calcFundDel'))}">${ico('trash')}</button></div>`).join('') : `<p class="muted small calc-empty">${esc(t('calcNoFunds'))}</p>`}</div>
+        <div class="calc-part"><div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('calcDestEyebrow'))}</div><h3>${esc(t('calcDestTitle'))}</h3></div><button class="btn sm" data-cs-act="add-dest">${ico('plus')} ${esc(t('calcAddDest'))}</button></div>
+          ${invs.length ? invs.map(i => `<details class="calc-dest" data-dest="${esc(i.id)}" data-cd="dest:${esc(i.id)}" ${calcIsOpen('dest:' + i.id) ? 'open' : ''}><summary><span class="calc-sum-t"><strong>${esc(i.name)}</strong><small>${esc(cpct(i.rate))} · ${esc(t(i.accumulative ? 'calcAccumulative' : 'calcNonAccumulative'))}</small></span><span class="chip sm">${ico('edit')} ${esc(t('calcEdit'))}</span></summary>
+            <div class="calc-grid three"><label class="field"><span>${esc(t('calcName'))}</span><input class="input" maxlength="60" data-ci="name" value="${esc(i.name)}"></label><label class="field"><span>${esc(t('calcRate'))}</span><input class="input" inputmode="decimal" data-ci="rate" value="${calcInVal(i.rate)}"></label>
+              <div class="field"><span>${esc(t('calcCapitalization'))}</span><select class="input" data-ci="accumulative" aria-label="${esc(t('calcCapitalization'))}"><option value="1" ${i.accumulative ? 'selected' : ''}>${esc(t('calcAccumulative'))}</option><option value="0" ${i.accumulative ? '' : 'selected'}>${esc(t('calcNonAccumulative'))}</option></select>${calcHelp(t('calcCapHelp'))}</div></div>
+            <div class="row calc-dest-acts"><button class="icon-btn sm calc-del" data-cs-act="del-dest" data-id="${esc(i.id)}" aria-label="${esc(t('calcDestDel'))}" title="${esc(t('calcDestDel'))}">${ico('trash')}</button><button class="icon-btn sm calc-save" data-cs-act="save-dest" data-id="${esc(i.id)}" aria-label="${esc(t('calcDestSave'))}" title="${esc(t('calcDestSave'))}">${ico('check')}</button></div></details>`).join('') : `<p class="muted small calc-empty">${esc(t('calcNoDest'))}</p>`}
+          <p class="calc-fine">${esc(t('calcDestHint'))}</p></div>`;
+    };
+    openModal({
+      title: calcHead(t('calcStartEyebrow'), t('calcStart')), cls: 'wide calc-sheet', body: '<div id="cs"></div>',
+      onMount: w => {
+        wref = w; draw();
+        w.addEventListener('change', e => {
+          const el = e.target;
+          if (el.dataset.cs) {
+            const s = calcStartItem(), k = el.dataset.cs;
+            if (k === 'date') { if (!CALC.parseDate(el.value)) { el.value = s.date; return; } s.date = el.value; }
+            else { const v = calcReadNum(el.value, 'money'); if (v != null && !(v >= 0)) { toast(t('calcNonNeg')); el.value = calcInVal(s[k]); return; } s[k] = v || 0; }
+            calcCommit(); return;
+          }
+          if (el.dataset.cf) {
+            const f = calcItem(el.closest('[data-fund]').dataset.fund); if (!f) return;
+            if (el.dataset.cf === 'amount') { const v = calcReadNum(el.value, 'money'); if (v != null && !(v >= 0)) { toast(t('calcNonNeg')); el.value = calcInVal(f.amount); return; } f.amount = v || 0; }
+            else f[el.dataset.cf] = el.dataset.cf === 'name' ? el.value.trim().slice(0, 60) : el.value;
+            calcCommit();
+          }
+        });
+      },
+      onClick: async (e) => {
+        const b = e.target.closest('[data-cs-act]'); if (!b) return;
+        const { model } = calcData(), act = b.dataset.csAct, id = b.dataset.id;
+        if (act === 'add-fund') {
+          if (!model.investments.length) { toast(t('calcNeedDestFirst')); return; }
+          LV.calc.push({ id: uid(), kind: 'fund', name: t('calcNewFund'), amount: 0, target: model.investments[0].id, ord: calcOrd() }); calcCommit(); draw();
+        } else if (act === 'del-fund') { LV.calc = LV.calc.filter(x => x.id !== id); calcCommit(); draw(); }
+        else if (act === 'add-dest') openCalcNewDest(() => draw());
+        else if (act === 'save-dest' || act === 'del-dest') {
+          const it = calcItem(id), box = b.closest('[data-dest]'); if (!it) return;
+          if (act === 'del-dest') {
+            const used = CALC.usesOf(model, id);
+            if (used.funds || used.formulas) { toast(t('calcDestInUse', { name: it.name, f: used.funds, m: used.formulas })); return; }
+            if (!(await confirmDialog(t('calcDestDelQ', { name: it.name })))) return;
+            LV.calc = LV.calc.filter(x => x.id !== id); calcUi().off = calcUi().off.filter(x => x !== id); calcCommit(t('calcDestDeleted')); draw(); return;
+          }
+          const name = $('[data-ci="name"]', box).value.trim().slice(0, 60), rate = CALC.parseNum($('[data-ci="rate"]', box).value);
+          if (!name) { toast(t('calcNeedName')); return; }
+          if (!Number.isFinite(rate) || rate < -99) { toast(t('calcRateMin')); return; }
+          Object.assign(it, { name, rate, accumulative: $('[data-ci="accumulative"]', box).value === '1' }); calcOpenD.set('dest:' + id, false);
+          calcCommit(t('calcDestSaved')); draw();
+        }
+      }
+    });
+  }
+  // Nueva inversión de destino: nombre, rentabilidad esperada y capitalización
+  function openCalcNewDest(done) {
+    openModal({
+      title: calcHead(t('calcNewDestEyebrow'), t('calcNewDest')), cls: 'calc-sheet',
+      body: `<div class="stack"><label class="field"><span>${esc(t('calcName'))}</span><input class="input" id="cd-name" maxlength="60" placeholder="${esc(t('calcNamePh'))}"></label>
+        <label class="field"><span>${esc(t('calcRate'))}</span><input class="input" id="cd-rate" inputmode="decimal" value="0"></label>
+        <div class="field"><span>${esc(t('calcCapitalization'))}</span><select class="input" id="cd-acc" aria-label="${esc(t('calcCapitalization'))}"><option value="1">${esc(t('calcAccumulative'))}</option><option value="0">${esc(t('calcNonAccumulative'))}</option></select>${calcHelp(t('calcCapHelp'))}</div>
+        <p class="calc-fine">${esc(t('calcRateHyp'))}</p></div>`,
+      foot: `<button class="btn calc-blue" data-cd-save>${esc(t('calcCreateDest'))}</button>`,
+      onMount: w => { setTimeout(() => $('#cd-name', w)?.focus(), 60); w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); $('[data-cd-save]', w).click(); } }); },
+      onClick: (e, close, w) => {
+        if (!e.target.closest('[data-cd-save]')) return;
+        const name = $('#cd-name', w).value.trim().slice(0, 60), rate = CALC.parseNum($('#cd-rate', w).value);
+        if (!name) { toast(t('calcNeedName')); $('#cd-name', w).focus(); return; }
+        if (!Number.isFinite(rate) || rate < -99) { toast(t('calcRateMin')); return; }
+        LV.calc.push({ id: uid(), kind: 'inv', name, rate, accumulative: $('#cd-acc', w).value === '1', ord: calcOrd() });
+        close(); calcCommit(); done && done();
+      }
+    });
+  }
+  function openCalcTime() {
+    const s = calcData().model.start;
+    openModal({
+      title: calcHead(t('calcHorizonEyebrow'), t('calcTime')), cls: 'calc-sheet',
+      body: `<div class="calc-grid"><label class="field"><span>${esc(t('ctDuration'))}</span><input class="input" id="ct-n" inputmode="numeric" value="${esc(s.horizon)}"></label><label class="field"><span>${esc(t('ctUnit'))}</span><select class="input" id="ct-u"><option value="months" ${s.unit === 'months' ? 'selected' : ''}>${esc(t('ctMonths'))}</option><option value="years" ${s.unit === 'years' ? 'selected' : ''}>${esc(t('ctYears'))}</option></select></label></div><p class="calc-fine">${esc(t('calcTimeHint'))}</p>`,
+      onMount: w => w.addEventListener('change', () => {
+        const st = calcStartItem(), n = Math.round(CALC.parseNum($('#ct-n', w).value)), unit = $('#ct-u', w).value;
+        if (!(n >= 1)) { toast(t('calcPeriodMin')); $('#ct-n', w).value = st.horizon; return; }
+        st.unit = unit; st.horizon = Math.min(n, unit === 'years' ? CALC.MAX_MONTHS / 12 : CALC.MAX_MONTHS); $('#ct-n', w).value = st.horizon; calcCommit();
+      })
+    });
+  }
+  function openCalcReset() {
+    openModal({
+      title: calcHead(t('calcResetEyebrow'), t('calcResetQ')), cls: 'calc-sheet', body: `<p style="margin:0">${esc(t('calcResetText'))}</p>`,
+      foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn danger" data-cr>${esc(t('calcResetYes'))}</button>`,
+      onClick: (e, close) => { if (!e.target.closest('[data-cr]')) return; LV.calc = []; calcUi().off = []; calcOpenD.clear(); ['proj', 'funds', 'lib', 'tpl'].forEach(k => calcOpenD.set(k, true)); close(); calcCommit(t('calcResetDone')); sfx('undo'); }
+    });
+  }
+  // «Ver»: elegir varias métricas de la Proyección
+  function openCalcView() {
+    let wref, last = '';
+    const draw = () => {
+      const { res } = calcData(), u = calcUi();
+      $('#cv', wref).innerHTML = `<p class="muted small" style="margin:0 0 12px">${esc(t('calcViewHint'))}</p><div class="calc-view-list">${CALC_METRICS.map(([k, l]) => { const on = u.metrics.includes(k); return `<button type="button" class="calc-view-opt ${on ? 'on' : ''}" data-cv-m="${k}" aria-pressed="${on}">${esc(t(l))}<strong>${calcMetricVal(res, k)}</strong></button>`; }).join('')}</div>${last ? `<div class="calc-view-res" role="status">${esc(last)}</div>` : ''}`;
+    };
+    openModal({
+      title: calcHead(t('calcViewEyebrow'), t('calcViewTitle')), cls: 'calc-sheet', body: '<div id="cv"></div>',
+      onMount: w => { wref = w; draw(); },
+      onClick: e => {
+        const b = e.target.closest('[data-cv-m]'); if (!b) return;
+        const u = calcUi(), k = b.dataset.cvM, on = !u.metrics.includes(k), name = t(CALC_METRICS.find(m => m[0] === k)[1]);
+        u.metrics = on ? [...u.metrics, k] : u.metrics.filter(x => x !== k); calcOpenD.set('proj', true);
+        last = t(on ? 'calcViewOn' : 'calcViewOff', { name, v: calcMetricVal(calcData().res, k) });
+        save(); render(); draw(); $(`[data-cv-m="${k}"]`, wref)?.focus();
+      }
+    });
+  }
+  // Gráfico de un solo destino, con sus detalles y edición rápida
+  function openCalcFund(id) {
+    let wref;
+    const draw = () => {
+      const { model, res, rows } = calcData(), i = model.investments.find(x => x.id === id); if (!i) return;
+      const color = CALC_COLORS[model.investments.indexOf(i) % CALC_COLORS.length];
+      $('.sheet-head h2', wref).innerHTML = calcHead(t('calcFundEyebrow'), i.name);
+      $('#cfund-chart', wref).innerHTML = `${calcChart('fund', rows, [{ fund: i.id, label: i.name, color }], { single: true, aria: i.name })}<details class="calc-box inner" data-cd="fund-details" ${calcIsOpen('fund-details') ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, 'investments', [i.id])}</details>`;
+    };
+    const i0 = calcData().model.investments.find(x => x.id === id); if (!i0) return;
+    openModal({
+      title: calcHead(t('calcFundEyebrow'), i0.name), cls: 'wide calc-sheet',
+      body: `<details class="calc-box inner" data-cd="fund-edit"><summary><strong>${esc(t('calcEditInv'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="calc-grid three"><label class="field"><span>${esc(t('calcName'))}</span><input class="input" maxlength="60" data-fi="name" value="${esc(i0.name)}"></label><label class="field"><span>${esc(t('calcRate'))}</span><input class="input" inputmode="decimal" data-fi="rate" value="${calcInVal(i0.rate)}"></label><label class="field"><span>${esc(t('calcCapitalization'))}</span><select class="input" data-fi="accumulative"><option value="1" ${i0.accumulative ? 'selected' : ''}>${esc(t('calcAccumulative'))}</option><option value="0" ${i0.accumulative ? '' : 'selected'}>${esc(t('calcNonAccumulative'))}</option></select></label></div></details><div id="cfund-chart"></div>`,
+      onMount: w => {
+        wref = w; draw();
+        w.addEventListener('change', e => {
+          const el = e.target, k = el.dataset.fi, it = calcItem(id); if (!k || !it) return;
+          if (k === 'name') { const v = el.value.trim().slice(0, 60); if (!v) { toast(t('calcNeedName')); el.value = it.name; return; } it.name = v; }
+          else if (k === 'rate') { const v = CALC.parseNum(el.value); if (!Number.isFinite(v) || v < -99) { toast(t('calcRateMin')); el.value = calcInVal(it.rate); return; } it.rate = v; }
+          else it.accumulative = el.value === '1';
+          calcCommit(); draw();
+        });
+      }
+    });
+  }
+
+  /* ---------- Fórmulas Modulares: plantillas, Mi Biblioteca y edición ---------- */
+  function calcFieldsHtml(type, v, model) {
+    const mod = CALC.moduleOf(type), invs = model.investments;
+    return `<div class="calc-grid">${mod.fields.map(([k, kind, ex, opts, help]) => {
+      const label = t(`cf_${type}_${k}`), has = v && v[k] !== undefined && v[k] !== '';
+      let input;
+      if (kind === 'inv' || kind === 'invOpt') input = `<select class="input" data-fv="${k}" data-kind="${kind}" aria-label="${esc(label)}">${kind === 'invOpt' ? `<option value="none" ${!has || v[k] === 'none' ? 'selected' : ''}>${esc(t('calcNoDestOpt'))}</option>` : `<option value="" ${has && invs.some(i => i.id === v[k]) ? '' : 'selected'} disabled>${esc(t(invs.length ? 'calcSelectDest' : 'calcNeedDestFirst'))}</option>`}${invs.map(i => `<option value="${esc(i.id)}" ${has && v[k] === i.id ? 'selected' : ''}>${esc(i.name)} · ${esc(cpct(i.rate))}</option>`).join('')}</select>`;
+      else if (kind === 'select') input = `<select class="input" data-fv="${k}" data-kind="select" aria-label="${esc(label)}">${opts.map((o, j) => `<option value="${o}" ${(has ? v[k] === o : j === 0) ? 'selected' : ''}>${esc(optLabel(type, k, o))}</option>`).join('')}</select>`;
+      else input = `<input class="input" data-fv="${k}" data-kind="${kind}" inputmode="${kind === 'int' ? 'numeric' : 'decimal'}" autocomplete="off" aria-label="${esc(label)}" placeholder="${esc(fmtPctIn(ex || 0))}" value="${has ? calcInVal(v[k]) : ''}">`;
+      return `<div class="field"><span>${esc(label)}</span>${input}${help ? calcHelp(t(`cfh_${type}_${k}`)) : ''}</div>`;
+    }).join('')}</div>${type === 'periodic' ? `<div class="calc-changes"><p class="calc-fine">${esc(t('calcChangesHint'))}</p><div class="calc-change-rows">${(v && v.futureChanges || []).map(calcChangeRow).join('')}</div></div>` : ''}`;
+  }
+  const calcChangeRow = (c = {}) => `<div class="calc-change-row" data-fc><label class="field"><span>${esc(t('calcChangeFrom'))}</span><input class="input" inputmode="numeric" data-fc-at value="${c.at ? esc(c.at) : ''}" placeholder="3"></label><label class="field"><span>${esc(t('calcChangeUnit'))}</span><select class="input" data-fc-unit><option value="months" ${c.unit !== 'years' ? 'selected' : ''}>${esc(t('cuMonth'))}</option><option value="years" ${c.unit === 'years' ? 'selected' : ''}>${esc(t('cuYear'))}</option></select></label><label class="field"><span>${esc(t('calcChangeAmount'))}</span><input class="input" inputmode="decimal" data-fc-amount value="${c.amount != null ? calcInVal(c.amount) : ''}"></label><button type="button" class="icon-btn sm calc-del" data-f-act="del-change" aria-label="${esc(t('calcChangeDel'))}" title="${esc(t('calcChangeDel'))}">${ico('x')}</button></div>`;
+  // Lee y valida las variables de un formulario → { values } o { err }
+  function calcReadForm(box, type, model) {
+    const mod = CALC.moduleOf(type), values = {};
+    for (const [k, kind] of mod.fields) {
+      const el = box.querySelector(`[data-fv="${k}"]`); if (!el) return { err: t('calcFillAll') };
+      if (kind === 'inv') { if (!model.investments.length) return { err: t('calcNeedDestFirst') }; if (!model.investments.some(i => i.id === el.value)) return { err: t('calcNeedDest') }; values[k] = el.value; continue; }
+      if (kind === 'invOpt') { values[k] = model.investments.some(i => i.id === el.value) ? el.value : 'none'; continue; }
+      if (kind === 'select') { if (!el.value) return { err: t('calcFillAll') }; values[k] = el.value; continue; }
+      const n = calcReadNum(el.value, kind);
+      if (n == null || Number.isNaN(n)) return { err: t('calcFillAll'), el };
+      if (n < 0) return { err: t('calcNonNeg'), el };
+      values[k] = kind === 'int' ? Math.round(n) : n;
+    }
+    if (['salaryChange', 'movement'].includes(type) && values.at < 1) return { err: t('calcPeriodMin') };
+    if (type === 'loan' && values.term < 1) return { err: t('calcPeriodMin') };
+    if (type === 'periodic') {
+      values.futureChanges = [];
+      for (const r of box.querySelectorAll('[data-fc]')) {
+        const at = CALC.parseNum(r.querySelector('[data-fc-at]').value), amount = calcReadNum(r.querySelector('[data-fc-amount]').value, 'money');
+        if (!(at >= 1) || amount == null || !(amount >= 0)) return { err: t('calcChangesFill') };
+        values.futureChanges.push({ at: Math.round(at), unit: r.querySelector('[data-fc-unit]').value, amount });
+      }
+    }
+    return { values: CALC.cleanValues(type, values) };
+  }
+  // Nombre para Mi Biblioteca sin repetir («Movimiento puntual 2»)
+  function calcPresetName(type) {
+    const base = t('m_' + type), names = new Set(calcData().model.presets.map(p => p.name));
+    if (!names.has(base)) return base;
+    let n = 2; while (names.has(`${base} ${n}`)) n++;
+    return `${base} ${n}`;
+  }
+  function openCalcModules() {
+    let wref;
+    const drawLib = () => {
+      const { model } = calcData();
+      $('#cm-lib', wref).innerHTML = model.presets.length ? model.presets.map(p => `<details class="calc-formula" data-preset="${esc(p.id)}"><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(p.type).icon}</span><span class="calc-sum-t"><strong>${esc(p.name)}</strong><small>${esc(t('m_' + p.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        <p class="calc-fine">${esc(calcVarsText(p.type, p.values, model))}</p><div class="row wrap calc-f-acts"><button class="chip sm calc-blue" data-f-act="use" data-id="${esc(p.id)}">${ico('check')} ${esc(t('calcUse'))}</button><button class="chip sm" data-f-act="edit" data-id="${esc(p.id)}">${ico('edit')} ${esc(t('calcEdit'))}</button><button class="chip sm calc-danger" data-f-act="del" data-id="${esc(p.id)}">${ico('trash')} ${esc(t('calcDelete'))}</button></div></details>`).join('') : `<p class="muted small calc-empty">${esc(t('calcNoPresets'))}</p>`;
+    };
+    const drawTpl = () => {
+      const { model } = calcData();
+      $('#cm-tpl', wref).innerHTML = CALC.MODULES.map(m => `<details class="calc-mod" data-mod="${m.id}" name="calc-mod"><summary><span class="calc-f-ico" aria-hidden="true">${m.icon}</span><span class="calc-sum-t"><strong>${esc(t('m_' + m.id))}</strong><small>${esc(t('md_' + m.id))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        <div class="calc-mod-form">${calcFieldsHtml(m.id, null, model)}<div class="calc-form-acts">${m.id === 'periodic' ? `<button type="button" class="calc-plus" data-f-act="add-change" aria-label="${esc(t('calcAddChange'))}" title="${esc(t('calcAddChange'))}">${ico('plus')}</button>` : ''}<button class="btn sm calc-blue" data-f-act="apply" data-mod="${m.id}">${esc(t('calcApply'))}</button></div></div></details>`).join('');
+    };
+    openModal({
+      title: calcHead(t('calcModEyebrow'), t('calcModules')), cls: 'wide calc-sheet',
+      body: `<div class="calc-part first"><div class="calc-eyebrow">${esc(t('calcLibReuse'))}</div><h3>${esc(t('calcLibrary'))}</h3><div id="cm-lib"></div></div>
+        <details class="calc-box inner calc-tpl" data-cd="tpl" ${calcIsOpen('tpl') ? 'open' : ''}><summary><strong>${esc(t('calcTemplates'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary><div id="cm-tpl"></div></details>`,
+      onMount: w => {
+        wref = w; drawLib(); drawTpl();
+        // Solo una plantilla abierta a la vez (también en navegadores sin <details name>)
+        w.addEventListener('toggle', e => { const d = e.target; if (d.matches && d.matches('.calc-mod') && d.open) $$('.calc-mod', w).forEach(o => { if (o !== d) o.open = false; }); }, true);
+      },
+      onClick: async (e, close) => {
+        const b = e.target.closest('[data-f-act]'); if (!b) return;
+        const act = b.dataset.fAct, { model } = calcData();
+        if (act === 'add-change') { b.closest('.calc-mod').querySelector('.calc-change-rows').insertAdjacentHTML('beforeend', calcChangeRow()); b.closest('.calc-mod').querySelector('[data-fc]:last-child [data-fc-at]').focus(); return; }
+        if (act === 'del-change') { b.closest('[data-fc]').remove(); return; }
+        if (act === 'apply') {
+          const type = b.dataset.mod, box = b.closest('.calc-mod'), r = calcReadForm(box, type, model);
+          if (r.err) { toast(r.err); if (r.el) r.el.focus(); return; }
+          const name = calcPresetName(type), ord = calcOrd();
+          LV.calc.push({ id: uid(), kind: 'applied', type, name, values: r.values, ord }, { id: uid(), kind: 'preset', type, name, values: JSON.parse(JSON.stringify(r.values)), ord: ord + 1 });
+          close(); calcOpenD.set('lib', true); calcCommit(t('calcApplied')); sfx('money'); return;
+        }
+        const p = model.presets.find(x => x.id === b.dataset.id); if (!p) return;
+        if (act === 'use') {
+          if (CALC.moduleOf(p.type).fields.some(([k, kind]) => kind === 'inv' && !model.investments.some(i => i.id === p.values[k]))) { toast(t('calcNeedDest')); openCalcFormula(p, 'preset', drawLib); return; }
+          LV.calc.push({ id: uid(), kind: 'applied', type: p.type, name: p.name, values: JSON.parse(JSON.stringify(p.values)), ord: calcOrd() });
+          close(); calcOpenD.set('lib', true); calcCommit(t('calcAppliedCopy')); sfx('money');
+        } else if (act === 'edit') openCalcFormula(p, 'preset', drawLib);
+        else if (act === 'del') { if (!(await confirmDialog(t('calcPresetDelQ', { name: p.name })))) return; LV.calc = LV.calc.filter(x => x.id !== p.id); calcCommit(t('calcDeleted')); drawLib(); }
+      }
+    });
+  }
+  // Editar una fórmula aplicada o una configuración de Mi Biblioteca (en su propia ventana, sin pasar por las plantillas)
+  function openCalcFormula(item, kind, done) {
+    let wref;
+    openModal({
+      title: calcHead(t(kind === 'preset' ? 'calcEditPresetEyebrow' : 'calcLibrary'), t(kind === 'preset' ? 'calcEditPreset' : 'calcEditFormula')), cls: 'wide calc-sheet',
+      body: `<div class="stack"><p class="muted small" style="margin:0">${CALC.moduleOf(item.type).icon} ${esc(t('m_' + item.type))}</p><label class="field"><span>${esc(t('calcName'))}</span><input class="input" id="cfe-name" maxlength="60" value="${esc(item.name)}"></label><div id="cfe-form">${calcFieldsHtml(item.type, item.values, calcData().model)}</div></div>`,
+      foot: `${item.type === 'periodic' ? `<button type="button" class="calc-plus" data-f-act="add-change" aria-label="${esc(t('calcAddChange'))}" title="${esc(t('calcAddChange'))}">${ico('plus')}</button>` : ''}<button class="btn calc-blue" data-f-act="save">${esc(t('calcSave'))}</button>`,
+      onMount: w => { wref = w; },
+      onClick: (e, close) => {
+        const b = e.target.closest('[data-f-act]'); if (!b) return;
+        if (b.dataset.fAct === 'add-change') { $('.calc-change-rows', wref).insertAdjacentHTML('beforeend', calcChangeRow()); $('[data-fc]:last-child [data-fc-at]', wref).focus(); return; }
+        if (b.dataset.fAct === 'del-change') { b.closest('[data-fc]').remove(); return; }
+        if (b.dataset.fAct !== 'save') return;
+        const name = $('#cfe-name', wref).value.trim().slice(0, 60), r = calcReadForm($('#cfe-form', wref), item.type, calcData().model);
+        if (!name) { toast(t('calcNeedName')); return; }
+        if (r.err) { toast(r.err); if (r.el) r.el.focus(); return; }
+        const it = calcItem(item.id); if (!it) { close(); return; }
+        Object.assign(it, { name, values: r.values });
+        close(); calcCommit(t(kind === 'preset' ? 'calcPresetSaved' : 'calcUpdated')); done && done();
+      }
+    });
+  }
+
+  /* ---------- Exportar PDF: se elige qué widgets entran y se imprime una maqueta propia (sin controles) ---------- */
+  const CALC_PDF = [['savings', true], ['graph', true], ['details', false], ['funds', false], ['formulas', true]];
+  function openCalcPdf() {
+    openModal({
+      title: calcHead(t('calcPdfEyebrow'), t('calcPdfTitle')), cls: 'calc-sheet',
+      body: `<div class="stack" style="gap:12px">${CALC_PDF.map(([k, on]) => `<label class="check"><input type="checkbox" data-pw="${k}" ${on ? 'checked' : ''}> <span>${esc(t('pw_' + k))}${k === 'funds' ? `<small class="muted" style="display:block;font-weight:var(--fw-secondary)">${esc(t('pw_fundsHint'))}</small>` : ''}</span></label>`).join('')}
+        ${privacyOn() ? `<p class="banner clay" style="margin:0">${ico('eyeOff')}<span class="grow small">${esc(t('calcPdfPriv'))}</span></p>` : ''}<p class="calc-fine">${esc(t('calcPdfHint'))}</p></div>`,
+      foot: `<button class="btn calc-blue" data-pdf>${ico('download')} ${esc(t('calcPdfGo'))}</button>`,
+      onClick: (e, close, w) => {
+        if (!e.target.closest('[data-pdf]')) return;
+        const sel = new Set($$('[data-pw]:checked', w).map(x => x.dataset.pw));
+        if (!sel.size) { toast(t('calcPdfNone')); return; }
+        close(); calcPrint(sel);
+      }
+    });
+  }
+  function calcPrintHtml(sel) {
+    const { model, res, rows } = calcData(), u = calcUi();
+    const sec = (title, body, extra = '') => `<section class="cp-sec ${extra}"><h2>${esc(title)}</h2>${body}</section>`;
+    let html = `<header class="cp-head"><h1>${esc(t('calcTitle'))}</h1><p>${esc(t('calcPdfGenerated', { date: fmtDate(todayKey(), { day: 'numeric', month: 'long', year: 'numeric' }), n: `${cdate(res.startDate)} – ${cdate(res.endDate)} (${cmonths(res.months)})` }))}</p></header>`;
+    if (sel.has('savings')) html += sec(t('calcSavings'), `<div class="cp-metrics"><div><span>${esc(t('calcIncomeT'))}</span><b>${money(res.totalIncome)}</b></div><div><span>${esc(t('calcExpensesT'))}</span><b>${money(res.totalExpenses)}</b></div><div><span>${esc(t('calcNetT'))}</span><b>${money(res.net)}</b></div></div><p class="cp-fine">${esc(t('calcInPeriod', { n: cmonths(res.months) }))}</p>`, 'cp-keep');
+    if (sel.has('graph')) {
+      const inv = u.mode === 'investments';
+      html += sec(t('calcHeroEyebrow'), `<div class="cp-hero"><b>${money(res.final)}</b><span class="${res.delta < 0 ? 'neg' : 'pos'}">${esc(t('calcReturn', { v: csign(res.delta) }))} · ${esc(t('calcProfit', { v: cspct(res.pct) }))}</span></div>
+        <div class="cp-metrics">${u.metrics.map(k => `<div><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><b>${calcMetricVal(res, k)}</b></div>`).join('')}</div>
+        <h3>${esc(t(inv ? 'calcGraphInv' : 'calcGraphPat'))}</h3>${calcChart('', rows, calcSeries(model, u), { print: true, aria: t(inv ? 'calcGraphInv' : 'calcGraphPat') })}<p class="cp-fine">${esc(t('calcHypothesis'))}</p>`, 'cp-keep');
+    }
+    if (sel.has('details')) html += sec(t('calcMoreDetails'), `<h3>${esc(t('calcGraphPat'))}</h3>${calcTable(res, 'patrimony')}${model.investments.length ? `<h3>${esc(t('calcGraphInv'))}</h3>${calcTable(res, 'investments', model.investments.map(i => i.id))}` : ''}`);
+    if (sel.has('funds')) html += sec(t('pw_funds'), model.investments.length ? model.investments.map((i, n) => `<article class="cp-fund"><h3>${esc(i.name)} · ${esc(cpct(i.rate))}</h3>${calcChart('', rows, [{ fund: i.id, label: i.name, color: CALC_COLORS[n % CALC_COLORS.length] }], { print: true, aria: i.name })}</article>`).join('') : `<p class="cp-fine">${esc(t('calcPdfNoFunds'))}</p>`);
+    if (sel.has('formulas')) html += sec(t('pw_formulas'), model.applied.length ? model.applied.map(a => { const [eq, r] = calcFormulaText(a, model, res); return `<article class="cp-formula"><h3>${CALC.moduleOf(a.type).icon} ${esc(a.name)}</h3><div class="cp-eq">${esc(eq)}</div><p><b>${esc(r)}</b></p><p class="cp-fine">${esc(calcVarsText(a.type, a.values, model))}</p></article>`; }).join('') : `<p class="cp-fine">${esc(t('calcNoApplied'))}</p>`);
+    return html;
+  }
+  function calcPrint(sel) {
+    let root = $('#calc-print');
+    if (!root) { root = document.createElement('div'); root.id = 'calc-print'; document.body.appendChild(root); }
+    root.innerHTML = calcPrintHtml(sel);
+    document.body.classList.add('calc-printing');
+    const done = () => { document.body.classList.remove('calc-printing'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { try { window.print(); } catch (e) { done(); } }, 60);
+  }
+
   /* ---------- Libreta: gráficas (tarta por categorías y evolución de ingresos y gastos) ---------- */
   const PIE_COLORS = ['#ff6b6b', '#4cc9f0', '#f7c948', '#c77dff', '#3ddc97', '#ff8a5b', '#5b8cff', '#ff5d8f', '#a3e635', '#2ec4b6', '#b8b8c8'];
   const IN_C = '#2fbf71', OUT_C = '#e5484d';
@@ -6273,6 +6832,7 @@
     if ((el = e.target.closest('[data-group]'))) { e.preventDefault(); openGroup(el.dataset.group); return; }
     if ((el = e.target.closest('[data-group-open]'))) { openGroup(el.dataset.groupOpen); return; }
     if (state.ui.tab === 'chat' && chatClick(e)) return;
+    if (state.ui.tab === 'ledger' && calcClick(e)) return;
     if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
     if ((el = e.target.closest('[data-pin]'))) { pinKey(el.dataset.pin); return; }
     if (swipeClick(e)) return;
@@ -6280,7 +6840,9 @@
     const a = e.target.closest('[data-act]'); if (!a) return;
     const id = a.dataset.id;
     switch (a.dataset.act) {
-      case 'go': pendingShare = null; if (state.ui.tab === a.dataset.tab && state.ui.folder) state.ui.folder = null; state.ui.tab = a.dataset.tab; save(); render(); window.scrollTo(0, 0); break;
+      case 'go': pendingShare = null; if (state.ui.tab === a.dataset.tab && state.ui.folder) state.ui.folder = null; if (state.ui.tab !== a.dataset.tab) state.ui.ledgerView = ''; state.ui.tab = a.dataset.tab; save(); render(); window.scrollTo(0, 0); break;
+      case 'calc-open': state.ui.ledgerView = 'calc'; save(); render(); window.scrollTo(0, 0); break;
+      case 'calc-close': state.ui.ledgerView = ''; save(); render(); window.scrollTo(0, 0); break;
       case 'create': openCreateMenu(); break;
       case 'packs': openPacks(); break;
       case 'hview': state.ui.habitsView = a.dataset.v; state.ui.folder = null; save(); render(); break;
