@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.17.0';
+  const VERSION = '1.17.1';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */

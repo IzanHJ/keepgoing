@@ -1,5 +1,5 @@
 /* KeepGoing — service worker: funciona sin conexión cuando la app se sirve por https */
-const CACHE = 'keepgoing-v20';
+const CACHE = 'keepgoing-v21';
 const RANKS = ['iniciado', 'aprendiz', 'discipulo', 'experto', 'elite', 'maestro', 'ascendente', 'supremo', 'mitico', 'trascendente'];
 const SHELL = ['./', './index.html', './css/app.css', './js/i18n.js', './js/i18n-plus.js', './js/i18n-social.js', './js/i18n-contract.js', './js/i18n-profile.js', './js/i18n-caprice.js', './js/caprice.js', './js/ledger.js', './js/vault.js', './js/vault-device.js', './js/groups.js', './js/i18n-ledger.js', './js/sound.js', './js/i18n-polish.js', './js/i18n-groups.js', './js/i18n-v12.js', './js/i18n-v13.js', './js/i18n-v14.js', './js/i18n-v15.js', './js/i18n-v16.js', './js/i18n-calc.js', './js/pets.js', './js/ledger-export.js', './js/calc.js', './js/app.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   ...RANKS.flatMap(r => [`./cards/${r}-front.jpg`, `./cards/${r}-back.jpg`])];
@@ -17,7 +17,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (url.origin !== location.origin && !url.hostname.includes('fonts.g')) return;
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, { cache: 'no-cache' }).then(res => {
       const copy = res.clone();
       if (res.ok && (new URL(e.request.url).origin === location.origin || e.request.url.includes('fonts.g'))) caches.open(CACHE).then(c => c.put(e.request, copy));
       return res;
