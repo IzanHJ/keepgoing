@@ -194,6 +194,7 @@
       ledgerCalc: [],
       // v1.19: presupuestos mensuales (cifrados con la Libreta, un elemento por presupuesto)
       ledgerBudgets: [],
+      ledgerProjs: [],
       // Fase 3 (v1.10): sonidos activados por defecto
       soundOn: true, ledgerVault: null,
       // v1.14: widgets ocultos desde el modo edición (se recuperan en Ajustes)
@@ -205,7 +206,7 @@
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
   const ORDER_LISTS = ['projects', 'routines'];
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets'];
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt']]; // hábito → día → valor
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt']];             // clave → valor
   function normalize(s) {
@@ -230,7 +231,7 @@
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'emt', 'rvmt', 'pmt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
@@ -2835,8 +2836,8 @@
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
   const VAULT = window.KGVault, DEV = window.KGVaultDevice;
-  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets']];
-  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs']];
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
   const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
   const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
@@ -2875,7 +2876,7 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
   async function useKey(key, raw) { LV.key = key; LV.raw = raw; sessTried = ''; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
   // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
@@ -3225,7 +3226,7 @@
   function calcUi() {
     const u = state.ui.calc && typeof state.ui.calc === 'object' ? state.ui.calc : {};
     state.ui.calc = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) },
-      metrics: Array.isArray(u.metrics) ? u.metrics.filter(k => CALC_METRICS.some(m => m[0] === k)) : ['digital', 'investments'], hideGraph: !!u.hideGraph, off: Array.isArray(u.off) ? u.off : [], gran: u.gran === 'month' ? 'month' : 'year', seen: Array.isArray(u.seen) ? u.seen : [] };
+      metrics: Array.isArray(u.metrics) ? u.metrics.filter(k => CALC_METRICS.some(m => m[0] === k)) : ['digital', 'investments'], hideGraph: !!u.hideGraph, off: Array.isArray(u.off) ? u.off : [], gran: u.gran === 'month' ? 'month' : 'year', seen: Array.isArray(u.seen) ? u.seen : [], proj: typeof u.proj === 'string' ? u.proj : null };
     return state.ui.calc;
   }
   let calcMemo = { key: '' };
@@ -3331,24 +3332,34 @@
   }
   const calcPeriodLabel = (m, horizon) => m % 12 === 0 ? t('calcYearN', { n: m / 12 }) : m < 12 ? cmonths(m) : t('calcEndPeriod', { n: cmonths(m) });
   const cls = v => v < 0 ? 'amt-out' : 'amt-in';
-  // «Más detalles»: una fila por año (y el periodo final si no es un año entero)
-  // «Más detalles»: una fila por año (o por mes) y «Diferencia» respecto a la fila anterior (la primera, respecto al punto de partida)
-  function calcTable(res, kind, ids, gran = 'year') {
+  // «Más detalles»: una fila por año (o por mes) y «Diferencia» respecto a la fila anterior (la primera, respecto al punto de partida).
+  // calcTableData da las celdas (las usa también el PDF); calcTable las pinta en pantalla.
+  function calcTableData(res, kind, ids, gran = 'year') {
     const per = gran === 'month' ? Array.from({ length: res.months }, (_, i) => i + 1) : CALC.periods(res.months), M = res.monthly;
     const label = m => gran === 'month' ? t('calcMonthN', { n: m }) : calcPeriodLabel(m, res.months);
     const prev = i => i ? M[per[i - 1]] : M[0];
-    if (kind === 'patrimony') {
-      return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['calcPeriod', 'calcDate', 'calcPatrimony', 'calcDiff', 'calcIncAcc', 'calcExpAcc', 'calcInvCol', 'calcVariation', 'calcRentab'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${per.map((m, i) => {
+    const c = (v, tone) => ({ v, tone });
+    if (kind === 'patrimony') return {
+      head: ['calcPeriod', 'calcDate', 'calcPatrimony', 'calcDiff', 'calcIncAcc', 'calcExpAcc', 'calcInvCol', 'calcVariation', 'calcRentab'].map(k => t(k)),
+      rows: per.map((m, i) => {
         const p = M[m], d = p.patrimony - res.initial, r = res.initial ? d / res.initial * 100 : null, df = p.patrimony - prev(i).patrimony;
-        return `<tr><th scope="row">${esc(label(m))}</th><td>${esc(cdate(p.date))}</td><td>${money(p.patrimony)}</td><td class="${cls(df)}">${csign(df)}</td><td>${money(p.income)}</td><td>${money(p.expenses)}</td><td>${money(p.investments)}</td><td class="${cls(d)}">${csign(d)}</td><td class="${cls(d)}">${cspct(r)}</td></tr>`;
-      }).join('')}</tbody></table></div>`;
-    }
-    if (!ids.length) return `<p class="muted small calc-empty">${esc(t('calcNoInv'))}</p>`;
+        return [c(label(m)), c(cdate(p.date)), c(money(p.patrimony)), c(csign(df), df), c(money(p.income)), c(money(p.expenses)), c(money(p.investments)), c(csign(d), d), c(cspct(r), d)];
+      })
+    };
+    if (!ids.length) return null;
     const balOf = p => ids.reduce((a, id) => a + (p.funds[id] || 0), 0);
-    return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['calcPeriod', 'calcDate', 'calcDeposited', 'calcReturnCol', 'calcRentab', ids.length === 1 ? 'calcProjected' : 'calcProjectedAll', 'calcDiff'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${per.map((m, i) => {
-      const p = M[m], dep = ids.reduce((a, id) => a + (p.principal[id] || 0), 0), bal = balOf(p), g = bal - dep, df = bal - balOf(prev(i));
-      return `<tr><th scope="row">${esc(label(m))}</th><td>${esc(cdate(p.date))}</td><td>${money(dep)}</td><td class="${cls(g)}">${csign(g)}</td><td class="${cls(g)}">${cspct(dep ? g / dep * 100 : null)}</td><td>${money(bal)}</td><td class="${cls(df)}">${csign(df)}</td></tr>`;
-    }).join('')}</tbody></table></div>`;
+    return {
+      head: ['calcPeriod', 'calcDate', 'calcDeposited', 'calcReturnCol', 'calcRentab', ids.length === 1 ? 'calcProjected' : 'calcProjectedAll', 'calcDiff'].map(k => t(k)),
+      rows: per.map((m, i) => {
+        const p = M[m], dep = ids.reduce((a, id) => a + (p.principal[id] || 0), 0), bal = balOf(p), g = bal - dep, df = bal - balOf(prev(i));
+        return [c(label(m)), c(cdate(p.date)), c(money(dep)), c(csign(g), g), c(cspct(dep ? g / dep * 100 : null), g), c(money(bal)), c(csign(df), df)];
+      })
+    };
+  }
+  function calcTable(res, kind, ids, gran = 'year') {
+    const d = calcTableData(res, kind, ids, gran);
+    if (!d) return `<p class="muted small calc-empty">${esc(t('calcNoInv'))}</p>`;
+    return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${d.head.map(h => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${d.rows.map(r => `<tr>${r.map((x, i) => i ? `<td${x.tone != null ? ` class="${cls(x.tone)}"` : ''}>${esc(x.v)}</td>` : `<th scope="row">${esc(x.v)}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
   // Fórmulas del mismo tipo juntas: si hay más de una, van en su propia lista desplegable («Inversión periódica · 3»)
   function calcGrouped(list, key, item) {
@@ -3452,6 +3463,7 @@
       case 'time': openCalcTime(); break;
       case 'reset': openCalcReset(); break;
       case 'pdf': openCalcPdf(); break;
+      case 'projections': openProjections(); break;
       case 'view': openCalcView(); break;
       case 'mode': u.mode = u.mode === 'investments' ? 'patrimony' : 'investments'; save(); render(); break;
       case 'graph': u.hideGraph = !u.hideGraph; save(); render(); break;
@@ -3784,46 +3796,329 @@
     });
   }
 
-  /* ---------- Exportar PDF: se elige qué widgets entran y se imprime una maqueta propia (sin controles) ---------- */
+  /* ---------- Compartir: un PDF de verdad (js/pdf.js, sin servidores) con los widgets elegidos; se descarga o se envía a un chat ---------- */
   const CALC_PDF = [['savings', true], ['graph', true], ['details', false], ['funds', false], ['formulas', true]];
-  function openCalcPdf() {
+  const calcDataOf = items => { const model = CALC.fromItems(items, todayKey()), res = CALC.compute(model); return { model, res, rows: CALC.daily(res) }; };
+  function accentHex() {
+    try {
+      const c = document.createElement('canvas').getContext('2d'); c.fillStyle = '#586ff0';
+      c.fillStyle = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#586ff0';
+      return /^#[0-9a-f]{6}$/i.test(c.fillStyle) ? c.fillStyle : '#586ff0';
+    } catch (e) { return '#586ff0'; }
+  }
+  // o: { title, u (preferencias del gráfico) }
+  function calcPdfBytes(sel, data = calcData(), o = {}) {
+    const P = window.KGPdf, { model, res, rows } = data, u = o.u || calcUi(), ACC = accentHex();
+    const d = P.create(), M = d.margin, CW = d.W - M * 2, INK = '#1f2737', SUB = '#5b6577', LINE = '#d4d8df', POS = '#14865f', NEG = '#c13d4b';
+    const fit = (str, size, maxW, bold) => { let z = size; while (z > 5 && P.width(str, z, bold) > maxW) z -= .25; return z; };
+    d.addPage();
+    const para = (str, size = 8.5, color = SUB, bold = false) => { for (const l of P.wrap(str, CW, size, bold)) { d.ensure(size + 4); d.y += size; d.text(M, d.y, l, { size, color, bold }); d.y += 3; } };
+    const h2 = s => { d.ensure(70); d.y += 20; d.text(M, d.y, s, { size: 13, bold: true, color: INK }); d.y += 10; };
+    const h3 = s => { d.ensure(50); d.y += 12; d.text(M, d.y, s, { size: 10.5, bold: true, color: INK }); d.y += 6; };
+    const metrics = list => {
+      const w = (CW - 12) / 3;
+      for (let i = 0; i < list.length; i += 3) {
+        d.ensure(42);
+        list.slice(i, i + 3).forEach(([lab, val], c) => {
+          const x = M + c * (w + 6);
+          d.rect(x, d.y, w, 36, { stroke: LINE, r: 5, lw: .8 });
+          d.text(x + 8, d.y + 13, lab, { size: fit(lab, 8, w - 16), color: SUB });
+          d.text(x + 8, d.y + 28, val, { size: fit(val, 11.5, w - 16, true), bold: true, color: INK });
+        });
+        d.y += 42;
+      }
+    };
+    const chart = series => {
+      if (!series.length) return;
+      const H = 200, pl = 58, pr = 8, pt = 8, pb = 22;
+      d.ensure(H + 30);
+      let lx = M; d.y += 2;
+      for (const s of series) { const lw = P.width(s.label, 8) + 20; if (lx + lw > M + CW) { lx = M; d.y += 12; } d.circle(lx + 4, d.y + 4, 3.2, { fill: s.color }); d.text(lx + 11, d.y + 7, s.label, { size: 8, color: SUB }); lx += lw; }
+      d.y += 14;
+      const pts = CALC.sample(rows, 160), n = pts.length, top = d.y, iw = CW - pl - pr, ih = H - pt - pb;
+      const all = pts.flatMap(p => series.map(s => calcVal(p, s)));
+      const lo = Math.min(0, ...all), hi = Math.max(1, ...all), span = hi - lo || 1;
+      const x = i => M + pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => top + pt + ih - (v - lo) / span * ih, base = y(Math.max(lo, 0));
+      for (const k of [0, 1, 2, 3, 4]) { const v = lo + span * k / 4; d.line(M + pl, y(v), M + CW - pr, y(v), { color: LINE, lw: .6 }); d.text(M + pl - 6, y(v) + 3, privacyOn() ? '•••' : compactMoney(v), { size: 7, color: SUB, align: 'right' }); }
+      const lines = series.map(s => pts.map((p, i) => [x(i), y(calcVal(p, s))]));
+      series.forEach((s, i) => d.poly([[x(0), base], ...lines[i], [x(n - 1), base]], { fill: P.tint(s.color, .16), close: true }));
+      series.forEach((s, i) => d.poly(lines[i], { stroke: s.color, lw: 1.6 }));
+      const by = top + H - 6;
+      d.text(M + pl, by, cdate(pts[0].date), { size: 7, color: SUB });
+      d.text(x(Math.floor((n - 1) / 2)), by, cdate(pts[Math.floor((n - 1) / 2)].date), { size: 7, color: SUB, align: 'center' });
+      d.text(M + CW - pr, by, cdate(pts[n - 1].date), { size: 7, color: SUB, align: 'right' });
+      d.y = top + H + 4;
+    };
+    const table = td => {
+      if (!td) { para(t('calcNoInv')); return; }
+      const cols = td.head.length, size = cols > 7 ? 6.6 : 7.6, w0 = CW * (cols > 7 ? .1 : .13), wd = CW * (cols > 7 ? .12 : .14), rest = (CW - w0 - wd) / (cols - 2);
+      const widths = [w0, wd, ...Array(cols - 2).fill(rest)], lh = size + 7;
+      const row = (cells, head) => {
+        let x = M;
+        cells.forEach((c, i) => {
+          const txt = head ? c : c.v, color = head ? SUB : c.tone == null ? INK : c.tone < 0 ? NEG : POS, bold = head || i === 0, z = fit(txt, size, widths[i] - 4, bold);
+          d.text(i < 2 ? x + 2 : x + widths[i] - 2, d.y + size + 1, txt, { size: z, color, bold, align: i < 2 ? 'left' : 'right' });
+          x += widths[i];
+        });
+        d.y += lh; d.line(M, d.y - 2, M + CW, d.y - 2, { color: LINE, lw: head ? .9 : .4 });
+      };
+      d.ensure(lh * 3); row(td.head, true);
+      for (const r of td.rows) { if (d.y + lh > d.H - M) { d.addPage(); row(td.head, true); } row(r); }
+    };
+    const title = o.title || t('calcTitle');
+    d.text(M, d.y + 20, title, { size: fit(title, 20, CW, true), bold: true, color: INK }); d.y += 34;
+    para(t('calcPdfGenerated', { date: fmtDate(todayKey(), { day: 'numeric', month: 'long', year: 'numeric' }), n: `${cdate(res.startDate)} – ${cdate(res.endDate)} (${cmonths(res.months)})` }), 9, SUB);
+    d.y += 4; d.line(M, d.y, M + CW, d.y, { color: ACC, lw: 2 }); d.y += 4;
+    if (sel.has('savings')) {
+      h2(t('calcSavings'));
+      metrics([[t('calcIncomeT'), money(res.totalIncome)], [t('calcExpensesT'), money(res.totalExpenses)], [t('calcNetT'), money(res.net)]]);
+      para(t('calcInPeriod', { n: cmonths(res.months) }));
+    }
+    if (sel.has('graph')) {
+      const inv = u.mode === 'investments';
+      h2(t('calcHeroEyebrow'));
+      d.ensure(44); d.text(M, d.y + 22, money(res.final), { size: 24, bold: true, color: INK }); d.y += 30;
+      d.text(M, d.y + 9, `${t('calcReturn', { v: csign(res.delta) })} · ${t('calcProfit', { v: cspct(res.pct) })}`, { size: 9.5, bold: true, color: res.delta < 0 ? NEG : POS }); d.y += 16;
+      metrics(u.metrics.filter(k => calcMetricOn(res, k)).map(k => [t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]), calcMetricVal(res, k)]));
+      h3(t(inv ? 'calcGraphInv' : 'calcGraphPat'));
+      chart(calcSeries(model, u));
+      para(t('calcHypothesis'));
+    }
+    if (sel.has('details')) {
+      h2(t('calcMoreDetails'));
+      h3(t('calcGraphPat')); table(calcTableData(res, 'patrimony', [], u.gran));
+      if (model.investments.length) { h3(t('calcGraphInv')); table(calcTableData(res, 'investments', model.investments.map(i => i.id), u.gran)); }
+    }
+    if (sel.has('funds')) {
+      h2(t('pw_funds'));
+      if (!model.investments.length) para(t('calcPdfNoFunds'));
+      model.investments.forEach((i, k) => { h3(`${i.name} · ${cpct(i.rate)}`); chart([{ fund: i.id, label: i.name, color: CALC_COLORS[k % CALC_COLORS.length] }]); });
+    }
+    if (sel.has('formulas')) {
+      h2(t('pw_formulas'));
+      if (!model.applied.length) para(t('calcNoApplied'));
+      for (const a of model.applied) {
+        const [eq, r] = calcFormulaText(a, model, res), inner = CW - 20;
+        const eqL = P.wrap(eq, inner - 12, 8.5), rL = P.wrap(r, inner, 9.5, true), vL = P.wrap(calcVarsText(a.type, a.values, model), inner, 8);
+        const h = 22 + eqL.length * 11.5 + 12 + rL.length * 12.5 + vL.length * 10.5 + 8;
+        d.ensure(h + 8);
+        const y0 = d.y; d.rect(M, y0, CW, h, { stroke: LINE, r: 6, lw: .8 });
+        d.text(M + 10, y0 + 16, `${a.name} · ${t('m_' + a.type)}`, { size: fit(`${a.name} · ${t('m_' + a.type)}`, 10.5, inner, true), bold: true, color: INK });
+        let yy = y0 + 24;
+        d.rect(M + 10, yy, inner, eqL.length * 11.5 + 8, { fill: '#eef1f8', r: 4 });
+        eqL.forEach(l => { yy += 11.5; d.text(M + 16, yy + 1, l, { size: 8.5, bold: true, color: ACC }); });
+        yy += 14;
+        rL.forEach(l => { yy += 12.5; d.text(M + 10, yy, l, { size: 9.5, bold: true, color: INK }); });
+        vL.forEach(l => { yy += 10.5; d.text(M + 10, yy, l, { size: 8, color: SUB }); });
+        d.y = y0 + h + 8;
+      }
+    }
+    d.forEachPage((i, nP) => d.text(d.W - M, d.H - 20, `KeepGoing · ${i + 1}/${nP}`, { size: 7.5, color: SUB, align: 'right' }));
+    return d.output({ title });
+  }
+  const pdfName = title => `KeepGoing-${String(title || 'calculadora').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'calculadora'}-${todayKey()}.pdf`;
+  function bytesB64(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
+  const fmtKb = b => b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+  function downloadBlob(name, blob) {
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }
+  // Elegir un chat y enviarle el PDF (va sin cifrar: lo ve quien esté en ese chat)
+  async function sendPdfToChat(bytes, name) {
+    if (!auth) { toast(t('groupNeedLogin')); return; }
+    const data = bytesB64(bytes);
+    if (data.length > 3000000) { toast(t('calcPdfTooBig')); return; }
+    await refreshMyGroups(true);
+    const list = myGroups.list || [];
+    openModal({
+      title: `${ico('send')} ${esc(t('calcPdfToChat'))}`,
+      body: `<p class="muted small" style="margin-top:0">${esc(t('calcPdfChatNote'))}</p>${list.length ? `<div class="stack" style="gap:8px">${list.map(g => `<button class="btn block" style="justify-content:flex-start" data-pdfg="${esc(g.id)}">${g.chat === 'dm' ? avatarHtml(g.peer || {}, 'sm') : esc(g.icon || '👥')} ${esc(chatName(g))}</button>`).join('')}</div>` : `<p class="muted">${esc(t('evNoChats'))}</p>`}`,
+      onClick: async (e, close) => {
+        const g = e.target.closest('[data-pdfg]'); if (!g) return;
+        g.disabled = true;
+        try { await rpc('kg_post_media', { p_group: g.dataset.pdfg, p_kind: 'file', p_mime: 'application/pdf', p_data: data, p_meta: { name } }); sfx('pop'); toast(t('calcPdfSent')); close(); }
+        catch (err) { g.disabled = false; toast(chatErr(err)); }
+      }
+    });
+  }
+  // data/o: para compartir otra proyección (por defecto, la calculadora actual)
+  function openCalcPdf(data, o = {}) {
     openModal({
       title: calcHead(t('calcPdfEyebrow'), t('calcPdfTitle')), cls: 'calc-sheet',
       body: `<div class="stack" style="gap:12px">${CALC_PDF.map(([k, on]) => `<label class="check tgl tgl-block"><input type="checkbox" data-pw="${k}" ${on ? 'checked' : ''}> <span>${esc(t('pw_' + k))}${k === 'funds' ? `<small class="muted" style="display:block;font-weight:var(--fw-secondary)">${esc(t('pw_fundsHint'))}</small>` : ''}</span></label>`).join('')}
         ${privacyOn() ? `<p class="banner clay" style="margin:0">${ico('eyeOff')}<span class="grow small">${esc(t('calcPdfPriv'))}</span></p>` : ''}<p class="calc-fine">${esc(t('calcPdfHint'))}</p></div>`,
-      foot: `<button class="btn calc-blue" data-pdf>${ico('download')} ${esc(t('calcPdfGo'))}</button>`,
-      onClick: (e, close, w) => {
-        if (!e.target.closest('[data-pdf]')) return;
+      foot: `<button class="btn" data-pdf="dl">${ico('download')} ${esc(t('calcPdfDownload'))}</button><button class="btn calc-blue" data-pdf="chat">${ico('send')} ${esc(t('calcPdfToChat'))}</button>`,
+      onClick: async (e, close, w) => {
+        const b = e.target.closest('[data-pdf]'); if (!b) return;
         const sel = new Set($$('[data-pw]:checked', w).map(x => x.dataset.pw));
         if (!sel.size) { toast(t('calcPdfNone')); return; }
-        close(); calcPrint(sel);
+        let bytes;
+        try { bytes = calcPdfBytes(sel, data || calcData(), o); } catch (err) { toast(t('calcPdfError')); return; }
+        const name = pdfName(o.title);
+        if (b.dataset.pdf === 'dl') { downloadBlob(name, new Blob([bytes], { type: 'application/pdf' })); sfx('pop'); toast(t('calcPdfSaved')); close(); return; }
+        close(); await sendPdfToChat(bytes, name);
       }
     });
   }
-  function calcPrintHtml(sel) {
-    const { model, res, rows } = calcData(), u = calcUi();
-    const sec = (title, body, extra = '') => `<section class="cp-sec ${extra}"><h2>${esc(title)}</h2>${body}</section>`;
-    let html = `<header class="cp-head"><h1>${esc(t('calcTitle'))}</h1><p>${esc(t('calcPdfGenerated', { date: fmtDate(todayKey(), { day: 'numeric', month: 'long', year: 'numeric' }), n: `${cdate(res.startDate)} – ${cdate(res.endDate)} (${cmonths(res.months)})` }))}</p></header>`;
-    if (sel.has('savings')) html += sec(t('calcSavings'), `<div class="cp-metrics"><div><span>${esc(t('calcIncomeT'))}</span><b>${money(res.totalIncome)}</b></div><div><span>${esc(t('calcExpensesT'))}</span><b>${money(res.totalExpenses)}</b></div><div><span>${esc(t('calcNetT'))}</span><b>${money(res.net)}</b></div></div><p class="cp-fine">${esc(t('calcInPeriod', { n: cmonths(res.months) }))}</p>`, 'cp-keep');
-    if (sel.has('graph')) {
-      const inv = u.mode === 'investments';
-      html += sec(t('calcHeroEyebrow'), `<div class="cp-hero"><b>${money(res.final)}</b><span class="${res.delta < 0 ? 'neg' : 'pos'}">${esc(t('calcReturn', { v: csign(res.delta) }))} · ${esc(t('calcProfit', { v: cspct(res.pct) }))}</span></div>
-        <div class="cp-metrics">${u.metrics.filter(k => calcMetricOn(res, k)).map(k => `<div><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><b>${calcMetricVal(res, k)}</b></div>`).join('')}</div>
-        <h3>${esc(t(inv ? 'calcGraphInv' : 'calcGraphPat'))}</h3>${calcChart('', rows, calcSeries(model, u), { print: true, aria: t(inv ? 'calcGraphInv' : 'calcGraphPat') })}<p class="cp-fine">${esc(t('calcHypothesis'))}</p>`, 'cp-keep');
-    }
-    if (sel.has('details')) html += sec(t('calcMoreDetails'), `<h3>${esc(t('calcGraphPat'))}</h3>${calcTable(res, 'patrimony')}${model.investments.length ? `<h3>${esc(t('calcGraphInv'))}</h3>${calcTable(res, 'investments', model.investments.map(i => i.id))}` : ''}`);
-    if (sel.has('funds')) html += sec(t('pw_funds'), model.investments.length ? model.investments.map((i, n) => `<article class="cp-fund"><h3>${esc(i.name)} · ${esc(cpct(i.rate))}</h3>${calcChart('', rows, [{ fund: i.id, label: i.name, color: CALC_COLORS[n % CALC_COLORS.length] }], { print: true, aria: i.name })}</article>`).join('') : `<p class="cp-fine">${esc(t('calcPdfNoFunds'))}</p>`);
-    if (sel.has('formulas')) html += sec(t('pw_formulas'), model.applied.length ? model.applied.map(a => { const [eq, r] = calcFormulaText(a, model, res); return `<article class="cp-formula"><h3>${ico(CALC.moduleOf(a.type).icon)} ${esc(a.name)}</h3><div class="cp-eq">${esc(eq)}</div><p><b>${esc(r)}</b></p><p class="cp-fine">${esc(calcVarsText(a.type, a.values, model))}</p></article>`; }).join('') : `<p class="cp-fine">${esc(t('calcNoApplied'))}</p>`);
-    return html;
+
+  /* ---------- Proyecciones (v1.19): fotos con nombre de la calculadora, guardadas cifradas en la Libreta ----------
+     { id, name, items: [piezas de LV.calc sin Mi Biblioteca], at }. «Aplicar» reemplaza la calculadora (Mi Biblioteca se queda).
+     Compartir: solo con amigos y solo para verla. Va cifrada de extremo a extremo (ECDH) en kg_proj_shares; cuando guardas cambios
+     en una proyección compartida, se vuelve a cifrar para cada amigo y ven siempre la última versión. */
+  const PROJ = { list: null, busy: false };
+  const projSnap = () => JSON.parse(JSON.stringify(LV.calc.filter(x => x.kind !== 'preset')));
+  const projKey = items => JSON.stringify([...items].sort((a, b) => String(a.id).localeCompare(String(b.id))));
+  const projDirty = p => projKey(p.items || []) !== projKey(projSnap());
+  async function projRefresh() {
+    if (!auth || PROJ.busy) return;
+    PROJ.busy = true;
+    try { PROJ.list = await rpc('kg_proj_list'); } catch (e) { PROJ.list = PROJ.list || []; }
+    PROJ.busy = false;
   }
-  function calcPrint(sel) {
-    let root = $('#calc-print');
-    if (!root) { root = document.createElement('div'); root.id = 'calc-print'; document.body.appendChild(root); }
-    root.innerHTML = calcPrintHtml(sel);
-    document.body.classList.add('calc-printing');
-    const done = () => { document.body.classList.remove('calc-printing'); window.removeEventListener('afterprint', done); };
-    window.addEventListener('afterprint', done);
-    setTimeout(() => { try { window.print(); } catch (e) { done(); } }, 60);
+  const projSharesOf = id => (PROJ.list || []).filter(x => x.mine && x.local_id === id);
+  // Cifra la proyección para un amigo (y para ti, así puedes comprobar lo que ve) y la sube
+  async function projSendTo(p, f) {
+    if (!f || !VAULT.isPub(f.pubkey)) throw new Error('nokey');
+    const me = await ensureKx();
+    const box = await VAULT.sealFor({ v: 1, name: p.name, items: p.items, at: p.at, by: profileName() }, [{ id: f.user_id, pub: f.pubkey }, { id: auth.uid, pub: me.pub }]);
+    await rpc('kg_proj_share', { p_to: f.user_id, p_local_id: p.id, p_title: p.name.slice(0, 80), p_box: box });
+  }
+  // Tras cambiar una proyección: los amigos con los que está compartida reciben la versión nueva
+  async function projPush(p) {
+    const shares = projSharesOf(p.id); if (!shares.length) return;
+    await refreshChat(true);
+    let fails = 0;
+    for (const sh of shares) { try { await projSendTo(p, (chatData.friends || []).find(f => f.user_id === sh.to_user && f.status === 'accepted')); } catch (e) { fails++; } }
+    if (fails) toast(t('projPushFail', { n: fails }));
+  }
+  function projNameDialog(title, value, done) {
+    openModal({
+      title: calcHead(t('calcProjections'), title),
+      body: `<form id="pj-f" class="stack" autocomplete="off"><label class="field"><span>${esc(t('calcName'))}</span><input class="input" id="pj-name" maxlength="60" value="${esc(value)}" placeholder="${esc(t('projNamePh'))}"></label></form>`,
+      foot: `<button class="btn calc-blue" data-pj-ok>${ico('check')} ${esc(t('calcSave'))}</button>`,
+      onMount: w => { setTimeout(() => $('#pj-name', w)?.focus(), 200); w.addEventListener('submit', e => { e.preventDefault(); $('[data-pj-ok]', w).click(); }); },
+      onClick: (e, close, w) => {
+        if (!e.target.closest('[data-pj-ok]')) return;
+        const name = $('#pj-name', w).value.trim().slice(0, 60);
+        if (!name) { toast(t('calcNeedName')); return; }
+        close(); done(name);
+      }
+    });
+  }
+  function openProjections() {
+    let wref;
+    const u = calcUi();
+    const draw = () => {
+      if (!wref || !wref.isConnected) return;
+      const mine = [...LV.projs].sort((a, b) => (b.at || 0) - (a.at || 0)), got = (PROJ.list || []).filter(x => !x.mine);
+      const row = p => {
+        const sh = projSharesOf(p.id), on = u.proj === p.id, dirty = on && projDirty(p);
+        return `<div class="proj-row clay ${on ? 'on' : ''}" data-pj="${esc(p.id)}"><div class="grow proj-info"><b>${esc(p.name)}</b><span class="muted small">${esc(fmtDate(new Date(p.at || Date.now()).toISOString().slice(0, 10), { day: 'numeric', month: 'short', year: 'numeric' }))}${on ? ` · ${esc(t('projInUse'))}` : ''}${sh.length ? ` · ${esc(t('projSharedN', { n: sh.length }))}` : ''}</span>
+            ${dirty ? `<button class="chip sm proj-update" data-pa="update">${ico('refresh')} ${esc(t('projSaveChanges'))}</button>` : ''}</div>
+          <div class="proj-acts"><button class="icon-btn sm proj-del" data-pa="del" aria-label="${esc(t('projDelete'))}" title="${esc(t('projDelete'))}">${ico('trash')}</button><button class="icon-btn sm proj-apply" data-pa="apply" aria-label="${esc(t('projApply'))}" title="${esc(t('projApply'))}">${ico('check')}</button><button class="icon-btn sm" data-pa="share" aria-label="${esc(t('projShare'))}" title="${esc(t('projShare'))}">${ico('share')}</button></div></div>`;
+      };
+      $('#pj-body', wref).innerHTML = `<div class="stack" style="gap:12px">
+        <button class="btn calc-blue block" data-pa="new">${ico('plus')} ${esc(t('projSaveCurrent'))}</button>
+        ${mine.length ? `<div class="stack" style="gap:8px">${mine.map(row).join('')}</div>` : `<p class="muted small center" style="margin:4px 0">${esc(t('projEmpty'))}</p>`}
+        <details class="calc-group proj-got" data-cd="pj-got" ${calcIsOpen('pj-got') ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${ico('users')}</span><span class="calc-sum-t"><strong>${esc(t('projReceived'))}</strong></span>${got.length ? `<span class="calc-pill">${got.length}</span>` : ''}<span class="calc-arrow" aria-hidden="true">›</span></summary>
+          <div class="stack" style="gap:8px;margin-top:8px">${!auth ? `<p class="muted small" style="margin:0">${esc(t('groupNeedLogin'))}</p>` : PROJ.list == null ? `<p class="muted small" style="margin:0">${esc(t('groupsLoading'))}</p>` : got.length ? got.map(x => `<button class="proj-row clay proj-got-row" data-pv="${esc(x.id)}"><span class="grow proj-info"><b>${esc(x.title || t('calcProjections'))}</b><span class="muted small">${esc(t('projFrom', { who: personName(x.peer) }))} · ${esc(fmtDate(String(x.updated_at).slice(0, 10), { day: 'numeric', month: 'short' }))}</span></span>${ico('eye')}</button>`).join('') : `<p class="muted small" style="margin:0">${esc(t('projNoneReceived'))}</p>`}</div></details>
+        <p class="calc-fine" style="margin:0">${esc(t('projHint'))}</p></div>`;
+    };
+    openModal({
+      title: calcHead(t('projEyebrow'), t('calcProjections')), cls: 'calc-sheet', body: '<div id="pj-body"></div>',
+      onMount: w => {
+        wref = w; draw();
+        if (auth) { ensureKx().catch(() => {}); projRefresh().then(draw); }
+      },
+      onClick: async (e, close) => {
+        const pv = e.target.closest('[data-pv]');
+        if (pv) { const x = (PROJ.list || []).find(r => r.id === pv.dataset.pv); if (x) openProjView(x); return; }
+        const b = e.target.closest('[data-pa]'); if (!b) return;
+        const a = b.dataset.pa, p = LV.projs.find(x => x.id === (b.closest('[data-pj]') || {}).dataset?.pj);
+        if (a === 'new') {
+          projNameDialog(t('projSaveCurrent'), '', name => {
+            const np = { id: uid(), name, items: projSnap(), at: Date.now() };
+            LV.projs.push(np); u.proj = np.id; save(); ledgerSave(); sfx('pop'); toast(t('projSaved', { name })); draw();
+          });
+          return;
+        }
+        if (!p) return;
+        if (a === 'apply') {
+          if (!(await confirmDialog(t('projApplyQ', { name: p.name })))) return;
+          LV.calc = [...LV.calc.filter(x => x.kind === 'preset'), ...JSON.parse(JSON.stringify(p.items || []))];
+          u.off = []; u.proj = p.id; close(); calcCommit(t('projApplied', { name: p.name })); sfx('pop');
+        } else if (a === 'update') {
+          p.items = projSnap(); p.at = Date.now(); ledgerSave(); toast(t('projUpdated', { name: p.name })); draw();
+          projPush(p).catch(() => {});
+        } else if (a === 'del') {
+          if (!(await confirmDialog(t('projDelQ', { name: p.name })))) return;
+          for (const sh of projSharesOf(p.id)) { try { await rpc('kg_proj_unshare', { p_id: sh.id }); } catch (err) { /* sigue */ } }
+          LV.projs = LV.projs.filter(x => x.id !== p.id); if (u.proj === p.id) u.proj = null;
+          save(); ledgerSave(); if (PROJ.list) PROJ.list = PROJ.list.filter(x => !(x.mine && x.local_id === p.id)); toast(t('deleted')); draw();
+        } else if (a === 'share') openProjShare(p, draw);
+      }
+    });
+  }
+  // Compartir una proyección: con quién está compartida («Dejar de compartir») y a qué amigos se puede enviar
+  function openProjShare(p, after) {
+    let wref;
+    const draw = () => {
+      if (!wref || !wref.isConnected) return;
+      const sh = projSharesOf(p.id), shared = new Set(sh.map(x => x.to_user));
+      const friends = (chatData.friends || []).filter(f => f.status === 'accepted' && !shared.has(f.user_id));
+      $('#pjs-body', wref).innerHTML = `<div class="stack" style="gap:14px">
+        <p class="muted small" style="margin:0">${esc(t('projShareHint'))}</p>
+        <section><h3 class="section-title" style="margin-top:0">${esc(t('projSharedWith'))}</h3>${sh.length ? `<div class="stack" style="gap:8px">${sh.map(x => `<div class="row proj-peer">${avatarHtml(x.peer || {}, 'sm')}<span class="grow">${esc(personName(x.peer))}</span><button class="chip sm danger-text" data-pjs-stop="${esc(x.id)}">${esc(t('projStop'))}</button></div>`).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('projNotShared'))}</p>`}</section>
+        <section><h3 class="section-title" style="margin-top:0">${esc(t('projShareWith'))}</h3>${!auth ? `<p class="muted small" style="margin:0">${esc(t('groupNeedLogin'))}</p>` : !chatData.friends ? `<p class="muted small" style="margin:0">${esc(t('groupsLoading'))}</p>` : friends.length ? `<div class="stack" style="gap:8px">${friends.map(f => `<button class="btn block" style="justify-content:flex-start" data-pjs-to="${esc(f.user_id)}">${avatarHtml(f, 'sm')} <span class="grow" style="text-align:left">${esc(personName(f))} <span class="muted small">@${esc(f.nametag || '')}</span></span>${ico('send')}</button>`).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('projNoFriends'))}</p>`}</section>
+        <button class="btn block" data-pjs-pdf>${ico('doc')} ${esc(t('projSharePdf'))}</button></div>`;
+    };
+    openModal({
+      title: calcHead(t('projShare'), p.name), cls: 'calc-sheet', body: '<div id="pjs-body"></div>',
+      onMount: w => { wref = w; draw(); if (auth) Promise.all([refreshChat(true), projRefresh()]).then(draw); },
+      onClose: () => after && after(),
+      onClick: async (e, close) => {
+        let el;
+        if (e.target.closest('[data-pjs-pdf]')) { close(); openCalcPdf(calcDataOf(p.items || []), { title: p.name }); return; }
+        if ((el = e.target.closest('[data-pjs-stop]'))) {
+          el.disabled = true;
+          try { await rpc('kg_proj_unshare', { p_id: el.dataset.pjsStop }); PROJ.list = (PROJ.list || []).filter(x => x.id !== el.dataset.pjsStop); toast(t('projStopped')); draw(); }
+          catch (err) { el.disabled = false; toast(chatErr(err)); }
+          return;
+        }
+        if ((el = e.target.closest('[data-pjs-to]'))) {
+          const f = (chatData.friends || []).find(x => x.user_id === el.dataset.pjsTo); if (!f) return;
+          el.disabled = true;
+          try { await projSendTo(p, f); await projRefresh(); sfx('pop'); toast(t('projSent', { who: personName(f) })); draw(); }
+          catch (err) { el.disabled = false; toast(err.message === 'nokey' ? t('projNoKey', { who: personName(f) }) : chatErr(err)); }
+        }
+      }
+    });
+  }
+  // Ver una proyección que te han compartido (solo lectura): se descifra con tu clave y se calcula aquí mismo
+  async function openProjView(x) {
+    let d = null, err = '';
+    try {
+      const me = await ensureKx();
+      const rows = await sbFetch(`/rest/v1/kg_proj_shares?id=eq.${encodeURIComponent(x.id)}&select=box,active`);
+      if (!rows[0] || !rows[0].active) throw new Error('gone');
+      d = await VAULT.openSealed(rows[0].box, auth.uid, me.priv);
+    } catch (e) { err = /gone/.test(e.message) ? t('projGone') : /not for me|OperationError/.test(String(e && (e.message || e.name))) ? t('projCantOpen') : t('groupError', { e: e.message }); }
+    let body = `<p class="muted center">${esc(err)}</p>`;
+    if (d) {
+      const items = Array.isArray(d.items) ? d.items.filter(i => i && typeof i === 'object' && i.kind !== 'preset') : [];
+      const { model, res, rows } = calcDataOf(items);
+      const series = calcSeries(model, { mode: 'patrimony', ser: { income: true, expenses: true, investments: true }, off: [] });
+      body = `<div class="stack proj-view" style="gap:14px">
+        <p class="muted small" style="margin:0">${esc(t('projFrom', { who: personName(x.peer) }))} · ${esc(t('projReadOnly'))}</p>
+        <div class="calc-hero" style="padding:0"><div class="calc-eyebrow">${esc(t('calcHeroEyebrow'))}</div><strong class="calc-total">${money(res.final)}</strong><p class="small ${res.delta < 0 ? 'amt-out' : 'amt-in'}" style="font-weight:var(--fw-ui)">${esc(t('calcReturn', { v: csign(res.delta) }))} · ${esc(t('calcProfit', { v: cspct(res.pct) }))}</p>
+          <p class="calc-fine" style="margin:4px 0 0">${esc(`${cdate(res.startDate)} – ${cdate(res.endDate)} (${cmonths(res.months)})`)}</p></div>
+        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${money(res.totalIncome)}</b><span>${esc(t('calcIncomeT'))}</span></div><div class="kpi clay"><b>${money(res.totalExpenses)}</b><span>${esc(t('calcExpensesT'))}</span></div><div class="kpi clay"><b>${money(res.net)}</b><span>${esc(t('calcNetT'))}</span></div></div>
+        ${calcChart('proj-view', rows, series, { aria: t('calcGraphPat') })}
+        <details class="calc-group"><summary><span class="calc-f-ico" aria-hidden="true">${ico('table')}</span><span class="calc-sum-t"><strong>${esc(t('calcMoreDetails'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, 'patrimony', [])}</details>
+        <section><h3 class="section-title" style="margin-top:0">${esc(t('pw_formulas'))}</h3>${model.applied.length ? `<div class="stack" style="gap:8px">${model.applied.map(a => { const [eq, r] = calcFormulaText(a, model, res); return `<div class="clay card proj-f"><b>${ico(CALC.moduleOf(a.type).icon)} ${esc(a.name)}</b><div class="calc-eq">${esc(eq)}</div><p class="small" style="margin:6px 0 0"><b>${esc(r)}</b></p></div>`; }).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('calcNoApplied'))}</p>`}</section></div>`;
+    }
+    openModal({ title: calcHead(t('projReceivedOne'), (d && d.name) || x.title || t('calcProjections')), cls: 'wide calc-sheet', body });
   }
 
   /* ---------- Libreta: gráficas (tarta por categorías y evolución de ingresos y gastos) ---------- */
@@ -5742,7 +6037,7 @@
   function chatPreview(g) {
     const l = g.last; if (!l) return t('chatNoMsgs');
     if (l.kind === 'system') return t('chatPrevSys');
-    const txt = l.kind === 'text' ? l.body : l.kind === 'invite' ? '🔗 ' + t('chatPrevInvite') : l.kind === 'photo' ? '📷 ' + t('chatPrevPhoto') : l.kind === 'audio' ? '🎤 ' + t('chatPrevAudio') : l.kind === 'sticker' ? '🙂 Sticker' : '📌 ' + t('chatPrevShare');
+    const txt = l.kind === 'text' ? l.body : l.kind === 'invite' ? '🔗 ' + t('chatPrevInvite') : l.kind === 'photo' ? '📷 ' + t('chatPrevPhoto') : l.kind === 'audio' ? '🎤 ' + t('chatPrevAudio') : l.kind === 'sticker' ? '🙂 Sticker' : l.kind === 'file' ? t('chatPrevFile') : '📌 ' + t('chatPrevShare');
     if (l.user_id === auth.uid) return t('chatYou') + ': ' + txt;
     if (g.chat === 'dm') return txt;
     const m = (g.members || []).find(x => x.user_id === l.user_id);
@@ -6104,6 +6399,10 @@
       } else if (m.kind === 'audio') {
         const p = m.payload || {}, url = AUDIO.get(p.media);
         inner = url ? `<audio class="audio-msg" controls src="${url}"></audio>` : `<button class="media-chip" data-gc-audio="${esc(p.media)}">${ico('play')} 🎤 ${esc(fmtDur(+p.dur || 0))}</button>`;
+      } else if (m.kind === 'file') {
+        // PDF de la calculadora: se abre (o descarga) las veces que se quiera
+        const p = m.payload || {}, name = String(p.name || 'KeepGoing.pdf');
+        inner = `<button class="media-chip file-chip" data-gc-file="${esc(p.media)}" data-name="${esc(name)}">${ico('doc')}<span class="file-name">${esc(name)}</span>${p.size ? `<span class="muted small">${esc(fmtKb(+p.size))}</span>` : ''}${ico('download', 'xs')}</button>`;
       } else if (m.kind === 'sticker') {
         const src = stickerSrc(m.payload || {});
         inner = src ? `<img class="sticker" src="${src}" alt="Sticker" draggable="false">` : '🙂';
@@ -6352,6 +6651,13 @@
       const a = body() && [...body().querySelectorAll('audio')].find(x => x.getAttribute('src') === url);
       if (a) a.play().catch(() => {});
     }
+    async function openFile(id, name) {
+      const r = await rpc('kg_media_get', { p_id: id });
+      if (r.mime !== 'application/pdf' || !/^[A-Za-z0-9+/=]+$/.test(r.data || '')) { toast(t('chatFileGone')); return; }
+      const bin = atob(r.data), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      downloadBlob(/\.pdf$/i.test(name || '') ? name : 'KeepGoing.pdf', new Blob([u8], { type: 'application/pdf' }));
+    }
     // Notas de voz: se graban al tocar el micro (el navegador pide permiso) y se envían al tocarlo otra vez
     const REC_MAX = 120;
     const recUi = () => { const f = body() && $('#chat-form', body()); if (f) f.classList.toggle('recording', !!G.rec); };
@@ -6500,7 +6806,7 @@
         if (tabB) { G.tab = tabB.dataset.gt; draw(); if (G.tab === 'chat') { try { await loadMsgs(); } catch (err) { /* nada */ } draw(); $('#chat-in', body()) && $('#chat-in', body()).focus(); } return; }
         const fr = e.target.closest('[data-rk-freq]');
         if (fr) { body().querySelectorAll('[data-rk-freq]').forEach(b => { b.classList.toggle('on', b === fr); b.setAttribute('aria-checked', b === fr); }); return; }
-        const b = e.target.closest('[data-g],[data-g-kick],[data-gv],[data-gc-join],[data-gc-peek],[data-gc-add],[data-gc-view],[data-gc-del],[data-gc-photo],[data-gc-audio],[data-gc-stk],[data-rate],[data-jr-yes],[data-jr-no]'); if (!b || !G.info) return;
+        const b = e.target.closest('[data-g],[data-g-kick],[data-gv],[data-gc-join],[data-gc-peek],[data-gc-add],[data-gc-view],[data-gc-del],[data-gc-photo],[data-gc-audio],[data-gc-file],[data-gc-stk],[data-rate],[data-jr-yes],[data-jr-no]'); if (!b || !G.info) return;
         try {
           if (b.dataset.gKick) { if (await confirmDialog(t('groupKickQ'))) { await rpc('kg_leave_group', { p_group: gid, p_user: b.dataset.gKick }); await refresh(); } return; }
           if (b.dataset.gv) { b.disabled = true; await rpc('kg_vote', { p_challenge: G.info.active.id, p_vote: b.dataset.gv === '1' }); sfx('toggle'); vibrate(15); await refresh(); return; }
@@ -6521,6 +6827,7 @@
           }
           if (b.dataset.gcPhoto) { b.disabled = true; await openPhoto(b.dataset.gcPhoto); return; }
           if (b.dataset.gcAudio) { b.disabled = true; await loadAudio(b.dataset.gcAudio); return; }
+          if (b.dataset.gcFile) { b.disabled = true; try { await openFile(b.dataset.gcFile, b.dataset.name); } finally { b.disabled = false; } return; }
           if (b.dataset.gcStk) {
             const m = G.msgs.find(x => String(x.id) === b.dataset.gcStk), s = m && stickerSrc(m.payload || {});
             if (s) { const list = stickersGet(); if (!list.includes(s)) { list.unshift(s); if (stickersSet(list)) toast(t('stkSaved')); } else toast(t('stkSaved')); }

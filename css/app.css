@@ -1557,45 +1557,6 @@ details[open] > summary > .calc-arrow { transform: rotate(90deg); }
   .calc-card { padding: 14px; }
 }
 
-/* ---------- PDF de la calculadora: solo la maqueta de #calc-print, en claro y sin controles ---------- */
-#calc-print { display: none; }
-@media print {
-  @page { size: A4; margin: 14mm 12mm; }
-  :root { color-scheme: light; }
-  html, body { background: #fff !important; min-height: 0 !important; height: auto !important; }
-  body.calc-printing > *:not(#calc-print) { display: none !important; }
-  body.calc-printing #calc-print { display: block; color: #1f2737; font-size: 11pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  #calc-print h1 { font-size: 20pt; margin: 0 0 2pt; color: #1f2737; }
-  #calc-print h2 { font-size: 13pt; margin: 0 0 8pt; color: #1f2737; break-after: avoid; page-break-after: avoid; }
-  #calc-print h3 { font-size: 11pt; margin: 10pt 0 6pt; color: #1f2737; break-after: avoid; page-break-after: avoid; }
-  .cp-head { border-bottom: 2px solid #586ff0; padding-bottom: 8pt; margin-bottom: 12pt; }
-  .cp-head p { margin: 0; color: #5b6577; font-size: 9.5pt; }
-  .cp-sec { margin: 0 0 14pt; }
-  .cp-sec.cp-keep, .cp-fund, .cp-formula, .calc-print-chart, #calc-print tr { break-inside: avoid; page-break-inside: avoid; }
-  .cp-hero b { display: block; font-size: 24pt; letter-spacing: -.02em; }
-  .cp-hero span { font-size: 10pt; font-weight: 700; }
-  .cp-hero .pos { color: #14865f; } .cp-hero .neg { color: #c13d4b; }
-  .cp-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6pt; margin: 8pt 0; }
-  .cp-metrics div { border: 1px solid #d4d8df; border-radius: 6pt; padding: 6pt 8pt; }
-  .cp-metrics span { display: block; font-size: 8.5pt; color: #5b6577; }
-  .cp-metrics b { font-size: 11.5pt; }
-  .cp-fine { font-size: 8.5pt; color: #5b6577; margin: 4pt 0 0; }
-  .cp-fund { margin: 0 0 10pt; }
-  .cp-formula { border: 1px solid #d4d8df; border-radius: 6pt; padding: 8pt 10pt; margin: 0 0 8pt; }
-  .cp-formula h3 { margin-top: 0; }
-  .cp-formula p { margin: 4pt 0 0; font-size: 9.5pt; }
-  .cp-eq { font: 600 9pt/1.45 ui-monospace, Consolas, monospace; color: #3f56d9; background: #eef1f8; border-radius: 5pt; padding: 5pt 7pt; }
-  .calc-print-chart svg { display: block; width: 100%; height: auto; }
-  .calc-print-chart .grid-line { stroke: #d4d8df; stroke-width: 1; }
-  .calc-print-chart .axis-label { fill: #5b6577; font-size: 10px; font-family: var(--font); }
-  #calc-print .dot-legend { color: #5b6577; justify-content: flex-start; margin: 0 0 4pt; }
-  #calc-print .calc-table-wrap { overflow: visible; }
-  #calc-print .calc-table { min-width: 0; font-size: 8.5pt; border-spacing: 0; }
-  #calc-print .calc-table th[scope="col"] { color: #5b6577; font-size: 8pt; border-bottom: 1px solid #d4d8df; padding: 3pt 4pt; }
-  #calc-print .calc-table td, #calc-print .calc-table th[scope="row"] { background: none; border-bottom: 1px solid #eceef2; border-radius: 0; padding: 3pt 4pt; color: #1f2737; }
-  #calc-print .amt-in { color: #14865f; } #calc-print .amt-out { color: #c13d4b; }
-}
-
 /* v1.18 — techo de liquidez: filas destino + parte o importe */
 .calc-change-row.calc-alloc-row { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto; }
 .calc-change-row .field { min-width: 0; }
@@ -1654,3 +1615,20 @@ svg.i.xs { width: 14px; height: 14px; vertical-align: -2px; }
 .calc-change-row.bud-ver { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; }
 input[type="month"].input { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
 input[type="month"].input::-webkit-date-and-time-value { text-align: left; min-height: 1.25em; }
+
+/* v1.19 — PDF en el Chat y Proyecciones */
+.file-chip { padding: 8px 12px; border-radius: 12px; background: rgba(0, 0, 0, .12); max-width: 270px; text-align: left; }
+.file-chip .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-chip svg { flex: none; }
+.proj-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); width: 100%; border: 0; color: inherit; font: inherit; text-align: left; }
+.proj-row.on { box-shadow: 0 0 0 2px var(--calc-blue) inset; }
+.proj-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.proj-info b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj-acts { display: flex; gap: 6px; flex: none; }
+.proj-acts .proj-del { color: var(--danger, #e5484d); }
+.proj-acts .proj-apply { background: var(--calc-blue); color: var(--calc-blue-ink); }
+.proj-update { align-self: flex-start; margin-top: 6px; }
+button.proj-got-row { cursor: pointer; }
+.proj-peer { gap: 10px; align-items: center; }
+.proj-view .calc-hero { text-align: left; }
+.proj-update { white-space: nowrap; }
