@@ -119,5 +119,32 @@
     for (const e of inRange(entries, from, to)) { const b = map.get(keyFor(e.date)); if (b) b[e.type === 'income' ? 'income' : 'expense'] += e.amountCents || 0; }
     return keys.map(k => map.get(k));
   }
-  return { MASK, DEFAULT_CATEGORIES, METHODS, REPEATS, parseCents, signed, totals, byDay, inMonth, monthGrid, daysIn, occurrences, recEntryId, mask, inRange, span, byCategory, series };
+
+  /* ---------- Presupuestos (v1.19) ----------
+     { id, name, catIds: [] (vacío = todos los gastos), versions: [{ from: 'YYYY-MM', amountCents }] }
+     Cada versión vale desde su mes hasta que empieza la siguiente, así un mes de hace dos años usa el presupuesto que tenía entonces. */
+  const ymOf = date => String(date || '').slice(0, 7);
+  const nextYm = ym => { const [y, m] = ym.split('-').map(Number); return m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`; };
+  function budgetAt(budget, ym) {
+    let out = null, best = '';
+    for (const v of (budget && budget.versions) || []) if (v.from <= ym && v.from >= best) { best = v.from; out = Math.max(0, Math.round(v.amountCents || 0)); }
+    return out;
+  }
+  const budgetFirst = budget => ((budget && budget.versions) || []).reduce((a, v) => (!a || v.from < a ? v.from : a), '');
+  // Fila por mes desde fromYm hasta toYm: presupuesto, gastado, diferencia (+ sobra, − te pasas) y diferencia acumulada
+  function budgetRows(budget, entries, fromYm, toYm) {
+    const cats = new Set((budget && budget.catIds) || []), spent = new Map(), rows = [];
+    for (const e of entries || []) {
+      if (e.type !== 'expense' || (cats.size && !cats.has(e.categoryId || 'other'))) continue;
+      const k = ymOf(e.date); if (k >= fromYm && k <= toYm) spent.set(k, (spent.get(k) || 0) + (e.amountCents || 0));
+    }
+    let acc = 0, guard = 0;
+    for (let ym = fromYm; ym <= toYm && guard < 1200; ym = nextYm(ym), guard++) {
+      const b = budgetAt(budget, ym); if (b == null) continue;
+      const sp = spent.get(ym) || 0, diff = b - sp; acc += diff;
+      rows.push({ ym, budget: b, spent: sp, diff, acc });
+    }
+    return rows;
+  }
+  return { MASK, DEFAULT_CATEGORIES, METHODS, REPEATS, parseCents, signed, totals, byDay, inMonth, monthGrid, daysIn, occurrences, recEntryId, mask, inRange, span, byCategory, series, ymOf, nextYm, budgetAt, budgetFirst, budgetRows };
 });

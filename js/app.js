@@ -138,6 +138,29 @@
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     calc: '<rect x="5" y="2.5" width="14" height="19" rx="3"/><path d="M8.5 6.5h7v3h-7zM8.5 13h.01M12 13h.01M15.5 13h.01M8.5 17h.01M12 17h.01M15.5 17h.01"/>',
     trend: '<path d="M4 19V5M4 19h16M7 15l4-4 3 2 5-6"/>',
+    // v1.19: iconos de línea para la Libreta y la calculadora (mismo trazo que el resto; nunca emoji en la interfaz)
+    fingerprint: '<path d="M6.5 18.5A10 10 0 0 1 5 12a7 7 0 0 1 14 0v1M8.5 20.5A12 12 0 0 1 8 12a4 4 0 0 1 8 0c0 3.5-.5 6-1.5 8.5M12 12c0 3.5-.7 6.5-2 9M19 16.5a19 19 0 0 1-1 3.5"/>',
+    backspace: '<path d="M8.5 5H20a1.5 1.5 0 0 1 1.5 1.5v11A1.5 1.5 0 0 1 20 19H8.5L2.5 12z"/><path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/>',
+    keypad: '<circle cx="6" cy="5" r="1.3"/><circle cx="12" cy="5" r="1.3"/><circle cx="18" cy="5" r="1.3"/><circle cx="6" cy="11" r="1.3"/><circle cx="12" cy="11" r="1.3"/><circle cx="18" cy="11" r="1.3"/><circle cx="6" cy="17" r="1.3"/><circle cx="12" cy="17" r="1.3"/><circle cx="18" cy="17" r="1.3"/>',
+    key: '<circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8L20 3M16.5 6.5l2.5 2.5M14 9l2 2"/>',
+    alert: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.2v.3"/>',
+    compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+    puzzle: '<path d="M4 7h4a2 2 0 1 1 4 0h4v4a2 2 0 1 1 0 4v4h-4a2 2 0 1 0-4 0H4v-4a2 2 0 1 0 0-4z"/>',
+    folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    pie: '<path d="M12 3v9h9a9 9 0 1 1-9-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
+    search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/>',
+    repeat: '<path d="M4 11V9a3 3 0 0 1 3-3h12M16 3l3 3-3 3M20 13v2a3 3 0 0 1-3 3H5M8 21l-3-3 3-3"/>',
+    tag: '<path d="M3 12V4.5A1.5 1.5 0 0 1 4.5 3H12l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.8 3.4-5.5 6.5-5.5s5.7 1.7 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.8.7 3 2.4 3.5 5.2"/>',
+    bank: '<path d="M3 9.5L12 4l9 5.5M4.5 10v8M9.5 10v8M14.5 10v8M19.5 10v8M3 20.5h18"/>',
+    briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7M3 12.5h18"/>',
+    swap: '<path d="M7 20V5M3.5 8.5L7 5l3.5 3.5M17 4v15M13.5 15.5L17 19l3.5-3.5"/>',
+    card: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>',
+    coins: '<ellipse cx="9" cy="7" rx="6" ry="2.8"/><path d="M3 7v5c0 1.5 2.7 2.8 6 2.8s6-1.3 6-2.8V7"/><path d="M9 17.6c0 1.5 2.7 2.8 6 2.8s6-1.3 6-2.8v-5c0-1.4-2.3-2.6-5.2-2.8"/>',
+    ceiling: '<path d="M3 4.5h18M12 20V9M8 12.5L12 8.5l4 4"/>',
+    loan: '<circle cx="9" cy="12" r="6"/><path d="M9 9v6M7.2 10.5h3M15.5 7.5H21M18.5 4.5l3 3-3 3M15.5 16.5H21"/>',
+    budget: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M14.5 9.2c-.6-.8-1.5-1.2-2.5-1.2-1.4 0-2.5.8-2.5 2s1.1 1.6 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1 0-2-.4-2.6-1.2"/>',
+    line: '<path d="M3 20h18"/><path d="M4 16l5-6 4 3 7-8"/>',
     eyeOff: '<path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
   };
   const ico = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -169,6 +192,8 @@
       ledgerEntries: [], ledgerCats: defaultLedgerCats(), ledgerRecurring: [], ledgerEvents: [], ledgerPrefs: { privacy: false },
       // v1.17: Calculadora de Patrimonio Proyectado (cifrada con la Libreta, un elemento por pieza)
       ledgerCalc: [],
+      // v1.19: presupuestos mensuales (cifrados con la Libreta, un elemento por presupuesto)
+      ledgerBudgets: [],
       // Fase 3 (v1.10): sonidos activados por defecto
       soundOn: true, ledgerVault: null,
       // v1.14: widgets ocultos desde el modo edición (se recuperan en Ajustes)
@@ -180,7 +205,7 @@
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
   const ORDER_LISTS = ['projects', 'routines'];
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc'];
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt']]; // hábito → día → valor
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt']];             // clave → valor
   function normalize(s) {
@@ -205,7 +230,7 @@
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'emt', 'rvmt', 'pmt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
@@ -2810,8 +2835,8 @@
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
   const VAULT = window.KGVault, DEV = window.KGVaultDevice;
-  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc']];
-  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets']];
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
   const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
   const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
@@ -2850,7 +2875,7 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
   async function useKey(key, raw) { LV.key = key; LV.raw = raw; sessTried = ''; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
   // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
@@ -2900,14 +2925,14 @@
   function pinPadHtml() {
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', DEVM.bio ? 'bio' : '', '0', 'back'];
     return `<div class="pin-pad" role="group" aria-label="${esc(t('pinEnter'))}">${keys.map(k => k === '' ? '<span></span>'
-      : k === 'bio' ? `<button type="button" class="pin-key alt" data-act="vault-bio" aria-label="${esc(t('bioUse'))}">👆</button>`
-      : k === 'back' ? `<button type="button" class="pin-key alt" data-pin="back" aria-label="${esc(t('pinBack'))}">⌫</button>`
+      : k === 'bio' ? `<button type="button" class="pin-key alt" data-act="vault-bio" aria-label="${esc(t('bioUse'))}">${ico('fingerprint')}</button>`
+      : k === 'back' ? `<button type="button" class="pin-key alt" data-pin="back" aria-label="${esc(t('pinBack'))}">${ico('backspace')}</button>`
       : `<button type="button" class="pin-key" data-pin="${k}">${k}</button>`).join('')}</div>`;
   }
   // Pantalla de la Libreta cerrada: crear contraseña, PIN, huella o contraseña
   function ledgerLockedHtml() {
-    if (!VAULT.available()) return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultNoCrypto'))}</h2><p class="muted">${esc(t('vaultNoCryptoHint'))}</p></section>`;
-    if (!state.ledgerVault) return `<section class="vault clay"><div class="vault-ico">🔐</div><h2>${esc(t('vaultSetupTitle'))}</h2><p class="muted">${esc(t('vaultSetupSub2'))}</p>
+    if (!VAULT.available()) return `<section class="vault clay"><div class="vault-ico">${ico('lock')}</div><h2>${esc(t('vaultNoCrypto'))}</h2><p class="muted">${esc(t('vaultNoCryptoHint'))}</p></section>`;
+    if (!state.ledgerVault) return `<section class="vault clay"><div class="vault-ico">${ico('shield')}</div><h2>${esc(t('vaultSetupTitle'))}</h2><p class="muted">${esc(t('vaultSetupSub2'))}</p>
       <form class="stack vault-form" data-vault="setup" autocomplete="off" style="gap:12px">
         <input class="input" type="password" id="vault-pw" minlength="6" autocomplete="new-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
         <input class="input" type="password" id="vault-pw2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}" aria-label="${esc(t('vaultPw2'))}">
@@ -2915,11 +2940,11 @@
         <button class="btn primary" type="submit">${ico('lock')} ${esc(t('vaultCreate'))}</button></form></section>`;
     loadDevMethods();
     const pinMode = DEVM.vid === VAULT.vidOf(state.ledgerVault) && DEVM.pin && !pwMode;
-    const bioBtn = DEVM.bio && DEVM.vid === VAULT.vidOf(state.ledgerVault) ? `<button class="btn primary bio-btn" data-act="vault-bio">👆 ${esc(t('bioUse'))}</button>` : '';
-    if (pinMode) return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultLockedTitle'))}</h2><p class="muted">${esc(t('pinEnter'))}</p>
+    const bioBtn = DEVM.bio && DEVM.vid === VAULT.vidOf(state.ledgerVault) ? `<button class="btn primary bio-btn" data-act="vault-bio">${ico('fingerprint')} ${esc(t('bioUse'))}</button>` : '';
+    if (pinMode) return `<section class="vault clay"><div class="vault-ico">${ico('lock')}</div><h2>${esc(t('vaultLockedTitle'))}</h2><p class="muted">${esc(t('pinEnter'))}</p>
       <div id="pin-box">${pinDots()}</div>${pinPadHtml()}
       <button class="chip vault-forgot" data-act="vault-usepw">${esc(t('pinUsePw'))}</button></section>`;
-    return `<section class="vault clay"><div class="vault-ico">🔒</div><h2>${esc(t('vaultLockedTitle'))}</h2><p class="muted">${esc(t(bioBtn ? 'vaultLockedSubBio' : 'vaultLockedSub'))}</p>
+    return `<section class="vault clay"><div class="vault-ico">${ico('lock')}</div><h2>${esc(t('vaultLockedTitle'))}</h2><p class="muted">${esc(t(bioBtn ? 'vaultLockedSubBio' : 'vaultLockedSub'))}</p>
       ${bioBtn ? `<div class="center" style="margin-top:14px">${bioBtn}</div>` : ''}
       <form class="stack vault-form" data-vault="open" autocomplete="off" style="gap:12px">
         <input class="input" type="password" id="vault-pw" autocomplete="current-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
@@ -2933,11 +2958,11 @@
     Promise.all([DEV.methods(vid), DEV.bioAvailable()]).then(([m, ok]) => {
       if (m.pin || m.bio || !DEV.supported()) return;
       whenFree(() => openModal({
-        title: `🔐 ${esc(t('quickTitle'))}`,
+        title: `${ico('shield')} ${esc(t('quickTitle'))}`,
         body: `<p class="muted" style="margin-top:0">${esc(t('quickSub'))}</p><div class="stack" style="gap:10px">
-          <button class="create-opt clay" data-q="pin"><span style="font-size:28px">🔢</span><span class="grow"><b>${esc(t('pinTitle'))}</b><br><span class="muted small">${esc(t('pinSub'))}</span></span>${ico('right')}</button>
-          ${ok ? `<button class="create-opt clay" data-q="bio"><span style="font-size:28px">👆</span><span class="grow"><b>${esc(t('bioMethod'))}</b><br><span class="muted small">${esc(t('bioSub'))}</span></span>${ico('right')}</button>` : ''}
-          <button class="create-opt clay" data-q="pw"><span style="font-size:28px">🔑</span><span class="grow"><b>${esc(t('quickPwOnly'))}</b><br><span class="muted small">${esc(t('quickPwOnlySub'))}</span></span>${ico('right')}</button></div>
+          <button class="create-opt clay" data-q="pin"><span class="opt-ico">${ico('keypad')}</span><span class="grow"><b>${esc(t('pinTitle'))}</b><br><span class="muted small">${esc(t('pinSub'))}</span></span>${ico('right')}</button>
+          ${ok ? `<button class="create-opt clay" data-q="bio"><span class="opt-ico">${ico('fingerprint')}</span><span class="grow"><b>${esc(t('bioMethod'))}</b><br><span class="muted small">${esc(t('bioSub'))}</span></span>${ico('right')}</button>` : ''}
+          <button class="create-opt clay" data-q="pw"><span class="opt-ico">${ico('key')}</span><span class="grow"><b>${esc(t('quickPwOnly'))}</b><br><span class="muted small">${esc(t('quickPwOnlySub'))}</span></span>${ico('right')}</button></div>
           <p class="muted small" style="margin-bottom:0">${esc(t('quickNote'))}</p>`,
         onClick: (e, close) => { const b = e.target.closest('[data-q]'); if (!b) return; close(); if (b.dataset.q === 'pin') openPinSetup(); else if (b.dataset.q === 'bio') enableBio(); }
       }));
@@ -2946,7 +2971,7 @@
   function openPinSetup(done = () => {}) {
     if (!ledgerOpen() || !LV.raw) { toast(t('vaultOpenFirst')); return; }
     openModal({
-      title: `🔢 ${esc(t('pinTitle'))}`,
+      title: `${ico('keypad')} ${esc(t('pinTitle'))}`,
       body: `<form class="stack" id="pin-form" style="gap:12px" autocomplete="off"><p class="muted small" style="margin:0">${esc(t('pinSetupHint'))}</p>
         <input class="input pin-input" id="pin-1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="${esc(t('pinNew'))}">
         <input class="input pin-input" id="pin-2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="${esc(t('pinRepeat'))}"></form>`,
@@ -3039,7 +3064,7 @@
   async function openVaultPassword() {
     if (!ledgerOpen()) { toast(t('vaultOpenFirst')); return; }
     openModal({
-      title: `🔐 ${esc(t('vaultChange'))}`,
+      title: `${ico('key')} ${esc(t('vaultChange'))}`,
       body: `<form class="stack" id="vault-change" style="gap:12px"><input class="input" type="password" id="vc-1" autocomplete="new-password" placeholder="${esc(t('vaultNewPw'))}"><input class="input" type="password" id="vc-2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}"><p class="muted small" style="margin:0">${esc(t('vaultChangeHint2'))}</p></form>`,
       foot: `<button class="btn primary" data-vc>${esc(t('save'))}</button>`,
       onClick: async (e, close, w) => {
@@ -3059,14 +3084,14 @@
       const [m, ok] = await Promise.all([DEV.methods(LV.vid), DEV.bioAvailable()]);
       const row = (icon, title, sub, btns) => `<div class="sec-row clay"><span class="sec-ico">${icon}</span><span class="grow"><b>${esc(title)}</b><span class="muted small">${esc(sub)}</span></span><span class="row wrap" style="gap:6px;justify-content:flex-end">${btns}</span></div>`;
       $('#vsec', wref).innerHTML = `<div class="stack" style="gap:10px">
-        ${row('🔑', t('vaultPwTitle'), t('vaultPwSub'), `<button class="chip" data-vs="pw">${esc(t('vaultChange'))}</button>`)}
-        ${row('🔢', t('pinTitle'), m.pin ? t('secOn') : t('secOff'), m.pin ? `<button class="chip" data-vs="pin">${esc(t('pinChange'))}</button><button class="chip" data-vs="pin-off">${esc(t('secRemove'))}</button>` : `<button class="chip on" data-vs="pin">${esc(t('secEnable'))}</button>`)}
-        ${row('👆', t('bioMethod'), !ok ? t('bioUnavailable') : m.bio ? t('secOn') : t('secOff'), !ok ? '' : m.bio ? `<button class="chip" data-vs="bio-off">${esc(t('secRemove'))}</button>` : `<button class="chip on" data-vs="bio">${esc(t('secEnable'))}</button>`)}
+        ${row(ico('key'), t('vaultPwTitle'), t('vaultPwSub'), `<button class="chip" data-vs="pw">${esc(t('vaultChange'))}</button>`)}
+        ${row(ico('keypad'), t('pinTitle'), m.pin ? t('secOn') : t('secOff'), m.pin ? `<button class="chip" data-vs="pin">${esc(t('pinChange'))}</button><button class="chip" data-vs="pin-off">${esc(t('secRemove'))}</button>` : `<button class="chip on" data-vs="pin">${esc(t('secEnable'))}</button>`)}
+        ${row(ico('fingerprint'), t('bioMethod'), !ok ? t('bioUnavailable') : m.bio ? t('secOn') : t('secOff'), !ok ? '' : m.bio ? `<button class="chip" data-vs="bio-off">${esc(t('secRemove'))}</button>` : `<button class="chip on" data-vs="bio">${esc(t('secEnable'))}</button>`)}
         ${m.bio ? `<label class="row sec-once" style="gap:14px"><span class="switch"><input type="checkbox" data-vs-once ${m.once ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('bioOnceLabel'))}</b><br><span class="muted small">${esc(t('bioOnceHint'))}</span></span></label>` : ''}
         <p class="muted small" style="margin:4px 0 0">${esc(t('quickNote'))}</p></div>`;
     };
     openModal({
-      title: `🔐 ${esc(t('vaultSecurity'))}`, body: '<div id="vsec"></div>',
+      title: `${ico('shield')} ${esc(t('vaultSecurity'))}`, body: '<div id="vsec"></div>',
       onMount: w => {
         wref = w; draw();
         w.addEventListener('change', async e => {
@@ -3149,10 +3174,10 @@
     // Opciones de la pestaña: privacidad (casilla), boca abajo (móvil) y mostrar el Dinero Caprichable
     html += `<div class="led-opts clay" role="group" aria-label="${esc(t('ledOptions'))}">
       <label class="check tgl"><input type="checkbox" data-led-opt="privacy" ${priv ? 'checked' : ''}> ${ico(priv ? 'eyeOff' : 'eye')} ${esc(t('privacyModeLabel'))}</label>
-      <label class="check tgl"><input type="checkbox" data-led-opt="cap" ${capHidden() ? '' : 'checked'}> 💶 ${esc(t('capShowWidget'))}</label>
+      <label class="check tgl"><input type="checkbox" data-led-opt="cap" ${capHidden() ? '' : 'checked'}> ${ico('wallet')} ${esc(t('capShowWidget'))}</label>
     </div>`;
     if (!capHidden()) html += `<button class="cap-link" data-act="caprice" aria-label="${esc(t('capOpen'))}">${capTotalHtml()}</button>`;
-    if (LV.bad) html += `<div class="banner clay">⚠️<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
+    if (LV.bad) html += `<div class="banner clay">${ico('alert')}<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
     const years = new Set([y, +todayKey().slice(0, 4)]); LV.entries.forEach(e => years.add(+String(e.date).slice(0, 4)));
     const yMin = Math.min(...years) - 1, yMax = Math.max(...years) + 1;
     const monthNames = Array.from({ length: 12 }, (_, i) => fmtDate(`2026-${pad(i + 1)}-01`, { month: 'long' }));
@@ -3171,7 +3196,10 @@
       }).join('')}</div>`).join('')}</div>
     </section>`;
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
-    html += `<div class="row wrap ledger-tools"><button class="chip" data-act="ledger-cats">🏷️ ${esc(t('ledgerCats'))}</button><button class="chip" data-act="ledger-recs">🔁 ${esc(t('ledgerRecs'))}${LV.recurring.filter(r => !r.archived).length ? ` <b class="chip-n">${LV.recurring.filter(r => !r.archived).length}</b>` : ''}</button><button class="chip" data-act="ledger-events">🗂️ ${esc(t('evTitle'))}${LV.events.length ? ` <b class="chip-n">${LV.events.length}</b>` : ''}</button><button class="chip" data-act="ledger-share">📤 ${esc(t('lsTool'))}</button><button class="chip" data-act="vault-sec">🔐 ${esc(t('vaultSecurity'))}</button></div>`;
+    // Herramientas de la Libreta: icono de línea con su nombre debajo (mismo estilo que la calculadora)
+    const nRec = LV.recurring.filter(r => !r.archived).length;
+    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
+      .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
     return html;
@@ -3185,7 +3213,9 @@
   const CALC = window.KGCalc;
   const CALC_COLORS = ['#34b68a', '#4585ed', '#e6a23c', '#a66bea', '#ef8b74', '#34a7b6'];
   const CALC_SER = { patrimony: '#586ff0', income: '#4585ed', expenses: '#ef8b74', investments: '#34b68a' };
-  const CALC_METRICS = [['digital', 'cmDigital'], ['cash', 'cmCash'], ['investments', 'cmInvestments'], ['returns', 'cmReturns'], ['cashback', 'cmCashback'], ['growth', 'cmGrowth']];
+  const CALC_METRICS = [['digital', 'cmDigital'], ['cash', 'cmCash'], ['investments', 'cmInvestments'], ['returns', 'cmReturns'], ['cashback', 'cmCashback'], ['growth', 'cmGrowth'], ['cbInvest', 'cmCbInvest'], ['roundup', 'cmRoundup']];
+  // Métricas que solo existen si hay una fórmula que las genera (cashback invertido, redondeos)
+  const calcMetricOn = (res, k) => k === 'cbInvest' ? res.hasCbInvest : k === 'roundup' ? res.hasRoundup : true;
   const LEGACY_KEYS = ['patrimonioProjected', 'patrimonioClay'];
   // Desplegables abiertos (solo en esta sesión; se conservan entre redibujados)
   const calcOpenD = new Map([['proj', true], ['funds', true], ['lib', true], ['tpl', true]]);
@@ -3195,7 +3225,7 @@
   function calcUi() {
     const u = state.ui.calc && typeof state.ui.calc === 'object' ? state.ui.calc : {};
     state.ui.calc = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) },
-      metrics: Array.isArray(u.metrics) ? u.metrics.filter(k => CALC_METRICS.some(m => m[0] === k)) : ['digital', 'investments'], hideGraph: !!u.hideGraph, off: Array.isArray(u.off) ? u.off : [], gran: u.gran === 'month' ? 'month' : 'year' };
+      metrics: Array.isArray(u.metrics) ? u.metrics.filter(k => CALC_METRICS.some(m => m[0] === k)) : ['digital', 'investments'], hideGraph: !!u.hideGraph, off: Array.isArray(u.off) ? u.off : [], gran: u.gran === 'month' ? 'month' : 'year', seen: Array.isArray(u.seen) ? u.seen : [] };
     return state.ui.calc;
   }
   let calcMemo = { key: '' };
@@ -3244,7 +3274,7 @@
     const xl = `<text class="axis-label" x="${pl}" y="${H - 8}">${esc(cdate(d0))}</text>${W >= 420 ? `<text class="axis-label" x="${x(Math.floor((n - 1) / 2)).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(cdate(mid))}</text>` : ''}<text class="axis-label" x="${W - pr}" y="${H - 8}" text-anchor="end">${esc(cdate(d1))}</text>`;
     const legend = `<div class="dot-legend calc-legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')}</div>`;
     if (o.print) return `<div class="calc-print-chart">${legend}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">${grid}${shapes}${xl}</svg></div>`;
-    calcCharts.set(id, { pts, series, W, pl, iw, x, y, single: !!o.single, idx: -1 });
+    calcCharts.set(id, { pts, series, W, pl, iw, x, y, single: !!o.single, noPat: !!o.noPat, idx: -1 });
     return `<div class="chart calc-chart" data-cc="${esc(id)}" tabindex="0" role="img" aria-label="${esc((o.aria || '') + '. ' + t('calcChartKeys'))}">${legend}<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${shapes}${xl}
       <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".45" stroke-dasharray="4 4" style="display:none"/>
       ${series.map((s, i) => `<circle class="cdot" data-i="${i}" r="4.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2" style="display:none"/>`).join('')}
@@ -3260,7 +3290,7 @@
     let tip = box.querySelector(':scope > .tip');
     if (!tip) { tip = document.createElement('div'); tip.className = 'tip calc-tip'; box.appendChild(tip); }
     const v = n => priv ? '•••••' : fmtMoney(n);
-    tip.innerHTML = `<b>${esc(fmtDate(CALC.keyOf(p.date), { day: 'numeric', month: 'long', year: 'numeric' }))}</b>${c.single ? '' : `<span>${esc(t('calcSerPat'))}: ${esc(v(p.patrimony))}</span>`}${c.series.filter(s => !(s.key === 'patrimony')).map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}: ${esc(v(calcVal(p, s)))}</span>`).join('')}`;
+    tip.innerHTML = `<b>${esc(fmtDate(CALC.keyOf(p.date), { day: 'numeric', month: 'long', year: 'numeric' }))}</b>${c.single || c.noPat ? '' : `<span>${esc(t('calcSerPat'))}: ${esc(v(p.patrimony))}</span>`}${c.series.filter(s => !(s.key === 'patrimony')).map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}: ${esc(v(calcVal(p, s)))}</span>`).join('')}`;
     tip.style.display = 'block';
     const half = tip.offsetWidth / 2 + 4, legendH = svg.offsetTop;
     tip.style.left = clamp(cx * sx, half, Math.max(half, box.clientWidth - half)) + 'px';
@@ -3327,14 +3357,15 @@
     return order.map(type => {
       const xs = by[type]; if (xs.length === 1) return item(xs[0]);
       const k = `${key}:${type}`;
-      return `<details class="calc-group" data-cd="${k}" ${calcIsOpen(k) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(type).icon}</span><span class="calc-sum-t"><strong>${esc(t('m_' + type))}</strong></span><span class="calc-pill">${xs.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="calc-group-list">${xs.map(item).join('')}</div></details>`;
+      return `<details class="calc-group" data-cd="${k}" ${calcIsOpen(k) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(type).icon)}</span><span class="calc-sum-t"><strong>${esc(t('m_' + type))}</strong></span><span class="calc-pill">${xs.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="calc-group-list">${xs.map(item).join('')}</div></details>`;
     }).join('');
   }
   // Botón «Año» / «Mes» junto a «Más detalles» (cambia la vista de la tabla con cada toque)
   const calcGranBtn = () => { const g = calcUi().gran; return `<button type="button" class="chip sm calc-view-btn calc-gran" data-calc="gran" aria-label="${esc(t('calcGranAria'))}">${ico('calendar')} ${esc(t(g === 'month' ? 'calcGranMonth' : 'calcGranYear'))}</button>`; };
   // Valor de cada métrica de la Proyección
   function calcMetricVal(res, k) {
-    return { digital: money(res.digital), cash: money(res.cash), investments: money(res.investValue), returns: money(res.returns), cashback: `${money(res.cashReceived)} / ${money(res.pending)}`, growth: csign(res.growth) }[k];
+    return { digital: money(res.digital), cash: money(res.cash), investments: money(res.investValue), returns: money(res.returns), cashback: `${money(res.cashReceived)} / ${money(res.pending)}`, growth: csign(res.growth),
+      cbInvest: t('cmInvNow', { a: money(res.cbInvested), b: money(res.cbValue) }), roundup: t('cmInvNow', { a: money(res.ruInvested), b: money(res.ruValue) }) }[k];
   }
   // Expresión, resultado y variables de una fórmula aplicada
   function calcFormulaText(a, model, res) {
@@ -3346,7 +3377,9 @@
       salaryChange: { what: optLabel('salaryChange', 'what', v.what).toLowerCase(), when: when(v.at, v.unit), v: money(v.newSalary) },
       liquidityCap: { limit: money(v.limit), alloc: calcAllocText(v, model) },
       extraPay: { v: money(v.amount), months: (v.months || []).map(x => calcMonthName(x - 1)).join(', '), changes: (v.futureChanges || []).map(c => t('cqChange', { v: money(c.amount), when: when(c.at, c.unit) })).join('; ') || t('cqNoChanges') },
-      movement: { kind: optLabel('movement', 'kind', v.kind).toLowerCase(), v: money(v.amount), when: when(v.at, v.unit) },
+      movement: { kind: optLabel('movement', 'kind', v.kind).toLowerCase(), v: money(v.amount), when: when(v.at, v.unit),
+        rep: v.repeat !== 'yes' ? '' : t('cqRepeat', { every: v.everyUnit === 'years' ? t(v.every === 1 ? 'calcYear1' : 'calcYearsN', { n: v.every }) : t(v.every === 1 ? 'calcMonth1' : 'calcMonthsN', { n: v.every }),
+          until: v.until === 'for' ? t('cqRepeatFor', { n: v.forUnit === 'years' ? t(v.forN === 1 ? 'calcYear1' : 'calcYearsN', { n: v.forN }) : t(v.forN === 1 ? 'calcMonth1' : 'calcMonthsN', { n: v.forN }) }) : t('cqRepeatEnd') }) },
       cashback: { rate: cpct(v.rate), delay: v.delay, dest: v.target === 'none' ? t('cqDigital') : invName(model, v.target), pct: cpct(v.target === 'none' ? 0 : v.percent) },
       loan: { p: money(v.principal), rate: cpct(v.rate), term: v.unit === 'years' ? t(v.term === 1 ? 'calcYear1' : 'calcYearsN', { n: v.term }) : t(v.term === 1 ? 'calcMonth1' : 'calcMonthsN', { n: v.term }), dest: invName(model, v.target) }
     }[a.type] || {};
@@ -3356,7 +3389,7 @@
   const calcAllocText = (v, model) => (v.allocations || []).map(x => `${invName(model, x.target)} ${v.split === 'fixed' ? t('cqPerMonth', { v: money(x.value) }) : cpct(x.value)}`).join(', ') || t('cqNoAlloc');
   function calcVarsText(type, v, model) {
     const mod = CALC.moduleOf(type); if (!mod) return '';
-    const parts = mod.fields.map(([k, kind]) => {
+    const parts = mod.fields.filter(f => !f[5] || Object.entries(f[5]).every(([dk, dv]) => v[dk] === dv)).map(([k, kind]) => {
       const val = kind === 'money' ? money(v[k]) : kind === 'pct' ? cpct(v[k]) : kind === 'int' ? String(v[k]) : kind === 'select' ? optLabel(type, k, v[k]) : kind === 'months' ? (v[k] || []).map(x => calcMonthName(x - 1)).join(', ') : invName(model, v[k]);
       return `${t(`cf_${type}_${k}`)}: ${val}`;
     });
@@ -3370,17 +3403,19 @@
     const { model, res, rows } = calcData(), u = calcUi();
     let html = topBar(calcTopActions(true));
     html += `<div class="calc-head"><button class="icon-btn sm" data-act="calc-close" aria-label="${esc(t('calcBack'))}" title="${esc(t('calcBack'))}">${ico('left')}</button><div class="grow"><h1 class="calc-title">${esc(t('calcTitle'))}</h1><p class="muted small">${esc(t('calcSub'))}</p></div></div>`;
-    if (!LV.calc.length && !state.ui.calcLegacyDone && calcLegacyRaw()) html += `<div class="banner clay">🧮<span class="grow small">${esc(t('calcLegacyFound'))}</span><button class="chip sm" data-calc="legacy">${esc(t('calcLegacyImport'))}</button></div>`;
-    html += `<section class="calc-hub clay" aria-label="${esc(t('calcTitle'))}">${[['start', 'calcStart', '🧭'], ['modules', 'calcModules', '🧩'], ['time', 'calcTime', '⏳'], ['reset', 'calcReset', '↺'], ['pdf', 'calcPdf', '📄']].map(([k, l, i]) => `<button class="chip" data-calc="${k}"><span aria-hidden="true">${i}</span> ${esc(t(l))}</button>`).join('')}</section>`;
+    if (!LV.calc.length && !state.ui.calcLegacyDone && calcLegacyRaw()) html += `<div class="banner clay">${ico('calc')}<span class="grow small">${esc(t('calcLegacyFound'))}</span><button class="chip sm" data-calc="legacy">${esc(t('calcLegacyImport'))}</button></div>`;
+    html += `<section class="calc-hub clay" aria-label="${esc(t('calcTitle'))}">${[['start', 'calcStart', 'compass'], ['modules', 'calcModules', 'puzzle'], ['time', 'calcTime', 'timer'], ['projections', 'calcProjections', 'folder'], ['reset', 'calcReset', 'refresh'], ['pdf', 'calcShare', 'share']].map(([k, l, i]) => `<button class="chip" data-calc="${k}">${ico(i)} ${esc(t(l))}</button>`).join('')}</section>`;
     // Patrimonio proyectado y Proyección
-    const metric = k => u.metrics.includes(k);
+    // La primera vez que aparece el cashback invertido o los redondeos, su métrica se muestra sola (luego se quita o pone desde «Ver»)
+    for (const k of ['cbInvest', 'roundup']) if (calcMetricOn(res, k) && !u.seen.includes(k)) { u.seen.push(k); if (!u.metrics.includes(k)) u.metrics.push(k); save(); }
+    const metric = k => u.metrics.includes(k) && calcMetricOn(res, k);
     html += `<section class="calc-card clay" aria-labelledby="calc-total-l">
       <div class="calc-hero"><div class="calc-eyebrow" id="calc-total-l">${esc(t('calcHeroEyebrow'))}</div><strong class="calc-total">${money(res.final)}</strong>
         <div class="calc-trend ${res.delta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.delta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.pct) }))}</span></div>
         <p class="muted small">${esc(t('calcHorizonLine', { n: cmonths(res.months), date: cdate(res.endDate), v: money(res.initial) }))}</p></div>
       <details class="calc-box" data-cd="proj" ${calcIsOpen('proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-pill">${esc(t(res.formulas === 1 ? 'calcFormula1' : 'calcFormulasN', { n: res.formulas }))}</span><button type="button" class="chip sm calc-view-btn" data-calc="view" aria-label="${esc(t('calcViewAria'))}">${ico('eye')} ${esc(t('calcView'))}</button><span class="calc-arrow" aria-hidden="true">›</span></summary>
         ${metric('digital') || metric('investments') ? `<div class="calc-headline">${metric('digital') ? `<div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(res.digital)}</strong><div class="calc-hl-st ${res.digitalDelta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.digitalDelta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.digitalPct) }))}</span></div></div>` : ''}${metric('investments') ? `<div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(res.investValue)}</strong><div class="calc-hl-st ${res.fundDelta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.fundDelta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.fundPct) }))}</span></div></div>` : ''}</div>` : ''}
-        ${['cash', 'returns', 'cashback', 'growth'].some(metric) ? `<div class="calc-metrics">${['cash', 'returns', 'cashback', 'growth'].filter(metric).map(k => `<div class="calc-metric"><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><strong>${calcMetricVal(res, k)}</strong></div>`).join('')}</div>` : ''}
+        ${['cash', 'returns', 'cashback', 'growth', 'cbInvest', 'roundup'].some(metric) ? `<div class="calc-metrics">${['cash', 'returns', 'cashback', 'growth', 'cbInvest', 'roundup'].filter(metric).map(k => `<div class="calc-metric"><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><strong>${calcMetricVal(res, k)}</strong></div>`).join('')}</div>` : ''}
         ${res.perInvestment.length ? `<div class="calc-breakdown">${res.perInvestment.map(i => `<button type="button" class="calc-inv" data-calc="fund-chart" data-id="${esc(i.id)}"><strong>${esc(i.name)}</strong><small>${esc(t('calcInvValue', { v: money(i.value), p: cpct(i.share) }))}</small><small>${esc(t('calcInvRate', { p: cpct(i.rate), acc: t(i.accumulative ? 'calcAccumulative' : 'calcNonAccumulative') }))}</small><small class="${cls(i.gain)}">${esc(t('calcInvVar', { v: csign(i.gain) }))}</small></button>`).join('')}</div>` : ''}
         <p class="calc-fine">${esc(t('calcHypothesis'))}</p>
         <details class="calc-box inner" data-cd="savings" ${calcIsOpen('savings') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcSavingsEyebrow'))}</span><strong>${esc(t('calcSavings'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
@@ -3400,7 +3435,7 @@
     html += `</section>`;
     // Mi Biblioteca: fórmulas que forman el resultado
     html += `<details class="calc-card clay calc-lib" data-cd="lib" ${calcIsOpen('lib') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcLibEyebrow'))}</span><strong>${esc(t('calcLibrary'))}</strong></span><span class="calc-pill">${model.applied.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
-      ${model.applied.length ? calcGrouped(model.applied, 'ga', a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(a.type).icon}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      ${model.applied.length ? calcGrouped(model.applied, 'ga', a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(a.type).icon)}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <div class="calc-eq">${esc(eq)}</div><div class="calc-res">${esc(r)}</div><p class="calc-fine">${esc(calcVarsText(a.type, a.values, model))}</p>
         <div class="row wrap calc-f-acts"><button class="chip sm" data-calc="edit-applied" data-id="${esc(a.id)}">${ico('edit')} ${esc(t('calcEditFormula'))}</button><button class="chip sm calc-danger" data-calc="remove-applied" data-id="${esc(a.id)}">${ico('trash')} ${esc(t('calcRemoveFormula'))}</button></div></details>`; }) : `<p class="muted small calc-empty">${esc(t('calcNoApplied'))}</p>`}
     </details>`;
@@ -3558,7 +3593,7 @@
     let wref, last = '';
     const draw = () => {
       const { res } = calcData(), u = calcUi();
-      $('#cv', wref).innerHTML = `<p class="muted small" style="margin:0 0 12px">${esc(t('calcViewHint'))}</p><div class="calc-view-list">${CALC_METRICS.map(([k, l]) => { const on = u.metrics.includes(k); return `<button type="button" class="calc-view-opt ${on ? 'on' : ''}" data-cv-m="${k}" aria-pressed="${on}">${esc(t(l))}<strong>${calcMetricVal(res, k)}</strong></button>`; }).join('')}</div>${last ? `<div class="calc-view-res" role="status">${esc(last)}</div>` : ''}`;
+      $('#cv', wref).innerHTML = `<p class="muted small" style="margin:0 0 12px">${esc(t('calcViewHint'))}</p><div class="calc-view-list">${CALC_METRICS.filter(([k]) => calcMetricOn(res, k)).map(([k, l]) => { const on = u.metrics.includes(k); return `<button type="button" class="calc-view-opt ${on ? 'on' : ''}" data-cv-m="${k}" aria-pressed="${on}">${esc(t(l))}<strong>${calcMetricVal(res, k)}</strong></button>`; }).join('')}</div>${last ? `<div class="calc-view-res" role="status">${esc(last)}</div>` : ''}`;
     };
     openModal({
       title: calcHead(t('calcViewEyebrow'), t('calcViewTitle')), cls: 'calc-sheet', body: '<div id="cv"></div>',
@@ -3603,14 +3638,16 @@
   /* ---------- Fórmulas Modulares: plantillas, Mi Biblioteca y edición ---------- */
   function calcFieldsHtml(type, v, model) {
     const mod = CALC.moduleOf(type), invs = model.investments;
-    return `<div class="calc-grid">${mod.fields.map(([k, kind, ex, opts, help]) => {
+    const cur = k => { const f = mod.fields.find(x => x[0] === k); return v && v[k] !== undefined ? v[k] : f && f[3] ? f[3][0] : undefined; };
+    return `<div class="calc-grid">${mod.fields.map(([k, kind, ex, opts, help, showIf]) => {
       const label = t(`cf_${type}_${k}`), has = v && v[k] !== undefined && v[k] !== '';
       let input;
       if (kind === 'inv' || kind === 'invOpt') input = `<select class="input" data-fv="${k}" data-kind="${kind}" aria-label="${esc(label)}">${kind === 'invOpt' ? `<option value="none" ${!has || v[k] === 'none' ? 'selected' : ''}>${esc(t('calcNoDestOpt'))}</option>` : `<option value="" ${has && invs.some(i => i.id === v[k]) ? '' : 'selected'} disabled>${esc(t(invs.length ? 'calcSelectDest' : 'calcNeedDestFirst'))}</option>`}${invs.map(i => `<option value="${esc(i.id)}" ${has && v[k] === i.id ? 'selected' : ''}>${esc(i.name)} · ${esc(cpct(i.rate))}</option>`).join('')}</select>`;
       else if (kind === 'months') input = `<div class="row wrap calc-months" role="group" aria-label="${esc(label)}" data-fv="${k}" data-kind="months">${Array.from({ length: 12 }, (_, i) => `<label class="check-chip tgl sm"><input type="checkbox" data-fm="${i + 1}" ${has && v[k].includes(i + 1) ? 'checked' : ''}><span>${esc(calcMonthName(i))}</span></label>`).join('')}</div>`;
       else if (kind === 'select') input = `<select class="input" data-fv="${k}" data-kind="select" aria-label="${esc(label)}">${opts.map((o, j) => `<option value="${o}" ${(has ? v[k] === o : j === 0) ? 'selected' : ''}>${esc(optLabel(type, k, o))}</option>`).join('')}</select>`;
       else input = `<input class="input" data-fv="${k}" data-kind="${kind}" inputmode="${kind === 'int' ? 'numeric' : 'decimal'}" autocomplete="off" aria-label="${esc(label)}" placeholder="${esc(fmtPctIn(ex || 0))}" value="${has ? calcInVal(v[k]) : ''}">`;
-      return `<div class="field"><span>${esc(label)}</span>${input}${help ? calcHelp(t(`cfh_${type}_${k}`)) : ''}</div>`;
+      const hidden = showIf && Object.entries(showIf).some(([dk, dv]) => cur(dk) !== dv);
+      return `<div class="field ${hidden ? 'hidden' : ''}" ${showIf ? `data-show-if="${esc(JSON.stringify(showIf))}"` : ''}><span>${esc(label)}</span>${input}${help ? calcHelp(t(`cfh_${type}_${k}`)) : ''}</div>`;
     }).join('')}</div>${['periodic', 'extraPay'].includes(type) ? `<div class="calc-changes"><p class="calc-fine">${esc(t(type === 'extraPay' ? 'calcPayChangesHint' : 'calcChangesHint'))}</p><div class="calc-change-rows">${(v && v.futureChanges || []).map(c => calcChangeRow(c, type)).join('')}</div></div>` : ''}${type === 'liquidityCap' ? `<div class="calc-changes"><p class="calc-fine">${esc(t('calcAllocHint'))}</p><div class="calc-change-rows calc-alloc-rows">${(v && v.allocations && v.allocations.length ? v.allocations : [{}]).map(x => calcAllocRow(model, x, v && v.split)).join('')}</div></div>` : ''}`;
   }
   // Fila de reparto del techo de liquidez: destino + porcentaje del exceso o importe fijo al mes
@@ -3623,15 +3660,22 @@
     else { rows.insertAdjacentHTML('beforeend', calcChangeRow({}, type)); $('[data-fc]:last-child [data-fc-at]', scope).focus(); }
   }
   // Al cambiar «porcentaje / importe fijo» se actualiza la etiqueta de cada fila
-  const calcSplitSync = e => { const el = e.target; if (!el.matches || !el.matches('[data-fv="split"]')) return; const box = el.closest('.calc-mod, #cfe-form'); if (box) $$('[data-al-lbl]', box).forEach(x => { x.textContent = calcAllocLabel(el.value); }); };
+  // Al cambiar un desplegable: etiquetas del reparto del techo y campos que dependen de otro («Repetir», «Hasta»)
+  const calcSplitSync = e => {
+    const el = e.target; if (!el.matches || !el.matches('select[data-fv]')) return;
+    const box = el.closest('.calc-mod, #cfe-form'); if (!box) return;
+    if (el.dataset.fv === 'split') $$('[data-al-lbl]', box).forEach(x => { x.textContent = calcAllocLabel(el.value); });
+    $$('[data-show-if]', box).forEach(f => { const c = JSON.parse(f.dataset.showIf); f.classList.toggle('hidden', Object.entries(c).some(([k, v]) => { const s = box.querySelector(`[data-fv="${k}"]`); return !s || s.value !== v; })); });
+  };
   const calcPlusBtn = type => ['periodic', 'extraPay', 'liquidityCap'].includes(type) ? `<button type="button" class="calc-plus" data-f-act="add-change" data-mod="${type}" aria-label="${esc(t(type === 'liquidityCap' ? 'calcAddAlloc' : 'calcAddChange'))}" title="${esc(t(type === 'liquidityCap' ? 'calcAddAlloc' : 'calcAddChange'))}">${ico('plus')}</button>` : '';
   const calcMonthName = i => fmtDate(`2026-${String(i + 1).padStart(2, '0')}-01`, { month: 'short' });
   const calcChangeRow = (c = {}, type) => `<div class="calc-change-row" data-fc><label class="field"><span>${esc(t('calcChangeFrom'))}</span><input class="input" inputmode="numeric" data-fc-at value="${c.at ? esc(c.at) : ''}" placeholder="3"></label><label class="field"><span>${esc(t('calcChangeUnit'))}</span><select class="input" data-fc-unit><option value="months" ${c.unit !== 'years' ? 'selected' : ''}>${esc(t('cuMonth'))}</option><option value="years" ${c.unit === 'years' ? 'selected' : ''}>${esc(t('cuYear'))}</option></select></label><label class="field"><span>${esc(t(type === 'extraPay' ? 'calcPayChangeAmount' : 'calcChangeAmount'))}</span><input class="input" inputmode="decimal" data-fc-amount value="${c.amount != null ? calcInVal(c.amount) : ''}"></label><button type="button" class="icon-btn sm calc-del" data-f-act="del-change" aria-label="${esc(t('calcChangeDel'))}" title="${esc(t('calcChangeDel'))}">${ico('x')}</button></div>`;
   // Lee y valida las variables de un formulario → { values } o { err }
   function calcReadForm(box, type, model) {
     const mod = CALC.moduleOf(type), values = {};
-    for (const [k, kind] of mod.fields) {
+    for (const [k, kind, ex] of mod.fields) {
       const el = box.querySelector(`[data-fv="${k}"]`); if (!el) return { err: t('calcFillAll') };
+      if (el.closest('.field.hidden')) { if (kind === 'select') values[k] = el.value; else if (ex != null) values[k] = ex; continue; } // campo que no aplica (p. ej. «Repetir: No»)
       if (kind === 'inv') { if (!model.investments.length) return { err: t('calcNeedDestFirst') }; if (!model.investments.some(i => i.id === el.value)) return { err: t('calcNeedDest') }; values[k] = el.value; continue; }
       if (kind === 'invOpt') { values[k] = model.investments.some(i => i.id === el.value) ? el.value : 'none'; continue; }
       if (kind === 'select') { if (!el.value) return { err: t('calcFillAll') }; values[k] = el.value; continue; }
@@ -3642,6 +3686,7 @@
       values[k] = kind === 'int' ? Math.round(n) : n;
     }
     if (['salaryChange', 'movement'].includes(type) && values.at < 1) return { err: t('calcPeriodMin') };
+    if (type === 'movement' && values.repeat === 'yes' && (values.every < 1 || (values.until === 'for' && values.forN < 1))) return { err: t('calcPeriodMin') };
     if (type === 'loan' && values.term < 1) return { err: t('calcPeriodMin') };
     if (type === 'periodic' || type === 'extraPay') {
       values.futureChanges = [];
@@ -3675,12 +3720,12 @@
     let wref;
     const drawLib = () => {
       const { model } = calcData();
-      $('#cm-lib', wref).innerHTML = model.presets.length ? calcGrouped(model.presets, 'gp', p => `<details class="calc-formula" data-preset="${esc(p.id)}"><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(p.type).icon}</span><span class="calc-sum-t"><strong>${esc(p.name)}</strong><small>${esc(t('m_' + p.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      $('#cm-lib', wref).innerHTML = model.presets.length ? calcGrouped(model.presets, 'gp', p => `<details class="calc-formula" data-preset="${esc(p.id)}"><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(p.type).icon)}</span><span class="calc-sum-t"><strong>${esc(p.name)}</strong><small>${esc(t('m_' + p.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <p class="calc-fine">${esc(calcVarsText(p.type, p.values, model))}</p><div class="row wrap calc-f-acts"><button class="chip sm calc-blue" data-f-act="use" data-id="${esc(p.id)}">${ico('check')} ${esc(t('calcUse'))}</button><button class="chip sm" data-f-act="edit" data-id="${esc(p.id)}">${ico('edit')} ${esc(t('calcEdit'))}</button><button class="chip sm calc-danger" data-f-act="del" data-id="${esc(p.id)}">${ico('trash')} ${esc(t('calcDelete'))}</button></div></details>`) : `<p class="muted small calc-empty">${esc(t('calcNoPresets'))}</p>`;
     };
     const drawTpl = () => {
       const { model } = calcData();
-      $('#cm-tpl', wref).innerHTML = CALC.MODULES.map(m => `<details class="calc-mod" data-mod="${m.id}" name="calc-mod"><summary><span class="calc-f-ico" aria-hidden="true">${m.icon}</span><span class="calc-sum-t"><strong>${esc(t('m_' + m.id))}</strong><small>${esc(t('md_' + m.id))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      $('#cm-tpl', wref).innerHTML = CALC.MODULES.map(m => `<details class="calc-mod" data-mod="${m.id}" name="calc-mod"><summary><span class="calc-f-ico" aria-hidden="true">${ico(m.icon)}</span><span class="calc-sum-t"><strong>${esc(t('m_' + m.id))}</strong><small>${esc(t('md_' + m.id))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <div class="calc-mod-form">${calcFieldsHtml(m.id, null, model)}<div class="calc-form-acts">${calcPlusBtn(m.id)}<button class="btn sm calc-blue" data-f-act="apply" data-mod="${m.id}">${esc(t('calcApply'))}</button></div></div></details>`).join('');
     };
     openModal({
@@ -3720,7 +3765,7 @@
     let wref;
     openModal({
       title: calcHead(t(kind === 'preset' ? 'calcEditPresetEyebrow' : 'calcLibrary'), t(kind === 'preset' ? 'calcEditPreset' : 'calcEditFormula')), cls: 'wide calc-sheet',
-      body: `<div class="stack"><p class="muted small" style="margin:0">${CALC.moduleOf(item.type).icon} ${esc(t('m_' + item.type))}</p><label class="field"><span>${esc(t('calcName'))}</span><input class="input" id="cfe-name" maxlength="60" value="${esc(item.name)}"></label><div id="cfe-form">${calcFieldsHtml(item.type, item.values, calcData().model)}</div></div>`,
+      body: `<div class="stack"><p class="muted small" style="margin:0">${ico(CALC.moduleOf(item.type).icon)} ${esc(t('m_' + item.type))}</p><label class="field"><span>${esc(t('calcName'))}</span><input class="input" id="cfe-name" maxlength="60" value="${esc(item.name)}"></label><div id="cfe-form">${calcFieldsHtml(item.type, item.values, calcData().model)}</div></div>`,
       foot: `${calcPlusBtn(item.type)}<button class="btn calc-blue" data-f-act="save">${esc(t('calcSave'))}</button>`,
       onMount: w => { wref = w; },
       onInput: calcSplitSync,
@@ -3763,12 +3808,12 @@
     if (sel.has('graph')) {
       const inv = u.mode === 'investments';
       html += sec(t('calcHeroEyebrow'), `<div class="cp-hero"><b>${money(res.final)}</b><span class="${res.delta < 0 ? 'neg' : 'pos'}">${esc(t('calcReturn', { v: csign(res.delta) }))} · ${esc(t('calcProfit', { v: cspct(res.pct) }))}</span></div>
-        <div class="cp-metrics">${u.metrics.map(k => `<div><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><b>${calcMetricVal(res, k)}</b></div>`).join('')}</div>
+        <div class="cp-metrics">${u.metrics.filter(k => calcMetricOn(res, k)).map(k => `<div><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><b>${calcMetricVal(res, k)}</b></div>`).join('')}</div>
         <h3>${esc(t(inv ? 'calcGraphInv' : 'calcGraphPat'))}</h3>${calcChart('', rows, calcSeries(model, u), { print: true, aria: t(inv ? 'calcGraphInv' : 'calcGraphPat') })}<p class="cp-fine">${esc(t('calcHypothesis'))}</p>`, 'cp-keep');
     }
     if (sel.has('details')) html += sec(t('calcMoreDetails'), `<h3>${esc(t('calcGraphPat'))}</h3>${calcTable(res, 'patrimony')}${model.investments.length ? `<h3>${esc(t('calcGraphInv'))}</h3>${calcTable(res, 'investments', model.investments.map(i => i.id))}` : ''}`);
     if (sel.has('funds')) html += sec(t('pw_funds'), model.investments.length ? model.investments.map((i, n) => `<article class="cp-fund"><h3>${esc(i.name)} · ${esc(cpct(i.rate))}</h3>${calcChart('', rows, [{ fund: i.id, label: i.name, color: CALC_COLORS[n % CALC_COLORS.length] }], { print: true, aria: i.name })}</article>`).join('') : `<p class="cp-fine">${esc(t('calcPdfNoFunds'))}</p>`);
-    if (sel.has('formulas')) html += sec(t('pw_formulas'), model.applied.length ? model.applied.map(a => { const [eq, r] = calcFormulaText(a, model, res); return `<article class="cp-formula"><h3>${CALC.moduleOf(a.type).icon} ${esc(a.name)}</h3><div class="cp-eq">${esc(eq)}</div><p><b>${esc(r)}</b></p><p class="cp-fine">${esc(calcVarsText(a.type, a.values, model))}</p></article>`; }).join('') : `<p class="cp-fine">${esc(t('calcNoApplied'))}</p>`);
+    if (sel.has('formulas')) html += sec(t('pw_formulas'), model.applied.length ? model.applied.map(a => { const [eq, r] = calcFormulaText(a, model, res); return `<article class="cp-formula"><h3>${ico(CALC.moduleOf(a.type).icon)} ${esc(a.name)}</h3><div class="cp-eq">${esc(eq)}</div><p><b>${esc(r)}</b></p><p class="cp-fine">${esc(calcVarsText(a.type, a.values, model))}</p></article>`; }).join('') : `<p class="cp-fine">${esc(t('calcNoApplied'))}</p>`);
     return html;
   }
   function calcPrint(sel) {
@@ -3788,7 +3833,7 @@
   // Tarta (anillo) con leyenda; en modo privacidad se ocultan los importes
   // «Mostrar porcentajes» (casilla bajo cada tarta): etiquetas sobre el anillo y en la leyenda
   const showPct = () => !(state.ledgerPrefs && state.ledgerPrefs.showPct === false);
-  function donutChart(segs, centerLabel, centerValue = null) {
+  function donutChart(segs, centerLabel, centerValue = null, extra = '') {
     const total = segs.reduce((a, s) => a + s.value, 0);
     if (!total) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
     const R = 42, C = 2 * Math.PI * R, pct = showPct(); let acc = 0; const labels = [];
@@ -3801,7 +3846,30 @@
     return `<div class="pie-wrap"><svg class="pie" viewBox="0 0 120 120" role="img" aria-label="${esc(centerLabel)}"><g transform="rotate(-90 60 60)"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${arcs}</g>${labels.join('')}
       <text x="60" y="57" text-anchor="middle" class="pie-c1">${esc(centerValue == null ? cents(total) : centerValue)}</text><text x="60" y="72" text-anchor="middle" class="pie-c2">${esc(centerLabel)}</text></svg>
       <ul class="pie-legend">${segs.map(s => `<li><i style="background:${s.color}"></i><span class="grow">${esc(s.label)}</span>${pct ? `<b>${Math.round(s.value / total * 100)}%</b>` : ''}<span class="pie-amt ${pct ? 'muted small' : ''}">${esc(cents(s.value))}</span></li>`).join('')}</ul>
-      <label class="check tgl pct-toggle"><input type="checkbox" data-pct-toggle ${pct ? 'checked' : ''}><span>${esc(t('showPct'))}</span></label></div>`;
+      <div class="row wrap pie-tools"><label class="check tgl pct-toggle"><input type="checkbox" data-pct-toggle ${pct ? 'checked' : ''}><span>${esc(t('showPct'))}</span></label>${extra}</div></div>`;
+  }
+  // «Modo Gráfica» ↔ «Modo Torta»: el botón dice a qué modo pasas al tocarlo
+  const pieLine = () => !!(state.ledgerPrefs && state.ledgerPrefs.pieView === 'line');
+  const pieModeBtn = () => `<button type="button" class="chip tgl-btn" data-act="led-pie-view" aria-label="${esc(t(pieLine() ? 'ledPieModeAria' : 'ledLineModeAria'))}">${ico(pieLine() ? 'pie' : 'line')} ${esc(t(pieLine() ? 'ledPieMode' : 'ledLineMode'))}</button>`;
+  // Gráfica de la tarta en el tiempo: una línea por categoría (o ingresos y gastos), con el mismo gráfico que la calculadora
+  function pieLineChart(list, pm, pp, ym, segs) {
+    const today = todayKey(), span = LED.span(list);
+    const from = pp === 'month' ? ym + '-01' : pp === 'year' ? ym.slice(0, 4) + '-01-01' : span ? span.from : today;
+    const endM = pp === 'month' ? `${ym}-${String(LED.daysIn(+ym.slice(0, 4), +ym.slice(5, 7))).padStart(2, '0')}` : pp === 'year' ? ym.slice(0, 4) + '-12-31' : today;
+    const to = endM < today || pp !== 'all' ? endM : today, unit = pp === 'month' ? 'day' : 'month';
+    if (!list.length || !segs.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p><div class="row wrap pie-tools">${pieModeBtn()}</div>`;
+    const base = LED.series([], from, to, unit), idx = new Map(base.map((b, i) => [b.key, i]));
+    const keyFor = d => unit === 'month' ? d.slice(0, 7) : d;
+    const ids = pm === 'io' ? ['income', 'expense'] : LED.byCategory(list, pm).map(c => c.id);
+    const rows = base.map(b => ({ date: CALC.parseDate(unit === 'month' ? b.key + '-01' : b.key), ...Object.fromEntries(ids.map(id => ['c:' + id, 0])) }));
+    for (const e of list) {
+      const i = idx.get(keyFor(e.date)); if (i == null) continue;
+      const k = pm === 'io' ? 'c:' + (e.type === 'income' ? 'income' : 'expense') : e.type === pm ? 'c:' + (e.categoryId || 'other') : null;
+      if (k && k in rows[i]) rows[i][k] += (e.amountCents || 0) / 100;
+    }
+    const series = pm === 'io' ? [{ key: 'c:income', label: t('ledgerIncome'), color: IN_C }, { key: 'c:expense', label: t('ledgerExpense'), color: OUT_C }]
+      : ids.map((id, i) => ({ key: 'c:' + id, label: segs[i] ? segs[i].label : id, color: segs[i] ? segs[i].color : PIE_COLORS[i % PIE_COLORS.length] }));
+    return `${calcChart('led-pie', rows, series, { aria: t('ledPieTitle'), noPat: true })}<div class="row wrap pie-tools">${pieModeBtn()}</div>`;
   }
   // Dos series de puntos: verde = ingresos, rojo = gastos
   function twoDotChart(rows, o = {}) {
@@ -3833,15 +3901,15 @@
     const segs = pm === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }].filter(s => s.value)
       : LED.byCategory(pList, pm).map((c, i) => { const cat = catOf(c.id); return { label: `${cat.icon} ${catName(cat)}`, value: c.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
     const pName = pp === 'month' ? fmtDate(ym + '-01', { month: 'long', year: 'numeric' }) : pp === 'year' ? ym.slice(0, 4) : t('ledAll');
-    let html = `<h2 class="section-title led-h">📊 ${esc(t('ledCharts'))}</h2><div class="chart-grid">`;
-    if (!hidW('ledPie')) html += `<section class="chart-card clay" data-w="ledPie"><h3>🥧<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
+    let html = `<h2 class="section-title led-h">${ico('chart')} ${esc(t('ledCharts'))}</h2><div class="chart-grid">`;
+    if (!hidW('ledPie')) html += `<section class="chart-card clay" data-w="ledPie"><h3>${ico('pie')}<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
       <div class="seg seg-sm" role="group">${[['month', 'ledThisMonth'], ['year', 'ledThisYear'], ['all', 'ledAll']].map(([v, k]) => `<button data-act="led-pie" data-v="${v}" class="${pp === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
       <div class="seg seg-sm" role="group" style="margin-top:8px">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-act="led-pie-mode" data-v="${v}" class="${pm === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
-      <div class="${privacyOn() ? 'priv' : ''}">${pm === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net)) : donutChart(segs, t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'))}</div></section>`;
+      <div class="${privacyOn() ? 'priv' : ''}">${pieLine() ? pieLineChart(pList, pm, pp, ym, segs) : pm === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net), pieModeBtn()) : donutChart(segs, t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'), null, pieModeBtn())}</div></section>`;
     // 2) Evolución a lo largo de los meses o años registrados
     const lu = ui.ledLine === 'year' ? 'year' : 'month';
     const from = span ? span.from : today, rows = LED.series(LV.entries, from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
-    if (!hidW('ledLine')) html += `<section class="chart-card clay" data-w="ledLine"><h3>📈<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
+    if (!hidW('ledLine')) html += `<section class="chart-card clay" data-w="ledLine"><h3>${ico('trend')}<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
       ${span ? twoDotChart(rows, { aria: t('ledLineTitle') }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
     html += '</div>';
     // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
@@ -3850,7 +3918,7 @@
     const fl = LED.inRange(fev ? eventEntries(fev) : LV.entries, lf.from, lf.to).filter(e => fev || lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
     const days = lf.from && lf.to ? diffDays(lf.from, lf.to) + 1 : 0, fu = days <= 62 ? 'day' : days <= 3 * 366 ? 'month' : 'year';
     const frows = lf.from && lf.to && lf.from <= lf.to ? LED.series(fl, lf.from, lf.to, fu).map(r => ({ ...r, label: bucketLabel(r.key, fu), sub: bucketSub(r.key, fu) })) : [];
-    if (!hidW('ledFilter')) html += `<section class="chart-card clay led-filter" data-w="ledFilter"><h3>🔎<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
+    if (!hidW('ledFilter')) html += `<section class="chart-card clay led-filter" data-w="ledFilter"><h3>${ico('search')}<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
       <div class="filter-row">
         <label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${lf.cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}${LV.events.length ? `<optgroup label="${esc(t('evTitle'))}">${LV.events.map(ev => `<option value="ev:${esc(ev.id)}" ${lf.cat === 'ev:' + ev.id ? 'selected' : ''}>${esc(ev.icon)} ${esc(ev.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
         <label class="field"><span>${esc(t('ledFrom'))}</span><input class="input" type="date" data-led-f="from" value="${esc(lf.from)}"></label>
@@ -3865,7 +3933,7 @@
   // Dinero Caprichable: solo en la Libreta. Ventana con el total, el conversor y la opción de ocultarlo.
   function openCaprice() {
     openModal({
-      title: `💶 ${esc(t('capTitle'))}`, cls: 'wide',
+      title: `${ico('wallet')} ${esc(t('capTitle'))}`, cls: 'wide',
       body: `<div class="stack" style="gap:18px"><div id="cap-total">${capTotalHtml()}</div><section><h3 class="section-title">${esc(t('capConverter'))}</h3>${capHtml()}</section>
         <label class="check tgl"><input type="checkbox" data-cap-hide ${capHidden() ? 'checked' : ''}> ${esc(t('capHideWidget'))}</label></div>`,
       onMount: w => {
@@ -3889,7 +3957,7 @@
   function entryRow(e, withDate = false) {
     const c = catOf(e.categoryId), priv = privacyOn(), inc = e.type === 'income';
     return `<div class="swipe" data-swipe="${esc(e.id)}"><div class="swipe-acts"><button class="sw-act edit" data-sw-edit="${esc(e.id)}" aria-label="${esc(t('edit'))}" title="${esc(t('edit'))}">${ico('edit')}</button><button class="sw-act del" data-sw-del="${esc(e.id)}" aria-label="${esc(t('delete'))}" title="${esc(t('delete'))}">${ico('trash')}</button></div>
-      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ' · 🔁' : ''}</span></span><b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + cents(e.amountCents)}</b></button></div>`;
+      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}</span></span><b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + cents(e.amountCents)}</b></button></div>`;
   }
   const SW_W = 124;
   let swg = null, swOpen = null, swBlock = false;
@@ -3954,7 +4022,7 @@
         <label class="field"><span>${esc(t('ledgerNote'))}</span><input class="input" id="le-note" maxlength="140" value="${esc(f.note || '')}" placeholder="${esc(t('ledgerNotePh'))}"></label>
         <div class="field"><span>${esc(t('ledgerMethod'))}</span><div class="seg">${LED.METHODS.map(v => `<button type="button" data-le-method="${v}" class="${f.method === v ? 'on' : ''}" aria-pressed="${f.method === v}">${esc(t('method_' + v))}</button>`).join('')}</div></div>
         ${isNew ? `<label class="field"><span>${esc(t('ledgerRepeat'))}</span><select class="input" id="le-every"><option value="">${esc(t('repeat_none'))}</option>${LED.REPEATS.map(v => `<option value="${v}" ${f.every === v ? 'selected' : ''}>${esc(t('repeat_' + v))}</option>`).join('')}</select></label>
-          <label class="field ${f.every ? '' : 'hidden'}" id="le-to-wrap"><span>${esc(t('ledgerRepeatTo'))}</span><input class="input" type="date" id="le-to" value="${esc(f.to || '')}"></label>` : entry.recurringId ? `<p class="muted small" style="margin:0">🔁 ${esc(t('ledgerFromRec'))}</p>` : ''}
+          <label class="field ${f.every ? '' : 'hidden'}" id="le-to-wrap"><span>${esc(t('ledgerRepeatTo'))}</span><input class="input" type="date" id="le-to" value="${esc(f.to || '')}"></label>` : entry.recurringId ? `<p class="muted small row" style="margin:0;gap:6px">${ico('repeat', 'xs')} ${esc(t('ledgerFromRec'))}</p>` : ''}
       </div>`;
     };
     const read = () => { f.note = $('#le-note', wref).value.trim(); f.date = $('#le-date', wref).value || f.date; if (isNew) { f.every = $('#le-every', wref).value; f.to = $('#le-to', wref).value; } };
@@ -4003,7 +4071,7 @@
         <div class="row"><input class="input" id="lc-icon" value="🏷️" maxlength="4" style="width:62px;text-align:center" aria-label="${esc(t('ledgerCatIcon'))}"><input class="input grow" id="lc-name" maxlength="30" placeholder="${esc(t('ledgerCatName'))}"><button class="btn" data-lc-add>${ico('plus')} ${esc(t('add'))}</button></div></div>`;
     };
     openModal({
-      title: `🏷️ ${esc(t('ledgerCats'))}`, body: '<div id="lc"></div>',
+      title: `${ico('tag')} ${esc(t('ledgerCats'))}`, body: '<div id="lc"></div>',
       onMount: w => { wref = w; draw();
         w.addEventListener('change', e => {
           const c = e.target.dataset && LV.cats.find(x => x.id === (e.target.dataset.lcName || e.target.dataset.lcIcon)); if (!c) return;
@@ -4078,12 +4146,12 @@
         <label class="field"><span>${esc(t('lsName'))}</span><input class="input" id="ls-title" maxlength="80" value="${esc(S.title)}" placeholder="${esc(autoTitle())}"></label>
         <div class="kpis ls-kpis" style="margin:0"><div class="kpi clay"><b>${d.entries.length}</b><span>${esc(t('evEntries'))}</span></div><div class="kpi clay"><b class="amt-in">${privacyOn() ? '•••' : cents(tot.income)}</b><span>${esc(t('ledgerIncome'))}</span></div><div class="kpi clay"><b class="amt-out">${privacyOn() ? '•••' : cents(tot.expense)}</b><span>${esc(t('ledgerExpense'))}</span></div></div>
         <button class="btn primary" data-ls="export">${ico('download')} ${esc(t('lsExport'))}</button>
-        <section class="clay card"><h3 class="section-title" style="margin-top:0">🔒 ${esc(t('lsSendTitle'))}</h3><p class="muted small" style="margin-top:0">${esc(t('lsSendHint'))}</p>
+        <section class="clay card"><h3 class="section-title" style="margin-top:0">${ico('lock')} ${esc(t('lsSendTitle'))}</h3><p class="muted small" style="margin-top:0">${esc(t('lsSendHint'))}</p>
           ${!auth ? `<p class="muted small">${esc(t('groupNeedLogin'))}</p>` : !chatData.friends ? `<p class="muted small">${esc(t('groupsLoading'))}</p>` : friends.length ? `<div class="stack" style="gap:8px">${friends.map(f => `<button class="btn block" style="justify-content:flex-start" data-ls-to="${f.user_id}">${avatarHtml(f, 'sm')} ${esc(personName(f))} <span class="muted small">@${esc(f.nametag || '')}</span></button>`).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('chatNoFriends'))}</p>`}
         </section></div>`;
     };
     openModal({
-      title: `📤 ${esc(t('lsTool'))}`, cls: 'wide', body: '<div id="lsh"></div>',
+      title: `${ico('share')} ${esc(t('lsTool'))}`, cls: 'wide', body: '<div id="lsh"></div>',
       onMount: w => {
         wref = w; draw();
         if (auth) refreshChat(true).then(() => { if (wref.isConnected) draw(); });
@@ -4121,7 +4189,7 @@
   }
   function askSharePassword(f, send) {
     openModal({
-      title: `🔑 ${esc(t('lsPwTitle'))}`,
+      title: `${ico('key')} ${esc(t('lsPwTitle'))}`,
       body: `<form class="stack" id="lsp-f" style="gap:12px" autocomplete="off"><p class="muted small" style="margin:0">${esc(t('lsPwSub', { tag: '@' + (f.nametag || '') }))}</p>
         <input class="input" id="lsp-1" type="password" minlength="4" maxlength="64" autocomplete="new-password" placeholder="${esc(t('lsPwNew'))}" aria-label="${esc(t('lsPwNew'))}">
         <input class="input" id="lsp-2" type="password" maxlength="64" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}" aria-label="${esc(t('vaultPw2'))}">
@@ -4144,7 +4212,7 @@
     const tag = s.peer.nametag || s.peer.display_name || '';
     openModal({
       title: `${ico('wallet')} ${esc(s.mine ? t('lsSentTitle', { tag }) : t('lsTitle', { tag }))}`,
-      body: `<form class="stack" id="lso-f" style="gap:12px" autocomplete="off"><div class="center" style="font-size:40px">🔐</div>
+      body: `<form class="stack" id="lso-f" style="gap:12px" autocomplete="off"><div class="center vault-ico">${ico('lock')}</div>
         <p class="muted center" style="margin:0">${esc(t(s.mine ? 'lsPwAskMine' : 'lsPwAsk', { tag: '@' + tag }))}</p>
         <input class="input" id="lso-pw" type="password" maxlength="64" autocomplete="off" placeholder="${esc(t('lsPwEnter'))}" aria-label="${esc(t('lsPwEnter'))}"></form>`,
       foot: `<button class="btn primary block" data-lso>${esc(t('vaultOpen'))}</button>`,
@@ -4173,8 +4241,8 @@
     openModal({
       title: `${ico('share')} ${esc(ev.icon || '🗂️')} ${esc(ev.name)}`,
       body: `<div class="stack" style="gap:10px">
-        <button class="create-opt clay" data-es="friend"><span style="font-size:26px">🔒</span><span class="grow"><b>${esc(t('evShareFriend'))}</b><br><span class="muted small">${esc(t('evShareFriendSub'))}</span></span>${ico('right')}</button>
-        <button class="create-opt clay" data-es="chat"><span style="font-size:26px">👥</span><span class="grow"><b>${esc(t('evShareChat'))}</b><br><span class="muted small">${esc(t('evShareChatSub'))}</span></span>${ico('right')}</button></div>`,
+        <button class="create-opt clay" data-es="friend"><span class="opt-ico">${ico('lock')}</span><span class="grow"><b>${esc(t('evShareFriend'))}</b><br><span class="muted small">${esc(t('evShareFriendSub'))}</span></span>${ico('right')}</button>
+        <button class="create-opt clay" data-es="chat"><span class="opt-ico">${ico('users')}</span><span class="grow"><b>${esc(t('evShareChat'))}</b><br><span class="muted small">${esc(t('evShareChatSub'))}</span></span>${ico('right')}</button></div>`,
       onClick: async (e, close) => {
         const b = e.target.closest('[data-es]'); if (!b) return;
         if (b.dataset.es === 'friend') { close(); openLedgerShare({ ev }); return; }
@@ -4256,7 +4324,7 @@
   function eventsStripHtml() {
     if (!LV.events.length) return '';
     const evs = [...LV.events].sort((a, b) => a.from < b.from ? 1 : -1), now = evs.filter(e => eventState(e) !== 'done'), done = evs.filter(e => eventState(e) === 'done');
-    return `<section class="ev-strip"><h2 class="section-title">🗂️ ${esc(t('evTitle'))}</h2>${now.length ? `<div class="ev-list">${now.map(eventCard).join('')}</div>` : ''}
+    return `<section class="ev-strip"><h2 class="section-title">${ico('folder')} ${esc(t('evTitle'))}</h2>${now.length ? `<div class="ev-list">${now.map(eventCard).join('')}</div>` : ''}
       ${done.length ? `<details class="ev-done" ${now.length ? '' : 'open'}><summary class="muted small">${esc(t('evFinished', { n: done.length }))}</summary><div class="ev-list">${done.map(eventCard).join('')}</div></details>` : ''}</section>`;
   }
   function openLedgerEvents() {
@@ -4265,13 +4333,91 @@
       $('#evl', wref).innerHTML = `<p class="muted small" style="margin-top:0">${esc(t('evHint'))}</p>${LV.events.length ? `<div class="ev-list">${[...LV.events].sort((a, b) => a.from < b.from ? 1 : -1).map(eventCard).join('')}</div>` : `<p class="muted center">${esc(t('evEmpty'))}</p>`}`;
     };
     openModal({
-      title: `🗂️ ${esc(t('evTitle'))}`, body: '<div id="evl"></div>',
+      title: `${ico('folder')} ${esc(t('evTitle'))}`, body: '<div id="evl"></div>',
       foot: `<button class="btn primary block" data-ev-new>${ico('plus')} ${esc(t('evNew'))}</button>`,
       onMount: w => { wref = w; draw(); },
       onClick: (e, close) => {
         let el;
         if (e.target.closest('[data-ev-new]')) { close(); openEventEditor(); return; }
         if ((el = e.target.closest('[data-ev-open]'))) { close(); openEvent(el.dataset.evOpen); }
+      }
+    });
+  }
+  /* ---------- Presupuesto (v1.19): mensual global y, en opciones avanzadas, por categorías ----------
+     La diferencia de cada mes (lo que sobra o lo que te pasas) se va sumando desde la fecha que elijas, cada mes con su presupuesto de entonces. */
+  const BUD_GLOBAL = 'budget-global';
+  const budUi = () => { const u = state.ui.bud && typeof state.ui.bud === 'object' ? state.ui.bud : {}; state.ui.bud = { sel: u.sel || BUD_GLOBAL, from: u.from && typeof u.from === 'object' ? u.from : {} }; return state.ui.bud; };
+  const budName = b => b.id === BUD_GLOBAL ? t('budGlobal') : (b.name || t('budByCats'));
+  const budYmLabel = ym => fmtDate(ym + '-01', { month: 'long', year: 'numeric' });
+  const budCls = v => v < 0 ? 'amt-out' : 'amt-in';
+  const budSign = c => (c > 0 ? '+' : c < 0 ? '−' : '') + cents(Math.abs(c));
+  function openBudgets() {
+    let wref;
+    const draw = () => {
+      const u = budUi(), list = [...LV.budgets].sort((a, b) => (a.id === BUD_GLOBAL ? -1 : b.id === BUD_GLOBAL ? 1 : String(a.name).localeCompare(String(b.name))));
+      const box = $('#bud', wref);
+      if (!list.length) { box.innerHTML = `<div class="bud-empty"><span class="opt-ico">${ico('budget')}</span><p class="muted small">${esc(t('budEmpty'))}</p><button class="btn primary" data-bud="new-global">${ico('plus')} ${esc(t('budCreate'))}</button></div>`; return; }
+      const b = list.find(x => x.id === u.sel) || list[0], nowYm = todayKey().slice(0, 7), first = LED.budgetFirst(b) || nowYm;
+      const from = /^\d{4}-\d{2}$/.test(u.from[b.id] || '') ? u.from[b.id] : first;
+      const rows = from <= nowYm ? LED.budgetRows(b, LV.entries, from, nowYm) : [], cur = rows.find(r => r.ym === nowYm), acc = rows.length ? rows[rows.length - 1].acc : 0;
+      const pct = cur && cur.budget ? Math.min(100, cur.spent / cur.budget * 100) : 0;
+      const catsTxt = b.catIds && b.catIds.length ? b.catIds.map(id => { const c = LV.cats.find(x => x.id === id); return c ? `${c.icon || ''} ${catName(c)}` : ''; }).filter(Boolean).join(', ') : t('budAllExpenses');
+      box.innerHTML = `${list.length > 1 ? `<div class="seg bud-seg" role="tablist">${list.map(x => `<button type="button" role="tab" aria-selected="${x.id === b.id}" data-bud-sel="${esc(x.id)}" class="${x.id === b.id ? 'on' : ''}">${esc(budName(x))}</button>`).join('')}</div>` : ''}
+        <section class="bud-card clay"><div class="row" style="gap:10px"><div class="grow"><div class="calc-eyebrow">${esc(t('budThisMonth'))} · ${esc(budYmLabel(nowYm))}</div><strong class="bud-name">${esc(budName(b))}</strong><div class="muted small">${esc(catsTxt)}</div></div><button class="icon-btn sm" data-bud="edit" aria-label="${esc(t('budEdit'))}" title="${esc(t('budEdit'))}">${ico('edit')}</button></div>
+          ${cur ? `<div class="bud-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><span style="width:${pct}%" class="${cur.diff < 0 ? 'over' : ''}"></span></div>
+          <div class="bud-nums"><div><span>${esc(t('budBudget'))}</span><b>${cents(cur.budget)}</b></div><div><span>${esc(t('budSpent'))}</span><b>${cents(cur.spent)}</b></div><div><span>${esc(t(cur.diff < 0 ? 'budOver' : 'budLeft'))}</span><b class="${budCls(cur.diff)}">${cents(Math.abs(cur.diff))}</b></div></div>` : `<p class="muted small">${esc(t('budNoneThisMonth'))}</p>`}</section>
+        <section class="bud-card clay"><label class="field"><span>${esc(t('budFrom'))}</span><input class="input" type="month" data-bud-from value="${esc(from)}" max="${nowYm}"></label>
+          <div class="bud-acc"><span>${esc(t('budAccLabel', { m: budYmLabel(from) }))}</span><b class="${budCls(acc)}">${budSign(acc)}</b><small class="muted">${esc(t(acc < 0 ? 'budAccOver' : 'budAccSaved'))}</small></div>
+          ${rows.length ? `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['budMonth', 'budBudget', 'budSpent', 'calcDiff', 'budAcc'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${[...rows].reverse().map(r => `<tr><th scope="row">${esc(budYmLabel(r.ym))}</th><td>${cents(r.budget)}</td><td>${cents(r.spent)}</td><td class="${budCls(r.diff)}">${budSign(r.diff)}</td><td class="${budCls(r.acc)}">${budSign(r.acc)}</td></tr>`).join('')}</tbody></table></div>` : `<p class="muted small">${esc(t('budNoRows'))}</p>`}</section>`;
+    };
+    openModal({
+      title: `${ico('budget')} ${esc(t('budTitle'))}`, cls: 'wide', body: '<div id="bud" class="stack"></div>',
+      foot: `<button class="btn" data-bud="new-cats">${ico('tag')} ${esc(t('budNewCats'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onInput: e => { const el = e.target; if (!el.matches('[data-bud-from]') || !/^\d{4}-\d{2}$/.test(el.value)) return; const u = budUi(); u.from[u.sel] = el.value; save(); draw(); $('[data-bud-from]', wref)?.focus(); },
+      onClick: e => {
+        let el;
+        if ((el = e.target.closest('[data-bud-sel]'))) { budUi().sel = el.dataset.budSel; save(); draw(); return; }
+        if (!(el = e.target.closest('[data-bud]'))) return;
+        const a = el.dataset.bud, u = budUi();
+        if (a === 'new-global') openBudgetEditor(null, true, draw);
+        else if (a === 'new-cats') openBudgetEditor(null, false, draw);
+        else if (a === 'edit') { const b = LV.budgets.find(x => x.id === u.sel) || LV.budgets[0]; if (b) openBudgetEditor(b, b.id === BUD_GLOBAL, draw); }
+      }
+    });
+  }
+  // Crear o editar un presupuesto: importes por fecha (el «+» verde añade un nuevo importe desde un mes) y, si es por categorías, cuáles
+  function openBudgetEditor(b, global, done) {
+    const nowYm = todayKey().slice(0, 7), isNew = !b;
+    const f = b ? JSON.parse(JSON.stringify(b)) : { id: global ? BUD_GLOBAL : uid(), name: '', catIds: [], versions: [{ from: nowYm, amountCents: 0 }] };
+    if (isNew && global && LV.budgets.some(x => x.id === BUD_GLOBAL)) { const g = LV.budgets.find(x => x.id === BUD_GLOBAL); return openBudgetEditor(g, true, done); }
+    const vRow = v => `<div class="calc-change-row bud-ver" data-bv><label class="field"><span>${esc(t('budVerFrom'))}</span><input class="input" type="month" data-bv-from value="${esc(v.from || nowYm)}"></label><label class="field"><span>${esc(t('budVerAmount'))}</span><input class="input" inputmode="decimal" data-bv-amount value="${v.amountCents ? esc(fmtPctIn(v.amountCents / 100)) : ''}" placeholder="800"></label><button type="button" class="icon-btn sm calc-del" data-bv-del aria-label="${esc(t('budVerDel'))}" title="${esc(t('budVerDel'))}">${ico('x')}</button></div>`;
+    openModal({
+      title: `${ico('budget')} ${esc(t(isNew ? (global ? 'budCreate' : 'budNewCats') : 'budEdit'))}`, cls: 'calc-sheet',
+      body: `<div class="stack" style="gap:16px">${global ? `<p class="muted small" style="margin:0">${esc(t('budGlobalHint'))}</p>` : `<label class="field"><span>${esc(t('budNameLbl'))}</span><input class="input" id="bud-name" maxlength="40" value="${esc(f.name)}" placeholder="${esc(t('budNamePh'))}"></label>
+        <div class="field"><span>${esc(t('budCatsLbl'))}</span><div class="row wrap" style="gap:8px">${LV.cats.filter(c => c.type !== 'income' && (!c.archived || f.catIds.includes(c.id))).map(c => `<label class="check-chip tgl"><input type="checkbox" data-bud-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon || '')} ${esc(catName(c))}</span></label>`).join('')}</div></div>`}
+        <div class="calc-changes"><p class="calc-fine">${esc(t('budVersHint'))}</p><div class="calc-change-rows" id="bud-vers">${f.versions.map(vRow).join('')}</div></div></div>`,
+      foot: `<button type="button" class="calc-plus" data-bv-add aria-label="${esc(t('budVerAdd'))}" title="${esc(t('budVerAdd'))}">${ico('plus')}</button>${isNew ? '' : `<button class="btn calc-danger" data-bud-del>${ico('trash')} ${esc(t('calcDelete'))}</button>`}<button class="btn calc-blue" data-bud-save>${esc(t('calcSave'))}</button>`,
+      onClick: async (e, close, w) => {
+        if (e.target.closest('[data-bv-add]')) { $('#bud-vers', w).insertAdjacentHTML('beforeend', vRow({ from: nowYm })); $('[data-bv]:last-child [data-bv-amount]', w).focus(); return; }
+        if (e.target.closest('[data-bv-del]')) { if ($$('[data-bv]', w).length > 1) e.target.closest('[data-bv]').remove(); else toast(t('budVerOne')); return; }
+        if (e.target.closest('[data-bud-del]')) { if (!(await confirmDialog(t('budDelQ', { name: budName(f) })))) return; LV.budgets = LV.budgets.filter(x => x.id !== f.id); ledgerSave(); close(); done && done(); toast(t('deleted')); return; }
+        if (!e.target.closest('[data-bud-save]')) return;
+        const versions = [];
+        for (const r of $$('[data-bv]', w)) {
+          const from = $('[data-bv-from]', r).value, c = LED.parseCents($('[data-bv-amount]', r).value);
+          if (!/^\d{4}-\d{2}$/.test(from) || c == null) { toast(t('budVerFill')); return; }
+          if (versions.some(v => v.from === from)) { toast(t('budVerDup')); return; }
+          versions.push({ from, amountCents: c });
+        }
+        if (!global) {
+          f.name = $('#bud-name', w).value.trim().slice(0, 40); f.catIds = $$('[data-bud-cat]', w).filter(x => x.checked).map(x => x.dataset.budCat);
+          if (!f.name) { toast(t('calcNeedName')); return; }
+          if (!f.catIds.length) { toast(t('budNeedCat')); return; }
+        }
+        f.versions = versions.sort((a, b) => a.from < b.from ? -1 : 1);
+        const i = LV.budgets.findIndex(x => x.id === f.id); if (i >= 0) LV.budgets[i] = f; else LV.budgets.push(f);
+        budUi().sel = f.id; ledgerSave(); close(); done && done(); toast(t('budSaved')); sfx('money');
       }
     });
   }
@@ -4343,7 +4489,7 @@
       $('#lr', wref).innerHTML = recs.length ? `<div class="stack" style="gap:8px">${recs.map(r => { const c = catOf(r.categoryId); return `<div class="row ledger-item static"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(r.note || catName(c))}</b><span class="muted small">${esc(t('repeat_' + r.every))} · ${esc(t('ledgerSince', { d: fmtShort(r.from) }))}${r.to ? ' · ' + esc(t('ledgerUntil', { d: fmtShort(r.to) })) : ''}</span></span><b class="${r.type === 'income' ? 'amt-in' : 'amt-out'}">${cents(r.amountCents)}</b><button class="icon-btn sm" data-lr-stop="${r.id}" aria-label="${esc(t('ledgerRecStop'))}" title="${esc(t('ledgerRecStop'))}">${ico('x')}</button></div>`; }).join('')}</div><p class="muted small">${esc(t('ledgerRecHint'))}</p>` : `<p class="muted">${esc(t('ledgerRecEmpty'))}</p>`;
     };
     openModal({
-      title: `🔁 ${esc(t('ledgerRecs'))}`, body: '<div id="lr"></div>', onMount: w => { wref = w; draw(); },
+      title: `${ico('repeat')} ${esc(t('ledgerRecs'))}`, body: '<div id="lr"></div>', onMount: w => { wref = w; draw(); },
       onClick: async e => {
         const el = e.target.closest('[data-lr-stop]'); if (!el) return;
         const r = LV.recurring.find(x => x.id === el.dataset.lrStop); if (!r) return;
@@ -6911,6 +7057,7 @@
       case 'vault-usepin': pwMode = false; render(); break;
       case 'led-pie': state.ui.ledPie = a.dataset.v; save(); render(); break;
       case 'led-pie-mode': state.ui.ledPieMode = a.dataset.v; save(); render(); break;
+      case 'led-pie-view': state.ledgerPrefs = { ...(state.ledgerPrefs || {}), pieView: pieLine() ? 'pie' : 'line' }; save(); render(); break;
       case 'led-line': state.ui.ledLine = a.dataset.v; save(); render(); break;
       case 'led-range': {
         const td = todayKey(), sp = LED.span(LV.entries), v = a.dataset.v;
@@ -6924,6 +7071,7 @@
       case 'ledger-cats': openLedgerCats(); break;
       case 'ledger-recs': openLedgerRecs(); break;
       case 'ledger-events': openLedgerEvents(); break;
+      case 'ledger-budget': openBudgets(); break;
       case 'ledger-share': openLedgerShare(); break;
       case 'profile': openProfile(); break;
       case 'cview': state.ui.chatView = a.dataset.v; save(); render(); break;

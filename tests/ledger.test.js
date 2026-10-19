@@ -81,3 +81,20 @@ test('gráficas: suma por categoría, franja de fechas y series por mes/año/dí
   const d = L.series(E, '2026-01-14', '2026-01-16', 'day');
   assert.deepEqual(d.map(r => [r.key, r.expense]), [['2026-01-14', 0], ['2026-01-15', 1000], ['2026-01-16', 0]]);
 });
+
+test('presupuestos: cada mes usa la versión vigente y la diferencia se acumula desde la fecha elegida', () => {
+  const b = { id: 'g', catIds: [], versions: [{ from: '2024-01', amountCents: 50000 }, { from: '2026-01', amountCents: 80000 }] };
+  const e = (date, c, type = 'expense', categoryId = 'food') => ({ date, amountCents: c, type, categoryId });
+  const entries = [e('2025-12-10', 60000), e('2026-01-05', 30000), e('2026-01-20', 20000), e('2026-02-01', 90000), e('2026-02-02', 99999, 'income')];
+  const rows = L.budgetRows(b, entries, '2025-12', '2026-03');
+  assert.deepEqual(rows.map(r => [r.ym, r.budget, r.spent, r.diff, r.acc]), [
+    ['2025-12', 50000, 60000, -10000, -10000],
+    ['2026-01', 80000, 50000, 30000, 20000],
+    ['2026-02', 80000, 90000, -10000, 10000],
+    ['2026-03', 80000, 0, 80000, 90000]
+  ]);
+  // Solo algunas categorías; antes de la primera versión no hay presupuesto
+  const food = L.budgetRows({ catIds: ['home'], versions: [{ from: '2026-01', amountCents: 1000 }] }, [...entries, e('2026-01-09', 400, 'expense', 'home')], '2025-11', '2026-01');
+  assert.deepEqual(food.map(r => [r.ym, r.spent, r.acc]), [['2026-01', 400, 600]]);
+  assert.equal(L.budgetFirst(b), '2024-01');
+});

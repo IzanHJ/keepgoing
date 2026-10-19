@@ -220,3 +220,25 @@ test('pagas extras: entran en los meses del calendario elegidos y cambian de imp
   assert.equal(r.outputs.p, 7500);
   assert.deepEqual(C.cleanValues('extraPay', { months: [12, 4, 7, 4, 13] }).months, [4, 7, 12]);
 });
+
+test('movimiento repetido: cada N meses hasta el final o durante un tiempo (los antiguos siguen siendo puntuales)', () => {
+  const base = { horizon: 24 };
+  const once = C.compute(model(base, [ap('m', 'movement', { kind: 'expense', amount: 100, at: 2, unit: 'months' })]));
+  assert.equal(once.totalExpenses, 100);
+  const end = C.compute(model(base, [ap('m', 'movement', { kind: 'expense', amount: 100, at: 2, unit: 'months', repeat: 'yes', every: 3, everyUnit: 'months', until: 'end' })]));
+  assert.equal(end.totalExpenses, 100 * 8); // meses 2, 5, 8, 11, 14, 17, 20, 23
+  const forN = C.compute(model(base, [ap('m', 'movement', { kind: 'income', amount: 50, at: 1, unit: 'months', repeat: 'yes', every: 1, everyUnit: 'months', until: 'for', forN: 1, forUnit: 'years' })]));
+  assert.equal(forN.totalIncome, 50 * 12);
+  const yearly = C.compute(model(base, [ap('m', 'movement', { kind: 'income', amount: 10, at: 1, unit: 'years', repeat: 'yes', every: 1, everyUnit: 'years' })]));
+  assert.equal(yearly.totalIncome, 20);
+});
+
+test('métricas de cashback invertido y redondeos: total aportado y lo que vale hoy', () => {
+  const r = C.compute(model({ expenses: 1000, horizon: 12 }, [inv('a', 12), ap('c', 'cashback', { spend: 1000, rate: 10, excluded: 0, delay: 0, target: 'a', percent: 50 }), ap('r', 'roundup', { count: 10, average: 9.5, percent: 100, target: 'a' }, 11)]));
+  assert.ok(r.hasCbInvest && r.hasRoundup);
+  close(r.cbInvested, 12 * 50);
+  close(r.ruInvested, 12 * 5);
+  assert.ok(r.cbValue > r.cbInvested && r.ruValue > r.ruInvested);
+  const none = C.compute(model({ horizon: 3 }, [ap('c', 'cashback', { spend: 0, rate: 1, target: 'none' })]));
+  assert.equal(none.hasCbInvest, false);
+});
