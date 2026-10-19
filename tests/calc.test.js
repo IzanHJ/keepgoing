@@ -212,3 +212,11 @@ test('techo de liquidez: lo que supera el techo en Digital va a los destinos (po
   const m = model(base, [inv('a', 0), ap('c', 'liquidityCap', { limit: 1, split: 'pct', allocations: [{ target: 'a', value: 100 }] })]);
   assert.equal(C.usesOf(m, 'a').formulas, 1);
 });
+
+test('pagas extras: entran en los meses del calendario elegidos y cambian de importe desde su fecha', () => {
+  // Empieza el 1 de enero de 2026: 24 meses → abril, julio y diciembre de 2026 y 2027
+  const r = C.compute(model({ date: '2026-01-01', horizon: 24 }, [ap('p', 'extraPay', { amount: 1000, months: [12, 4, 7, 4, 13], futureChanges: [{ at: 2, unit: 'years', amount: 1500 }] })]));
+  assert.equal(r.totalIncome, 3 * 1000 + 3 * 1500);
+  assert.equal(r.outputs.p, 7500);
+  assert.deepEqual(C.cleanValues('extraPay', { months: [12, 4, 7, 4, 13] }).months, [4, 7, 12]);
+});

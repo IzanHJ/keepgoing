@@ -16,12 +16,14 @@
   const START_ID = 'calc-start';
   const MAX_MONTHS = 960; // 80 años
   // Plantillas de fórmulas. Cada campo: [clave, tipo, valor de ejemplo, opciones]
-  // Tipos: money (€), pct (%), int (entero ≥ 0), select, inv (destino obligatorio), invOpt (destino o «Sin inversión destinada»)
+  // Tipos: money (€), pct (%), int (entero ≥ 0), select, inv (destino obligatorio), invOpt (destino o «Sin inversión destinada»), months (meses del año 1-12)
   const MODULES = [
     { id: 'savings', icon: '🏦', fields: [['rate', 'pct', 3.5], ['type', 'select', null, ['apy', 'tin']], ['compound', 'select', null, ['365', '12', '1']], ['accumulate', 'select', null, ['yes', 'no']]] },
     { id: 'periodic', icon: '📈', fields: [['target', 'inv'], ['amount', 'money', 50], ['frequency', 'select', null, ['weekly', 'monthly', 'yearly']], ['timing', 'select', null, ['end', 'begin']]] },
     // «Cambio de ingreso o gasto» (antes «Cambio de nómina neta»: se guarda con el mismo id y el importe en newSalary para no perder datos)
     { id: 'salaryChange', icon: '💼', fields: [['what', 'select', null, ['income', 'expense']], ['newSalary', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']]] },
+    // Pagas extras: un importe fijo en los meses del calendario elegidos (p. ej. abril, julio y diciembre), con cambios futuros del importe
+    { id: 'extraPay', icon: '🎁', fields: [['amount', 'money', 1000], ['months', 'months']] },
     { id: 'movement', icon: '↕️', fields: [['kind', 'select', null, ['income', 'expense']], ['amount', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']]] },
     { id: 'cashback', icon: '💳', fields: [['spend', 'money', 0, null, true], ['rate', 'pct', 1], ['excluded', 'money', 0, null, true], ['delay', 'int', 0], ['target', 'invOpt'], ['percent', 'pct', 100]] },
     { id: 'roundup', icon: '🪙', fields: [['count', 'int', 30, null, true], ['average', 'money', 12.1], ['percent', 'pct', 100], ['target', 'inv']] },
@@ -75,10 +77,11 @@
       else if (kind === 'inv') out[k] = typeof v[k] === 'string' ? v[k] : '';
       else if (kind === 'invOpt') out[k] = typeof v[k] === 'string' && v[k] ? v[k] : 'none';
       else if (kind === 'int') out[k] = Math.round(pos(v[k]));
+      else if (kind === 'months') out[k] = [...new Set((Array.isArray(v[k]) ? v[k] : []).map(x => Math.round(num(x))).filter(x => x >= 1 && x <= 12))].sort((a, b) => a - b);
       else out[k] = pos(v[k]);
     }
     if (type === 'cashback' && v.percent === undefined) out.percent = 100;
-    if (type === 'periodic') out.futureChanges = (Array.isArray(v.futureChanges) ? v.futureChanges : [])
+    if (type === 'periodic' || type === 'extraPay') out.futureChanges = (Array.isArray(v.futureChanges) ? v.futureChanges : [])
       .map(c => ({ at: Math.max(1, Math.round(num(c && c.at, 1))), unit: c && c.unit === 'years' ? 'years' : 'months', amount: pos(c && c.amount) }));
     // Techo de liquidez: reparto del exceso entre uno o varios destinos (porcentaje del exceso o importe fijo al mes)
     if (type === 'liquidityCap') out.allocations = (Array.isArray(v.allocations) ? v.allocations : []).slice(0, 20)
@@ -145,6 +148,12 @@
       for (const c of salaryChanges) if (scheduleMonth(c.values.at, c.values.unit) <= m) { if (c.values.what === 'expense') baseExpenses = pos(c.values.newSalary); else salary = pos(c.values.newSalary); }
       for (const c of salaryChanges) if (scheduleMonth(c.values.at, c.values.unit) === m) out[c.id] = pos(c.values.newSalary);
       let movIn = 0, movOut = 0;
+      // Pagas extras: entran como ingreso el mes del calendario que toca (con el importe vigente según sus cambios)
+      for (const a of applied) if (a.type === 'extraPay' && (a.values.months || []).includes(when.getMonth() + 1)) {
+        let v = pos(a.values.amount);
+        for (const c of [...(a.values.futureChanges || [])].sort((x, y) => scheduleMonth(x.at, x.unit) - scheduleMonth(y.at, y.unit))) if (scheduleMonth(c.at, c.unit) <= m) v = pos(c.amount);
+        movIn += v; bump(a.id, v);
+      }
       for (const a of applied) if (a.type === 'movement' && scheduleMonth(a.values.at, a.values.unit) === m) {
         const v = pos(a.values.amount); if (a.values.kind === 'income') movIn += v; else movOut += v; bump(a.id, v);
       }

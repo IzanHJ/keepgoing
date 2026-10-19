@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.18.0';
+  const VERSION = '1.19.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -2911,7 +2911,7 @@
       <form class="stack vault-form" data-vault="setup" autocomplete="off" style="gap:12px">
         <input class="input" type="password" id="vault-pw" minlength="6" autocomplete="new-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
         <input class="input" type="password" id="vault-pw2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}" aria-label="${esc(t('vaultPw2'))}">
-        <label class="check"><input type="checkbox" id="vault-ack"><span class="small">${esc(t('vaultAck'))}</span></label>
+        <label class="check tgl tgl-block"><input type="checkbox" id="vault-ack"><span class="small">${esc(t('vaultAck'))}</span></label>
         <button class="btn primary" type="submit">${ico('lock')} ${esc(t('vaultCreate'))}</button></form></section>`;
     loadDevMethods();
     const pinMode = DEVM.vid === VAULT.vidOf(state.ledgerVault) && DEVM.pin && !pwMode;
@@ -3148,8 +3148,8 @@
     if (!ledgerOpen()) return html + ledgerLockedHtml();
     // Opciones de la pestaña: privacidad (casilla), boca abajo (móvil) y mostrar el Dinero Caprichable
     html += `<div class="led-opts clay" role="group" aria-label="${esc(t('ledOptions'))}">
-      <label class="check"><input type="checkbox" data-led-opt="privacy" ${priv ? 'checked' : ''}> ${ico(priv ? 'eyeOff' : 'eye')} ${esc(t('privacyModeLabel'))}</label>
-      <label class="check"><input type="checkbox" data-led-opt="cap" ${capHidden() ? '' : 'checked'}> 💶 ${esc(t('capShowWidget'))}</label>
+      <label class="check tgl"><input type="checkbox" data-led-opt="privacy" ${priv ? 'checked' : ''}> ${ico(priv ? 'eyeOff' : 'eye')} ${esc(t('privacyModeLabel'))}</label>
+      <label class="check tgl"><input type="checkbox" data-led-opt="cap" ${capHidden() ? '' : 'checked'}> 💶 ${esc(t('capShowWidget'))}</label>
     </div>`;
     if (!capHidden()) html += `<button class="cap-link" data-act="caprice" aria-label="${esc(t('capOpen'))}">${capTotalHtml()}</button>`;
     if (LV.bad) html += `<div class="banner clay">⚠️<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
@@ -3195,7 +3195,7 @@
   function calcUi() {
     const u = state.ui.calc && typeof state.ui.calc === 'object' ? state.ui.calc : {};
     state.ui.calc = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) },
-      metrics: Array.isArray(u.metrics) ? u.metrics.filter(k => CALC_METRICS.some(m => m[0] === k)) : ['digital', 'investments'], hideGraph: !!u.hideGraph, off: Array.isArray(u.off) ? u.off : [] };
+      metrics: Array.isArray(u.metrics) ? u.metrics.filter(k => CALC_METRICS.some(m => m[0] === k)) : ['digital', 'investments'], hideGraph: !!u.hideGraph, off: Array.isArray(u.off) ? u.off : [], gran: u.gran === 'month' ? 'month' : 'year' };
     return state.ui.calc;
   }
   let calcMemo = { key: '' };
@@ -3302,20 +3302,36 @@
   const calcPeriodLabel = (m, horizon) => m % 12 === 0 ? t('calcYearN', { n: m / 12 }) : m < 12 ? cmonths(m) : t('calcEndPeriod', { n: cmonths(m) });
   const cls = v => v < 0 ? 'amt-out' : 'amt-in';
   // «Más detalles»: una fila por año (y el periodo final si no es un año entero)
-  function calcTable(res, kind, ids) {
-    const per = CALC.periods(res.months), M = res.monthly;
+  // «Más detalles»: una fila por año (o por mes) y «Diferencia» respecto a la fila anterior (la primera, respecto al punto de partida)
+  function calcTable(res, kind, ids, gran = 'year') {
+    const per = gran === 'month' ? Array.from({ length: res.months }, (_, i) => i + 1) : CALC.periods(res.months), M = res.monthly;
+    const label = m => gran === 'month' ? t('calcMonthN', { n: m }) : calcPeriodLabel(m, res.months);
+    const prev = i => i ? M[per[i - 1]] : M[0];
     if (kind === 'patrimony') {
-      return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['calcPeriod', 'calcDate', 'calcPatrimony', 'calcIncAcc', 'calcExpAcc', 'calcInvCol', 'calcVariation', 'calcRentab'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${per.map(m => {
-        const p = M[m], d = p.patrimony - res.initial, r = res.initial ? d / res.initial * 100 : null;
-        return `<tr><th scope="row">${esc(calcPeriodLabel(m, res.months))}</th><td>${esc(cdate(p.date))}</td><td>${money(p.patrimony)}</td><td>${money(p.income)}</td><td>${money(p.expenses)}</td><td>${money(p.investments)}</td><td class="${cls(d)}">${csign(d)}</td><td class="${cls(d)}">${cspct(r)}</td></tr>`;
+      return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['calcPeriod', 'calcDate', 'calcPatrimony', 'calcDiff', 'calcIncAcc', 'calcExpAcc', 'calcInvCol', 'calcVariation', 'calcRentab'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${per.map((m, i) => {
+        const p = M[m], d = p.patrimony - res.initial, r = res.initial ? d / res.initial * 100 : null, df = p.patrimony - prev(i).patrimony;
+        return `<tr><th scope="row">${esc(label(m))}</th><td>${esc(cdate(p.date))}</td><td>${money(p.patrimony)}</td><td class="${cls(df)}">${csign(df)}</td><td>${money(p.income)}</td><td>${money(p.expenses)}</td><td>${money(p.investments)}</td><td class="${cls(d)}">${csign(d)}</td><td class="${cls(d)}">${cspct(r)}</td></tr>`;
       }).join('')}</tbody></table></div>`;
     }
     if (!ids.length) return `<p class="muted small calc-empty">${esc(t('calcNoInv'))}</p>`;
-    return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['calcPeriod', 'calcDate', 'calcDeposited', 'calcReturnCol', 'calcRentab', ids.length === 1 ? 'calcProjected' : 'calcProjectedAll'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${per.map(m => {
-      const p = M[m], dep = ids.reduce((a, id) => a + (p.principal[id] || 0), 0), bal = ids.reduce((a, id) => a + (p.funds[id] || 0), 0), g = bal - dep;
-      return `<tr><th scope="row">${esc(calcPeriodLabel(m, res.months))}</th><td>${esc(cdate(p.date))}</td><td>${money(dep)}</td><td class="${cls(g)}">${csign(g)}</td><td class="${cls(g)}">${cspct(dep ? g / dep * 100 : null)}</td><td>${money(bal)}</td></tr>`;
+    const balOf = p => ids.reduce((a, id) => a + (p.funds[id] || 0), 0);
+    return `<div class="calc-table-wrap"><table class="calc-table"><thead><tr>${['calcPeriod', 'calcDate', 'calcDeposited', 'calcReturnCol', 'calcRentab', ids.length === 1 ? 'calcProjected' : 'calcProjectedAll', 'calcDiff'].map(k => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${per.map((m, i) => {
+      const p = M[m], dep = ids.reduce((a, id) => a + (p.principal[id] || 0), 0), bal = balOf(p), g = bal - dep, df = bal - balOf(prev(i));
+      return `<tr><th scope="row">${esc(label(m))}</th><td>${esc(cdate(p.date))}</td><td>${money(dep)}</td><td class="${cls(g)}">${csign(g)}</td><td class="${cls(g)}">${cspct(dep ? g / dep * 100 : null)}</td><td>${money(bal)}</td><td class="${cls(df)}">${csign(df)}</td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
+  // Fórmulas del mismo tipo juntas: si hay más de una, van en su propia lista desplegable («Inversión periódica · 3»)
+  function calcGrouped(list, key, item) {
+    const order = [], by = {};
+    for (const x of list) { if (!by[x.type]) { by[x.type] = []; order.push(x.type); } by[x.type].push(x); }
+    return order.map(type => {
+      const xs = by[type]; if (xs.length === 1) return item(xs[0]);
+      const k = `${key}:${type}`;
+      return `<details class="calc-group" data-cd="${k}" ${calcIsOpen(k) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(type).icon}</span><span class="calc-sum-t"><strong>${esc(t('m_' + type))}</strong></span><span class="calc-pill">${xs.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="calc-group-list">${xs.map(item).join('')}</div></details>`;
+    }).join('');
+  }
+  // Botón «Año» / «Mes» junto a «Más detalles» (cambia la vista de la tabla con cada toque)
+  const calcGranBtn = () => { const g = calcUi().gran; return `<button type="button" class="chip sm calc-view-btn calc-gran" data-calc="gran" aria-label="${esc(t('calcGranAria'))}">${ico('calendar')} ${esc(t(g === 'month' ? 'calcGranMonth' : 'calcGranYear'))}</button>`; };
   // Valor de cada métrica de la Proyección
   function calcMetricVal(res, k) {
     return { digital: money(res.digital), cash: money(res.cash), investments: money(res.investValue), returns: money(res.returns), cashback: `${money(res.cashReceived)} / ${money(res.pending)}`, growth: csign(res.growth) }[k];
@@ -3329,6 +3345,7 @@
       periodic: { freq: optLabel('periodic', 'frequency', v.frequency), dest: invName(model, v.target), changes: (v.futureChanges || []).map(c => t('cqChange', { v: money(c.amount), when: when(c.at, c.unit) })).join('; ') || t('cqNoChanges') },
       salaryChange: { what: optLabel('salaryChange', 'what', v.what).toLowerCase(), when: when(v.at, v.unit), v: money(v.newSalary) },
       liquidityCap: { limit: money(v.limit), alloc: calcAllocText(v, model) },
+      extraPay: { v: money(v.amount), months: (v.months || []).map(x => calcMonthName(x - 1)).join(', '), changes: (v.futureChanges || []).map(c => t('cqChange', { v: money(c.amount), when: when(c.at, c.unit) })).join('; ') || t('cqNoChanges') },
       movement: { kind: optLabel('movement', 'kind', v.kind).toLowerCase(), v: money(v.amount), when: when(v.at, v.unit) },
       cashback: { rate: cpct(v.rate), delay: v.delay, dest: v.target === 'none' ? t('cqDigital') : invName(model, v.target), pct: cpct(v.target === 'none' ? 0 : v.percent) },
       loan: { p: money(v.principal), rate: cpct(v.rate), term: v.unit === 'years' ? t(v.term === 1 ? 'calcYear1' : 'calcYearsN', { n: v.term }) : t(v.term === 1 ? 'calcMonth1' : 'calcMonthsN', { n: v.term }), dest: invName(model, v.target) }
@@ -3340,7 +3357,7 @@
   function calcVarsText(type, v, model) {
     const mod = CALC.moduleOf(type); if (!mod) return '';
     const parts = mod.fields.map(([k, kind]) => {
-      const val = kind === 'money' ? money(v[k]) : kind === 'pct' ? cpct(v[k]) : kind === 'int' ? String(v[k]) : kind === 'select' ? optLabel(type, k, v[k]) : invName(model, v[k]);
+      const val = kind === 'money' ? money(v[k]) : kind === 'pct' ? cpct(v[k]) : kind === 'int' ? String(v[k]) : kind === 'select' ? optLabel(type, k, v[k]) : kind === 'months' ? (v[k] || []).map(x => calcMonthName(x - 1)).join(', ') : invName(model, v[k]);
       return `${t(`cf_${type}_${k}`)}: ${val}`;
     });
     for (const c of v.futureChanges || []) parts.push(t('cqChange', { v: money(c.amount), when: t(c.unit === 'years' ? 'cqWhenYear' : 'cqWhenMonth', { n: c.at }) }));
@@ -3378,14 +3395,14 @@
       else html += `<details class="calc-box inner" data-cd="funds" ${calcIsOpen('funds') ? 'open' : ''}><summary><strong>${esc(t('calcFundsDetail'))}</strong><span class="calc-pill">${esc(t(model.investments.length === 1 ? 'calcFund1' : 'calcFundsN', { n: model.investments.length }))}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         ${res.perInvestment.length ? `<p class="muted small calc-hint-line">${esc(t('calcFundsHint'))}</p><div class="calc-fund-rows">${res.perInvestment.map(i => { const on = !u.off.includes(i.id); return `<div class="calc-fund-row ${on ? 'on' : ''}" role="button" tabindex="0" aria-pressed="${on}" data-calc="fund-toggle" data-id="${esc(i.id)}"><strong>${esc(i.name)}</strong><div><span>${esc(t('calcDeposited'))}</span><b>${money(i.principal)}</b></div><div><span>${esc(t('calcEstReturn'))}</span><b class="${cls(i.gain)}">${csign(i.gain)}</b></div><div><span>${esc(t('calcRentab'))}</span><b class="${cls(i.gain)}">${cspct(i.pct)}</b></div><div><span>${esc(t('calcProjected'))}</span><b>${money(i.value)}</b></div><button type="button" class="calc-graph-ico" data-calc="fund-chart" data-id="${esc(i.id)}" aria-label="${esc(t('calcFundChart', { name: i.name }))}" title="${esc(t('calcFundChart', { name: i.name }))}">${ico('trend')}</button></div>`; }).join('')}</div>` : `<p class="muted small calc-empty">${esc(t('calcNoInv'))}</p>`}</details>`;
       html += calcChart('main', rows, calcSeries(model, u), { aria: t(inv ? 'calcGraphInv' : 'calcGraphPat') });
-      html += `<details class="calc-box inner" data-cd="details" ${calcIsOpen('details') ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, inv ? 'investments' : 'patrimony', model.investments.filter(i => !u.off.includes(i.id)).map(i => i.id))}</details>`;
+      html += `<details class="calc-box inner" data-cd="details" ${calcIsOpen('details') ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong>${calcGranBtn()}<span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, inv ? 'investments' : 'patrimony', model.investments.filter(i => !u.off.includes(i.id)).map(i => i.id), u.gran)}</details>`;
     }
     html += `</section>`;
     // Mi Biblioteca: fórmulas que forman el resultado
     html += `<details class="calc-card clay calc-lib" data-cd="lib" ${calcIsOpen('lib') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcLibEyebrow'))}</span><strong>${esc(t('calcLibrary'))}</strong></span><span class="calc-pill">${model.applied.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
-      ${model.applied.length ? model.applied.map(a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(a.type).icon}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      ${model.applied.length ? calcGrouped(model.applied, 'ga', a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(a.type).icon}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <div class="calc-eq">${esc(eq)}</div><div class="calc-res">${esc(r)}</div><p class="calc-fine">${esc(calcVarsText(a.type, a.values, model))}</p>
-        <div class="row wrap calc-f-acts"><button class="chip sm" data-calc="edit-applied" data-id="${esc(a.id)}">${ico('edit')} ${esc(t('calcEditFormula'))}</button><button class="chip sm calc-danger" data-calc="remove-applied" data-id="${esc(a.id)}">${ico('trash')} ${esc(t('calcRemoveFormula'))}</button></div></details>`; }).join('') : `<p class="muted small calc-empty">${esc(t('calcNoApplied'))}</p>`}
+        <div class="row wrap calc-f-acts"><button class="chip sm" data-calc="edit-applied" data-id="${esc(a.id)}">${ico('edit')} ${esc(t('calcEditFormula'))}</button><button class="chip sm calc-danger" data-calc="remove-applied" data-id="${esc(a.id)}">${ico('trash')} ${esc(t('calcRemoveFormula'))}</button></div></details>`; }) : `<p class="muted small calc-empty">${esc(t('calcNoApplied'))}</p>`}
     </details>`;
     return html;
   }
@@ -3403,6 +3420,7 @@
       case 'view': openCalcView(); break;
       case 'mode': u.mode = u.mode === 'investments' ? 'patrimony' : 'investments'; save(); render(); break;
       case 'graph': u.hideGraph = !u.hideGraph; save(); render(); break;
+      case 'gran': u.gran = u.gran === 'month' ? 'year' : 'month'; save(); render(); if (calcFundDraw) calcFundDraw(); break;
       case 'ser': u.ser[el.dataset.v] = !u.ser[el.dataset.v]; save(); render(); break;
       case 'fund-toggle': u.off = u.off.includes(id) ? u.off.filter(x => x !== id) : [...u.off, id]; save(); render(); $(`.calc-fund-row[data-id="${CSS.escape(id)}"]`)?.focus(); break;
       case 'fund-chart': openCalcFund(id); break;
@@ -3555,20 +3573,22 @@
     });
   }
   // Gráfico de un solo destino, con sus detalles y edición rápida
+  let calcFundDraw = null; // redibuja la ventana de un fondo abierta (p. ej. al pasar de «Año» a «Mes»)
   function openCalcFund(id) {
     let wref;
     const draw = () => {
       const { model, res, rows } = calcData(), i = model.investments.find(x => x.id === id); if (!i) return;
       const color = CALC_COLORS[model.investments.indexOf(i) % CALC_COLORS.length];
       $('.sheet-head h2', wref).innerHTML = calcHead(t('calcFundEyebrow'), i.name);
-      $('#cfund-chart', wref).innerHTML = `${calcChart('fund', rows, [{ fund: i.id, label: i.name, color }], { single: true, aria: i.name })}<details class="calc-box inner" data-cd="fund-details" ${calcIsOpen('fund-details') ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, 'investments', [i.id])}</details>`;
+      $('#cfund-chart', wref).innerHTML = `${calcChart('fund', rows, [{ fund: i.id, label: i.name, color }], { single: true, aria: i.name })}<details class="calc-box inner" data-cd="fund-details" ${calcIsOpen('fund-details') ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong>${calcGranBtn()}<span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, 'investments', [i.id], calcUi().gran)}</details>`;
     };
     const i0 = calcData().model.investments.find(x => x.id === id); if (!i0) return;
     openModal({
       title: calcHead(t('calcFundEyebrow'), i0.name), cls: 'wide calc-sheet',
       body: `<details class="calc-box inner" data-cd="fund-edit"><summary><strong>${esc(t('calcEditInv'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="calc-grid three"><label class="field"><span>${esc(t('calcName'))}</span><input class="input" maxlength="60" data-fi="name" value="${esc(i0.name)}"></label><label class="field"><span>${esc(t('calcRate'))}</span><input class="input" inputmode="decimal" data-fi="rate" value="${calcInVal(i0.rate)}"></label><label class="field"><span>${esc(t('calcCapitalization'))}</span><select class="input" data-fi="accumulative"><option value="1" ${i0.accumulative ? 'selected' : ''}>${esc(t('calcAccumulative'))}</option><option value="0" ${i0.accumulative ? '' : 'selected'}>${esc(t('calcNonAccumulative'))}</option></select></label></div></details><div id="cfund-chart"></div>`,
+      onClose: () => { calcFundDraw = null; },
       onMount: w => {
-        wref = w; draw();
+        wref = w; draw(); calcFundDraw = draw;
         w.addEventListener('change', e => {
           const el = e.target, k = el.dataset.fi, it = calcItem(id); if (!k || !it) return;
           if (k === 'name') { const v = el.value.trim().slice(0, 60); if (!v) { toast(t('calcNeedName')); el.value = it.name; return; } it.name = v; }
@@ -3587,10 +3607,11 @@
       const label = t(`cf_${type}_${k}`), has = v && v[k] !== undefined && v[k] !== '';
       let input;
       if (kind === 'inv' || kind === 'invOpt') input = `<select class="input" data-fv="${k}" data-kind="${kind}" aria-label="${esc(label)}">${kind === 'invOpt' ? `<option value="none" ${!has || v[k] === 'none' ? 'selected' : ''}>${esc(t('calcNoDestOpt'))}</option>` : `<option value="" ${has && invs.some(i => i.id === v[k]) ? '' : 'selected'} disabled>${esc(t(invs.length ? 'calcSelectDest' : 'calcNeedDestFirst'))}</option>`}${invs.map(i => `<option value="${esc(i.id)}" ${has && v[k] === i.id ? 'selected' : ''}>${esc(i.name)} · ${esc(cpct(i.rate))}</option>`).join('')}</select>`;
+      else if (kind === 'months') input = `<div class="row wrap calc-months" role="group" aria-label="${esc(label)}" data-fv="${k}" data-kind="months">${Array.from({ length: 12 }, (_, i) => `<label class="check-chip tgl sm"><input type="checkbox" data-fm="${i + 1}" ${has && v[k].includes(i + 1) ? 'checked' : ''}><span>${esc(calcMonthName(i))}</span></label>`).join('')}</div>`;
       else if (kind === 'select') input = `<select class="input" data-fv="${k}" data-kind="select" aria-label="${esc(label)}">${opts.map((o, j) => `<option value="${o}" ${(has ? v[k] === o : j === 0) ? 'selected' : ''}>${esc(optLabel(type, k, o))}</option>`).join('')}</select>`;
       else input = `<input class="input" data-fv="${k}" data-kind="${kind}" inputmode="${kind === 'int' ? 'numeric' : 'decimal'}" autocomplete="off" aria-label="${esc(label)}" placeholder="${esc(fmtPctIn(ex || 0))}" value="${has ? calcInVal(v[k]) : ''}">`;
       return `<div class="field"><span>${esc(label)}</span>${input}${help ? calcHelp(t(`cfh_${type}_${k}`)) : ''}</div>`;
-    }).join('')}</div>${type === 'periodic' ? `<div class="calc-changes"><p class="calc-fine">${esc(t('calcChangesHint'))}</p><div class="calc-change-rows">${(v && v.futureChanges || []).map(calcChangeRow).join('')}</div></div>` : ''}${type === 'liquidityCap' ? `<div class="calc-changes"><p class="calc-fine">${esc(t('calcAllocHint'))}</p><div class="calc-change-rows calc-alloc-rows">${(v && v.allocations && v.allocations.length ? v.allocations : [{}]).map(x => calcAllocRow(model, x, v && v.split)).join('')}</div></div>` : ''}`;
+    }).join('')}</div>${['periodic', 'extraPay'].includes(type) ? `<div class="calc-changes"><p class="calc-fine">${esc(t(type === 'extraPay' ? 'calcPayChangesHint' : 'calcChangesHint'))}</p><div class="calc-change-rows">${(v && v.futureChanges || []).map(c => calcChangeRow(c, type)).join('')}</div></div>` : ''}${type === 'liquidityCap' ? `<div class="calc-changes"><p class="calc-fine">${esc(t('calcAllocHint'))}</p><div class="calc-change-rows calc-alloc-rows">${(v && v.allocations && v.allocations.length ? v.allocations : [{}]).map(x => calcAllocRow(model, x, v && v.split)).join('')}</div></div>` : ''}`;
   }
   // Fila de reparto del techo de liquidez: destino + porcentaje del exceso o importe fijo al mes
   const calcAllocLabel = split => t(split === 'fixed' ? 'calcAllocFixed' : 'calcAllocPct');
@@ -3599,12 +3620,13 @@
   function calcAddRow(scope, type) {
     const rows = $('.calc-change-rows', scope); if (!rows) return;
     if (type === 'liquidityCap') { const sp = $('[data-fv="split"]', scope); rows.insertAdjacentHTML('beforeend', calcAllocRow(calcData().model, {}, sp && sp.value)); $('[data-al]:last-child [data-al-target]', scope).focus(); }
-    else { rows.insertAdjacentHTML('beforeend', calcChangeRow()); $('[data-fc]:last-child [data-fc-at]', scope).focus(); }
+    else { rows.insertAdjacentHTML('beforeend', calcChangeRow({}, type)); $('[data-fc]:last-child [data-fc-at]', scope).focus(); }
   }
   // Al cambiar «porcentaje / importe fijo» se actualiza la etiqueta de cada fila
   const calcSplitSync = e => { const el = e.target; if (!el.matches || !el.matches('[data-fv="split"]')) return; const box = el.closest('.calc-mod, #cfe-form'); if (box) $$('[data-al-lbl]', box).forEach(x => { x.textContent = calcAllocLabel(el.value); }); };
-  const calcPlusBtn = type => ['periodic', 'liquidityCap'].includes(type) ? `<button type="button" class="calc-plus" data-f-act="add-change" data-mod="${type}" aria-label="${esc(t(type === 'liquidityCap' ? 'calcAddAlloc' : 'calcAddChange'))}" title="${esc(t(type === 'liquidityCap' ? 'calcAddAlloc' : 'calcAddChange'))}">${ico('plus')}</button>` : '';
-  const calcChangeRow = (c = {}) => `<div class="calc-change-row" data-fc><label class="field"><span>${esc(t('calcChangeFrom'))}</span><input class="input" inputmode="numeric" data-fc-at value="${c.at ? esc(c.at) : ''}" placeholder="3"></label><label class="field"><span>${esc(t('calcChangeUnit'))}</span><select class="input" data-fc-unit><option value="months" ${c.unit !== 'years' ? 'selected' : ''}>${esc(t('cuMonth'))}</option><option value="years" ${c.unit === 'years' ? 'selected' : ''}>${esc(t('cuYear'))}</option></select></label><label class="field"><span>${esc(t('calcChangeAmount'))}</span><input class="input" inputmode="decimal" data-fc-amount value="${c.amount != null ? calcInVal(c.amount) : ''}"></label><button type="button" class="icon-btn sm calc-del" data-f-act="del-change" aria-label="${esc(t('calcChangeDel'))}" title="${esc(t('calcChangeDel'))}">${ico('x')}</button></div>`;
+  const calcPlusBtn = type => ['periodic', 'extraPay', 'liquidityCap'].includes(type) ? `<button type="button" class="calc-plus" data-f-act="add-change" data-mod="${type}" aria-label="${esc(t(type === 'liquidityCap' ? 'calcAddAlloc' : 'calcAddChange'))}" title="${esc(t(type === 'liquidityCap' ? 'calcAddAlloc' : 'calcAddChange'))}">${ico('plus')}</button>` : '';
+  const calcMonthName = i => fmtDate(`2026-${String(i + 1).padStart(2, '0')}-01`, { month: 'short' });
+  const calcChangeRow = (c = {}, type) => `<div class="calc-change-row" data-fc><label class="field"><span>${esc(t('calcChangeFrom'))}</span><input class="input" inputmode="numeric" data-fc-at value="${c.at ? esc(c.at) : ''}" placeholder="3"></label><label class="field"><span>${esc(t('calcChangeUnit'))}</span><select class="input" data-fc-unit><option value="months" ${c.unit !== 'years' ? 'selected' : ''}>${esc(t('cuMonth'))}</option><option value="years" ${c.unit === 'years' ? 'selected' : ''}>${esc(t('cuYear'))}</option></select></label><label class="field"><span>${esc(t(type === 'extraPay' ? 'calcPayChangeAmount' : 'calcChangeAmount'))}</span><input class="input" inputmode="decimal" data-fc-amount value="${c.amount != null ? calcInVal(c.amount) : ''}"></label><button type="button" class="icon-btn sm calc-del" data-f-act="del-change" aria-label="${esc(t('calcChangeDel'))}" title="${esc(t('calcChangeDel'))}">${ico('x')}</button></div>`;
   // Lee y valida las variables de un formulario → { values } o { err }
   function calcReadForm(box, type, model) {
     const mod = CALC.moduleOf(type), values = {};
@@ -3613,6 +3635,7 @@
       if (kind === 'inv') { if (!model.investments.length) return { err: t('calcNeedDestFirst') }; if (!model.investments.some(i => i.id === el.value)) return { err: t('calcNeedDest') }; values[k] = el.value; continue; }
       if (kind === 'invOpt') { values[k] = model.investments.some(i => i.id === el.value) ? el.value : 'none'; continue; }
       if (kind === 'select') { if (!el.value) return { err: t('calcFillAll') }; values[k] = el.value; continue; }
+      if (kind === 'months') { values[k] = [...el.querySelectorAll('[data-fm]:checked')].map(x => +x.dataset.fm); if (!values[k].length) return { err: t('calcPayNeedMonth') }; continue; }
       const n = calcReadNum(el.value, kind);
       if (n == null || Number.isNaN(n)) return { err: t('calcFillAll'), el };
       if (n < 0) return { err: t('calcNonNeg'), el };
@@ -3620,7 +3643,7 @@
     }
     if (['salaryChange', 'movement'].includes(type) && values.at < 1) return { err: t('calcPeriodMin') };
     if (type === 'loan' && values.term < 1) return { err: t('calcPeriodMin') };
-    if (type === 'periodic') {
+    if (type === 'periodic' || type === 'extraPay') {
       values.futureChanges = [];
       for (const r of box.querySelectorAll('[data-fc]')) {
         const at = CALC.parseNum(r.querySelector('[data-fc-at]').value), amount = calcReadNum(r.querySelector('[data-fc-amount]').value, 'money');
@@ -3652,8 +3675,8 @@
     let wref;
     const drawLib = () => {
       const { model } = calcData();
-      $('#cm-lib', wref).innerHTML = model.presets.length ? model.presets.map(p => `<details class="calc-formula" data-preset="${esc(p.id)}"><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(p.type).icon}</span><span class="calc-sum-t"><strong>${esc(p.name)}</strong><small>${esc(t('m_' + p.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
-        <p class="calc-fine">${esc(calcVarsText(p.type, p.values, model))}</p><div class="row wrap calc-f-acts"><button class="chip sm calc-blue" data-f-act="use" data-id="${esc(p.id)}">${ico('check')} ${esc(t('calcUse'))}</button><button class="chip sm" data-f-act="edit" data-id="${esc(p.id)}">${ico('edit')} ${esc(t('calcEdit'))}</button><button class="chip sm calc-danger" data-f-act="del" data-id="${esc(p.id)}">${ico('trash')} ${esc(t('calcDelete'))}</button></div></details>`).join('') : `<p class="muted small calc-empty">${esc(t('calcNoPresets'))}</p>`;
+      $('#cm-lib', wref).innerHTML = model.presets.length ? calcGrouped(model.presets, 'gp', p => `<details class="calc-formula" data-preset="${esc(p.id)}"><summary><span class="calc-f-ico" aria-hidden="true">${CALC.moduleOf(p.type).icon}</span><span class="calc-sum-t"><strong>${esc(p.name)}</strong><small>${esc(t('m_' + p.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        <p class="calc-fine">${esc(calcVarsText(p.type, p.values, model))}</p><div class="row wrap calc-f-acts"><button class="chip sm calc-blue" data-f-act="use" data-id="${esc(p.id)}">${ico('check')} ${esc(t('calcUse'))}</button><button class="chip sm" data-f-act="edit" data-id="${esc(p.id)}">${ico('edit')} ${esc(t('calcEdit'))}</button><button class="chip sm calc-danger" data-f-act="del" data-id="${esc(p.id)}">${ico('trash')} ${esc(t('calcDelete'))}</button></div></details>`) : `<p class="muted small calc-empty">${esc(t('calcNoPresets'))}</p>`;
     };
     const drawTpl = () => {
       const { model } = calcData();
@@ -3721,7 +3744,7 @@
   function openCalcPdf() {
     openModal({
       title: calcHead(t('calcPdfEyebrow'), t('calcPdfTitle')), cls: 'calc-sheet',
-      body: `<div class="stack" style="gap:12px">${CALC_PDF.map(([k, on]) => `<label class="check"><input type="checkbox" data-pw="${k}" ${on ? 'checked' : ''}> <span>${esc(t('pw_' + k))}${k === 'funds' ? `<small class="muted" style="display:block;font-weight:var(--fw-secondary)">${esc(t('pw_fundsHint'))}</small>` : ''}</span></label>`).join('')}
+      body: `<div class="stack" style="gap:12px">${CALC_PDF.map(([k, on]) => `<label class="check tgl tgl-block"><input type="checkbox" data-pw="${k}" ${on ? 'checked' : ''}> <span>${esc(t('pw_' + k))}${k === 'funds' ? `<small class="muted" style="display:block;font-weight:var(--fw-secondary)">${esc(t('pw_fundsHint'))}</small>` : ''}</span></label>`).join('')}
         ${privacyOn() ? `<p class="banner clay" style="margin:0">${ico('eyeOff')}<span class="grow small">${esc(t('calcPdfPriv'))}</span></p>` : ''}<p class="calc-fine">${esc(t('calcPdfHint'))}</p></div>`,
       foot: `<button class="btn calc-blue" data-pdf>${ico('download')} ${esc(t('calcPdfGo'))}</button>`,
       onClick: (e, close, w) => {
@@ -3778,7 +3801,7 @@
     return `<div class="pie-wrap"><svg class="pie" viewBox="0 0 120 120" role="img" aria-label="${esc(centerLabel)}"><g transform="rotate(-90 60 60)"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${arcs}</g>${labels.join('')}
       <text x="60" y="57" text-anchor="middle" class="pie-c1">${esc(centerValue == null ? cents(total) : centerValue)}</text><text x="60" y="72" text-anchor="middle" class="pie-c2">${esc(centerLabel)}</text></svg>
       <ul class="pie-legend">${segs.map(s => `<li><i style="background:${s.color}"></i><span class="grow">${esc(s.label)}</span>${pct ? `<b>${Math.round(s.value / total * 100)}%</b>` : ''}<span class="pie-amt ${pct ? 'muted small' : ''}">${esc(cents(s.value))}</span></li>`).join('')}</ul>
-      <label class="check pct-toggle"><input type="checkbox" data-pct-toggle ${pct ? 'checked' : ''}><span>${esc(t('showPct'))}</span></label></div>`;
+      <label class="check tgl pct-toggle"><input type="checkbox" data-pct-toggle ${pct ? 'checked' : ''}><span>${esc(t('showPct'))}</span></label></div>`;
   }
   // Dos series de puntos: verde = ingresos, rojo = gastos
   function twoDotChart(rows, o = {}) {
@@ -3844,7 +3867,7 @@
     openModal({
       title: `💶 ${esc(t('capTitle'))}`, cls: 'wide',
       body: `<div class="stack" style="gap:18px"><div id="cap-total">${capTotalHtml()}</div><section><h3 class="section-title">${esc(t('capConverter'))}</h3>${capHtml()}</section>
-        <label class="check"><input type="checkbox" data-cap-hide ${capHidden() ? 'checked' : ''}> ${esc(t('capHideWidget'))}</label></div>`,
+        <label class="check tgl"><input type="checkbox" data-cap-hide ${capHidden() ? 'checked' : ''}> ${esc(t('capHideWidget'))}</label></div>`,
       onMount: w => {
         bindCap(w, () => { const el = $('#cap-total', w); if (el) el.innerHTML = capTotalHtml(); render(); });
         w.addEventListener('change', e => { if (e.target.matches('[data-cap-hide]')) { state.ledgerPrefs = { ...state.ledgerPrefs, capHidden: e.target.checked }; save(); render(); } });
@@ -4262,7 +4285,7 @@
         <div class="field"><span>${esc(t('habitIcon'))}</span><div class="emoji-grid" style="max-height:110px">${icons.map(i => `<button type="button" data-ev-icon="${i}" class="${f.icon === i ? 'on' : ''}">${i}</button>`).join('')}</div></div>
         <div class="row" style="gap:12px"><label class="field grow"><span>${esc(t('ledFrom'))}</span><input class="input" id="ev-from" type="date" value="${f.from}"></label><label class="field grow"><span>${esc(t('ledTo'))}</span><input class="input" id="ev-to" type="date" value="${f.to}"></label></div>
         <div class="field"><span>${esc(t('evCats'))}</span><div class="muted small">${esc(t('evCatsHint'))}</div>
-          <div class="row wrap" style="gap:8px;margin-top:6px">${LV.cats.filter(c => !c.archived || f.catIds.includes(c.id)).map(c => `<label class="check-chip"><input type="checkbox" data-ev-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon)} ${esc(catName(c))}</span></label>`).join('')}</div></div></div>`;
+          <div class="row wrap" style="gap:8px;margin-top:6px">${LV.cats.filter(c => !c.archived || f.catIds.includes(c.id)).map(c => `<label class="check-chip tgl"><input type="checkbox" data-ev-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon)} ${esc(catName(c))}</span></label>`).join('')}</div></div></div>`;
     };
     const read = w => { f.name = $('#ev-name', w).value.trim(); f.from = $('#ev-from', w).value || f.from; f.to = $('#ev-to', w).value || f.to; f.catIds = [...w.querySelectorAll('[data-ev-cat]')].filter(i => i.checked).map(i => i.dataset.evCat); };
     openModal({

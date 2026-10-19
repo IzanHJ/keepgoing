@@ -4,7 +4,7 @@
   const es = {
     profileTapHint: 'Toca para ver tu perfil y tu @nametag',
     // Tarta y movimientos
-    showPct: 'Mostrar porcentajes',
+    showPct: 'Porcentajes',
     swipeHint: 'Desliza un movimiento a la izquierda para editarlo o borrarlo',
     // Eventos: compartir
     evShare: 'Compartir', evShareTitle: 'Compartir evento',
@@ -30,7 +30,7 @@
   };
   const en = {
     profileTapHint: 'Tap to see your profile and your @nametag',
-    showPct: 'Show percentages',
+    showPct: 'Percentages',
     swipeHint: 'Swipe a transaction left to edit or delete it',
     evShare: 'Share', evShareTitle: 'Share event',
     evShareFriend: 'With a friend, with amounts', evShareFriendSub: 'End-to-end encrypted, like a shared Ledger.',

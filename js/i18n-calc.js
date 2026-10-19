@@ -22,6 +22,7 @@
     calcFundsDetail: 'Detalle de fondos', calcFundsN: '{n} fondos', calcFund1: '1 fondo', calcFundsHint: 'Toca un fondo para mostrarlo u ocultarlo en el gráfico.',
     calcDeposited: 'Depositado', calcEstReturn: 'Retorno estimado', calcRentab: 'Rentabilidad', calcProjected: 'Saldo proyectado', calcFundChart: 'Ver gráfico de {name}',
     calcPickSeries: 'Selecciona al menos una serie.', calcChartAria: 'Trayectoria del patrimonio. Usa las flechas para recorrer las fechas.', calcChartKeys: 'Usa ← y → para recorrer las fechas',
+    calcDiff: 'Diferencia', calcMonthN: 'Mes {n}', calcGranYear: 'Año', calcGranMonth: 'Mes', calcGranAria: 'Cambiar entre filas por año y por mes',
     calcMoreDetails: 'Más detalles', calcPeriod: 'Periodo', calcDate: 'Fecha', calcPatrimony: 'Patrimonio', calcIncAcc: 'Ingresos acum.', calcExpAcc: 'Gastos acum.',
     calcInvCol: 'Inversiones', calcVariation: 'Variación', calcInvestment: 'Inversión', calcReturnCol: 'Retorno', calcProjectedAll: 'Valor proyectado',
     calcYearN: 'Año {n}', calcEndPeriod: 'Fin de proyección · {n}',
@@ -124,6 +125,10 @@
     calcAllocDel: 'Quitar destino', calcAddAlloc: 'Añadir otro destino', calcAllocFill: 'Indica un porcentaje o importe mayor que 0 en cada destino',
     calcAllocNone: 'Añade al menos un destino para el exceso', calcAllocOver: 'Los porcentajes suman más del 100 %',
     cqPerMonth: '{v} al mes', cqNoAlloc: 'sin destinos',
+    m_extraPay: 'Pagas extras', md_extraPay: 'Un importe fijo que cobras en los meses del año que elijas (por ejemplo abril, julio y diciembre), con cambios del importe desde una fecha.',
+    cf_extraPay_amount: 'Importe de cada paga (€)', cf_extraPay_months: 'Meses con paga extra',
+    calcPayChangesHint: 'Con el «+» verde programas un nuevo importe de la paga desde un mes o año de la proyección.', calcPayChangeAmount: 'Nuevo importe de la paga (€)', calcPayNeedMonth: 'Elige al menos un mes con paga extra',
+    cq_extraPay: 'Paga extra de {v} en: {months}. Cambios: {changes}.', cr_extraPay: 'Total cobrado en pagas extras: {v}',
     cqNoChanges: 'sin cambios programados', cqWhenMonth: 'mes {n}', cqWhenYear: 'año {n}', cqChange: '{v} desde el {when}', cqDigital: 'Digital'
   };
   const en = {
@@ -146,6 +151,7 @@
     calcFundsDetail: 'Fund details', calcFundsN: '{n} funds', calcFund1: '1 fund', calcFundsHint: 'Tap a fund to show or hide it on the chart.',
     calcDeposited: 'Deposited', calcEstReturn: 'Estimated return', calcRentab: 'Yield', calcProjected: 'Projected balance', calcFundChart: 'See the chart of {name}',
     calcPickSeries: 'Pick at least one series.', calcChartAria: 'Net worth path. Use the arrow keys to move through the dates.', calcChartKeys: 'Use ← and → to move through the dates',
+    calcDiff: 'Difference', calcMonthN: 'Month {n}', calcGranYear: 'Year', calcGranMonth: 'Month', calcGranAria: 'Switch between rows by year and by month',
     calcMoreDetails: 'More details', calcPeriod: 'Period', calcDate: 'Date', calcPatrimony: 'Net worth', calcIncAcc: 'Income to date', calcExpAcc: 'Expenses to date',
     calcInvCol: 'Investments', calcVariation: 'Change', calcInvestment: 'Investment', calcReturnCol: 'Return', calcProjectedAll: 'Projected value',
     calcYearN: 'Year {n}', calcEndPeriod: 'End of projection · {n}',
@@ -237,6 +243,10 @@
     calcAllocDel: 'Remove destination', calcAddAlloc: 'Add another destination', calcAllocFill: 'Enter a percentage or amount above 0 for each destination',
     calcAllocNone: 'Add at least one destination for the excess', calcAllocOver: 'The percentages add up to more than 100%',
     cqPerMonth: '{v} a month', cqNoAlloc: 'no destinations',
+    m_extraPay: 'Extra payments', md_extraPay: 'A fixed amount you receive in the months you choose (for example April, July and December), with amount changes from a given date.',
+    cf_extraPay_amount: 'Amount of each payment (€)', cf_extraPay_months: 'Months with an extra payment',
+    calcPayChangesHint: 'Use the green «+» to schedule a new payment amount from a month or year of the projection.', calcPayChangeAmount: 'New payment amount (€)', calcPayNeedMonth: 'Choose at least one month with an extra payment',
+    cq_extraPay: 'Extra payment of {v} in: {months}. Changes: {changes}.', cr_extraPay: 'Total received in extra payments: {v}',
     cqNoChanges: 'no scheduled changes', cqWhenMonth: 'month {n}', cqWhenYear: 'year {n}', cqChange: '{v} from {when}', cqDigital: 'Digital'
   };
   Object.assign(window.I18N.es, es);

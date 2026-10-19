@@ -1425,7 +1425,8 @@ button.media-chip { cursor: pointer; }
    v1.17: Calculadora de Patrimonio Proyectado (dentro de la Libreta)
    Usa las superficies clay del tema; el azul marca lo activo (series, fondos, métricas)
    ========================================================= */
-:root { --calc-blue: #586ff0; --calc-blue-ink: #ffffff; }
+/* El azul de la calculadora sigue al Color de Acento de Ajustes → Apariencia */
+:root { --calc-blue: var(--accent); --calc-blue-ink: var(--accent-ink); }
 .pill-group .icon-btn.on { background: var(--calc-blue); color: var(--calc-blue-ink); }
 .calc-head { display: flex; align-items: center; gap: 12px; margin: 16px 0 16px; }
 .calc-head .grow { min-width: 0; }
@@ -1522,7 +1523,7 @@ details[open] > summary > .calc-arrow { transform: rotate(90deg); }
 .calc-part h3 { margin: 2px 0 6px; font-size: 17px; }
 .calc-fund-edit { display: grid; grid-template-columns: 1.2fr 1fr 1.3fr auto; gap: 8px; align-items: end; margin: 10px 0; }
 .calc-del { color: #e5484d; }
-.calc-save { background: var(--calc-blue) !important; color: #fff; }
+.calc-save { background: var(--calc-blue) !important; color: var(--calc-blue-ink); }
 .calc-dest-acts { justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .calc-dest > summary .chip { pointer-events: none; }
 .calc-help { margin-top: 2px; }
@@ -1602,3 +1603,18 @@ details[open] > summary > .calc-arrow { transform: rotate(90deg); }
   .calc-change-row.calc-alloc-row { grid-template-columns: minmax(0, 1fr) auto; }
   .calc-alloc-row .field:first-child { grid-column: 1 / -1; }
 }
+
+/* v1.19 — Libreta sin casillas marcables: se activa o desactiva con un toque y el fondo pasa al Color de Acento */
+.tgl { position: relative; display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; background: var(--surface-2); color: var(--fg); cursor: pointer; user-select: none; -webkit-user-select: none; transition: background .15s, color .15s; }
+.tgl input, .check.tgl input, .check-chip.tgl input, .pct-toggle.tgl input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.tgl:has(input:checked) { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+.tgl:has(input:checked) .muted, .tgl:has(input:checked) small { color: inherit; opacity: .8; }
+.tgl:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tgl.tgl-block { display: flex; border-radius: var(--r-md); padding: 12px 16px; }
+.calc-grid .field:has(.calc-months) { grid-column: 1 / -1; }
+.calc-months { gap: 6px; }
+/* Fórmulas del mismo tipo agrupadas en Mi Biblioteca y en «Los cálculos que forman el resultado» */
+.calc-group { margin: 10px 0 0; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .15); }
+.calc-group > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.calc-group > summary::-webkit-details-marker { display: none; }
+.calc-group-list > .calc-formula { background: var(--surface); }
