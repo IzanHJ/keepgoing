@@ -16,17 +16,23 @@
   const START_ID = 'calc-start';
   const MAX_MONTHS = 960; // 80 años
   // Plantillas de fórmulas. Cada campo: [clave, tipo, valor de ejemplo, opciones]
-  // Tipos: money (€), pct (%), int (entero ≥ 0), select, inv (destino obligatorio), invOpt (destino o «Sin inversión destinada»)
+  // Tipos: money (€), pct (%), int (entero ≥ 0), select, inv (destino obligatorio), invOpt (destino o «Sin inversión destinada»), months (meses del año 1-12)
   const MODULES = [
-    { id: 'savings', icon: '🏦', fields: [['rate', 'pct', 3.5], ['type', 'select', null, ['apy', 'tin']], ['compound', 'select', null, ['365', '12', '1']], ['accumulate', 'select', null, ['yes', 'no']]] },
-    { id: 'periodic', icon: '📈', fields: [['target', 'inv'], ['amount', 'money', 50], ['frequency', 'select', null, ['weekly', 'monthly', 'yearly']], ['timing', 'select', null, ['end', 'begin']]] },
+    { id: 'savings', icon: 'bank', fields: [['rate', 'pct', 3.5], ['type', 'select', null, ['apy', 'tin']], ['compound', 'select', null, ['365', '12', '1']], ['accumulate', 'select', null, ['yes', 'no']]] },
+    { id: 'periodic', icon: 'trend', fields: [['target', 'inv'], ['amount', 'money', 50], ['frequency', 'select', null, ['weekly', 'monthly', 'yearly']], ['timing', 'select', null, ['end', 'begin']]] },
     // «Cambio de ingreso o gasto» (antes «Cambio de nómina neta»: se guarda con el mismo id y el importe en newSalary para no perder datos)
-    { id: 'salaryChange', icon: '💼', fields: [['what', 'select', null, ['income', 'expense']], ['newSalary', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']]] },
-    { id: 'movement', icon: '↕️', fields: [['kind', 'select', null, ['income', 'expense']], ['amount', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']]] },
-    { id: 'cashback', icon: '💳', fields: [['spend', 'money', 0, null, true], ['rate', 'pct', 1], ['excluded', 'money', 0, null, true], ['delay', 'int', 0], ['target', 'invOpt'], ['percent', 'pct', 100]] },
-    { id: 'roundup', icon: '🪙', fields: [['count', 'int', 30, null, true], ['average', 'money', 12.1], ['percent', 'pct', 100], ['target', 'inv']] },
-    { id: 'liquidityCap', icon: '🪣', fields: [['limit', 'money', 15000, null, true], ['split', 'select', null, ['pct', 'fixed'], true]] },
-    { id: 'loan', icon: '🤝', fields: [['principal', 'money', 1000], ['rate', 'pct', 5], ['term', 'int', 12], ['unit', 'select', null, ['months', 'years']], ['payment', 'select', null, ['monthly', 'yearly', 'end']], ['target', 'inv']] }
+    { id: 'salaryChange', icon: 'briefcase', fields: [['what', 'select', null, ['income', 'expense']], ['newSalary', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']]] },
+    // Pagas extras: un importe fijo en los meses del calendario elegidos (p. ej. abril, julio y diciembre), con cambios futuros del importe
+    { id: 'extraPay', icon: 'gift', fields: [['amount', 'money', 1000], ['months', 'months']] },
+    // Movimiento puntual (se puede repetir cada N meses o años, hasta el final de la proyección o durante un tiempo).
+    // El 6.º elemento de un campo dice cuándo se muestra: { repeat: 'yes' } → solo si «Repetir» es «Sí»
+    { id: 'movement', icon: 'swap', fields: [['kind', 'select', null, ['income', 'expense']], ['amount', 'money', 0], ['at', 'int', 1], ['unit', 'select', null, ['months', 'years']],
+      ['repeat', 'select', null, ['no', 'yes']], ['every', 'int', 1, null, false, { repeat: 'yes' }], ['everyUnit', 'select', null, ['months', 'years'], false, { repeat: 'yes' }],
+      ['until', 'select', null, ['end', 'for'], false, { repeat: 'yes' }], ['forN', 'int', 12, null, false, { repeat: 'yes', until: 'for' }], ['forUnit', 'select', null, ['months', 'years'], false, { repeat: 'yes', until: 'for' }]] },
+    { id: 'cashback', icon: 'card', fields: [['spend', 'money', 0, null, true], ['rate', 'pct', 1], ['excluded', 'money', 0, null, true], ['delay', 'int', 0], ['target', 'invOpt'], ['percent', 'pct', 100]] },
+    { id: 'roundup', icon: 'coins', fields: [['count', 'int', 30, null, true], ['average', 'money', 12.1], ['percent', 'pct', 100], ['target', 'inv']] },
+    { id: 'liquidityCap', icon: 'ceiling', fields: [['limit', 'money', 15000, null, true], ['split', 'select', null, ['pct', 'fixed'], true]] },
+    { id: 'loan', icon: 'loan', fields: [['principal', 'money', 1000], ['rate', 'pct', 5], ['term', 'int', 12], ['unit', 'select', null, ['months', 'years']], ['payment', 'select', null, ['monthly', 'yearly', 'end']], ['target', 'inv']] }
   ];
   const moduleOf = id => MODULES.find(m => m.id === id) || null;
   const num = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
@@ -55,6 +61,15 @@
   }
   // «Mes 3» → 3; «Año 3» → primer mes del año 3 (mes 25)
   const scheduleMonth = (at, unit) => { const n = Math.max(1, Math.round(num(at, 1))); return unit === 'years' ? (n - 1) * 12 + 1 : n; };
+  // ¿Ocurre este mes un movimiento (puntual o repetido)?
+  function occursAt(v, m) {
+    const first = scheduleMonth(v.at, v.unit);
+    if (m < first) return false;
+    if (v.repeat !== 'yes') return m === first;
+    const step = Math.max(1, Math.round(num(v.every, 1))) * (v.everyUnit === 'years' ? 12 : 1);
+    if (v.until === 'for' && m > first + Math.max(1, Math.round(num(v.forN, 1))) * (v.forUnit === 'years' ? 12 : 1) - 1) return false;
+    return (m - first) % step === 0;
+  }
   const horizonMonths = s => Math.max(1, Math.min(MAX_MONTHS, Math.round(pos(s.horizon || 12) * (s.unit === 'years' ? 12 : 1))));
   // Cortes de «Más detalles»: cada año entero y el periodo final si no coincide con un año
   function periods(horizon) {
@@ -70,15 +85,16 @@
   function cleanValues(type, values) {
     const mod = moduleOf(type), v = values && typeof values === 'object' ? values : {}, out = {};
     if (!mod) return out;
-    for (const [k, kind, , opts] of mod.fields) {
+    for (const [k, kind, ex, opts, , showIf] of mod.fields) {
       if (kind === 'select') out[k] = opts.includes(String(v[k])) ? String(v[k]) : opts[0];
       else if (kind === 'inv') out[k] = typeof v[k] === 'string' ? v[k] : '';
       else if (kind === 'invOpt') out[k] = typeof v[k] === 'string' && v[k] ? v[k] : 'none';
-      else if (kind === 'int') out[k] = Math.round(pos(v[k]));
+      else if (kind === 'int') out[k] = v[k] === undefined && showIf ? ex : Math.round(pos(v[k])); // los campos opcionales nuevos toman su valor de ejemplo
+      else if (kind === 'months') out[k] = [...new Set((Array.isArray(v[k]) ? v[k] : []).map(x => Math.round(num(x))).filter(x => x >= 1 && x <= 12))].sort((a, b) => a - b);
       else out[k] = pos(v[k]);
     }
     if (type === 'cashback' && v.percent === undefined) out.percent = 100;
-    if (type === 'periodic') out.futureChanges = (Array.isArray(v.futureChanges) ? v.futureChanges : [])
+    if (type === 'periodic' || type === 'extraPay') out.futureChanges = (Array.isArray(v.futureChanges) ? v.futureChanges : [])
       .map(c => ({ at: Math.max(1, Math.round(num(c && c.at, 1))), unit: c && c.unit === 'years' ? 'years' : 'months', amount: pos(c && c.amount) }));
     // Techo de liquidez: reparto del exceso entre uno o varios destinos (porcentaje del exceso o importe fijo al mes)
     if (type === 'liquidityCap') out.allocations = (Array.isArray(v.allocations) ? v.allocations : []).slice(0, 20)
@@ -125,9 +141,11 @@
     // Un fondo vinculado a un destino que ya no existe se queda como saldo propio sin rendimiento (no se pierde)
     const orphanFunds = model.funds.filter(f => !invIds.has(f.target)).reduce((a, f) => a + pos(f.amount), 0);
     model.funds.forEach(f => { if (invIds.has(f.target) && pos(f.amount) > 0) { lots[f.target].push({ balance: pos(f.amount), fresh: false }); principal[f.target] += pos(f.amount); } });
-    const addInvestment = (id, amount, fresh = false) => {
+    // src marca de dónde viene la aportación (cashback o redondeos) para su métrica en la Proyección
+    const srcIn = { cb: 0, ru: 0 };
+    const addInvestment = (id, amount, fresh = false, src) => {
       if (!invIds.has(id) || !(amount > 0)) return false;
-      lots[id].push({ balance: amount, fresh }); principal[id] += amount; return true;
+      lots[id].push({ balance: amount, fresh, src }); principal[id] += amount; if (src) srcIn[src] += amount; return true;
     };
     const balanceOf = id => lots[id].reduce((a, l) => a + l.balance, 0);
     const balances = () => Object.fromEntries(invs.map(i => [i.id, balanceOf(i.id)]));
@@ -145,7 +163,13 @@
       for (const c of salaryChanges) if (scheduleMonth(c.values.at, c.values.unit) <= m) { if (c.values.what === 'expense') baseExpenses = pos(c.values.newSalary); else salary = pos(c.values.newSalary); }
       for (const c of salaryChanges) if (scheduleMonth(c.values.at, c.values.unit) === m) out[c.id] = pos(c.values.newSalary);
       let movIn = 0, movOut = 0;
-      for (const a of applied) if (a.type === 'movement' && scheduleMonth(a.values.at, a.values.unit) === m) {
+      // Pagas extras: entran como ingreso el mes del calendario que toca (con el importe vigente según sus cambios)
+      for (const a of applied) if (a.type === 'extraPay' && (a.values.months || []).includes(when.getMonth() + 1)) {
+        let v = pos(a.values.amount);
+        for (const c of [...(a.values.futureChanges || [])].sort((x, y) => scheduleMonth(x.at, x.unit) - scheduleMonth(y.at, y.unit))) if (scheduleMonth(c.at, c.unit) <= m) v = pos(c.amount);
+        movIn += v; bump(a.id, v);
+      }
+      for (const a of applied) if (a.type === 'movement' && occursAt(a.values, m)) {
         const v = pos(a.values.amount); if (a.values.kind === 'income') movIn += v; else movOut += v; bump(a.id, v);
       }
       const monthIncome = salary + movIn, monthExpenses = baseExpenses + movOut;
@@ -180,7 +204,7 @@
         } else if (a.type === 'roundup') {
           const avg = pos(v.average), frac = +(avg - Math.floor(avg)).toFixed(2), each = frac === 0 ? 0 : +(1 - frac).toFixed(2);
           const amount = each * pos(v.count) * Math.min(100, pos(v.percent)) / 100;
-          if (addInvestment(v.target, amount)) { digital -= amount; bump(a.id, amount); }
+          if (addInvestment(v.target, amount, false, 'ru')) { digital -= amount; bump(a.id, amount); }
         } else if (a.type === 'loan') {
           const n = Math.max(1, Math.round(pos(v.term) || 1) * (v.unit === 'years' ? 12 : 1));
           const period = v.payment === 'yearly' ? 12 : v.payment === 'end' ? n : 1;
@@ -206,7 +230,7 @@
         cashReceived += due; totalIncome += due; cumIncome += due;
         const share = a.values.target && a.values.target !== 'none' ? Math.min(100, pos(a.values.percent)) / 100 : 0;
         const invest = due * share;
-        if (invest > 0 && addInvestment(a.values.target, invest)) digital += due - invest; else digital += due;
+        if (invest > 0 && addInvestment(a.values.target, invest, false, 'cb')) digital += due - invest; else digital += due;
       }
       // Crecimiento mensual de cada destino: acumulativo se reinvierte; no acumulativo se abona a Digital
       for (const i of invs) {
@@ -238,6 +262,7 @@
     const final = digital + cash + investments + receivables;
     const fundPrincipal = invs.reduce((a, i) => a + principal[i.id], 0) + orphanFunds;
     const pct = (d, b) => b ? d / b * 100 : null;
+    const srcValue = src => invs.reduce((a, i) => a + lots[i.id].filter(l => l.src === src).reduce((x, l) => x + l.balance, 0), 0);
     const perInvestment = invs.map(i => {
       const value = balanceOf(i.id), dep = principal[i.id], gain = value - dep;
       return { id: i.id, name: i.name, rate: i.rate, accumulative: i.accumulative !== false, value, principal: dep, gain, pct: pct(gain, dep), share: investments > 0 ? value / investments * 100 : 0 };
@@ -249,6 +274,9 @@
       fundDelta: investments - fundPrincipal, fundPct: pct(investments - fundPrincipal, fundPrincipal),
       returns, cashGenerated, cashReceived, pending: Math.max(0, cashGenerated - cashReceived), growth: final - initial,
       totalIncome, totalExpenses, net: totalIncome - totalExpenses,
+      // Cashback invertido y redondeos: total aportado y lo que vale hoy (al final de la proyección)
+      hasCbInvest: applied.some(a => a.type === 'cashback' && a.values.target && a.values.target !== 'none' && pos(a.values.percent) > 0), cbInvested: srcIn.cb, cbValue: srcValue('cb'),
+      hasRoundup: applied.some(a => a.type === 'roundup'), ruInvested: srcIn.ru, ruValue: srcValue('ru'),
       perInvestment, outputs: out, monthly, events, formulas: applied.length
     };
   }
@@ -313,5 +341,5 @@
     return items;
   }
 
-  return { START_ID, MAX_MONTHS, MODULES, moduleOf, parseNum, parseDate, keyOf, dateAtMonth, scheduleMonth, horizonMonths, periods, defaultStart, cleanValues, fromItems, usesOf, compute, daily, sample, fromLegacy };
+  return { START_ID, MAX_MONTHS, MODULES, moduleOf, occursAt, parseNum, parseDate, keyOf, dateAtMonth, scheduleMonth, horizonMonths, periods, defaultStart, cleanValues, fromItems, usesOf, compute, daily, sample, fromLegacy };
 });
