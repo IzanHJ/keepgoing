@@ -1748,3 +1748,11 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 .ob-feat { display: flex; align-items: center; gap: 14px; }
 .ob-feat .tool-ico { flex: none; width: 46px; height: 46px; border-radius: 14px; }
 .ob-feat .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* v1.21: paso de hábitos y proyectos del registro */
+.ob-hchip { flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; height: auto; padding-top: 8px; padding-bottom: 8px; }
+.ob-hchip small { font-size: 11.5px; opacity: .7; font-weight: 500; }
+.ob-sub { margin: 12px 0 6px; text-transform: uppercase; letter-spacing: .04em; font-weight: var(--fw-label); }
+.ob-proj.on { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ob-later { margin-top: 20px; padding: 12px 14px; border-radius: var(--r-md, 16px); }
+.ob-level { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding: 14px; border-radius: var(--r-md, 16px); }
+.ob-level .grow { display: flex; flex-direction: column; gap: 4px; }

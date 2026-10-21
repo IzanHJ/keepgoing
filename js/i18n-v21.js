@@ -1,6 +1,12 @@
 /* KeepGoing — textos de la v1.21: «Registrar» (importar el CSV del banco) (ES / EN) */
 (function () {
   const es = {
+    pack_hogar: 'Hogar', pack_social: 'Social',
+    obHabTitle: 'Tus hábitos y proyectos', obHabSub: 'Elige los que quieras, sin mínimo. Cuantos más hábitos tengas, más vale un día perfecto.',
+    obHabSection: 'Hábitos', obProjSection: 'Proyectos', obProjHint: 'Un proyecto es una meta con sus hábitos. Al elegirlo se crean también sus hábitos.',
+    obProjSmall: 'Pequeños', obProjLarge: 'Grandes', obProjIncludes: 'Incluye: {list}',
+    obLaterNote: 'Puedes añadir más hábitos o proyectos cuando quieras con el botón +. También puedes compartir y recibir hábitos y proyectos de tus amigos o de tus grupos.',
+    obLevelIs: 'Con {n} hábitos tu nivel de compromiso es {level}', obLevelScale: '2-3 hábitos Chill · 4-6 Serio · 7 o más Locked-In. Solo cambia el texto de tu contrato y podrás cambiarlo en Ajustes.',
     perfectHow2: 'Un día es perfecto cuando cumples todos los hábitos diarios que tocaban ese día y no recaes en ninguno de los que quieres dejar.',
     capPctOne: 'Porcentaje (escríbelo a mano si quieres)',
     ptsHow: 'Un día perfecto vale 10 puntos con 2 hábitos y 1 punto más por cada hábito extra, hasta 15 con 7 o más. Los días parciales suman su parte. Los hábitos semanales y mensuales cuentan su parte proporcional cada día, y los hábitos a dejar cuentan por cada día limpio ya cerrado. Los puntos de antes se conservan y este sistema cuenta desde el {since2}. Tu XP (puntos × 10) marca tu nivel.',
@@ -54,6 +60,12 @@
     rgNote_interest: 'Intereses', rgNote_cashback: 'Cashback', rgNote_dividend: 'Dividendo', rgNote_buy: 'Compra', rgNote_sell: 'Venta', rgNote_cardCredit: 'Devolución'
   };
   const en = {
+    pack_hogar: 'Home', pack_social: 'Social',
+    obHabTitle: 'Your habits and projects', obHabSub: 'Pick as many as you like, no minimum. The more habits you have, the more a perfect day is worth.',
+    obHabSection: 'Habits', obProjSection: 'Projects', obProjHint: 'A project is a goal with its habits. Picking one also creates its habits.',
+    obProjSmall: 'Small', obProjLarge: 'Big', obProjIncludes: 'Includes: {list}',
+    obLaterNote: 'You can add more habits or projects anytime with the + button. You can also share and receive habits and projects with your friends or groups.',
+    obLevelIs: 'With {n} habits your commitment level is {level}', obLevelScale: '2-3 habits Chill · 4-6 Serious · 7 or more Locked-In. It only changes your contract text and you can change it in Settings.',
     perfectHow2: 'A day is perfect when you complete every daily habit due that day and do not slip on any habit you are quitting.',
     capPctOne: 'Percentage (type it if you like)',
     ptsHow: 'A perfect day is worth 10 points with 2 habits and 1 more point per extra habit, up to 15 with 7 or more. Partial days add their share. Weekly and monthly habits count their proportional share each day, and quit habits count for each closed clean day. Earlier points are kept and this system counts from {since2}. Your XP (points × 10) sets your level.',

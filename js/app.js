@@ -2710,14 +2710,41 @@
   }
 
   /* ---------- ONBOARDING ---------- */
-  // Pasos: idioma, color, compromiso, hábitos (mínimo según el nivel), @nametag (opcional, con cuenta) y contrato
-  // v1.21: pasos con nombre; «cal» y «ledger» explican el Calendario y la Libreta antes del @nametag y el contrato
-  const OB = ['lang', 'color', 'commit', 'habits', 'cal', 'ledger', 'tag', 'contract'], OB_STEPS = OB.length;
+  // Pasos: idioma, color, hábitos y proyectos, Calendario, Libreta, @nametag (opcional, con cuenta) y contrato
+  // v1.21: pasos con nombre; ya no se elige el nivel de compromiso: sale solo según los hábitos que crees (sin mínimo)
+  const OB = ['lang', 'color', 'habits', 'cal', 'ledger', 'tag', 'contract'], OB_STEPS = OB.length;
   const obAt = () => OB[clamp(state.obStep | 0, 0, OB_STEPS - 1)], obGo = name => { state.obStep = OB.indexOf(name); };
-  const obMin = () => CAP.HABITS_PER_LEVEL[state.commitment] || 2;
-  const COMMIT_EMO = { chill: '🌿', serio: '🎯', locked: '🔒' };
-  let obPending = [], obForm = null;
-  const SUGGESTIONS = [['sugTeeth', '🦷', 'daily', 2], ['sugWater', '💧', 'daily', 1], ['sugRead', '📚', 'daily', 1], ['sugGym', '💪', 'weekly', 3], ['sugMeditate', '🧘', 'daily', 1], ['sugSleep', '😴', 'daily', 1], ['sugWalk', '🚶', 'daily', 1], ['sugStudy', '✍️', 'daily', 1]];
+  // obPending: hábitos elegidos ({ key, es, en, icon, x } de las plantillas o { name } escritos a mano); obProj: proyectos elegidos
+  let obPending = [], obProj = [], obPack = 'salud', obKeepScroll = false, obForm = null;
+  // Proyectos de ejemplo con sus hábitos: [id, tamaño, es, en, icono, meta, hábitos]
+  const OB_PROJECTS = [
+    ['tidy', 'small', 'Ordenar la casa', 'Tidy up the house', '🏠', { type: 'checklist', items: ['Armario|Wardrobe', 'Escritorio|Desk', 'Cocina|Kitchen', 'Trastero|Storage room'] }, [['Ordenar 10 minutos', 'Tidy up for 10 minutes', '🧹', { duration: 10 }]]],
+    ['book1', 'small', 'Leer un libro', 'Read a book', '📖', { type: 'numeric', start: 0, target: 300, unit: 'páginas|pages' }, [['Leer', 'Read', '📚', { measure: 'amount', target: 20, unit: 'páginas|pages', step: 5, timeOfDay: 'night' }]]],
+    ['run5k', 'small', 'Correr 5 km seguidos', 'Run 5 km non-stop', '🏃', { type: 'numeric', start: 0, target: 5, unit: 'km' }, [['Salir a correr', 'Go for a run', '🏃', { freq: 'weekly', target: 3 }]]],
+    ['detox', 'small', 'Un mes sin redes sociales', 'A month without social media', '🌱', { type: 'simple' }, [['Redes sociales', 'Social media', '📵', { kind: 'quit' }]]],
+    ['savings', 'large', 'Ahorrar 1.000 €', 'Save €1,000', '💰', { type: 'numeric', start: 0, target: 1000, unit: '€' }, [['Apuntar gastos', 'Log expenses', '💰', { timeOfDay: 'night' }], ['Ahorrar', 'Save money', '🐷', { measure: 'amount', target: 5, unit: '€', step: 1 }], ['Compras impulsivas', 'Impulse buying', '🛍️', { kind: 'quit' }]]],
+    ['language', 'large', 'Aprender un idioma', 'Learn a language', '🗣️', { type: 'checklist', items: ['A1', 'A2', 'B1', 'B2', 'C1'] }, [['Practicar el idioma', 'Practise the language', '🗣️', { duration: 15 }], ['Ver una serie en ese idioma', 'Watch a show in that language', '🎬', { freq: 'weekly', target: 2 }]]],
+    ['weight', 'large', 'Llegar a mi peso objetivo', 'Reach my target weight', '⚖️', { type: 'numeric', start: 80, target: 72, unit: 'kg' }, [['Gimnasio', 'Gym', '🏋️', { freq: 'weekly', target: 3 }], ['Beber 2 L de agua', 'Drink 2 L of water', '💧', { measure: 'amount', target: 2, unit: 'L', step: .25 }], ['Comer fruta', 'Eat fruit', '🍎', {}]]],
+    ['books12', 'large', 'Leer 12 libros en un año', 'Read 12 books in a year', '📚', { type: 'numeric', start: 0, target: 12, unit: 'libros|books' }, [['Leer', 'Read', '📚', { measure: 'amount', target: 20, unit: 'páginas|pages', step: 5, timeOfDay: 'night' }]]]
+  ];
+  // Hábitos distintos que se crearán (los elegidos y los de los proyectos, sin repetir el mismo nombre)
+  function obHabitList() {
+    const m = new Map();
+    const add = (es, en, icon, x) => { const name = en == null ? es : L2(es, en), k = name.toLowerCase(); if (!m.has(k)) m.set(k, { name, icon, x: x || {} }); };
+    obPending.forEach(p => (p.key ? add(p.es, p.en, p.icon, p.x) : add(p.name, null, '#', {})));
+    OB_PROJECTS.filter(pr => obProj.includes(pr[0])).forEach(pr => pr[6].forEach(([es, en, icon, x]) => add(es, en, icon, x)));
+    return m;
+  }
+  function obCreateAll() {
+    const ids = new Map();
+    for (const [k, h] of obHabitList()) { const nh = newHabitFrom(h.name, h.icon, h.x); state.habits.push(nh); ids.set(k, nh.id); }
+    for (const [id, , es, en, icon, g, hs] of OB_PROJECTS.filter(pr => obProj.includes(pr[0]))) {
+      state.projects.push({ id: uid(), name: L2(es, en), icon, color: null, desc: '', habitIds: hs.map(([hes, hen]) => ids.get(L2(hes, hen).toLowerCase())).filter(Boolean),
+        goal: { type: g.type, start: g.start || 0, target: g.target || 0, unit: unitL(g.unit || ''), entries: [], items: (g.items || []).map(x => ({ id: uid(), text: unitL(x), done: false })), achieved: false },
+        deadline: null, milestones: [], photos: {}, createdAt: todayKey(), tpl: id });
+    }
+    obPending = []; obProj = [];
+  }
 
   // Pasos que explican el Calendario y la Libreta: una pequeña muestra y las funciones principales con iconos de línea
   const OB_TOUR = {
@@ -2747,9 +2774,6 @@
     } else if (at === 'color') {
       title = t('obColorTitle'); lead = t('obColorSub');
       body = `<div id="ob-theme">${themeEditorHtml()}</div><div class="field" style="margin-top:22px"><span class="muted small" style="font-weight:var(--fw-label);text-transform:uppercase;letter-spacing:.04em">${esc(t('preview'))}</span><div id="ob-preview" style="margin-top:8px">${samplePreview()}</div></div>`;
-    } else if (at === 'commit') {
-      title = t('obCommitTitle'); lead = t('obCommitSub');
-      body = `<div class="lang-list">${['chill', 'serio', 'locked'].map(l => { const on = state.commitment === l; return `<button class="lang-opt commit-opt clay ${on ? 'on' : ''}" data-ob-commit="${l}"><span class="flag">${COMMIT_EMO[l]}</span><span class="grow"><b>${esc(t('commit_' + l))}</b><span class="commit-sub">${esc(t('ct_sub_' + l))}</span><span class="muted small">${esc(t('commitd_' + l))}</span></span>${on ? ico('check') : ''}</button>`; }).join('')}</div>`;
     } else if (at === 'cal' || at === 'ledger') {
       title = t(at === 'cal' ? 'obCalTitle' : 'obLedTitle'); lead = t(at === 'cal' ? 'obCalSub' : 'obLedSub');
       body = obTourHtml(at);
@@ -2761,11 +2785,21 @@
       body = auth ? `<label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="ob-tag" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(myTag())}" placeholder="${esc(t('nametagPh'))}"></div></label><p class="muted small">${esc(t('nametagHint'))}</p>`
         : `<div class="clay card center"><div style="font-size:40px">🏷️</div><p class="muted" style="margin:6px 0 14px">${esc(t('obTagNeedAccount'))}</p><button class="btn primary" data-ob-login>${ico('user')} ${esc(t('obTagCreate'))}</button></div>`;
     } else {
-      const min = obMin(), n = obPending.length;
-      title = t('obAddTitle'); lead = t('obAddSubMin', { n: min, level: t('commit_' + state.commitment) });
-      body = `<p class="ob-count ${n >= min ? 'ok' : ''}">${n >= min ? ico('check') : ''} ${esc(t('obHabitsCount', { n, m: min }))}</p><div class="field"><span>${esc(t('suggestions'))}</span><div class="sug-list">${SUGGESTIONS.map(([k, e]) => { const on = obPending.some(p => p.key === k); return `<button class="chip ${on ? 'on' : ''}" data-ob-sug="${k}">${e} ${esc(t(k))}${on ? ' ' + ico('check') : ''}</button>`; }).join('')}</div></div>
-        <div class="field" style="margin-top:20px"><span>${esc(t('customHabit'))}</span><div class="row"><input class="input" id="ob-custom" maxlength="60" placeholder="${esc(t('habitNamePh'))}"><button class="btn" data-ob-add>${ico('plus')} ${esc(t('add'))}</button></div></div>
-        ${obPending.filter(p => !p.key).length ? `<div class="sug-list" style="margin-top:14px">${obPending.filter(p => !p.key).map((p, i) => `<button class="chip on" data-ob-del="${i}"># ${esc(p.name)} ${ico('x')}</button>`).join('')}</div>` : ''}`;
+      const n = obHabitList().size, lv = CAP.levelForCount(n), custom = obPending.filter(p => !p.key);
+      title = t('obHabTitle'); lead = t('obHabSub');
+      const hChip = (key, es, en, icon, x) => { const on = obPending.some(p => p.key === key); return `<button class="chip ob-hchip ${on ? 'on' : ''}" data-ob-hab="${key}"><span>${icon} ${esc(L2(es, en))}${on ? ' ' + ico('check') : ''}</span><small>${esc(packSub(x))}</small></button>`; };
+      const pRow = ([id, , es, en, icon, , hs]) => { const on = obProj.includes(id); return `<button class="create-opt clay ob-proj ${on ? 'on' : ''}" data-ob-proj="${id}"><span style="font-size:26px">${icon}</span><span class="grow"><b>${esc(L2(es, en))}</b><br><span class="muted small">${esc(t('obProjIncludes', { list: hs.map(([a, b, , x]) => `${L2(a, b)} (${packSub(x)})`).join(', ') }))}</span></span>${on ? ico('check') : ico('plus')}</button>`; };
+      body = `<h3 class="section-title">${esc(t('obHabSection'))}</h3>
+        <div class="chip-scroll">${Object.keys(PACKS).map(k => `<button class="chip ${obPack === k ? 'on' : ''}" data-ob-pack="${k}">${esc(t('pack_' + k))}</button>`).join('')}</div>
+        <div class="sug-list" style="margin-top:10px">${PACKS[obPack].map(([es, en, icon, x], i) => hChip(obPack + ':' + i, es, en, icon, x)).join('')}</div>
+        <div class="field" style="margin-top:16px"><span>${esc(t('customHabit'))}</span><div class="row"><input class="input" id="ob-custom" maxlength="60" placeholder="${esc(t('habitNamePh'))}"><button class="btn" data-ob-add>${ico('plus')} ${esc(t('add'))}</button></div></div>
+        ${custom.length ? `<div class="sug-list" style="margin-top:12px">${custom.map((p, i) => `<button class="chip on" data-ob-del="${i}"># ${esc(p.name)} ${ico('x')}</button>`).join('')}</div>` : ''}
+        <h3 class="section-title" style="margin-top:24px">${esc(t('obProjSection'))}</h3>
+        <p class="muted small" style="margin-top:0">${esc(t('obProjHint'))}</p>
+        <div class="muted small ob-sub">${esc(t('obProjSmall'))}</div><div class="stack" style="gap:8px">${OB_PROJECTS.filter(p => p[1] === 'small').map(pRow).join('')}</div>
+        <div class="muted small ob-sub">${esc(t('obProjLarge'))}</div><div class="stack" style="gap:8px">${OB_PROJECTS.filter(p => p[1] === 'large').map(pRow).join('')}</div>
+        <div class="ob-feat clay ob-later"><span class="tool-ico">${ico('users')}</span><span class="muted small grow">${esc(t('obLaterNote'))}</span></div>
+        <div class="ob-level clay"><span class="tool-ico">${ico('target')}</span><span class="grow"><b>${esc(t('obLevelIs', { n, level: t('commit_' + lv) }))}</b><span class="muted small">${esc(t('obLevelScale'))}</span></span></div>`;
     }
     return `<div class="ob">
       <div class="ob-top"><span class="ob-brand">KeepGoing</span><div class="ob-dots" aria-label="${esc(t('obStep', { n: s + 1, total: OB_STEPS }))}">${dots}</div></div>
@@ -2781,27 +2815,28 @@
     if (obAt() === 'tag' && auth && !repState.loaded) loadRep().then(() => { const i = $('#ob-tag'); if (i && !i.value && myTag()) i.value = myTag(); }).catch(() => {});
     if (obAt() === 'tag' && $('#ob-tag')) $('#ob-tag').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob="next"]').click(); } });
     if (obAt() === 'habits') $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
-    window.scrollTo(0, 0);
+    if (obKeepScroll) obKeepScroll = false; else window.scrollTo(0, 0);
   }
   function onboardingClick(e) {
     const q = s => e.target.closest(s); let el;
     if (q('[data-ob-login]')) { openLogin(); return true; }
     if ((el = q('[data-ob-lang]'))) { state.lang = el.dataset.obLang; save(); render(); return true; }
-    if ((el = q('[data-ob-commit]'))) { setCommitment(el.dataset.obCommit); render(); return true; }
-    if ((el = q('[data-ob-privacy]'))) { setPrivacy(el.checked); return true; }
-    if ((el = q('[data-ob-sug]'))) {
-      const k = el.dataset.obSug; const i = obPending.findIndex(p => p.key === k);
-      if (i >= 0) obPending.splice(i, 1); else { const s = SUGGESTIONS.find(x => x[0] === k); obPending.push({ key: k, name: t(k), icon: s[1], freq: s[2], target: s[3] }); }
-      const v = $('#ob-custom')?.value; render(); if (v) $('#ob-custom').value = v; return true;
+    const keep = () => { const v = $('#ob-custom')?.value; obKeepScroll = true; render(); if (v) $('#ob-custom').value = v; };
+    if ((el = q('[data-ob-pack]'))) { obPack = el.dataset.obPack; keep(); return true; }
+    if ((el = q('[data-ob-hab]'))) {
+      const k = el.dataset.obHab, i = obPending.findIndex(p => p.key === k);
+      if (i >= 0) obPending.splice(i, 1); else { const [pk, n] = k.split(':'), [es, en, icon, x] = PACKS[pk][+n]; obPending.push({ key: k, es, en, icon, x }); }
+      keep(); return true;
     }
-    if (q('[data-ob-add]')) { const v = $('#ob-custom').value.trim(); if (v) { obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 }); render(); $('#ob-custom').focus(); } return true; }
-    if ((el = q('[data-ob-del]'))) { const custom = obPending.filter(p => !p.key); obPending = obPending.filter(p => p !== custom[+el.dataset.obDel]); render(); return true; }
+    if ((el = q('[data-ob-proj]'))) { const id = el.dataset.obProj; obProj = obProj.includes(id) ? obProj.filter(x => x !== id) : [...obProj, id]; keep(); return true; }
+    if (q('[data-ob-add]')) { const v = $('#ob-custom').value.trim(); if (v) { obPending.push({ name: v }); obKeepScroll = true; render(); $('#ob-custom').focus({ preventScroll: true }); } return true; }
+    if ((el = q('[data-ob-del]'))) { const custom = obPending.filter(p => !p.key); obPending = obPending.filter(p => p !== custom[+el.dataset.obDel]); keep(); return true; }
     if ((el = q('[data-ob]'))) {
       if (el.dataset.ob === 'back') { state.obStep = Math.max(0, state.obStep - 1); save(); render(); return true; }
-      // Hábitos: hace falta un mínimo según el nivel de compromiso (Chill 2, Serio 4, Locked-In 7)
+      // Hábitos: sin mínimo; el nivel de compromiso sale solo según cuántos hábitos crees (2-3 Chill, 4-6 Serio, 7+ Locked-In)
       if (obAt() === 'habits') {
-        const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 });
-        if (obPending.length < obMin()) { if (v) render(); toast(t('obNeedHabits', { n: obMin() - obPending.length, level: t('commit_' + state.commitment) })); return true; }
+        const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v });
+        setCommitment(CAP.levelForCount(obHabitList().size));
       }
       // @nametag: opcional y solo con cuenta
       if (obAt() === 'tag') {
@@ -2817,8 +2852,7 @@
         const prev = state.contract;
         const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
         if (!prev || prev.name !== obForm.name() || obForm.sig() || prev.g !== obForm.g() || prev.level !== state.commitment || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w, obForm.g());
-        obPending.forEach(p => state.habits.push({ id: uid(), name: p.name, icon: p.icon, color: null, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], freq: p.freq, target: p.target, multi: false, note: '', createdAt: todayKey(), archived: false }));
-        obPending = []; state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
+        obCreateAll(); state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
       }
       state.obStep++; save(); render(); return true;
     }
@@ -5633,9 +5667,11 @@
     estudio: [['Estudiar', 'Study', '✍️', { duration: 45, timeOfDay: 'afternoon' }], ['Leer', 'Read', '📚', { measure: 'amount', target: 20, unit: 'páginas|pages', step: 5, timeOfDay: 'night' }], ['Repasar apuntes', 'Review notes', '🧠', {}], ['Móvil mientras estudio', 'Phone while studying', '📵', { kind: 'quit' }]],
     finanzas: [['Apuntar gastos', 'Log expenses', '💰', { timeOfDay: 'night' }], ['Revisar presupuesto', 'Review budget', '📈', { freq: 'weekly', target: 1 }], ['Compras impulsivas', 'Impulse buying', '🛍️', { kind: 'quit' }], ['Ahorrar', 'Save money', '🐷', { measure: 'amount', target: 5, unit: '€', step: 1 }]],
     deporte: [['Gimnasio', 'Gym', '🏋️', { freq: 'weekly', target: 3 }], ['Estiramientos', 'Stretching', '🧘', { duration: 10, timeOfDay: 'morning' }], ['Correr', 'Running', '🏃', { measure: 'amount', target: 15, unit: 'km', step: 1, freq: 'weekly' }], ['Tomar proteína', 'Take protein', '🥛', {}]],
-    mente: [['Meditar', 'Meditate', '🧘', { duration: 10, timeOfDay: 'morning' }], ['Escribir un diario', 'Journal', '📝', { timeOfDay: 'night' }], ['Gratitud: 3 cosas', 'Gratitude: 3 things', '🙏', { timeOfDay: 'night' }], ['Redes antes de dormir', 'Social media before bed', '📵', { kind: 'quit' }]]
+    mente: [['Meditar', 'Meditate', '🧘', { duration: 10, timeOfDay: 'morning' }], ['Escribir un diario', 'Journal', '📝', { timeOfDay: 'night' }], ['Gratitud: 3 cosas', 'Gratitude: 3 things', '🙏', { timeOfDay: 'night' }], ['Redes antes de dormir', 'Social media before bed', '📵', { kind: 'quit' }], ['Desconectar una hora', 'Unplug for an hour', '🌙', { timeOfDay: 'night' }]],
+    hogar: [['Hacer la cama', 'Make the bed', '🛏️', { timeOfDay: 'morning' }], ['Ordenar 10 minutos', 'Tidy up for 10 minutes', '🧹', { duration: 10 }], ['Cocinar en casa', 'Cook at home', '🍳', { freq: 'weekly', target: 4 }], ['Regar las plantas', 'Water the plants', '🪴', { freq: 'weekly', target: 2 }], ['Limpieza a fondo', 'Deep clean', '🧽', { freq: 'monthly', target: 1 }]],
+    social: [['Llamar a la familia', 'Call your family', '📞', { freq: 'weekly', target: 1 }], ['Quedar con amigos', 'Meet up with friends', '🍻', { freq: 'weekly', target: 1 }], ['Un detalle con alguien', 'Do something kind for someone', '💌', { freq: 'weekly', target: 2 }], ['Tabaco', 'Smoking', '🚭', { kind: 'quit' }]]
   };
-  const PACK_ICONS = { salud: '❤️', estudio: '🎓', finanzas: '💶', deporte: '💪', mente: '🧠' };
+  const PACK_ICONS = { salud: '❤️', estudio: '🎓', finanzas: '💶', deporte: '💪', mente: '🧠', hogar: '🏠', social: '🤝' };
   // Las unidades con «es|en» se traducen al crear
   const unitL = u => u && u.includes('|') ? L2(...u.split('|')) : u;
   const CHALLENGES = [
