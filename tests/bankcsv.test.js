@@ -62,9 +62,10 @@ test('plan: sin respuesta no se importa; ignorar; agrupar por mes; convertir mon
   const p = B.plan(r.rows, answers, { GBP: 1.2 }, []);
   assert.strictEqual(p.unanswered, 4); // compra, «Stock split», depósito y retirada sin responder
   assert.strictEqual(p.skipped, 1);
-  const g = p.create.find(e => e.extGroup);
-  assert.strictEqual(g.amountCents, 12 + 6 + 11); // 0,05 GBP × 1,2 = 0,06 €
-  assert.strictEqual(g.count, 3); assert.strictEqual(g.date, '2026-10-02');
+  const g = p.create.find(e => e.extGroup && !e.fx), gb = p.create.find(e => e.extGroup && e.fx);
+  assert.strictEqual(g.amountCents, 12 + 11); assert.strictEqual(g.count, 2); assert.strictEqual(g.date, '2026-10-02');
+  // v1.22: lo que va en libras queda en libras con su cambio (0,05 GBP × 1,2 = 0,06 €)
+  assert.deepStrictEqual(gb.fx, { cur: 'GBP', cents: 5, rate: 1.2 }); assert.strictEqual(gb.amountCents, 6);
   assert.strictEqual(p.create.filter(e => e.type === 'expense').length, 2);
   assert.ok(p.create.every(e => e.amountCents > 0));
 });
@@ -78,7 +79,7 @@ test('plan: sin tasa, la otra moneda se ignora; reimportar no duplica y amplía 
   const existing = first.create.map((e, i) => ({ ...e, id: 'e' + i }));
   const second = B.plan(r.rows, answers, {}, existing);
   assert.strictEqual(second.create.length, 0);
-  assert.deepStrictEqual(second.update, [{ id: existing.find(e => e.extGroup).id, addCents: 11, addIds: ['i3'] }]);
+  assert.deepStrictEqual(second.update, [{ id: existing.find(e => e.extGroup).id, addCents: 11, addIds: ['i3'], addFx: 0 }]);
   assert.strictEqual(second.dup, 3);
 });
 

@@ -92,30 +92,31 @@
   /* Preguntas para el usuario: un grupo por tipo de movimiento (los pagos con tarjeta, uno por categoría del comercio;
      las acciones desconocidas, una por nombre). Devuelve [{ id, kind, mcat, action, count, cents, sample }] */
   const groupId = r => r.kind === 'card' ? 'card:' + (r.mcat || '-') : r.kind === 'other' ? 'other:' + r.action : r.kind;
-  function questions(rows) {
+  function questions(rows, main = 'EUR') {
     const m = new Map();
     for (const r of rows) {
       const id = groupId(r);
       const g = m.get(id) || { id, kind: r.kind, mcat: r.kind === 'card' ? r.mcat : '', action: r.action, count: 0, cents: 0, sample: [] };
-      g.count++; if (r.currency === 'EUR') g.cents += r.cents;
+      g.count++; if (r.currency === main) g.cents += r.cents;
       if (g.sample.length < 3) { const s = r.merchant || r.name; if (s && !g.sample.includes(s)) g.sample.push(s); }
       m.set(id, g);
     }
     return [...m.values()];
   }
-  // Monedas distintas del euro que aparecen: { GBP: nº de movimientos }
-  function currencies(rows) {
+  // Monedas distintas de la principal que aparecen: { GBP: nº de movimientos }
+  function currencies(rows, main = 'EUR') {
     const out = {};
-    for (const r of rows) if (r.currency !== 'EUR') out[r.currency] = (out[r.currency] || 0) + 1;
+    for (const r of rows) if (r.currency !== main) out[r.currency] = (out[r.currency] || 0) + 1;
     return out;
   }
 
   /* Plan de importación.
      answers: { [id de grupo]: { type: 'expense' | 'income' | 'skip', categoryId, group: 'none' | 'day' | 'month' } }
-     rates:   { GBP: 1.15 } (euros por unidad; sin tasa, esa moneda se ignora)
+     rates:   { GBP: 1.15 } (moneda principal por unidad; sin tasa, esa moneda se ignora)
+     main:    moneda principal de la Libreta. v1.22: lo que va en otra moneda se apunta en esa moneda (fx = { cur, cents, rate })
      existing: movimientos de la Libreta (los importados llevan extIds y, si van agrupados, extGroup)
      Devuelve { create: [...], update: [{ id, addCents, addIds }], dup, skipped, unanswered } */
-  function plan(rows, answers, rates, existing) {
+  function plan(rows, answers, rates, existing, main = 'EUR') {
     const known = new Set(), groups = new Map();
     for (const e of existing || []) {
       for (const k of e.extIds || []) known.add(k);
@@ -128,24 +129,31 @@
       const a = (answers || {})[groupId(r)];
       if (!a || !['expense', 'income', 'skip'].includes(a.type)) { unanswered++; continue; }
       if (a.type === 'skip') { skipped++; continue; }
-      let c = r.cents;
-      if (r.currency !== 'EUR') {
-        const rate = Number((rates || {})[r.currency]);
+      let c = r.cents, rate = 1;
+      const foreign = r.currency !== main;
+      if (foreign) {
+        rate = Number((rates || {})[r.currency]);
         if (!(rate > 0)) { skipped++; continue; }
-        c = Math.round(c * rate);
+        c = Math.round(r.cents * rate);
       }
-      if (!c) { skipped++; continue; }
+      if (!r.cents) { skipped++; continue; }
       const base = { type: a.type, categoryId: a.categoryId || 'other', method: r.kind === 'card' || r.kind === 'cardCredit' ? 'card' : 'transfer' };
       if (a.group === 'day' || a.group === 'month') {
-        const period = a.group === 'day' ? r.date : r.date.slice(0, 7), gk = ['t212', groupId(r), a.type, period].join('|');
+        // Los agrupados en otra moneda van aparte (su propio grupo), para guardar el importe original
+        const period = a.group === 'day' ? r.date : r.date.slice(0, 7), gk = ['t212', groupId(r), a.type, period, ...(foreign ? [r.currency] : [])].join('|');
         const ex = groups.get(gk);
-        if (ex) { const u = upd.get(ex.id) || { id: ex.id, addCents: 0, addIds: [] }; u.addCents += c; u.addIds.push(r.key); upd.set(ex.id, u); continue; }
-        const b = bucket.get(gk) || { ...base, date: r.date, amountCents: 0, extIds: [], extGroup: gk, kind: r.kind, label: r.kind === 'card' ? r.mcat : r.kind === 'other' ? r.action : '', count: 0 };
-        b.amountCents += c; b.extIds.push(r.key); b.count++; if (r.date > b.date) b.date = r.date;
+        if (ex) {
+          const u = upd.get(ex.id) || { id: ex.id, addCents: 0, addIds: [], addFx: 0 };
+          if (foreign && ex.fx) { u.addFx += r.cents; u.addCents += Math.round(r.cents * (ex.fx.rate || rate)); } else u.addCents += c;
+          u.addIds.push(r.key); upd.set(ex.id, u); continue;
+        }
+        const b = bucket.get(gk) || { ...base, date: r.date, amountCents: 0, extIds: [], extGroup: gk, kind: r.kind, label: r.kind === 'card' ? r.mcat : r.kind === 'other' ? r.action : '', count: 0, ...(foreign ? { fx: { cur: r.currency, cents: 0, rate } } : {}) };
+        if (b.fx) { b.fx.cents += r.cents; b.amountCents = Math.round(b.fx.cents * rate); } else b.amountCents += c;
+        b.extIds.push(r.key); b.count++; if (r.date > b.date) b.date = r.date;
         bucket.set(gk, b);
         continue;
       }
-      create.push({ ...base, date: r.date, amountCents: c, extIds: [r.key], kind: r.kind, label: r.merchant || r.name || (r.kind === 'other' ? r.action : ''), count: 1 });
+      create.push({ ...base, date: r.date, amountCents: c, extIds: [r.key], kind: r.kind, label: r.merchant || r.name || (r.kind === 'other' ? r.action : ''), count: 1, ...(foreign ? { fx: { cur: r.currency, cents: r.cents, rate } } : {}) });
     }
     return { create: [...create, ...bucket.values()].sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0)), update: [...upd.values()], dup, skipped, unanswered };
   }

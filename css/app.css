@@ -1730,9 +1730,9 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 .rg-l { font-size: 13px; font-weight: var(--fw-label); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .rg-q .seg { width: 100%; }
 /* v1.21: siete herramientas en la Libreta (con «Registrar»): 4 por fila en el móvil, todas en una fila en pantallas anchas */
-.ledger-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 12px; }
-@media (min-width: 640px) { .ledger-tools { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
-@media (max-width: 360px) { .ledger-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); } .tool-ico { width: 46px; height: 46px; } }
+.ledger-tools { grid-template-columns: repeat(5, minmax(0, 1fr)); row-gap: 12px; }
+@media (min-width: 640px) { .ledger-tools { grid-template-columns: repeat(9, minmax(0, 1fr)); } }
+@media (max-width: 360px) { .ledger-tools { grid-template-columns: repeat(5, minmax(0, 1fr)); } .tool-ico { width: 42px; height: 42px; } }
 .tool-lbl { overflow-wrap: normal; hyphens: auto; }
 /* Pasos del registro que explican el Calendario y la Libreta */
 .ob-demo { padding: 14px; border-radius: var(--r-lg); display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
@@ -1787,3 +1787,15 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 /* v1.22: casi nada se puede seleccionar ni copiar, salvo lo que sí tiene sentido copiar */
 body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 input, textarea, select, [contenteditable="true"], .contract, .contract *, .help-txt, .help-txt *, .msg-text, .msg-bubble, .msg-who, .pv-note, .pv-desc, .g-head h2, .sel-ok, .sel-ok * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+
+/* v1.22: divisas */
+.cap-input .cur-sel { width: auto; min-width: 74px; max-width: 96px; padding-left: 10px; padding-right: 6px; flex: none; }
+.fx-amt { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.fx-amt > span { font-size: .72rem; white-space: nowrap; }
+.fx-month { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 0 0; }
+.fx-month span { white-space: nowrap; }
+.fx-month svg { width: 14px; height: 14px; }
+.fx-row { display: flex; align-items: flex-end; gap: 10px; padding: 12px; border-radius: 14px; }
+.fx-row .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.fx-man { max-width: 140px; margin: 0; }
+#le-fx:empty { display: none; }

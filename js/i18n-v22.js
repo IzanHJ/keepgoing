@@ -30,7 +30,16 @@
     help_mastery_start: 'Toca tu nivel (arriba) para ver tus puntos de hoy y el total.|Cumple días perfectos para avanzar en la serie de maestrías.|Revisa tus medallas y estadísticas.',
     help_mastery_feat: 'Nivel por XP (puntos × 10).|Serie de días perfectos con rangos.|Medallas por logros (rachas, energía, retos…).|Cartas de los retos completados.|Mascota que crece contigo.',
     help_mastery_links: 'Los puntos salen de tus Hábitos y Proyectos.|Tus puntos se convierten en Dinero Caprichable en la Libreta según el porcentaje de Ajustes.|La energía del día que pones en «Hoy» también cuenta para algunas medallas.',
-    whatsNew: 'Novedades', whatsNewTitle: 'Novedades de la versión {v}', whatsNewSee: 'Ver en detalle', whatsNewClose: 'Entendido', whatsNewAll: 'Ver las novedades', whatsNewLess: 'Ver menos'
+    whatsNew: 'Novedades', whatsNewTitle: 'Novedades de la versión {v}', whatsNewSee: 'Ver en detalle', whatsNewClose: 'Entendido', whatsNewAll: 'Ver las novedades', whatsNewLess: 'Ver menos',
+    fxCurrency: 'Moneda', fxRateLbl: '1 {c} = ? {m}', fxNoRate: 'sin cambio', fxNoRateHint: 'Sin cambio automático para esta moneda: escribe tú el cambio.',
+    fxEstimate: 'estimación', fxNeedRate: 'Escribe el cambio de esta moneda', fxMonth: 'Cambio estimado de hoy:', fxTool: 'Divisas',
+    fxMain: 'Moneda principal', fxMainHint: 'Los totales, gráficas, presupuestos y la calculadora se muestran en esta moneda. Los movimientos en otras monedas guardan su importe original y su cambio estimado.',
+    fxSource: 'Cambios del Banco Central Europeo del {d}', fxNoData: 'Aún no hay cambios descargados', fxRefresh: 'Actualizar',
+    fxAuto: 'Automático: {r}', fxNoAuto: 'Sin cambio automático', fxManual: 'Fijar a mano', fxNoneUsed: 'Todavía no usas otras monedas.',
+    fxAdd: 'Añadir una moneda', fxManualHint: 'Si fijas un cambio a mano, se usa ese en lugar del automático. Déjalo vacío para volver al automático.',
+    fxNeedOnline: 'Necesitas conexión para descargar el cambio', fxMainQ: '¿Pasar la moneda principal de {a} a {b}? Los importes se convierten con el cambio de hoy ({r}) y los movimientos antiguos quedan como moneda secundaria.',
+    fxMainDone: 'Moneda principal: {c}', calcCurHint: 'Los importes de esta pieza van en esta moneda y se pasan a la principal con el cambio de hoy.',
+    rgConvert: 'Apuntar en esta moneda', rgCurHint: 'Se apuntan en su moneda con un cambio estimado a tu moneda principal (puedes cambiarlo). También puedes ignorarlos.'
   };
   const en = {
     setGroupHelp: 'Help', helpTitle: 'In-app help', helpSub: 'What each part is for and how to get the most out of it',
@@ -61,7 +70,16 @@
     help_mastery_start: 'Tap your level (top) to see today’s points and your total.|Complete perfect days to move up the mastery series.|Check your medals and stats.',
     help_mastery_feat: 'Level by XP (points × 10).|Perfect-day series with ranks.|Medals for achievements (streaks, energy, challenges…).|Cards for completed challenges.|A pet that grows with you.',
     help_mastery_links: 'Points come from your Habits and Projects.|Your points turn into Treat Money in the Ledger at the percentage set in Settings.|The daily energy you set in “Today” also counts for some medals.',
-    whatsNew: 'What’s new', whatsNewTitle: 'What’s new in version {v}', whatsNewSee: 'See details', whatsNewClose: 'Got it', whatsNewAll: 'See what’s new', whatsNewLess: 'See less'
+    whatsNew: 'What’s new', whatsNewTitle: 'What’s new in version {v}', whatsNewSee: 'See details', whatsNewClose: 'Got it', whatsNewAll: 'See what’s new', whatsNewLess: 'See less',
+    fxCurrency: 'Currency', fxRateLbl: '1 {c} = ? {m}', fxNoRate: 'no rate', fxNoRateHint: 'No automatic rate for this currency: type the rate yourself.',
+    fxEstimate: 'estimate', fxNeedRate: 'Type this currency’s rate', fxMonth: 'Today’s estimated rate:', fxTool: 'Currencies',
+    fxMain: 'Main currency', fxMainHint: 'Totals, charts, budgets and the calculator are shown in this currency. Entries in other currencies keep their original amount and estimated rate.',
+    fxSource: 'European Central Bank rates of {d}', fxNoData: 'No rates downloaded yet', fxRefresh: 'Refresh',
+    fxAuto: 'Automatic: {r}', fxNoAuto: 'No automatic rate', fxManual: 'Set manually', fxNoneUsed: 'You don’t use other currencies yet.',
+    fxAdd: 'Add a currency', fxManualHint: 'A manual rate is used instead of the automatic one. Leave it empty to go back to automatic.',
+    fxNeedOnline: 'You need a connection to download the rate', fxMainQ: 'Change the main currency from {a} to {b}? Amounts are converted at today’s rate ({r}) and older entries stay as a secondary currency.',
+    fxMainDone: 'Main currency: {c}', calcCurHint: 'This piece’s amounts are in this currency and converted to the main one at today’s rate.',
+    rgConvert: 'Log in this currency', rgCurHint: 'They are logged in their currency with an estimated rate to your main currency (you can change it). You can also ignore them.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
