@@ -1,7 +1,7 @@
 /* KeepGoing — «Registrar»: leer el CSV de movimientos de un banco y convertirlo en movimientos de la Libreta (lógica pura, sin DOM).
    Por ahora entiende el formato de Trading 212. No deduce lo que no sabe: agrupa los movimientos por tipo y la app
    pregunta al usuario qué es cada tipo (gasto, ingreso o ignorar), en qué categoría va y si quiere agruparlos.
-   Los depósitos y las retiradas se ignoran siempre (son dinero que entra o sale de tu propia cuenta).
+   v1.22: los depósitos y las retiradas también se preguntan (ignorarlos o ponerles categoría), como cualquier otro tipo.
    Se usa en el navegador (window.KGBankCsv) y en los tests de Node (require). */
 (function (root, factory) {
   const api = factory();
@@ -52,7 +52,6 @@
     if (a === 'market sell' || a === 'limit sell' || a === 'stop sell') return 'sell';
     return 'other';
   }
-  const IGNORED = ['deposit', 'withdrawal'];
   const pad = n => String(n).padStart(2, '0');
   // «2026-10-01 18:55:13+00:00» (UTC) → fecha del día en la zona horaria del dispositivo
   function localDate(time) {
@@ -67,17 +66,16 @@
     return Number.isFinite(x) ? Math.round(Math.abs(x) * 100) : null;
   }
 
-  /* Lee el CSV. Devuelve { format, rows, ignored: { deposit, withdrawal }, bad } o { format: null } si no es un formato conocido.
+  /* Lee el CSV. Devuelve { format, rows, bad } o { format: null } si no es un formato conocido.
      Cada fila: { key, kind, action, date, cents, sign, currency, merchant, mcat, name } */
   function read(text) {
     const all = parseCsv(text), header = all[0] || [], format = detect(header);
-    if (!format) return { format: null, rows: [], ignored: { deposit: 0, withdrawal: 0 }, bad: 0 };
+    if (!format) return { format: null, rows: [], bad: 0 };
     const col = name => header.indexOf(name), get = (r, name) => { const i = col(name); return i >= 0 ? String(r[i] || '').trim() : ''; };
-    const rows = [], ignored = { deposit: 0, withdrawal: 0 }, seen = new Set();
+    const rows = [], seen = new Set();
     let bad = 0;
     for (const r of all.slice(1)) {
       const action = get(r, 'Action'), kind = kindOf(action), time = get(r, 'Time (UTC)');
-      if (IGNORED.includes(kind)) { ignored[kind]++; continue; }
       const date = localDate(time), c = cents(get(r, 'Total'));
       if (!date || c === null) { bad++; continue; }
       const total = Number(get(r, 'Total'));
@@ -88,36 +86,37 @@
       rows.push({ key, kind, action: action.slice(0, 60), date, cents: c, sign: total < 0 ? -1 : 1, currency: (get(r, 'Currency (Total)') || 'EUR').toUpperCase().slice(0, 3),
         merchant: get(r, 'Merchant name').slice(0, 80), mcat: get(r, 'Merchant category').slice(0, 40), name: (get(r, 'Name') || get(r, 'Ticker')).slice(0, 80) });
     }
-    return { format, rows, ignored, bad };
+    return { format, rows, bad };
   }
 
   /* Preguntas para el usuario: un grupo por tipo de movimiento (los pagos con tarjeta, uno por categoría del comercio;
      las acciones desconocidas, una por nombre). Devuelve [{ id, kind, mcat, action, count, cents, sample }] */
   const groupId = r => r.kind === 'card' ? 'card:' + (r.mcat || '-') : r.kind === 'other' ? 'other:' + r.action : r.kind;
-  function questions(rows) {
+  function questions(rows, main = 'EUR') {
     const m = new Map();
     for (const r of rows) {
       const id = groupId(r);
       const g = m.get(id) || { id, kind: r.kind, mcat: r.kind === 'card' ? r.mcat : '', action: r.action, count: 0, cents: 0, sample: [] };
-      g.count++; if (r.currency === 'EUR') g.cents += r.cents;
+      g.count++; if (r.currency === main) g.cents += r.cents;
       if (g.sample.length < 3) { const s = r.merchant || r.name; if (s && !g.sample.includes(s)) g.sample.push(s); }
       m.set(id, g);
     }
     return [...m.values()];
   }
-  // Monedas distintas del euro que aparecen: { GBP: nº de movimientos }
-  function currencies(rows) {
+  // Monedas distintas de la principal que aparecen: { GBP: nº de movimientos }
+  function currencies(rows, main = 'EUR') {
     const out = {};
-    for (const r of rows) if (r.currency !== 'EUR') out[r.currency] = (out[r.currency] || 0) + 1;
+    for (const r of rows) if (r.currency !== main) out[r.currency] = (out[r.currency] || 0) + 1;
     return out;
   }
 
   /* Plan de importación.
      answers: { [id de grupo]: { type: 'expense' | 'income' | 'skip', categoryId, group: 'none' | 'day' | 'month' } }
-     rates:   { GBP: 1.15 } (euros por unidad; sin tasa, esa moneda se ignora)
+     rates:   { GBP: 1.15 } (moneda principal por unidad; sin tasa, esa moneda se ignora)
+     main:    moneda principal de la Libreta. v1.22: lo que va en otra moneda se apunta en esa moneda (fx = { cur, cents, rate })
      existing: movimientos de la Libreta (los importados llevan extIds y, si van agrupados, extGroup)
      Devuelve { create: [...], update: [{ id, addCents, addIds }], dup, skipped, unanswered } */
-  function plan(rows, answers, rates, existing) {
+  function plan(rows, answers, rates, existing, main = 'EUR') {
     const known = new Set(), groups = new Map();
     for (const e of existing || []) {
       for (const k of e.extIds || []) known.add(k);
@@ -130,27 +129,34 @@
       const a = (answers || {})[groupId(r)];
       if (!a || !['expense', 'income', 'skip'].includes(a.type)) { unanswered++; continue; }
       if (a.type === 'skip') { skipped++; continue; }
-      let c = r.cents;
-      if (r.currency !== 'EUR') {
-        const rate = Number((rates || {})[r.currency]);
+      let c = r.cents, rate = 1;
+      const foreign = r.currency !== main;
+      if (foreign) {
+        rate = Number((rates || {})[r.currency]);
         if (!(rate > 0)) { skipped++; continue; }
-        c = Math.round(c * rate);
+        c = Math.round(r.cents * rate);
       }
-      if (!c) { skipped++; continue; }
+      if (!r.cents) { skipped++; continue; }
       const base = { type: a.type, categoryId: a.categoryId || 'other', method: r.kind === 'card' || r.kind === 'cardCredit' ? 'card' : 'transfer' };
       if (a.group === 'day' || a.group === 'month') {
-        const period = a.group === 'day' ? r.date : r.date.slice(0, 7), gk = ['t212', groupId(r), a.type, period].join('|');
+        // Los agrupados en otra moneda van aparte (su propio grupo), para guardar el importe original
+        const period = a.group === 'day' ? r.date : r.date.slice(0, 7), gk = ['t212', groupId(r), a.type, period, ...(foreign ? [r.currency] : [])].join('|');
         const ex = groups.get(gk);
-        if (ex) { const u = upd.get(ex.id) || { id: ex.id, addCents: 0, addIds: [] }; u.addCents += c; u.addIds.push(r.key); upd.set(ex.id, u); continue; }
-        const b = bucket.get(gk) || { ...base, date: r.date, amountCents: 0, extIds: [], extGroup: gk, kind: r.kind, label: r.kind === 'card' ? r.mcat : r.kind === 'other' ? r.action : '', count: 0 };
-        b.amountCents += c; b.extIds.push(r.key); b.count++; if (r.date > b.date) b.date = r.date;
+        if (ex) {
+          const u = upd.get(ex.id) || { id: ex.id, addCents: 0, addIds: [], addFx: 0 };
+          if (foreign && ex.fx) { u.addFx += r.cents; u.addCents += Math.round(r.cents * (ex.fx.rate || rate)); } else u.addCents += c;
+          u.addIds.push(r.key); upd.set(ex.id, u); continue;
+        }
+        const b = bucket.get(gk) || { ...base, date: r.date, amountCents: 0, extIds: [], extGroup: gk, kind: r.kind, label: r.kind === 'card' ? r.mcat : r.kind === 'other' ? r.action : '', count: 0, ...(foreign ? { fx: { cur: r.currency, cents: 0, rate } } : {}) };
+        if (b.fx) { b.fx.cents += r.cents; b.amountCents = Math.round(b.fx.cents * rate); } else b.amountCents += c;
+        b.extIds.push(r.key); b.count++; if (r.date > b.date) b.date = r.date;
         bucket.set(gk, b);
         continue;
       }
-      create.push({ ...base, date: r.date, amountCents: c, extIds: [r.key], kind: r.kind, label: r.merchant || r.name || (r.kind === 'other' ? r.action : ''), count: 1 });
+      create.push({ ...base, date: r.date, amountCents: c, extIds: [r.key], kind: r.kind, label: r.merchant || r.name || (r.kind === 'other' ? r.action : ''), count: 1, ...(foreign ? { fx: { cur: r.currency, cents: r.cents, rate } } : {}) });
     }
     return { create: [...create, ...bucket.values()].sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0)), update: [...upd.values()], dup, skipped, unanswered };
   }
 
-  return { parseCsv, detect, kindOf, localDate, read, questions, currencies, plan, groupId, IGNORED };
+  return { parseCsv, detect, kindOf, localDate, read, questions, currencies, plan, groupId };
 });

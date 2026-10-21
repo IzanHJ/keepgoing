@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.21.0';
+  const VERSION = '1.22.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -175,6 +175,8 @@
   const CAP = window.KGCaprice;
   const defaultCaprice = () => ({ income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT }, history: [{ from: '0000-00-00', income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT } }] });
   const defaultLedgerCats = () => window.KGLedger.DEFAULT_CATEGORIES.map(c => ({ ...c, name: '', archived: false }));
+  // v1.22: tipos de notificación (Ajustes → Notificaciones); el servidor los lee de kg_state para decidir qué envía
+  const NOTIF0 = { energy: true, energyAt: '21:00', summary: true, summaryAt: '09:00', challenge: true, share: true, group: true, message: true };
   function defaultState() {
     const lang = (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
     return {
@@ -197,8 +199,9 @@
       // v1.19: presupuestos mensuales (cifrados con la Libreta, un elemento por presupuesto)
       ledgerBudgets: [],
       ledgerProjs: [],
+      ledgerImports: [], // v1.22: registros de lo importado con «Registrar» (cifrados como el resto de la Libreta)
       // v1.20: Calendario de turnos (trabajos, plantillas, días, calendario externo y ajustes)
-      calJobs: [], calShifts: [], calDays: {}, cdmt: {}, calExt: { list: [] }, cemt: {}, calPrefs: { weekStart: 1, alarms: false, hide: {} },
+      calJobs: [], calShifts: [], calDays: {}, cdmt: {}, calExt: { list: [] }, cemt: {}, calPrefs: { weekStart: 1, alarms: false, hide: {} }, notif: { ...NOTIF0 },
       // Fase 3 (v1.10): sonidos activados por defecto
       soundOn: true, ledgerVault: null,
       // v1.14: widgets ocultos desde el modo edición (se recuperan en Ajustes)
@@ -210,7 +213,7 @@
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
   const ORDER_LISTS = ['projects', 'routines'];
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'calJobs', 'calShifts'];
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'calJobs', 'calShifts'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt']]; // hábito → día → valor
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt']];             // clave → valor
   function normalize(s) {
@@ -235,11 +238,12 @@
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'calJobs', 'calShifts']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'calJobs', 'calShifts']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.calDays = s.calDays && typeof s.calDays === 'object' && !Array.isArray(s.calDays) ? s.calDays : {};
     out.calExt = s.calExt && Array.isArray(s.calExt.list) ? s.calExt : { list: [] };
     const cp0 = s.calPrefs && typeof s.calPrefs === 'object' ? s.calPrefs : {};
     out.calPrefs = { weekStart: 1, alarms: false, ...cp0, hide: cp0.hide && typeof cp0.hide === 'object' ? cp0.hide : {} };
+    out.notif = { ...NOTIF0, ...(s.notif && typeof s.notif === 'object' ? s.notif : {}) };
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
@@ -275,7 +279,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif];
   // La caja fuerte de la Libreta y el par de claves para compartir van aparte, con su propia marca (vmt)
   const vaultOf = s => [s.ledgerVault, s.kx];
   function stampChanges(prev, cur) {
@@ -359,7 +363,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif] = settingsOf(R); out.smt = R.smt; }
     // Caja fuerte: gana la más reciente, pero una vacía (o sin marca) nunca borra a otra salvo que venga de «Borrar la Libreta»
     {
       const lv = L.ledgerVault, rv = R.ledgerVault, wipe = Math.max(L.vaultWipe || 0, R.vaultWipe || 0);
@@ -401,8 +405,14 @@
   const t = (key, p = {}) => {
     const dict = window.I18N[state.lang] || window.I18N.es;
     const s = dict[key] ?? window.I18N.es[key] ?? key;
-    return s.replace(/\{(\w+)\}/g, (_, k) => p[k] ?? '');
+    const out = s.replace(/\{(\w+)\}/g, (_, k) => p[k] ?? '');
+    return out.includes('(€)') ? out.replace('(€)', `(${curSym(p.$cur)})`) : out;
   };
+  // v1.22: símbolo de una moneda («€», «US$», «£»); sin moneda, la principal de la Libreta
+  function curSym(c) {
+    if (!c) { const m = state.ledgerPrefs && state.ledgerPrefs.cur; c = /^[A-Z]{3,4}$/.test(m || '') ? m : 'EUR'; }
+    try { const p = new Intl.NumberFormat(state.lang, { style: 'currency', currency: c }).formatToParts(1).find(x => x.type === 'currency'); return p ? p.value : c; } catch (e) { return c; }
+  }
 
   /* ---------- tema ---------- */
   const T = { light: false, surfaceHex: '#1c1c1e' };
@@ -1384,6 +1394,25 @@
     return html;
   }
 
+  /* v1.22: cuadrícula sin huecos (tipo mosaico). Cada tarjeta ocupa tantas filas de 1 px como su altura, así una tarjeta
+     corta (por ejemplo, con el calendario oculto) no deja hueco y la de abajo sube. Con una sola columna no hace nada. */
+  let masonryRaf = 0;
+  const masonryRO = typeof ResizeObserver === 'function' ? new ResizeObserver(() => scheduleMasonry()) : null;
+  function scheduleMasonry() { if (!masonryRaf) masonryRaf = requestAnimationFrame(() => { masonryRaf = 0; $$('.habit-grid').forEach(layoutMasonry); }); }
+  function layoutMasonry(grid) {
+    const cs = getComputedStyle(grid), cols = cs.gridTemplateColumns.split(' ').filter(Boolean).length, kids = [...grid.children];
+    if (cols < 2) { if (grid.classList.contains('masonry')) { grid.classList.remove('masonry'); kids.forEach(k => { k.style.gridRowEnd = ''; }); } return; }
+    grid.classList.add('masonry');
+    const gap = parseFloat(cs.columnGap) || 12;
+    for (const k of kids) {
+      if (masonryRO && !k._mo) { masonryRO.observe(k); k._mo = true; }
+      const span = `span ${Math.max(1, Math.ceil(k.offsetHeight + gap))}`;
+      if (k.style.gridRowEnd !== span) k.style.gridRowEnd = span;
+    }
+  }
+  if (typeof MutationObserver === 'function') new MutationObserver(scheduleMasonry).observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener('resize', scheduleMasonry);
+
   // Carpeta (proyecto) en la cuadrícula: mismo tamaño que un hábito; muestra sus hábitos y el progreso de hoy
   // Hábitos que se cuentan más de una vez: a partir de 2 el número sustituye al icono
   const multiN = h => !isQuit(h) && !isAmount(h) && (+h.target > 1 || h.multi) ? (h.freq === 'daily' ? cnt(h, todayKey()) : periodSum(h, todayKey())) : 0;
@@ -1574,6 +1603,54 @@
     const b = calBounds(h); calOff[hid] = clamp((calOff[hid] || 0) + d, b.min, b.max);
     $$(`.cal-box[data-hid="${hid}"]`).forEach(box => { const tmp = document.createElement('div'); tmp.innerHTML = calHtml(h).trim(); const n = tmp.firstElementChild; box.replaceWith(n); initCals(n.parentElement); });
   }
+  /* v1.22: cambiar de mes deslizando con el dedo o arrastrando con el ratón (Calendario, Libreta y calendarios de los hábitos) */
+  const SWIPE_ZONES = [['.tf-grid, .tf-year', '[data-tf="prev"]', '[data-tf="next"]', '.tf-grid, .tf-year'], ['.ledger-cal .cal', '[data-act="ledger-month"][data-d="-1"]', '[data-act="ledger-month"][data-d="1"]', '.ledger-cal .cal']];
+  let mSw = null, mSwBlock = false;
+  document.addEventListener('pointerdown', e => {
+    if (e.button || e.target.closest('input, select, textarea')) return;
+    const cs = e.pointerType === 'mouse' && e.target.closest('.cal-swipe');
+    if (cs) { mSw = { kind: 'cs', el: cs, x: e.clientX, y: e.clientY, sl: cs.scrollLeft, moved: false }; return; }
+    const z = SWIPE_ZONES.find(([sel]) => e.target.closest(sel));
+    if (z) mSw = { kind: 'zone', z, x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
+  }, true);
+  document.addEventListener('pointermove', e => {
+    if (!mSw) return;
+    const dx = e.clientX - mSw.x, dy = e.clientY - mSw.y;
+    if (!mSw.moved && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { mSw.moved = true; if (mSw.kind === 'cs') { mSw.el.style.scrollSnapType = 'none'; mSw.el.classList.add('dragging'); } }
+    if (mSw.moved && mSw.kind === 'cs') mSw.el.scrollLeft = mSw.sl - dx;
+  }, true);
+  document.addEventListener('pointerup', e => {
+    const g = mSw; mSw = null; if (!g || !g.moved) return;
+    mSwBlock = true; setTimeout(() => { mSwBlock = false; }, 80);
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (g.kind === 'cs') {
+      const el = g.el, w = el.clientWidth, start = Math.round(g.sl / w), to = Math.abs(dx) > w * .18 ? start + (dx < 0 ? 1 : -1) : start;
+      el.classList.remove('dragging'); el.scrollTo({ left: clamp(to, 0, el.children.length - 1) * w, behavior: 'smooth' });
+      setTimeout(() => { el.style.scrollSnapType = ''; }, 400);
+      return;
+    }
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    const [, prev, next, after] = g.z, btn = $(dx < 0 ? next : prev); if (!btn) return;
+    mSwBlock = false; btn.click(); mSwBlock = true;
+    const box = $(after); if (box) { box.classList.remove('slide-l', 'slide-r'); void box.offsetWidth; box.classList.add(dx < 0 ? 'slide-l' : 'slide-r'); }
+  }, true);
+  document.addEventListener('pointercancel', () => { if (mSw && mSw.kind === 'cs') { mSw.el.classList.remove('dragging'); mSw.el.style.scrollSnapType = ''; } mSw = null; }, true);
+  window.addEventListener('click', e => { if (mSwBlock) { e.preventDefault(); e.stopPropagation(); mSwBlock = false; } }, true);
+  /* v1.22: con el ratón, la rueda sube o baja el número del campo que estás editando */
+  document.addEventListener('wheel', e => {
+    const el = e.target.closest && e.target.closest('input[type="number"], input[inputmode="decimal"], input[inputmode="numeric"]');
+    if (!el || el !== document.activeElement || el.disabled || el.readOnly) return;
+    const raw = String(el.value || '').trim(), comma = raw.includes(',') || (!raw.includes('.') && state.lang === 'es' && el.type !== 'number');
+    const v = Number(raw.replace(/\./g, comma ? '' : '.').replace(',', '.')) || 0;
+    const step = Number(el.step) > 0 ? Number(el.step) : Number(el.dataset.step) > 0 ? Number(el.dataset.step) : (!Number.isInteger(v) && Math.abs(v) < 10 ? .1 : 1);
+    let nv = Math.round((v + (e.deltaY < 0 ? step : -step)) * 1000) / 1000;
+    if (el.min !== '' && nv < Number(el.min)) nv = Number(el.min);
+    if (el.max !== '' && nv > Number(el.max)) nv = Number(el.max);
+    if (!(el.type === 'number' || el.min !== '') && nv < 0 && v >= 0) nv = 0;
+    e.preventDefault();
+    el.value = el.type === 'number' ? String(nv) : (comma ? String(nv).replace('.', ',') : String(nv));
+    el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { passive: false });
   // Al terminar de deslizar, el mes que queda a la vista pasa a ser el actual de ese calendario
   const calTimers = new WeakMap();
   document.addEventListener('scroll', e => {
@@ -2739,6 +2816,42 @@
     root.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.thColor) { save(); redraw(); } });
   }
 
+  /* ---------- v1.22: Ayuda en la aplicación (Ajustes) y novedades de cada versión ---------- */
+  const HELP = [['habits', 'checklist'], ['cal', 'calendar'], ['ledger', 'wallet'], ['chat', 'chat'], ['mastery', 'crown']];
+  function helpHtml() {
+    const list = k => `<ul class="help-list">${t(k).split('|').filter(Boolean).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+    return `<p class="muted small help-txt" style="margin-top:0">${esc(t('helpIntro'))}</p><div class="help-box">${HELP.map(([k, i]) => `<details class="help-item clay">
+      <summary><span class="tool-ico">${ico(i)}</span><b class="grow">${esc(t('help_' + k + '_t'))}</b><span class="acc-chev">${ico('right')}</span></summary>
+      <div class="help-body help-txt"><p>${esc(t('help_' + k + '_what'))}</p>
+        <h4>${esc(t('helpStart'))}</h4><ol class="help-list">${t('help_' + k + '_start').split('|').map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+        <h4>${esc(t('helpFeat'))}</h4>${list('help_' + k + '_feat')}
+        <h4>${esc(t('helpLinks'))}</h4>${list('help_' + k + '_links')}</div></details>`).join('')}</div>`;
+  }
+  // Novedades: para quien ya usaba la app, una vez por versión y dispositivo. Cada línea es «título|detalle».
+  const SEEN_KEY = 'keepgoing.seenVersion', WN = { '1.22.0': 8 };
+  const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
+  function openWhatsNew() {
+    const n = WN[VERSION] || 0; if (!n) return;
+    const items = Array.from({ length: n }, (_, i) => t(`wn_${VERSION.replace(/\./g, '_')}_${i + 1}`).split('|'));
+    let more = false, wref;
+    const draw = () => {
+      $('#wn', wref).innerHTML = `<ul class="wn-list">${items.map(([ti, de]) => `<li><span class="wn-dot">${ico('sparkle')}</span><span class="grow"><b>${esc(ti)}</b>${more && de ? `<span class="muted small">${esc(de)}</span>` : ''}</span></li>`).join('')}</ul>`;
+      $('[data-wn="more"]', wref).innerHTML = `${ico(more ? 'up' : 'down')} ${esc(t(more ? 'whatsNewLess' : 'whatsNewSee'))}`;
+    };
+    seenVersion(VERSION);
+    openModal({
+      title: `${ico('sparkle')} ${esc(t('whatsNewTitle', { v: VERSION.replace(/\.0$/, '') }))}`, cls: 'wn-modal', body: '<div id="wn"></div>',
+      foot: `<button class="btn" data-wn="more"></button><button class="btn primary" data-wn="ok">${esc(t('whatsNewClose'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onClick: (e, close) => { const b = e.target.closest('[data-wn]'); if (!b) return; if (b.dataset.wn === 'ok') close(); else { more = !more; draw(); } }
+    });
+  }
+  function maybeWhatsNew() {
+    if (!state.onboarded || seenVersion() === VERSION) return;
+    if (!WN[VERSION]) { seenVersion(VERSION); return; }
+    whenFree(openWhatsNew);
+  }
+
   /* ---------- ONBOARDING ---------- */
   // Pasos: idioma, color, hábitos y proyectos, Calendario, Libreta, @nametag (opcional, con cuenta) y contrato
   // v1.21: pasos con nombre; ya no se elige el nivel de compromiso: sale solo según los hábitos que crees (sin mínimo)
@@ -2882,7 +2995,7 @@
         const prev = state.contract;
         const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
         if (!prev || prev.name !== obForm.name() || obForm.sig() || prev.g !== obForm.g() || prev.level !== state.commitment || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w, obForm.g());
-        obCreateAll(); state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
+        obCreateAll(); seenVersion(VERSION); state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
       }
       state.obStep++; save(); render(); return true;
     }
@@ -3030,6 +3143,10 @@
       const nOff = PROMPTS.filter(p => !promptOn(p.id)).length, nRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on).length;
       const preset = PRESETS.find(p => p.id === state.theme.preset);
       $('#st', wref).innerHTML = `<div class="stack" style="gap:20px">
+        ${group(t('setGroupHelp'), [
+          acc('help', ico('info'), t('helpTitle'), t('helpSub'), helpHtml()),
+          acc('news', ico('sparkle'), t('whatsNew'), t('version', { v: VERSION }), `<button class="btn block" data-s="news">${ico('sparkle')} ${esc(t('whatsNewAll'))}</button>`)
+        ])}
         ${group(t('setGroupGeneral'), [
           acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
           acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
@@ -3074,6 +3191,8 @@
           if (tg) { state.prompts[tg] = { ...(state.prompts[tg] || {}), off: !e.target.checked }; save(); toast(t(e.target.checked ? 'promptOnToast' : 'promptOffToast')); }
           const nt = e.target.dataset && e.target.dataset.promptNote;
           if (nt) { state.prompts[nt] = { ...(state.prompts[nt] || {}), note: e.target.value.trim() }; save(); toast(t('saved')); }
+          if (e.target.dataset && e.target.dataset.ntf) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntf]: e.target.checked }; const at = e.target.closest('.ntf-row').querySelector('[data-ntf-at]'); if (at) at.disabled = !e.target.checked; save(); toast(t(e.target.checked ? 'ntfOn' : 'ntfOff')); }
+          if (e.target.dataset && e.target.dataset.ntfAt && /^\d{2}:\d{2}$/.test(e.target.value)) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntfAt]: e.target.value }; save(); toast(t('saved')); }
           if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); toast(t('saved')); }
           if (e.target.closest && e.target.closest('#st-priv')) privacyChange(e, w);
           if (e.target.matches && e.target.matches('[data-s-sound]')) { state.soundOn = e.target.checked; save(); if (state.soundOn) sfx('toggle'); toast(t(state.soundOn ? 'soundOnToast' : 'soundOffToast')); }
@@ -3110,6 +3229,7 @@
           case 'report': close(); openReport(); break;
           case 'import': $('#st-file', w).click(); break;
           case 'hw-restore': state.hiddenW = (state.hiddenW || []).filter(k => k !== el.dataset.v); save(); render(); draw(); toast(t('hwRestored')); break;
+          case 'news': close(); openWhatsNew(); break;
           case 'replay': close(); state.onboarded = false; state.obStep = 0; save(); render(); break;
           case 'reset':
             if (await confirmDialog(t('resetQ')) && await confirmDialog(t('resetQ2'))) {
@@ -3302,7 +3422,43 @@
   const COMMIT_LEVELS = CAP.LEVELS;
   // v1.21: un único porcentaje para el Dinero Caprichable (0,5 % por defecto)
   const capP = () => (state.caprice.p != null ? state.caprice.p : CAP.DEFAULT_P);
-  const fmtMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  /* ---------- v1.22: divisas. Moneda principal de la Libreta (Ajustes de la Libreta → Divisas) y cambios del BCE ---------- */
+  const FX = window.KGFx, FX_KEY = 'keepgoing.fx';
+  const ledgerMain = () => (state.ledgerPrefs && FX.isCode(state.ledgerPrefs.cur) && state.ledgerPrefs.cur) || 'EUR';
+  const fxManual = () => (state.ledgerPrefs && state.ledgerPrefs.fxManual) || {};
+  // Caché de este dispositivo: { latest: { date, rates, at }, days: { 'AAAA-MM-DD': rates } } (rates = unidades por 1 EUR)
+  let fxCache = (() => { try { return JSON.parse(localStorage.getItem(FX_KEY)) || {}; } catch (e) { return {}; } })();
+  const fxSaveCache = () => { try { localStorage.setItem(FX_KEY, JSON.stringify(fxCache)); } catch (e) { /* sin espacio */ } };
+  let fxBusy = null;
+  const fxFetch = day => fetch(`https://api.frankfurter.dev/v1/${day}`).then(r => { if (!r.ok) throw new Error('fx ' + r.status); return r.json(); });
+  function fxLatest(force = false) {
+    const l = fxCache.latest;
+    if (!force && l && Date.now() - l.at < 6 * 36e5) return Promise.resolve(l);
+    if (!fxBusy) fxBusy = fxFetch('latest').then(j => { fxCache.latest = { date: j.date, rates: j.rates || {}, at: Date.now() }; fxSaveCache(); return fxCache.latest; })
+      .catch(() => fxCache.latest || null).finally(() => { fxBusy = null; });
+    return fxBusy;
+  }
+  async function fxDay(day) {
+    if (!day || day >= todayKey()) { const l = await fxLatest(); return l && l.rates; }
+    const days = fxCache.days || (fxCache.days = {});
+    if (days[day]) return days[day];
+    try {
+      const j = await fxFetch(day); days[day] = j.rates || {};
+      const ks = Object.keys(days).sort(); while (ks.length > 120) delete days[ks.shift()];
+      fxSaveCache(); return days[day];
+    } catch (e) { const l = await fxLatest(); return l && l.rates; }
+  }
+  // Cambio a la moneda principal: ahora (síncrono, con lo que haya en caché) o en un día concreto
+  const fxRateNow = cur => FX.rateFor(cur, ledgerMain(), (fxCache.latest || {}).rates, fxManual());
+  async function fxRateOn(cur, day) { const m = Number(fxManual()[cur]); if (m > 0) return m; return FX.cross(await fxDay(day), cur, ledgerMain()); }
+  // Importe en cualquier moneda (las que Intl no conoce, como BTC o USDT, van con su código)
+  function fmtCur(v, cur, opts = {}) {
+    try { return new Intl.NumberFormat(state.lang, { style: 'currency', currency: cur, minimumFractionDigits: opts.min ?? 2, maximumFractionDigits: opts.max ?? 2 }).format(v); }
+    catch (e) { return `${new Intl.NumberFormat(state.lang, { minimumFractionDigits: opts.min ?? 2, maximumFractionDigits: opts.max ?? 8 }).format(v)} ${cur}`; }
+  }
+  // «1 $ = 0,8912 €»
+  const fxRateTxt = (cur, rate) => `${fmtCur(1, cur, { min: 0, max: 0 })} = ${fmtCur(FX.roundRate(rate), ledgerMain(), { min: 2, max: 6 })}`;
+  const fmtMoney = v => fmtCur(v, ledgerMain());
   const fmtPct = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 4 }).format(v) + ' %';
   const fmtPctIn = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 4, useGrouping: false }).format(v);
   const fmtPts = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 2 }).format(v);
@@ -3380,7 +3536,7 @@
       <p class="small cap-hint" data-cap-hint role="status"></p>
       <div class="cap-preview">
         <h4>${esc(t('capPreview'))}</h4>
-        <label class="field"><span>${esc(t('capIncome'))}</span><span class="cap-input"><input class="input" data-cap-income inputmode="decimal" autocomplete="off" value="${esc(fmtPctIn(c.income))}"><b>€</b></span></label>
+        <label class="field"><span>${esc(t('capIncome'))}</span><span class="cap-input"><input class="input" data-cap-income inputmode="decimal" autocomplete="off" value="${esc(fmtPctIn(c.income))}"><b>${esc(curSym())}</b></span></label>
         ${monthIncome() > 0 ? `<button type="button" class="chip" data-cap-use-income style="margin-top:8px">💼 ${esc(t('capUseIncome', { m: cents(monthIncome()) }))}</button>` : ''}
         <p class="small" style="margin:10px 0 6px">${esc(t('capEquals'))}</p>
         <ul class="cap-prev-list"><li data-cap-prev class="on"><span><small data-cap-prev-pct></small></span><b data-cap-prev-val></b></li></ul>
@@ -3492,8 +3648,8 @@
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
   const VAULT = window.KGVault, DEV = window.KGVaultDevice;
-  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs']];
-  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs'], ['imports', 'ledgerImports']];
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
   const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
   const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
@@ -3532,7 +3688,7 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
   async function useKey(key, raw) { LV.key = key; LV.raw = raw; sessTried = ''; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
   // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
@@ -3812,7 +3968,7 @@
       for (const d of LED.occurrences(r, r.from, today)) {
         const id = LED.recEntryId(r.id, d);
         if (have.has(id) || del[id]) continue;
-        LV.entries.push({ id, date: d, type: r.type, amountCents: r.amountCents, categoryId: r.categoryId, note: r.note || '', method: r.method || '', recurringId: r.id, createdAt: Date.now() });
+        LV.entries.push({ id, date: d, type: r.type, amountCents: r.amountCents, categoryId: r.categoryId, note: r.note || '', method: r.method || '', recurringId: r.id, createdAt: Date.now(), ...(r.fx ? { fx: { ...r.fx } } : {}) });
         have.add(id); added++;
       }
     }
@@ -3845,6 +4001,7 @@
         <select class="input sel" data-ledger-y aria-label="${esc(t('ledgerYearSel'))}">${Array.from({ length: yMax - yMin + 1 }, (_, i) => yMin + i).map(v => `<option ${v === y ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <button class="icon-btn sm" data-act="ledger-month" data-d="1" aria-label="${esc(t('ledgerNext'))}">${ico('right')}</button></div>
       <div class="month-sum"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(tot.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(tot.expense)}</b></div><div><span>${esc(t('ledgerBalance'))}</span><b>${cents(tot.net)}</b></div></div>
+      ${ledgerFxLine(monthEntries)}
       <div class="cal" role="grid"><div class="cal-row cal-wd" role="row">${wd.map(d => `<span role="columnheader">${esc(d)}</span>`).join('')}</div>
       ${LED.monthGrid(y, m).map(w => `<div class="cal-row" role="row">${w.map(k => {
         if (!k) return '<span class="cal-cell empty" role="gridcell"></span>';
@@ -3855,7 +4012,7 @@
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
     // Herramientas de la Libreta: icono de línea con su nombre debajo (mismo estilo que la calculadora)
     const nRec = LV.recurring.filter(r => !r.archived).length;
-    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
+    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-imports', 'doc', 'rgsTitle', LV.imports.length], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['ledger-fx', 'globe', 'fxTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
@@ -3885,16 +4042,25 @@
       metrics: Array.isArray(u.metrics) ? u.metrics.filter(k => CALC_METRICS.some(m => m[0] === k)) : ['digital', 'investments'], hideGraph: !!u.hideGraph, off: Array.isArray(u.off) ? u.off : [], gran: u.gran === 'month' ? 'month' : 'year', seen: Array.isArray(u.seen) ? u.seen : [], proj: typeof u.proj === 'string' ? u.proj : null };
     return state.ui.calc;
   }
+  // v1.22: las piezas en otra moneda (campo cur) se pasan a la moneda principal con el cambio de hoy antes de calcular
+  const calcMoneyKeys = x => { const m = CALC.moduleOf(x.type); return m ? m.fields.filter(f => f[1] === 'money').map(f => f[0]) : []; };
+  const calcConv = items => FX.convertItems(items, ledgerMain(), c => fxRateNow(c), calcMoneyKeys);
   let calcMemo = { key: '' };
   function calcData() {
-    const key = JSON.stringify(LV.calc) + todayKey();
+    const key = JSON.stringify(LV.calc) + todayKey() + ledgerMain() + JSON.stringify(fxManual()) + ((fxCache.latest || {}).date || '');
     if (calcMemo.key !== key) {
-      const model = CALC.fromItems(LV.calc, todayKey()), res = CALC.compute(model);
+      if (LV.calc.some(x => x && x.cur && x.cur !== ledgerMain()) && !fxCache.latest) fxLatest().then(l => { if (l) render(); });
+      const model = CALC.fromItems(calcConv(LV.calc), todayKey()), res = CALC.compute(model);
       calcMemo = { key, model, res, rows: CALC.daily(res) };
     }
     return calcMemo;
   }
   const calcItem = id => LV.calc.find(x => x.id === id);
+  // Moneda de una pieza (sin campo cur = la principal) y su selector
+  const calcCurOf = id => { const x = calcItem(id); return x && FX.isCode(x.cur) ? x.cur : ledgerMain(); };
+  const calcCurTag = id => { const c = calcCurOf(id); return c !== ledgerMain() ? ` · ${c}` : ''; };
+  const calcCurSel = (cur, attr) => { const main = ledgerMain(); cur = cur || main; return `<select class="input" ${attr} aria-label="${esc(t('fxCurrency'))}">${[main, ...FX.ALL.filter(c => c !== main)].map(c => `<option value="${c}" ${c === cur ? 'selected' : ''}>${c}</option>`).join('')}</select>`; };
+  const calcSetCur = (it, cur) => { if (!it) return; if (!cur || cur === ledgerMain()) delete it.cur; else it.cur = cur; };
   const calcOrd = () => Math.max(0, ...LV.calc.map(x => +x.ord || 0)) + 1;
   function calcStartItem() { let s = calcItem(CALC.START_ID); if (!s) { s = { ...calcData().model.start }; LV.calc.push(s); } return s; }
   function calcPut(item) { const i = LV.calc.findIndex(x => x.id === item.id); if (i >= 0) LV.calc[i] = item; else LV.calc.push(item); }
@@ -4102,7 +4268,7 @@
     html += `</section>`;
     // Mi Biblioteca: fórmulas que forman el resultado
     html += `<details class="calc-card clay calc-lib" data-cd="lib" ${calcIsOpen('lib') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcLibEyebrow'))}</span><strong>${esc(t('calcLibrary'))}</strong></span><span class="calc-pill">${model.applied.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
-      ${model.applied.length ? calcGrouped(model.applied, 'ga', a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(a.type).icon)}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      ${model.applied.length ? calcGrouped(model.applied, 'ga', a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(a.type).icon)}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type) + calcCurTag(a.id))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <div class="calc-eq">${esc(eq)}</div><div class="calc-res">${esc(r)}</div><p class="calc-fine">${esc(calcVarsText(a.type, a.values, model))}</p>
         <div class="row wrap calc-f-acts"><button class="chip sm" data-calc="edit-applied" data-id="${esc(a.id)}">${ico('edit')} ${esc(t('calcEditFormula'))}</button><button class="chip sm calc-danger" data-calc="remove-applied" data-id="${esc(a.id)}">${ico('trash')} ${esc(t('calcRemoveFormula'))}</button></div></details>`; }) : `<p class="muted small calc-empty">${esc(t('calcNoApplied'))}</p>`}
     </details>`;
@@ -4127,7 +4293,7 @@
       case 'ser': u.ser[el.dataset.v] = !u.ser[el.dataset.v]; save(); render(); break;
       case 'fund-toggle': u.off = u.off.includes(id) ? u.off.filter(x => x !== id) : [...u.off, id]; save(); render(); $(`.calc-fund-row[data-id="${CSS.escape(id)}"]`)?.focus(); break;
       case 'fund-chart': openCalcFund(id); break;
-      case 'edit-applied': { const a = calcData().model.applied.find(x => x.id === id); if (a) openCalcFormula(a, 'applied'); break; }
+      case 'edit-applied': { const a = calcItem(id); if (a) openCalcFormula(a, 'applied'); break; }
       case 'remove-applied': {
         const a = calcItem(id); if (!a) break;
         confirmDialog(t('calcRemoveQ', { name: a.name || t('m_' + a.type) })).then(ok => { if (!ok) return; LV.calc = LV.calc.filter(x => x.id !== id); calcCommit(t('calcRemoved')); });
@@ -4157,14 +4323,15 @@
   function openCalcStart() {
     let wref;
     const draw = () => {
-      const { model } = calcData(), s = model.start, invs = model.investments;
+      const { model } = calcData(), s = calcItem(CALC.START_ID) || model.start, invs = model.investments, funds = model.funds.map(f => calcItem(f.id) || f);
       const optsInv = sel => invs.map(i => `<option value="${esc(i.id)}" ${i.id === sel ? 'selected' : ''}>${esc(i.name)} · ${esc(cpct(i.rate))}</option>`).join('');
       $('#cs', wref).innerHTML = `<div class="calc-grid">
-          ${[['digital', 'csDigital'], ['cash', 'csCash'], ['salary', 'csSalary'], ['expenses', 'csExpenses']].map(([k, l]) => `<label class="field"><span>${esc(t(l))}</span><input class="input" inputmode="decimal" autocomplete="off" data-cs="${k}" value="${calcInVal(s[k])}" placeholder="0,00"></label>`).join('')}
-          <label class="field"><span>${esc(t('csDate'))}</span><input class="input" type="date" data-cs="date" value="${esc(s.date)}"></label></div>
+          ${[['digital', 'csDigital'], ['cash', 'csCash'], ['salary', 'csSalary'], ['expenses', 'csExpenses']].map(([k, l]) => `<label class="field"><span>${esc(t(l, { $cur: s.cur }))}</span><input class="input" inputmode="decimal" autocomplete="off" data-cs="${k}" value="${calcInVal(s[k])}" placeholder="0,00"></label>`).join('')}
+          <label class="field"><span>${esc(t('csDate'))}</span><input class="input" type="date" data-cs="date" value="${esc(s.date)}"></label>
+          <label class="field"><span>${esc(t('fxCurrency'))}</span>${calcCurSel(s.cur, 'data-cs="cur"')}</label></div>
         <p class="calc-fine">${esc(t('calcStartHint'))}</p>
         <div class="calc-part"><div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('calcFundsEyebrow'))}</div><h3>${esc(t('calcFundsTitle'))}</h3></div><button class="btn sm calc-blue" data-cs-act="add-fund">${ico('plus')} ${esc(t('calcAddFund'))}</button></div>
-          ${model.funds.length ? model.funds.map(f => `<div class="calc-fund-edit" data-fund="${esc(f.id)}"><label class="field"><span>${esc(t('calcFundName'))}</span><input class="input" maxlength="60" data-cf="name" value="${esc(f.name)}"></label><label class="field"><span>${esc(t('calcFundAmount'))}</span><input class="input" inputmode="decimal" data-cf="amount" value="${calcInVal(f.amount)}" placeholder="0,00"></label><label class="field calc-fund-target"><span>${esc(t('calcFundTarget'))}</span><select class="input" data-cf="target">${invs.some(i => i.id === f.target) ? '' : `<option value="" selected disabled>${esc(t('calcSelectDest'))}</option>`}${optsInv(f.target)}</select></label><button class="icon-btn sm calc-del" data-cs-act="del-fund" data-id="${esc(f.id)}" aria-label="${esc(t('calcFundDel'))}" title="${esc(t('calcFundDel'))}">${ico('trash')}</button></div>`).join('') : `<p class="muted small calc-empty">${esc(t('calcNoFunds'))}</p>`}</div>
+          ${funds.length ? funds.map(f => `<div class="calc-fund-edit" data-fund="${esc(f.id)}"><label class="field"><span>${esc(t('calcFundName'))}</span><input class="input" maxlength="60" data-cf="name" value="${esc(f.name)}"></label><label class="field"><span>${esc(t('calcFundAmount', { $cur: f.cur }))}</span><span class="cap-input"><input class="input" inputmode="decimal" data-cf="amount" value="${calcInVal(f.amount)}" placeholder="0,00">${calcCurSel(f.cur, 'data-cf="cur"').replace('class="input"', 'class="input cur-sel"')}</span></label><label class="field calc-fund-target"><span>${esc(t('calcFundTarget'))}</span><select class="input" data-cf="target">${invs.some(i => i.id === f.target) ? '' : `<option value="" selected disabled>${esc(t('calcSelectDest'))}</option>`}${optsInv(f.target)}</select></label><button class="icon-btn sm calc-del" data-cs-act="del-fund" data-id="${esc(f.id)}" aria-label="${esc(t('calcFundDel'))}" title="${esc(t('calcFundDel'))}">${ico('trash')}</button></div>`).join('') : `<p class="muted small calc-empty">${esc(t('calcNoFunds'))}</p>`}</div>
         <div class="calc-part"><div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('calcDestEyebrow'))}</div><h3>${esc(t('calcDestTitle'))}</h3></div><button class="btn sm" data-cs-act="add-dest">${ico('plus')} ${esc(t('calcAddDest'))}</button></div>
           ${invs.length ? invs.map(i => `<details class="calc-dest" data-dest="${esc(i.id)}" data-cd="dest:${esc(i.id)}" ${calcIsOpen('dest:' + i.id) ? 'open' : ''}><summary><span class="calc-sum-t"><strong>${esc(i.name)}</strong><small>${esc(cpct(i.rate))} · ${esc(t(i.accumulative ? 'calcAccumulative' : 'calcNonAccumulative'))}</small></span><span class="chip sm">${ico('edit')} ${esc(t('calcEdit'))}</span></summary>
             <div class="calc-grid three"><label class="field"><span>${esc(t('calcName'))}</span><input class="input" maxlength="60" data-ci="name" value="${esc(i.name)}"></label><label class="field"><span>${esc(t('calcRate'))}</span><input class="input" inputmode="decimal" data-ci="rate" value="${calcInVal(i.rate)}"></label>
@@ -4178,15 +4345,18 @@
         wref = w; draw();
         w.addEventListener('change', e => {
           const el = e.target;
+          if (el.dataset.cs === 'cur' || el.dataset.cf === 'cur') setTimeout(draw, 0);
           if (el.dataset.cs) {
             const s = calcStartItem(), k = el.dataset.cs;
             if (k === 'date') { if (!CALC.parseDate(el.value)) { el.value = s.date; return; } s.date = el.value; }
+            else if (k === 'cur') calcSetCur(s, el.value);
             else { const v = calcReadNum(el.value, 'money'); if (v != null && !(v >= 0)) { toast(t('calcNonNeg')); el.value = calcInVal(s[k]); return; } s[k] = v || 0; }
             calcCommit(); return;
           }
           if (el.dataset.cf) {
             const f = calcItem(el.closest('[data-fund]').dataset.fund); if (!f) return;
-            if (el.dataset.cf === 'amount') { const v = calcReadNum(el.value, 'money'); if (v != null && !(v >= 0)) { toast(t('calcNonNeg')); el.value = calcInVal(f.amount); return; } f.amount = v || 0; }
+            if (el.dataset.cf === 'cur') calcSetCur(f, el.value);
+            else if (el.dataset.cf === 'amount') { const v = calcReadNum(el.value, 'money'); if (v != null && !(v >= 0)) { toast(t('calcNonNeg')); el.value = calcInVal(f.amount); return; } f.amount = v || 0; }
             else f[el.dataset.cf] = el.dataset.cf === 'name' ? el.value.trim().slice(0, 60) : el.value;
             calcCommit();
           }
@@ -4388,7 +4558,7 @@
     let wref;
     const drawLib = () => {
       const { model } = calcData();
-      $('#cm-lib', wref).innerHTML = model.presets.length ? calcGrouped(model.presets, 'gp', p => `<details class="calc-formula" data-preset="${esc(p.id)}"><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(p.type).icon)}</span><span class="calc-sum-t"><strong>${esc(p.name)}</strong><small>${esc(t('m_' + p.type))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      $('#cm-lib', wref).innerHTML = model.presets.length ? calcGrouped(model.presets, 'gp', p => `<details class="calc-formula" data-preset="${esc(p.id)}"><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(p.type).icon)}</span><span class="calc-sum-t"><strong>${esc(p.name)}</strong><small>${esc(t('m_' + p.type) + calcCurTag(p.id))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <p class="calc-fine">${esc(calcVarsText(p.type, p.values, model))}</p><div class="row wrap calc-f-acts"><button class="chip sm calc-blue" data-f-act="use" data-id="${esc(p.id)}">${ico('check')} ${esc(t('calcUse'))}</button><button class="chip sm" data-f-act="edit" data-id="${esc(p.id)}">${ico('edit')} ${esc(t('calcEdit'))}</button><button class="chip sm calc-danger" data-f-act="del" data-id="${esc(p.id)}">${ico('trash')} ${esc(t('calcDelete'))}</button></div></details>`) : `<p class="muted small calc-empty">${esc(t('calcNoPresets'))}</p>`;
     };
     const drawTpl = () => {
@@ -4418,10 +4588,11 @@
           LV.calc.push({ id: uid(), kind: 'applied', type, name, values: r.values, ord }, { id: uid(), kind: 'preset', type, name, values: JSON.parse(JSON.stringify(r.values)), ord: ord + 1 });
           close(); calcOpenD.set('lib', true); calcCommit(t('calcApplied')); sfx('money'); return;
         }
-        const p = model.presets.find(x => x.id === b.dataset.id); if (!p) return;
+        const p0 = model.presets.find(x => x.id === b.dataset.id); if (!p0) return;
+        const p = calcItem(p0.id) || p0;
         if (act === 'use') {
           if (CALC.moduleOf(p.type).fields.some(([k, kind]) => kind === 'inv' && !model.investments.some(i => i.id === p.values[k])) || (p.values.allocations || []).some(x => !model.investments.some(i => i.id === x.target))) { toast(t('calcNeedDest')); openCalcFormula(p, 'preset', drawLib); return; }
-          LV.calc.push({ id: uid(), kind: 'applied', type: p.type, name: p.name, values: JSON.parse(JSON.stringify(p.values)), ord: calcOrd() });
+          LV.calc.push({ id: uid(), kind: 'applied', type: p.type, name: p.name, values: JSON.parse(JSON.stringify(p.values)), ...(p.cur ? { cur: p.cur } : {}), ord: calcOrd() });
           close(); calcOpenD.set('lib', true); calcCommit(t('calcAppliedCopy')); sfx('money');
         } else if (act === 'edit') openCalcFormula(p, 'preset', drawLib);
         else if (act === 'del') { if (!(await confirmDialog(t('calcPresetDelQ', { name: p.name })))) return; LV.calc = LV.calc.filter(x => x.id !== p.id); calcCommit(t('calcDeleted')); drawLib(); }
@@ -4433,9 +4604,18 @@
     let wref;
     openModal({
       title: calcHead(t(kind === 'preset' ? 'calcEditPresetEyebrow' : 'calcLibrary'), t(kind === 'preset' ? 'calcEditPreset' : 'calcEditFormula')), cls: 'wide calc-sheet',
-      body: `<div class="stack"><p class="muted small" style="margin:0">${ico(CALC.moduleOf(item.type).icon)} ${esc(t('m_' + item.type))}</p><label class="field"><span>${esc(t('calcName'))}</span><input class="input" id="cfe-name" maxlength="60" value="${esc(item.name)}"></label><div id="cfe-form">${calcFieldsHtml(item.type, item.values, calcData().model)}</div></div>`,
+      body: `<div class="stack"><p class="muted small" style="margin:0">${ico(CALC.moduleOf(item.type).icon)} ${esc(t('m_' + item.type))}</p><label class="field"><span>${esc(t('calcName'))}</span><input class="input" id="cfe-name" maxlength="60" value="${esc(item.name)}"></label>${calcMoneyKeys(item).length || (item.values && item.values.futureChanges) ? `<label class="field"><span>${esc(t('fxCurrency'))}</span>${calcCurSel(item.cur, 'id="cfe-cur"')}<small class="muted">${esc(t('calcCurHint'))}</small></label>` : ''}<div id="cfe-form">${calcFieldsHtml(item.type, item.values, calcData().model)}</div></div>`,
       foot: `${calcPlusBtn(item.type)}<button class="btn calc-blue" data-f-act="save">${esc(t('calcSave'))}</button>`,
-      onMount: w => { wref = w; },
+      onMount: w => {
+        wref = w; let sym = curSym(item.cur);
+        w.addEventListener('change', e => {
+          if (e.target.id !== 'cfe-cur') return;
+          const ns = curSym(e.target.value);
+          $$('#cfe-form .field > span', w).forEach(sp => { sp.textContent = sp.textContent.replace(`(${sym})`, `(${ns})`); });
+          sym = ns;
+        });
+        if (item.cur) $$('#cfe-form .field > span', w).forEach(sp => { sp.textContent = sp.textContent.replace(`(${curSym()})`, `(${sym})`); });
+      },
       onInput: calcSplitSync,
       onClick: (e, close) => {
         const b = e.target.closest('[data-f-act]'); if (!b) return;
@@ -4446,7 +4626,7 @@
         if (!name) { toast(t('calcNeedName')); return; }
         if (r.err) { toast(r.err); if (r.el) r.el.focus(); return; }
         const it = calcItem(item.id); if (!it) { close(); return; }
-        Object.assign(it, { name, values: r.values });
+        Object.assign(it, { name, values: r.values }); const cs = $('#cfe-cur', wref); if (cs) calcSetCur(it, cs.value);
         close(); calcCommit(t(kind === 'preset' ? 'calcPresetSaved' : 'calcUpdated')); done && done();
       }
     });
@@ -4454,7 +4634,7 @@
 
   /* ---------- Compartir: un PDF de verdad (js/pdf.js, sin servidores) con los widgets elegidos; se descarga o se envía a un chat ---------- */
   const CALC_PDF = [['savings', true], ['graph', true], ['details', false], ['funds', false], ['formulas', true]];
-  const calcDataOf = items => { const model = CALC.fromItems(items, todayKey()), res = CALC.compute(model); return { model, res, rows: CALC.daily(res) }; };
+  const calcDataOf = items => { const model = CALC.fromItems(calcConv(items), todayKey()), res = CALC.compute(model); return { model, res, rows: CALC.daily(res) }; };
   function accentHex() {
     try {
       const c = document.createElement('canvas').getContext('2d'); c.fillStyle = '#586ff0';
@@ -4894,7 +5074,7 @@
     });
   }
   // Importe corto para las celdas del calendario (sin decimales si es redondo)
-  const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
+  const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: FX.AUTO.includes(ledgerMain()) ? ledgerMain() : 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
   function ledgerDayHtml(k) {
     const list = LV.entries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(list);
     return `<section class="ledger-day clay" aria-live="polite"><div class="row"><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>
@@ -4903,12 +5083,19 @@
     </section>`;
   }
 
+  /* v1.22: en el calendario de la Libreta, el cambio estimado de hoy de las monedas que aparecen en el mes */
+  function ledgerFxLine(list) {
+    const curs = [...new Set(list.filter(e => e.fx && e.fx.cur && e.fx.cur !== ledgerMain()).map(e => e.fx.cur))];
+    if (!curs.length) return '';
+    if (!fxCache.latest) fxLatest().then(l => { if (l && state.ui.tab === 'ledger') render(); });
+    return `<p class="fx-month muted small">${ico('swap')} ${esc(t('fxMonth'))} ${curs.map(c => { const r = fxRateNow(c); return `<span>${esc(r ? fxRateTxt(c, r) : c + ' · ' + t('fxNoRate'))}</span>`; }).join('')}</p>`;
+  }
   // Añadir o editar un movimiento
   /* Movimiento en una lista: al deslizarlo hacia la izquierda (dedo o ratón) aparecen Editar y Borrar */
   function entryRow(e, withDate = false) {
     const c = catOf(e.categoryId), priv = privacyOn(), inc = e.type === 'income';
     return `<div class="swipe" data-swipe="${esc(e.id)}"><div class="swipe-acts"><button class="sw-act edit" data-sw-edit="${esc(e.id)}" aria-label="${esc(t('edit'))}" title="${esc(t('edit'))}">${ico('edit')}</button><button class="sw-act del" data-sw-del="${esc(e.id)}" aria-label="${esc(t('delete'))}" title="${esc(t('delete'))}">${ico('trash')}</button></div>
-      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}</span></span><b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + cents(e.amountCents)}</b></button></div>`;
+      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + cents(e.amountCents)}</b>`}</button></div>`;
   }
   const SW_W = 124;
   let swg = null, swOpen = null, swBlock = false;
@@ -4962,12 +5149,36 @@
   function openEntry(entry, date) {
     const isNew = !entry;
     const f = entry ? { ...entry } : { type: 'expense', amountCents: 0, categoryId: 'food', note: '', method: 'card', date: date || todayKey(), every: '', to: '' };
+    // v1.22: moneda del movimiento (por defecto la principal) y su cambio estimado, que se puede corregir a mano
+    const main = ledgerMain();
+    f.cur = f.fx && f.fx.cur ? f.fx.cur : main; f.rate = f.fx ? f.fx.rate : 0; f.rateSet = !!f.fx;
     let wref;
+    const curOpts = () => [main, ...FX.ALL.filter(c => c !== main)].map(c => `<option value="${c}" ${f.cur === c ? 'selected' : ''}>${c}</option>`).join('');
+    const fxPrev = () => {
+      const p = $('#le-fx-p', wref); if (!p) return;
+      const amt = LED.parseCents(($('#le-amt', wref) || {}).value || '') || 0, r = Number(f.rate) || 0;
+      p.innerHTML = r ? `${esc(fxRateTxt(f.cur, r))}${amt ? ` → ${esc(fmtCur(amt / 100, f.cur))} ≈ <b>${esc(fmtMoney(FX.toMain(amt, FX.roundRate(r)) / 100))}</b>` : ''} · ${esc(t('fxEstimate'))}` : esc(t('fxNoRateHint'));
+    };
+    const fxLine = () => {
+      const box = $('#le-fx', wref); if (!box) return;
+      if (f.cur === main) { box.innerHTML = ''; return; }
+      const r = Number(f.rate) || 0;
+      box.innerHTML = `<label class="field"><span>${esc(t('fxRateLbl', { c: f.cur, m: main }))}</span><input class="input" id="le-rate" inputmode="decimal" autocomplete="off" value="${r ? esc(fmtPctIn(FX.roundRate(r))) : ''}" placeholder="${esc(t('fxNoRate'))}"></label>
+        <p class="muted small" id="le-fx-p" style="margin:6px 0 0"></p>`;
+      fxPrev();
+    };
+    const fxFetchRate = async () => {
+      if (f.cur === main || f.rateSet) { fxLine(); return; }
+      const cur = f.cur, r = await fxRateOn(cur, f.date);
+      if (cur !== f.cur || f.rateSet) return;
+      f.rate = r || 0; fxLine();
+    };
     const catsHtml = () => LV.cats.filter(c => !c.archived && (c.type === 'both' || c.type === f.type)).map(c => `<button type="button" class="chip ${f.categoryId === c.id ? 'on' : ''}" data-le-cat="${c.id}" aria-pressed="${f.categoryId === c.id}">${esc(c.icon)} ${esc(catName(c))}</button>`).join('');
     const draw = () => {
       $('#le', wref).innerHTML = `<div class="stack" style="gap:16px">
         <div class="seg" role="group" aria-label="${esc(t('ledgerType'))}">${['expense', 'income'].map(v => `<button type="button" data-le-type="${v}" class="${f.type === v ? 'on' : ''}" aria-pressed="${f.type === v}">${esc(t(v === 'expense' ? 'ledgerExpenseOne' : 'ledgerIncomeOne'))}</button>`).join('')}</div>
-        <label class="field"><span>${esc(t('ledgerAmount'))}</span><span class="cap-input"><input class="input amt-input" id="le-amt" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${f.amountCents ? esc(fmtPctIn(f.amountCents / 100)) : ''}"><b>€</b></span></label>
+        <label class="field"><span>${esc(t('ledgerAmount'))}</span><span class="cap-input"><input class="input amt-input" id="le-amt" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${f.fx ? esc(fmtPctIn(f.fx.cents / 100)) : f.amountCents ? esc(fmtPctIn(f.amountCents / 100)) : ''}"><select class="input cur-sel" id="le-cur" aria-label="${esc(t('fxCurrency'))}">${curOpts()}</select></span></label>
+        <div id="le-fx"></div>
         <div class="field"><span>${esc(t('ledgerCategory'))}</span><div class="sug-list">${catsHtml()}</div></div>
         <label class="field"><span>${esc(t('ledgerDate'))}</span><input class="input" type="date" id="le-date" value="${esc(f.date)}"></label>
         <label class="field"><span>${esc(t('ledgerNote'))}</span><input class="input" id="le-note" maxlength="140" value="${esc(f.note || '')}" placeholder="${esc(t('ledgerNotePh'))}"></label>
@@ -4980,13 +5191,21 @@
     openModal({
       title: esc(t(isNew ? 'ledgerNew' : 'ledgerEdit')), body: '<div id="le"></div>',
       foot: `${isNew ? '' : `<button class="btn danger" data-le="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-le="save">${esc(t('save'))}</button>`,
-      onMount: w => { wref = w; draw(); setTimeout(() => { const a = $('#le-amt', w); if (a && isNew) a.focus(); }, 60);
-        w.addEventListener('change', e => { if (e.target.id === 'le-every') $('#le-to-wrap', w).classList.toggle('hidden', !e.target.value); });
+      onMount: w => { wref = w; draw(); fxFetchRate(); setTimeout(() => { const a = $('#le-amt', w); if (a && isNew) a.focus(); }, 60);
+        w.addEventListener('change', e => {
+          if (e.target.id === 'le-every') $('#le-to-wrap', w).classList.toggle('hidden', !e.target.value);
+          if (e.target.id === 'le-cur') { f.cur = e.target.value; f.rateSet = false; f.rate = 0; fxLine(); fxFetchRate(); }
+          if (e.target.id === 'le-date') { f.date = e.target.value || f.date; fxFetchRate(); }
+        });
+        w.addEventListener('input', e => {
+          if (e.target.id === 'le-amt') fxPrev();
+          if (e.target.id === 'le-rate') { const v = Number(String(e.target.value).replace(/\s/g, '').replace(',', '.')); if (v > 0) { f.rate = v; f.rateSet = true; } fxPrev(); }
+        });
         w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); $('[data-le="save"]', w).click(); } }); },
       onClick: async (e, close) => {
         let el;
         const keepAmt = () => { const a = $('#le-amt', wref); f._amt = a ? a.value : ''; };
-        const restore = () => { if (f._amt != null) $('#le-amt', wref).value = f._amt; };
+        const restore = () => { if (f._amt != null) $('#le-amt', wref).value = f._amt; fxLine(); };
         if ((el = e.target.closest('[data-le-type]'))) { read(); keepAmt(); f.type = el.dataset.leType; const c = catOf(f.categoryId); if (!(c.type === 'both' || c.type === f.type)) f.categoryId = f.type === 'income' ? 'salary' : 'food'; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-cat]'))) { read(); keepAmt(); f.categoryId = el.dataset.leCat; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-method]'))) { read(); keepAmt(); f.method = el.dataset.leMethod; draw(); restore(); return; }
@@ -4999,12 +5218,18 @@
           const amt = LED.parseCents($('#le-amt', wref).value);
           if (!amt) { toast(t('ledgerNeedAmount')); $('#le-amt', wref).focus(); return; }
           const data = { type: f.type, amountCents: amt, categoryId: f.categoryId, note: f.note, method: f.method, date: f.date };
+          if (f.cur !== main) {
+            const rt = FX.roundRate($('#le-rate', wref) ? Number(String($('#le-rate', wref).value).replace(/\s/g, '').replace(',', '.')) : f.rate);
+            if (!(rt > 0)) { toast(t('fxNeedRate')); const ri = $('#le-rate', wref); if (ri) ri.focus(); return; }
+            data.fx = { cur: f.cur, cents: amt, rate: rt }; data.amountCents = FX.toMain(amt, rt);
+            if (!data.amountCents) { toast(t('ledgerNeedAmount')); return; }
+          }
           if (isNew && f.every) {
             LV.recurring.push({ id: uid(), ...data, every: f.every, from: f.date, to: f.to && f.to >= f.date ? f.to : '', archived: false });
             runRecurring();
             if (f.date > todayKey()) toast(t('ledgerRecFuture'));
           } else if (isNew) LV.entries.push({ id: uid(), ...data, recurringId: '', createdAt: Date.now() });
-          else Object.assign(LV.entries.find(x => x.id === entry.id) || {}, data);
+          else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; }
           state.ui.ledgerDay = f.date; state.ui.ledgerMonth = f.date.slice(0, 7);
           ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'income' ? 'money' : 'pop');
         }
@@ -5068,7 +5293,7 @@
   }
   const exportHtml = (d, title, from, to, subtitle = '') => EXP.html({
     lang: state.lang, title, subtitle, from, to, entries: d.entries, cats: d.cats, events: d.events,
-    money: { locale: state.lang, currency: 'EUR' }, generatedAt: new Date().toISOString(), footer: 'KeepGoing'
+    money: { locale: state.lang, currency: FX.AUTO.includes(ledgerMain()) ? ledgerMain() : 'EUR' }, generatedAt: new Date().toISOString(), footer: 'KeepGoing'
   });
   function downloadFile(name, text, type = 'text/html') {
     const url = URL.createObjectURL(new Blob([text], { type: type + ';charset=utf-8' })), a = document.createElement('a');
@@ -5089,7 +5314,7 @@
     return t('rgNote_' + e.kind) + (e.extGroup ? n : e.label ? ' · ' + e.label : '');
   }
   function openRegistrar() {
-    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {} };
+    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {}, file: '' };
     let wref;
     const cats = type => LV.cats.filter(c => !c.archived && (c.type === type || c.type === 'both'));
     const missing = () => {
@@ -5112,7 +5337,7 @@
       const d = S.data, miss = missing();
       const seg = (gid, key, opts, val) => `<div class="seg seg-sm" role="group">${opts.map(([v, k]) => `<button type="button" data-rg-set="${esc(gid)}" data-k="${key}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>`;
       box.innerHTML = `<div class="stack" style="gap:14px">
-        <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${d.ignored.deposit + d.ignored.withdrawal ? ' · ' + esc(t('rgIgnored', { d: d.ignored.deposit, w: d.ignored.withdrawal })) : ''}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
+        <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
         <p style="margin:0">${esc(t('rgAsk'))}</p>
         ${S.q.map(g => { const a = S.ans[g.id] || {}; return `<section class="rg-q clay">
           <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><b class="grow">${esc(rgKindName(g))}</b><span class="muted small" style="white-space:nowrap">${g.count} · ${money(g.cents / 100)}</span></div>
@@ -5124,7 +5349,7 @@
         </section>`; }).join('')}
         ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay"><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
           ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgConvert']], S.curMode[c])}
-          ${S.curMode[c] === 'rate' ? `<label class="field"><span>${esc(t('rgRate', { c }))}</span><input class="input" inputmode="decimal" data-rg-rate="${esc(c)}" value="${S.rates[c] ? esc(String(S.rates[c]).replace('.', state.lang === 'es' ? ',' : '.')) : ''}" placeholder="1,15"></label>` : ''}</section>`).join('')}
+          ${S.curMode[c] === 'rate' ? `<label class="field"><span>${esc(t('fxRateLbl', { c, m: ledgerMain() }))}</span><input class="input" inputmode="decimal" data-rg-rate="${esc(c)}" value="${S.rates[c] ? esc(String(S.rates[c]).replace('.', state.lang === 'es' ? ',' : '.')) : ''}" placeholder="${esc(t('fxNoRate'))}"></label>${S.rates[c] ? `<p class="muted small" style="margin:0">${esc(fxRateTxt(c, S.rates[c]))} · ${esc(t('fxEstimate'))}</p>` : ''}` : ''}</section>`).join('')}
         ${S.q.length ? '' : `<p class="muted">${esc(t('rgNothing'))}</p>`}</div>`;
       const foot = $('.sheet-foot', wref);
       if (foot) foot.innerHTML = S.q.length ? `<p class="muted small" style="margin:0;flex-basis:100%">${miss ? esc(t('rgMissing', { n: miss })) : ''}</p><button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button><button class="btn primary" data-rg="go" ${miss ? 'disabled' : ''}>${ico('check')} ${esc(t('rgImport'))}</button>` : `<button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button>`;
@@ -5138,7 +5363,9 @@
       const known = new Set(); for (const e of LV.entries) for (const k of e.extIds || []) known.add(k);
       const fresh = d.rows.filter(r => !known.has(r.key));
       S.dupN = d.rows.length - fresh.length;
-      S.data = d; S.rows = fresh; S.q = BCSV.questions(fresh); S.cur = BCSV.currencies(fresh); S.ans = {};
+      S.data = d; S.rows = fresh; S.file = String(f.name || '').slice(0, 120); S.q = BCSV.questions(fresh, ledgerMain()); S.cur = BCSV.currencies(fresh, ledgerMain()); S.ans = {};
+      // v1.22: cambio estimado de cada moneda detectada (BCE de hoy o el fijado a mano); se puede corregir
+      fxLatest().then(() => { for (const c of Object.keys(S.cur)) if (!S.rates[c]) { const r = fxRateNow(c); if (r > 0) S.rates[c] = FX.roundRate(r); } draw(); });
       // Lo único que se sabe seguro: un pago con tarjeta es un gasto (la categoría la elige el usuario)
       for (const g of S.q) if (g.kind === 'card') S.ans[g.id] = { type: 'expense' };
       S.step = 'ask'; draw(); const sh = $('.sheet', wref); if (sh) sh.scrollTop = 0;
@@ -5150,7 +5377,7 @@
         w.addEventListener('change', e => {
           if (e.target.matches('[data-rg-file]')) { load(e.target); return; }
           if (e.target.matches('[data-rg-cat]')) { const a = S.ans[e.target.dataset.rgCat] || (S.ans[e.target.dataset.rgCat] = {}); a.categoryId = e.target.value; draw(); }
-          if (e.target.matches('[data-rg-rate]')) { const v = Number(String(e.target.value).replace(',', '.')); S.rates[e.target.dataset.rgRate] = v > 0 && v < 1000 ? v : 0; draw(); }
+          if (e.target.matches('[data-rg-rate]')) { const v = Number(String(e.target.value).replace(/\s/g, '').replace(',', '.')); S.rates[e.target.dataset.rgRate] = v > 0 && v < 1e7 ? v : 0; draw(); }
         });
       },
       onClick: (e, close) => {
@@ -5165,13 +5392,121 @@
         if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
         if (missing()) return;
         const rates = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] === 'rate') rates[c] = S.rates[c];
-        const p = BCSV.plan(S.rows, S.ans, rates, LV.entries);
-        for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, ...(x.extGroup ? { extGroup: x.extGroup } : {}) });
-        for (const u of p.update) { const en = LV.entries.find(x => x.id === u.id); if (en) { en.amountCents += u.addCents; en.extIds = [...(en.extIds || []), ...u.addIds]; const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${+m[1] + u.addIds.length})`); } }
+        const p = BCSV.plan(S.rows, S.ans, rates, LV.entries, ledgerMain()), importId = uid();
+        for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, importId, ...(x.extGroup ? { extGroup: x.extGroup } : {}), ...(x.fx ? { fx: { ...x.fx, rate: FX.roundRate(x.fx.rate) } } : {}) });
+        // v1.22: cada importación queda como un registro (fecha, hora y archivo) para poder revisarla, editarla o borrarla entera
+        if (p.create.length || p.update.length) LV.imports.push({ id: importId, at: Date.now(), file: S.file, format: S.data.format, n: p.create.length, updates: p.update.map(u => ({ id: u.id, addCents: u.addCents, addIds: u.addIds, addFx: u.addFx || 0 })) });
+        for (const u of p.update) { const en = LV.entries.find(x => x.id === u.id); if (en) { en.amountCents += u.addCents; if (en.fx && u.addFx) en.fx.cents += u.addFx; en.extIds = [...(en.extIds || []), ...u.addIds]; const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${+m[1] + u.addIds.length})`); } }
         ledgerSave(); close(); render(); sfx('money');
         toast(t('rgDone', { n: p.create.length, u: p.update.length }));
       }
     });
+  }
+
+  /* ---------- v1.22: «Registros» — lo importado con «Registrar», con su fecha y hora. Se puede revisar, editar o borrar entero ---------- */
+  const rgsWhen = r => new Date(r.at).toLocaleString(state.lang === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  // Borra lo que añadió una importación: sus movimientos y lo que sumó a movimientos agrupados de importaciones anteriores
+  function undoImport(rec) {
+    LV.entries = LV.entries.filter(e => e.importId !== rec.id);
+    for (const u of rec.updates || []) {
+      const en = LV.entries.find(x => x.id === u.id); if (!en) continue;
+      const ids = new Set(u.addIds || []);
+      en.extIds = (en.extIds || []).filter(k => !ids.has(k));
+      en.amountCents -= u.addCents || 0; if (en.fx && u.addFx) en.fx.cents -= u.addFx;
+      const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${Math.max(1, +m[1] - ids.size)})`);
+      if (en.amountCents <= 0 || !en.extIds.length) LV.entries = LV.entries.filter(x => x !== en);
+    }
+    LV.imports = LV.imports.filter(x => x.id !== rec.id);
+  }
+  function openRegistros() {
+    let wref, sel = null;
+    const draw = () => {
+      const box = $('#rgs', wref); if (!box) return;
+      const list = [...LV.imports].sort((a, b) => b.at - a.at), rec = sel && LV.imports.find(x => x.id === sel);
+      if (!rec) {
+        sel = null;
+        box.innerHTML = list.length ? `<p class="muted small" style="margin-top:0">${esc(t('rgsIntro'))}</p><div class="stack" style="gap:10px">${list.map(r => { const n = LV.entries.filter(e => e.importId === r.id).length; return `<button class="create-opt clay" data-rgs-open="${esc(r.id)}"><span class="tool-ico">${ico('doc')}</span><span class="grow"><b>${esc(rgsWhen(r))}</b><br><span class="muted small">${esc(r.file || 'CSV')} · ${esc(t('rgsEntries', { n }))}${(r.updates || []).length ? ' · ' + esc(t('rgsUpdated', { n: r.updates.length })) : ''}</span></span>${ico('right')}</button>`; }).join('')}</div>`
+          : `<div class="center" style="padding:20px 0"><span class="tool-ico" style="margin:0 auto 10px">${ico('doc')}</span><p class="muted">${esc(t('rgsEmpty'))}</p><button class="btn primary" data-rgs="new">${ico('upload')} ${esc(t('rgTitle'))}</button></div>`;
+        return;
+      }
+      const es = LV.entries.filter(e => e.importId === rec.id).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)), tot = LED.totals(es);
+      box.innerHTML = `<div class="stack" style="gap:12px"><button class="chip" data-rgs="list" style="align-self:flex-start">${ico('left')} ${esc(t('rgsTitle'))}</button>
+        <div><b>${esc(rgsWhen(rec))}</b><div class="muted small">${esc(rec.file || 'CSV')}</div></div>
+        <div class="kpis ls-kpis" style="margin:0"><div class="kpi clay"><b>${es.length}</b><span>${esc(t('evEntries'))}</span></div><div class="kpi clay"><b class="amt-in">${privacyOn() ? '•••' : cents(tot.income)}</b><span>${esc(t('ledgerIncome'))}</span></div><div class="kpi clay"><b class="amt-out">${privacyOn() ? '•••' : cents(tot.expense)}</b><span>${esc(t('ledgerExpense'))}</span></div></div>
+        ${(rec.updates || []).length ? `<p class="muted small" style="margin:0">${esc(t('rgsUpdatedHint', { n: rec.updates.length }))}</p>` : ''}
+        ${es.length ? `<p class="muted small" style="margin:0">${esc(t('rgsEditHint'))}</p><ul class="ledger-list">${es.map(e => `<li>${entryRow(e, true)}</li>`).join('')}</ul>` : `<p class="muted small">${esc(t('rgsNoEntries'))}</p>`}
+        <button class="btn danger-text block" data-rgs="del">${ico('trash')} ${esc(t('rgsDelAll'))}</button></div>`;
+    };
+    openModal({
+      title: `${ico('doc')} ${esc(t('rgsTitle'))}`, cls: 'wide', body: '<div id="rgs"></div>',
+      onMount: w => { wref = w; draw(); },
+      onClick: async (e, close) => {
+        if (swipeClick(e, close, draw)) return;
+        let el;
+        if ((el = e.target.closest('[data-rgs-open]'))) { sel = el.dataset.rgsOpen; draw(); const sh = $('.sheet', wref); if (sh) sh.scrollTop = 0; return; }
+        if (!(el = e.target.closest('[data-rgs]'))) return;
+        const a = el.dataset.rgs;
+        if (a === 'list') { sel = null; draw(); return; }
+        if (a === 'new') { close(); openRegistrar(); return; }
+        if (a === 'del') {
+          const rec = LV.imports.find(x => x.id === sel); if (!rec) return;
+          if (!(await confirmDialog(t('rgsDelQ', { when: rgsWhen(rec) })))) return;
+          undoImport(rec); ledgerSave(); sel = null; draw(); render(); sfx('undo'); toast(t('rgsDeleted'));
+        }
+      }
+    });
+  }
+
+  /* ---------- v1.22: Divisas — moneda principal de la Libreta, cambios del BCE y cambios fijados a mano ---------- */
+  function openFxSettings() {
+    let wref, busy = false, pick = '';
+    const used = () => [...new Set([...LV.entries.filter(e => e.fx && e.fx.cur).map(e => e.fx.cur), ...LV.calc.filter(x => x && x.cur).map(x => x.cur), ...Object.keys(fxManual())])].filter(c => c !== ledgerMain()).sort();
+    const draw = () => {
+      const main = ledgerMain(), l = fxCache.latest, man = fxManual(), list = [...new Set([...used(), ...(pick ? [pick] : [])])].filter(c => c !== main);
+      $('#fxs', wref).innerHTML = `<div class="stack" style="gap:14px">
+        <label class="field"><span>${esc(t('fxMain'))}</span><select class="input" id="fx-main">${FX.AUTO.map(c => `<option value="${c}" ${c === main ? 'selected' : ''}>${c} · ${esc(fmtCur(1, c, { min: 0, max: 0 }))}</option>`).join('')}</select></label>
+        <p class="muted small" style="margin:0">${esc(t('fxMainHint'))}</p>
+        <div class="row" style="justify-content:space-between;gap:8px"><span class="muted small">${esc(l ? t('fxSource', { d: fmtDate(l.date) }) : t('fxNoData'))}</span><button class="chip" data-fx="refresh" ${busy ? 'disabled' : ''}>${ico('refresh')} ${esc(t('fxRefresh'))}</button></div>
+        ${list.length ? `<div class="stack" style="gap:8px">${list.map(c => { const auto = FX.cross((l || {}).rates, c, main), m = Number(man[c]) || 0; return `<div class="fx-row clay"><div class="grow"><b>${c}</b><span class="muted small">${auto ? esc(t('fxAuto', { r: fxRateTxt(c, auto) })) : esc(t('fxNoAuto'))}</span></div>
+          <label class="field fx-man"><span>${esc(t('fxManual'))}</span><input class="input" inputmode="decimal" data-fx-man="${c}" value="${m ? esc(fmtPctIn(m)) : ''}" placeholder="${auto ? esc(fmtPctIn(FX.roundRate(auto))) : '—'}"></label></div>`; }).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('fxNoneUsed'))}</p>`}
+        <label class="field"><span>${esc(t('fxAdd'))}</span><select class="input" id="fx-add"><option value="">—</option>${FX.ALL.filter(c => c !== main && !list.includes(c)).map(c => `<option value="${c}">${c}</option>`).join('')}</select></label>
+        <p class="muted small" style="margin:0">${esc(t('fxManualHint'))}</p></div>`;
+    };
+    const refresh = async force => { busy = true; draw(); await fxLatest(force); busy = false; if (wref.isConnected) draw(); };
+    openModal({
+      title: `${ico('globe')} ${esc(t('fxTool'))}`, cls: 'wide', body: '<div id="fxs"></div>',
+      onMount: w => {
+        wref = w; draw(); refresh(false);
+        w.addEventListener('change', async e => {
+          const el = e.target;
+          if (el.id === 'fx-add') { pick = el.value; draw(); return; }
+          if (el.dataset.fxMan) {
+            const v = Number(String(el.value).replace(/\s/g, '').replace(',', '.')), man = { ...fxManual() };
+            if (v > 0) man[el.dataset.fxMan] = v; else delete man[el.dataset.fxMan];
+            state.ledgerPrefs = { ...(state.ledgerPrefs || {}), fxManual: man }; save(); draw(); render(); return;
+          }
+          if (el.id === 'fx-main') {
+            const from = ledgerMain(), to = el.value; if (to === from) return;
+            const l = await fxLatest(); const r = FX.cross((l || {}).rates, from, to);
+            if (!r) { toast(t('fxNeedOnline')); el.value = from; return; }
+            if (!(await confirmDialog(t('fxMainQ', { a: from, b: to, r: `${fmtCur(1, from, { min: 0, max: 0 })} = ${fmtCur(FX.roundRate(r), to, { min: 2, max: 6 })}` })))) { el.value = from; return; }
+            changeMainCurrency(from, to, (l || {}).rates); draw(); render(); toast(t('fxMainDone', { c: to }));
+          }
+        });
+      },
+      onClick: e => { if (e.target.closest('[data-fx="refresh"]')) refresh(true); }
+    });
+  }
+  // Cambiar la moneda principal: los movimientos, los repetidos y los presupuestos pasan a la nueva con el cambio de hoy;
+  // la calculadora marca sus piezas con la moneda antigua (se siguen convirtiendo solas). Los cambios a mano se borran (eran respecto a la antigua).
+  function changeMainCurrency(from, to, rates) {
+    const rate = cur => FX.cross(rates, cur, to), r0 = rate(from);
+    LV.entries = FX.rebase(LV.entries, from, to, rate).entries;
+    LV.recurring = FX.rebase(LV.recurring, from, to, rate).entries;
+    LV.budgets = LV.budgets.map(b => { const y = JSON.parse(JSON.stringify(b)), walk = o => { for (const k in o) { if (/cents$/i.test(k) && typeof o[k] === 'number') o[k] = Math.round(o[k] * r0); else if (o[k] && typeof o[k] === 'object') walk(o[k]); } }; walk(y); return y; });
+    LV.calc = LV.calc.map(x => (x && !x.cur && (x.kind === 'start' || x.kind === 'fund' || x.kind === 'applied' || x.kind === 'preset') ? { ...x, cur: from } : x));
+    state.ledgerPrefs = { ...(state.ledgerPrefs || {}), cur: to, fxManual: {} };
+    save(); ledgerSave();
   }
 
   function openLedgerShare(pre = null) {
@@ -6612,11 +6947,13 @@
     try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); return sub ? 'on' : 'off'; } catch (e) { return 'off'; }
   }
   function notifSettingsHtml(status) {
-    const withRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on);
+    const n = state.notif || NOTIF0, withRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on);
     return `<p class="muted small" style="margin-top:0">${esc(t('pushHint'))}</p>
       <div class="row wrap"><span class="grow small" style="font-weight:var(--fw-label)">${esc(t('pushStatus_' + status))}</span>
         ${status === 'on' ? `<button class="btn" data-s="push-test">${ico('bell')} ${esc(t('pushTest'))}</button><button class="chip" data-s="push-off">${esc(t('pushDisable'))}</button>` : status === 'off' ? `<button class="btn primary" data-s="push-on">${ico('bell')} ${esc(t('pushEnable'))}</button>` : ''}</div>
-      ${withRem.length ? `<div style="margin-top:10px">${withRem.map(h => `<div class="entry"><span>${esc(h.icon)} ${esc(h.name)}</span><b>🔔 ${esc(h.reminder.time)}</b></div>`).join('')}</div>` : `<p class="muted small">${esc(t('pushNoReminders'))}</p>`}`;
+      <div class="ntf-list">${[['energy', 'energyAt'], ['summary', 'summaryAt'], ['challenge'], ['share'], ['group'], ['message']].map(([k, at]) => `<div class="ntf-row"><label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-ntf="${k}" ${n[k] ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('ntf_' + k))}</b><br><span class="muted small">${esc(t('ntf_' + k + '_h'))}</span></span></label>${at ? `<input class="input ntf-at" type="time" data-ntf-at="${at}" value="${esc(n[at])}" aria-label="${esc(t('ntfAt'))}" ${n[k] ? '' : 'disabled'}>` : ''}</div>`).join('')}</div>
+      <h4 class="ntf-sub">${esc(t('ntfHabits'))}</h4>
+      ${withRem.length ? `<div>${withRem.map(h => `<div class="entry"><span>${esc(h.icon)} ${esc(h.name)}</span><b>${ico('bell', 'xs')} ${esc(h.reminder.time)}</b></div>`).join('')}</div>` : `<p class="muted small">${esc(t('pushNoReminders'))}</p>`}`;
   }
 
   /* ---------- GRUPOS (Fases 4-6): perfil, chat, roles con permisos, retos en vivo, votaciones, ranking y reputación ----------
@@ -8139,6 +8476,8 @@
       case 'ledger-events': openLedgerEvents(); break;
       case 'ledger-budget': openBudgets(); break;
       case 'ledger-import': if (ledgerOpen()) openRegistrar(); break;
+      case 'ledger-imports': if (ledgerOpen()) openRegistros(); break;
+      case 'ledger-fx': if (ledgerOpen()) openFxSettings(); break;
       case 'ledger-share': openLedgerShare(); break;
       case 'profile': openProfile(); break;
       case 'cview': state.ui.chatView = a.dataset.v; save(); render(); break;
@@ -8248,7 +8587,7 @@
     else if (isMulti(h) || !cnt(h, k)) setCount(h, k, cnt(h, k) + 1);
     render(); vibrate(20); toast(t('shortcutDone', { name: h.name }));
   })();
-  setTimeout(() => { if (state.onboarded) { offerShields(); maybeWeeklyReview(); processJoin(); checkRetos(); } }, 1200);
+  setTimeout(() => { if (state.onboarded) { maybeWhatsNew(); offerShields(); maybeWeeklyReview(); processJoin(); checkRetos(); } }, 1200);
   // Solo para pruebas en local
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') window.__kg = { mergeStates, stampChanges };
 })();
