@@ -1,6 +1,8 @@
 /* KeepGoing — textos de la v1.21: «Registrar» (importar el CSV del banco) (ES / EN) */
 (function () {
   const es = {
+    hideCal: 'Ocultar el calendario', hideCalHint: 'No se muestra el calendario del mes en la tarjeta de este hábito. Tus registros no se borran.', hideCalHintP: 'No se muestra el calendario del mes en este proyecto. Tus registros no se borran.',
+    gSpecHabit: 'El hábito en detalle', gSpecProject: 'El proyecto en detalle',
     pack_hogar: 'Hogar', pack_social: 'Social',
     obHabTitle: 'Tus hábitos y proyectos', obHabSub: 'Elige los que quieras, sin mínimo. Cuantos más hábitos tengas, más vale un día perfecto.',
     obHabSection: 'Hábitos', obProjSection: 'Proyectos', obProjHint: 'Un proyecto es una meta con sus hábitos. Al elegirlo se crean también sus hábitos.',
@@ -60,6 +62,8 @@
     rgNote_interest: 'Intereses', rgNote_cashback: 'Cashback', rgNote_dividend: 'Dividendo', rgNote_buy: 'Compra', rgNote_sell: 'Venta', rgNote_cardCredit: 'Devolución'
   };
   const en = {
+    hideCal: 'Hide the calendar', hideCalHint: 'The month calendar is not shown on this habit card. Your records are kept.', hideCalHintP: 'The month calendar is not shown on this project. Your records are kept.',
+    gSpecHabit: 'The habit in detail', gSpecProject: 'The project in detail',
     pack_hogar: 'Home', pack_social: 'Social',
     obHabTitle: 'Your habits and projects', obHabSub: 'Pick as many as you like, no minimum. The more habits you have, the more a perfect day is worth.',
     obHabSection: 'Habits', obProjSection: 'Projects', obProjHint: 'A project is a goal with its habits. Picking one also creates its habits.',

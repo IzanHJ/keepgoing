@@ -1756,3 +1756,4 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 .ob-later { margin-top: 20px; padding: 12px 14px; border-radius: var(--r-md, 16px); }
 .ob-level { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding: 14px; border-radius: var(--r-md, 16px); }
 .ob-level .grow { display: flex; flex-direction: column; gap: 4px; }
+.g-spec .section-title svg { width: 18px; height: 18px; vertical-align: -3px; }

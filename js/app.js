@@ -1401,7 +1401,7 @@
         <span class="muted small folder-sub">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}${hs.length ? ' · ' + esc(t('folderCount', { n: hs.length })) : ''}${due.length ? ' · ' + esc(t('folderToday', { a: done, b: due.length })) : ''}</span>
       </button>
       <div class="folder-minis">${minis || `<span class="muted small">${esc(t('folderEmpty'))}</span>`}</div>
-      ${hs.length ? calHtml({ id: 'p:' + p.id, proj: p }) : ''}
+      ${hs.length && !p.hideCal ? calHtml({ id: 'p:' + p.id, proj: p }) : ''}
       <button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button>
     </article>`;
   }
@@ -1415,7 +1415,7 @@
   function folderViewHtml(p) {
     const hs = p.habitIds.map(getHabit).filter(h => h && !h.archived);
     let html = `<div class="folder-bar"><button class="chip" data-act="folder-close">${ico('left')} ${esc(t('viewAll'))}</button><span class="muted small grow">${esc(t('folderInside'))}</span><button class="chip" data-act="proj-edit" data-id="${p.id}">${ico('edit')} ${esc(t('edit'))}</button></div>`;
-    html += `<div class="folder-summary">${projCard(p)}${hs.length ? `<div class="clay card folder-cal">${calHtml({ id: 'p:' + p.id, proj: p })}<button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button></div>` : ''}</div>`;
+    html += `<div class="folder-summary">${projCard(p)}${hs.length && !p.hideCal ? `<div class="clay card folder-cal">${calHtml({ id: 'p:' + p.id, proj: p })}<button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button></div>` : ''}</div>`;
     html += hs.length ? `<div class="habit-grid" id="habit-grid" data-folder="${p.id}">${hs.map(habitCard).join('')}</div><p class="grid-hint">${esc(t('folderOutHint'))}</p>`
       : `<p class="muted center">${esc(t('folderEmptyHint'))}</p>`;
     html += `<div class="center" style="margin-top:14px"><button class="btn" data-act="proj-edit" data-id="${p.id}">${ico('plus')} ${esc(t('folderAddHabits'))}</button></div>`;
@@ -1475,7 +1475,7 @@
         ${+h.duration > 0 && !isQuit(h) ? `<button class="icon-btn sm timer-btn" data-timer="${h.id}" aria-label="${esc(t('timer'))}">${ico('timer')}</button>` : ''}
         ${ring}
       </div>
-      ${calHtml(h)}
+      ${h.hideCal ? '' : calHtml(h)}
       <button class="more-btn" data-act="more" data-kind="habit" data-id="${h.id}">${esc(t('seeMore'))} ${ico('down')}</button>
     </article>`;
   }
@@ -1490,16 +1490,41 @@
   const projHabits = p => p.habitIds.map(getHabit).filter(h => h && !h.archived);
   const projFirst = p => projHabits(p).reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, p.createdAt || todayKey());
   const calSubj = id => { if (!String(id).startsWith('p:')) return getHabit(id); const p = state.projects.find(x => x.id === id.slice(2)); return p ? { id, proj: p } : null; };
+  // Día perfecto del proyecto: todos sus hábitos diarios que tocaban hechos y ninguna recaída (null si ese día no tocaba ninguno)
+  function projDayPerfect(hs, k) {
+    let any = false;
+    for (const h of hs) {
+      if (!isQuit(h) && (h.freq || 'daily') !== 'daily') continue;
+      const v = dayScore(h, k); if (v == null) continue;
+      any = true; if (v < 1) return false;
+    }
+    return any ? true : null;
+  }
+  // Semana perfecta: cada día con algo que hacer fue perfecto y los hábitos semanales se cumplieron. Entonces se rellena la semana entera.
+  function projWeekPerfect(hs, ws, fk) {
+    const today = todayKey(), end = addDays(ws, 6) < today ? addDays(ws, 6) : today;
+    let any = false;
+    for (let d = ws < fk ? fk : ws; d <= end; d = addDays(d, 1)) { const v = projDayPerfect(hs, d); if (v === false) return false; if (v) any = true; }
+    for (const h of hs) {
+      if (isQuit(h) || h.freq !== 'weekly' || firstKey(h) > end) continue;
+      const st = periodState(h, periodStart(h, ws)); if (st === 'miss') return false; if (st === 'done') any = true;
+    }
+    return any;
+  }
   function projMonthCal(p, ym) {
     const [y, m] = ym.split('-').map(Number), today = todayKey(), hs = projHabits(p), fk = projFirst(p);
     let out = '';
-    for (const w of LED.monthGrid(y, m)) for (const k of w) {
+    for (const w of LED.monthGrid(y, m)) {
+      const k0 = w.find(Boolean), ws = k0 ? weekStart(k0) : null, wPerfect = ws && ws <= today && addDays(ws, 6) >= fk ? projWeekPerfect(hs, ws, fk) : false;
+      for (const k of w) {
       if (!k) { out += '<i class="dot blank"></i>'; continue; }
       const n = +k.slice(8);
       if (k > today) { out += `<span class="dot future">${n}</span>`; continue; }
       const sc = hs.map(h => dayScore(h, k)).filter(v => v != null), v = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : null;
-      const cls = 'dot' + (v == null ? ' off' : v >= 1 ? ' on' : v > 0 ? ' part' : '') + (k < fk ? ' pre' : '') + (k === today ? ' today' : '');
+      const full = k >= fk && (wPerfect || projDayPerfect(hs, k) === true);
+      const cls = 'dot' + (full ? ' on' : v == null ? ' off' : v > 0 ? ' part' : '') + (k < fk ? ' pre' : '') + (k === today ? ' today' : '');
       out += `<span class="${cls}" title="${esc(fmtDate(k))}${v == null ? '' : ': ' + Math.round(v * 100) + '%'}">${n}</span>`;
+      }
     }
     return `<div class="mcal" data-ym="${ym}"><div class="mcal-grid">${out}</div></div>`;
   }
@@ -1633,6 +1658,7 @@
           <input class="input ${f.remOn ? '' : 'hidden'}" id="hf-rem-time" type="time" value="${esc(f.remTime)}" style="max-width:160px"></div>` : ''}
         ${h && h.groupId ? `<button type="button" class="chip" data-hm="group">👥 ${esc(t('groupOpen'))}</button>`
           : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareWithFriendsHint' : 'groupNeedLogin'))}</span></span></label>`}
+        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-hidecal" ${f.hideCal ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('hideCal'))}</b><br><span class="muted small">${esc(t('hideCalHint'))}</span></span></label>
         <label class="field"><span>${esc(t('habitDesc'))}</span><textarea class="input" id="hf-note" maxlength="300" placeholder="${esc(t('habitDescPh'))}">${esc(f.note || '')}</textarea></label>
         ${!isNew ? `<div class="row wrap">
           <button type="button" class="chip" data-hm="up">${ico('up')} ${esc(t('moveUp'))}</button>
@@ -1654,6 +1680,7 @@
       f.chDays = Math.max(0, parseInt($('#hf-ch', w).value, 10) || 0);
       if ($('#hf-rem', w)) { f.remOn = $('#hf-rem', w).checked; f.remTime = $('#hf-rem-time', w).value; }
       if ($('#hf-share', w)) f.share = $('#hf-share', w).checked;
+      f.hideCal = $('#hf-hidecal', w).checked;
     };
     openModal({
       title: esc(isNew ? t('newHabit') : t('editHabit')),
@@ -1706,7 +1733,7 @@
           if (!f.name) { toast(t('habitNeedName')); $('#hf-name', w).focus(); return; }
           if (f.kind === 'quit') Object.assign(f, { freq: 'daily', target: 1, multi: false, measure: 'count', duration: 0 });
           if (f.remOn && !f.remTime) { toast(t('remindNeedTime')); return; }
-          const props = { kind: f.kind, name: f.name, icon: f.icon, color: f.color, freq: f.freq, target: f.target, multi: f.multi, note: f.note, days: f.days, measure: f.measure, unit: f.unit, step: f.step, timeOfDay: f.timeOfDay, duration: f.duration, reminder: { on: !!f.remOn && f.kind !== 'quit', time: f.remTime || '' } };
+          const props = { kind: f.kind, name: f.name, icon: f.icon, color: f.color, freq: f.freq, target: f.target, multi: f.multi, note: f.note, days: f.days, measure: f.measure, unit: f.unit, step: f.step, timeOfDay: f.timeOfDay, duration: f.duration, hideCal: f.hideCal || undefined, reminder: { on: !!f.remOn && f.kind !== 'quit', time: f.remTime || '' } };
           // Reto: se conserva la fecha de inicio si solo cambian los días
           const oldCh = h && h.challenge;
           if (f.chDays > 0) props.challenge = oldCh && !oldCh.done ? { ...oldCh, days: f.chDays } : { tid: 'custom', days: f.chDays, start: todayKey() };
@@ -1718,6 +1745,7 @@
           } else {
             Object.assign(h, props);
             if (!props.challenge) delete h.challenge;
+            if (!props.hideCal) delete h.hideCal;
             checkPerfectMastery(true); checkChallenge(h);
           }
           save(); close();
@@ -1931,12 +1959,14 @@
           <div class="muted small">${esc(t('projectHabitsHint'))}</div>
           <div class="sug-list" style="margin-top:6px">${avail.length ? avail.map(h => `<button type="button" class="chip ${f.habitIds.includes(h.id) ? 'on' : ''}" data-link="${h.id}">${esc(h.icon)} ${esc(h.name)}</button>`).join('') : `<span class="muted small">${esc(t('noHabitsYet'))}</span>`}</div>
         </div>
+        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-hidecal" ${f.hideCal ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('hideCal'))}</b><br><span class="muted small">${esc(t('hideCalHintP'))}</span></span></label>
         ${f.groupId ? '' : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareProjectHint' : 'groupNeedLogin'))}</span></span></label>`}
       </div>`;
     };
     const readInputs = w => {
       f.name = $('#pf-name', w).value.trim(); f.desc = $('#pf-desc', w).value.trim();
       if ($('#pf-share', w)) f.share = $('#pf-share', w).checked;
+      if ($('#pf-hidecal', w)) { f.hideCal = $('#pf-hidecal', w).checked; if (!f.hideCal) delete f.hideCal; }
       if ($('#pf-start', w)) { f.goal.start = parseFloat($('#pf-start', w).value) || 0; f.goal.target = parseFloat($('#pf-target', w).value) || 0; f.goal.unit = $('#pf-unit', w).value.trim(); }
       if ($('#pf-deadline', w)) { f.deadline = $('#pf-deadline', w).value || f.deadline; if (f.deadline && !f.retoFrom) f.retoFrom = todayKey(); }
     };
@@ -1962,7 +1992,7 @@
           if (!f.name) { toast(t('projectNeedName')); $('#pf-name', w).focus(); return; }
           const share = f.share; delete f.share;
           if (isNew) { f.id = uid(); f.createdAt = todayKey(); state.projects.push(f); }
-          else Object.assign(p, f);
+          else { Object.assign(p, f); if (!f.hideCal) delete p.hideCal; }
           save(); close(); state.ui.tab = 'habits'; render();
           const obj = isNew ? f : p;
           if (share && !obj.groupId) shareAsGroup('project', obj); else if (isNew) openProject(obj);
@@ -7079,6 +7109,7 @@
           </div>
           ${live}
         </section>
+        ${g.spec && Object.keys(g.spec).length ? `<section class="clay card g-spec"><h3 class="section-title">${ico('eye')} ${esc(t(g.kind === 'habit' ? 'gSpecHabit' : 'gSpecProject'))}</h3>${pvSpecHtml(g.kind === 'habit' ? 'habit' : 'project', g.spec)}</section>` : ''}
         ${can('invite') && link ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('groupLeave'))}</button></div>
       </div>`;
