@@ -1384,6 +1384,25 @@
     return html;
   }
 
+  /* v1.22: cuadrícula sin huecos (tipo mosaico). Cada tarjeta ocupa tantas filas de 1 px como su altura, así una tarjeta
+     corta (por ejemplo, con el calendario oculto) no deja hueco y la de abajo sube. Con una sola columna no hace nada. */
+  let masonryRaf = 0;
+  const masonryRO = typeof ResizeObserver === 'function' ? new ResizeObserver(() => scheduleMasonry()) : null;
+  function scheduleMasonry() { if (!masonryRaf) masonryRaf = requestAnimationFrame(() => { masonryRaf = 0; $$('.habit-grid').forEach(layoutMasonry); }); }
+  function layoutMasonry(grid) {
+    const cs = getComputedStyle(grid), cols = cs.gridTemplateColumns.split(' ').filter(Boolean).length, kids = [...grid.children];
+    if (cols < 2) { if (grid.classList.contains('masonry')) { grid.classList.remove('masonry'); kids.forEach(k => { k.style.gridRowEnd = ''; }); } return; }
+    grid.classList.add('masonry');
+    const gap = parseFloat(cs.columnGap) || 12;
+    for (const k of kids) {
+      if (masonryRO && !k._mo) { masonryRO.observe(k); k._mo = true; }
+      const span = `span ${Math.max(1, Math.ceil(k.offsetHeight + gap))}`;
+      if (k.style.gridRowEnd !== span) k.style.gridRowEnd = span;
+    }
+  }
+  if (typeof MutationObserver === 'function') new MutationObserver(scheduleMasonry).observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener('resize', scheduleMasonry);
+
   // Carpeta (proyecto) en la cuadrícula: mismo tamaño que un hábito; muestra sus hábitos y el progreso de hoy
   // Hábitos que se cuentan más de una vez: a partir de 2 el número sustituye al icono
   const multiN = h => !isQuit(h) && !isAmount(h) && (+h.target > 1 || h.multi) ? (h.freq === 'daily' ? cnt(h, todayKey()) : periodSum(h, todayKey())) : 0;
