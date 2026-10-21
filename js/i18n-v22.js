@@ -18,7 +18,7 @@
     help_ledger_t: 'Libreta',
     help_ledger_what: 'Tu libreta de gastos e ingresos, cifrada con tu contraseña en tu dispositivo, con la calculadora de patrimonio proyectado.',
     help_ledger_start: 'La primera vez crea tu contraseña (no se puede recuperar si la olvidas).|Toca + para apuntar un gasto o un ingreso con su categoría.|Toca un día del calendario para ver sus movimientos; desliza uno a la izquierda para editarlo o borrarlo.|Abre la calculadora (junto al candado) para proyectar tu patrimonio.',
-    help_ledger_feat: 'Registrar: importa el CSV de tu banco y contesta qué es cada tipo de movimiento.|Registros: revisa, edita o borra entera cada importación.|Categorías, presupuesto mensual, movimientos que se repiten y eventos (un viaje, una mudanza…).|Gráficas por porcentaje, evolución y filtros por categoría y fechas.|Calculadora: sueldo, gastos, inversiones, pagas extra, cambios futuros y proyecciones guardadas en PDF.|Abrir con PIN o huella en este dispositivo y modo privacidad para ocultar importes.',
+    help_ledger_feat: 'Registrar: importa el CSV de tu banco y contesta qué es cada tipo de movimiento.|Registros: revisa, edita o borra entera cada importación.|Categorías, presupuesto mensual, movimientos que se repiten y eventos (un viaje, una mudanza…).|Gráficas por porcentaje, evolución y filtros por categoría y fechas.|Calculadora: sueldo, gastos, inversiones, pagas extra, cambios futuros y proyecciones guardadas en PDF.|Divisas: apunta en cualquier moneda con su cambio estimado (Banco Central Europeo o fijado a mano) y elige tu moneda principal.|Abrir con PIN o huella en este dispositivo y modo privacidad para ocultar importes.',
     help_ledger_links: 'El Dinero Caprichable que ganas con tus hábitos aparece aquí (es solo visual, no toca tu saldo).|Comparte la libreta o una proyección con amigos, cifrada y solo para ver, o envía un evento al chat sin importes.|El ingreso neto total del conversor de puntos se puede copiar de tus ingresos del mes.',
     help_chat_t: 'Chat',
     help_chat_what: 'Tus conversaciones con amigos y tus grupos de hábitos o proyectos compartidos.',
@@ -39,7 +39,22 @@
     fxAdd: 'Añadir una moneda', fxManualHint: 'Si fijas un cambio a mano, se usa ese en lugar del automático. Déjalo vacío para volver al automático.',
     fxNeedOnline: 'Necesitas conexión para descargar el cambio', fxMainQ: '¿Pasar la moneda principal de {a} a {b}? Los importes se convierten con el cambio de hoy ({r}) y los movimientos antiguos quedan como moneda secundaria.',
     fxMainDone: 'Moneda principal: {c}', calcCurHint: 'Los importes de esta pieza van en esta moneda y se pasan a la principal con el cambio de hoy.',
-    rgConvert: 'Apuntar en esta moneda', rgCurHint: 'Se apuntan en su moneda con un cambio estimado a tu moneda principal (puedes cambiarlo). También puedes ignorarlos.'
+    rgConvert: 'Apuntar en esta moneda', rgCurHint: 'Se apuntan en su moneda con un cambio estimado a tu moneda principal (puedes cambiarlo). También puedes ignorarlos.',
+    ntf_energy: 'Energía del día', ntf_energy_h: 'Te recuerda valorar tu energía si aún no lo has hecho, a la hora que elijas.',
+    ntf_summary: 'Tus hábitos y proyectos', ntf_summary_h: 'Un resumen diario de lo que te queda pendiente hoy.',
+    ntf_challenge: 'Retos y proyectos que acaban', ntf_challenge_h: 'Aviso cuando a un reto o a un proyecto con fecha le quedan 3 días o 1 día.',
+    ntf_share: 'Te han compartido algo', ntf_share_h: 'Un hábito, un proyecto, una libreta, una proyección o un calendario.',
+    ntf_group: 'Te han añadido a un grupo', ntf_group_h: 'Cuando alguien te mete en un grupo o te acepta en él.',
+    ntf_message: 'Mensajes nuevos', ntf_message_h: 'Cuando te escriben en un chat o en un grupo.',
+    ntfAt: 'Hora', ntfHabits: 'Recordatorios de cada hábito', ntfOn: 'Notificación activada', ntfOff: 'Notificación desactivada',
+    wn_1_22_0_1: 'Divisas en la Libreta y la calculadora|Apunta movimientos en dólares, libras o cualquier moneda. Se guardan en su moneda con un cambio estimado a tu moneda principal, por ejemplo «10 $ (1 $ = 0,89 € → 8,90 €)». Los cambios son los del Banco Central Europeo y puedes fijar uno a mano en Libreta → Divisas, donde también cambias tu moneda principal.',
+    wn_1_22_0_2: 'Registros de cada CSV|Libreta → Registros muestra cada importación con su fecha y hora. Puedes revisar y editar sus movimientos o borrarla entera si te equivocaste.',
+    wn_1_22_0_3: 'Depósitos y retiradas en el CSV|Al registrar el CSV se te pregunta si ignorarlos o apuntarlos con una categoría. Las monedas extranjeras se apuntan en su moneda.',
+    wn_1_22_0_4: 'Notificaciones nuevas|Energía del día, resumen de lo pendiente, retos y proyectos que acaban, cosas que te comparten, grupos y mensajes. Cada una se activa o desactiva en Ajustes → Notificaciones.',
+    wn_1_22_0_5: 'Ayuda en la aplicación|En Ajustes → Ayuda tienes un pequeño tutorial de cada pestaña, todas sus funciones y cómo se conectan entre sí.',
+    wn_1_22_0_6: 'Desliza los meses y usa la rueda|Arrastra con el dedo o el ratón para cambiar de mes en los calendarios. Con el ratón, la rueda sube o baja el número del campo que estás editando.',
+    wn_1_22_0_7: 'Tarjetas sin huecos|Si ocultas el calendario de un proyecto o hábito, su tarjeta se encoge y las de abajo suben. El menú de 4 cuadrados del Calendario ya tiene fondo.',
+    wn_1_22_0_8: 'Menos texto seleccionable|Al tocar la app ya no se selecciona texto sin querer. Sigues pudiendo copiar el contrato, la ayuda, los nombres, el chat y lo que editas.'
   };
   const en = {
     setGroupHelp: 'Help', helpTitle: 'In-app help', helpSub: 'What each part is for and how to get the most out of it',
@@ -58,7 +73,7 @@
     help_ledger_t: 'Ledger',
     help_ledger_what: 'Your spending and income ledger, encrypted with your password on your device, with the net worth projection calculator.',
     help_ledger_start: 'The first time, create your password (it cannot be recovered if you forget it).|Tap + to log an expense or income with its category.|Tap a calendar day to see its entries; swipe one left to edit or delete it.|Open the calculator (next to the lock) to project your net worth.',
-    help_ledger_feat: 'Import CSV: import your bank CSV and say what each kind of transaction is.|Imports: review, edit or delete each import in full.|Categories, monthly budget, repeating entries and events (a trip, a move…).|Percentage charts, evolution and filters by category and dates.|Calculator: salary, spending, investments, extra pay, future changes and saved projections as PDF.|Open with a PIN or fingerprint on this device, and privacy mode to hide amounts.',
+    help_ledger_feat: 'Import CSV: import your bank CSV and say what each kind of transaction is.|Imports: review, edit or delete each import in full.|Categories, monthly budget, repeating entries and events (a trip, a move…).|Percentage charts, evolution and filters by category and dates.|Calculator: salary, spending, investments, extra pay, future changes and saved projections as PDF.|Currencies: log in any currency with its estimated rate (European Central Bank or set manually) and choose your main currency.|Open with a PIN or fingerprint on this device, and privacy mode to hide amounts.',
     help_ledger_links: 'The Treat Money you earn with your habits shows here (it is only visual and does not touch your balance).|Share the ledger or a projection with friends, encrypted and view-only, or send an event to chat without amounts.|The total net income of the points converter can be copied from your monthly income.',
     help_chat_t: 'Chat',
     help_chat_what: 'Your conversations with friends and your groups for shared habits or projects.',
@@ -79,7 +94,22 @@
     fxAdd: 'Add a currency', fxManualHint: 'A manual rate is used instead of the automatic one. Leave it empty to go back to automatic.',
     fxNeedOnline: 'You need a connection to download the rate', fxMainQ: 'Change the main currency from {a} to {b}? Amounts are converted at today’s rate ({r}) and older entries stay as a secondary currency.',
     fxMainDone: 'Main currency: {c}', calcCurHint: 'This piece’s amounts are in this currency and converted to the main one at today’s rate.',
-    rgConvert: 'Log in this currency', rgCurHint: 'They are logged in their currency with an estimated rate to your main currency (you can change it). You can also ignore them.'
+    rgConvert: 'Log in this currency', rgCurHint: 'They are logged in their currency with an estimated rate to your main currency (you can change it). You can also ignore them.',
+    ntf_energy: 'Daily energy', ntf_energy_h: 'Reminds you to rate your energy if you haven’t yet, at the time you choose.',
+    ntf_summary: 'Your habits and projects', ntf_summary_h: 'A daily summary of what is still pending today.',
+    ntf_challenge: 'Challenges and projects ending', ntf_challenge_h: 'An alert when a challenge or a project with a deadline has 3 days or 1 day left.',
+    ntf_share: 'Something was shared with you', ntf_share_h: 'A habit, a project, a ledger, a projection or a calendar.',
+    ntf_group: 'You were added to a group', ntf_group_h: 'When someone adds you to a group or accepts you into it.',
+    ntf_message: 'New messages', ntf_message_h: 'When someone writes to you in a chat or a group.',
+    ntfAt: 'Time', ntfHabits: 'Reminders for each habit', ntfOn: 'Notification on', ntfOff: 'Notification off',
+    wn_1_22_0_1: 'Currencies in the Ledger and calculator|Log entries in dollars, pounds or any currency. They keep their currency with an estimated rate to your main currency, e.g. “$10 (1 $ = €0.89 → €8.90)”. Rates come from the European Central Bank and you can set one manually in Ledger → Currencies, where you also change your main currency.',
+    wn_1_22_0_2: 'Records of each CSV|Ledger → Imports lists each import with its date and time. Review and edit its entries or delete it entirely if you made a mistake.',
+    wn_1_22_0_3: 'Deposits and withdrawals in the CSV|When importing you choose whether to ignore them or log them with a category. Foreign currencies are logged in their own currency.',
+    wn_1_22_0_4: 'New notifications|Daily energy, a summary of what is pending, challenges and projects ending, things shared with you, groups and messages. Turn each one on or off in Settings → Notifications.',
+    wn_1_22_0_5: 'In-app help|Settings → Help has a short tutorial of each tab, all its features and how they connect.',
+    wn_1_22_0_6: 'Swipe months and use the wheel|Drag with your finger or mouse to change month in the calendars. With a mouse, the wheel raises or lowers the number you are editing.',
+    wn_1_22_0_7: 'Cards without gaps|If you hide a project’s or habit’s calendar, its card shrinks and the ones below move up. The Calendar’s 4-squares menu now has a background.',
+    wn_1_22_0_8: 'Less selectable text|Tapping the app no longer selects text by accident. You can still copy the contract, help, names, chat and what you edit.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);

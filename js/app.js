@@ -175,6 +175,8 @@
   const CAP = window.KGCaprice;
   const defaultCaprice = () => ({ income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT }, history: [{ from: '0000-00-00', income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT } }] });
   const defaultLedgerCats = () => window.KGLedger.DEFAULT_CATEGORIES.map(c => ({ ...c, name: '', archived: false }));
+  // v1.22: tipos de notificación (Ajustes → Notificaciones); el servidor los lee de kg_state para decidir qué envía
+  const NOTIF0 = { energy: true, energyAt: '21:00', summary: true, summaryAt: '09:00', challenge: true, share: true, group: true, message: true };
   function defaultState() {
     const lang = (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
     return {
@@ -199,7 +201,7 @@
       ledgerProjs: [],
       ledgerImports: [], // v1.22: registros de lo importado con «Registrar» (cifrados como el resto de la Libreta)
       // v1.20: Calendario de turnos (trabajos, plantillas, días, calendario externo y ajustes)
-      calJobs: [], calShifts: [], calDays: {}, cdmt: {}, calExt: { list: [] }, cemt: {}, calPrefs: { weekStart: 1, alarms: false, hide: {} },
+      calJobs: [], calShifts: [], calDays: {}, cdmt: {}, calExt: { list: [] }, cemt: {}, calPrefs: { weekStart: 1, alarms: false, hide: {} }, notif: { ...NOTIF0 },
       // Fase 3 (v1.10): sonidos activados por defecto
       soundOn: true, ledgerVault: null,
       // v1.14: widgets ocultos desde el modo edición (se recuperan en Ajustes)
@@ -241,6 +243,7 @@
     out.calExt = s.calExt && Array.isArray(s.calExt.list) ? s.calExt : { list: [] };
     const cp0 = s.calPrefs && typeof s.calPrefs === 'object' ? s.calPrefs : {};
     out.calPrefs = { weekStart: 1, alarms: false, ...cp0, hide: cp0.hide && typeof cp0.hide === 'object' ? cp0.hide : {} };
+    out.notif = { ...NOTIF0, ...(s.notif && typeof s.notif === 'object' ? s.notif : {}) };
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
@@ -276,7 +279,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif];
   // La caja fuerte de la Libreta y el par de claves para compartir van aparte, con su propia marca (vmt)
   const vaultOf = s => [s.ledgerVault, s.kx];
   function stampChanges(prev, cur) {
@@ -360,7 +363,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif] = settingsOf(R); out.smt = R.smt; }
     // Caja fuerte: gana la más reciente, pero una vacía (o sin marca) nunca borra a otra salvo que venga de «Borrar la Libreta»
     {
       const lv = L.ledgerVault, rv = R.ledgerVault, wipe = Math.max(L.vaultWipe || 0, R.vaultWipe || 0);
@@ -3188,6 +3191,8 @@
           if (tg) { state.prompts[tg] = { ...(state.prompts[tg] || {}), off: !e.target.checked }; save(); toast(t(e.target.checked ? 'promptOnToast' : 'promptOffToast')); }
           const nt = e.target.dataset && e.target.dataset.promptNote;
           if (nt) { state.prompts[nt] = { ...(state.prompts[nt] || {}), note: e.target.value.trim() }; save(); toast(t('saved')); }
+          if (e.target.dataset && e.target.dataset.ntf) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntf]: e.target.checked }; const at = e.target.closest('.ntf-row').querySelector('[data-ntf-at]'); if (at) at.disabled = !e.target.checked; save(); toast(t(e.target.checked ? 'ntfOn' : 'ntfOff')); }
+          if (e.target.dataset && e.target.dataset.ntfAt && /^\d{2}:\d{2}$/.test(e.target.value)) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntfAt]: e.target.value }; save(); toast(t('saved')); }
           if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); toast(t('saved')); }
           if (e.target.closest && e.target.closest('#st-priv')) privacyChange(e, w);
           if (e.target.matches && e.target.matches('[data-s-sound]')) { state.soundOn = e.target.checked; save(); if (state.soundOn) sfx('toggle'); toast(t(state.soundOn ? 'soundOnToast' : 'soundOffToast')); }
@@ -6942,11 +6947,13 @@
     try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); return sub ? 'on' : 'off'; } catch (e) { return 'off'; }
   }
   function notifSettingsHtml(status) {
-    const withRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on);
+    const n = state.notif || NOTIF0, withRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on);
     return `<p class="muted small" style="margin-top:0">${esc(t('pushHint'))}</p>
       <div class="row wrap"><span class="grow small" style="font-weight:var(--fw-label)">${esc(t('pushStatus_' + status))}</span>
         ${status === 'on' ? `<button class="btn" data-s="push-test">${ico('bell')} ${esc(t('pushTest'))}</button><button class="chip" data-s="push-off">${esc(t('pushDisable'))}</button>` : status === 'off' ? `<button class="btn primary" data-s="push-on">${ico('bell')} ${esc(t('pushEnable'))}</button>` : ''}</div>
-      ${withRem.length ? `<div style="margin-top:10px">${withRem.map(h => `<div class="entry"><span>${esc(h.icon)} ${esc(h.name)}</span><b>🔔 ${esc(h.reminder.time)}</b></div>`).join('')}</div>` : `<p class="muted small">${esc(t('pushNoReminders'))}</p>`}`;
+      <div class="ntf-list">${[['energy', 'energyAt'], ['summary', 'summaryAt'], ['challenge'], ['share'], ['group'], ['message']].map(([k, at]) => `<div class="ntf-row"><label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-ntf="${k}" ${n[k] ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('ntf_' + k))}</b><br><span class="muted small">${esc(t('ntf_' + k + '_h'))}</span></span></label>${at ? `<input class="input ntf-at" type="time" data-ntf-at="${at}" value="${esc(n[at])}" aria-label="${esc(t('ntfAt'))}" ${n[k] ? '' : 'disabled'}>` : ''}</div>`).join('')}</div>
+      <h4 class="ntf-sub">${esc(t('ntfHabits'))}</h4>
+      ${withRem.length ? `<div>${withRem.map(h => `<div class="entry"><span>${esc(h.icon)} ${esc(h.name)}</span><b>${ico('bell', 'xs')} ${esc(h.reminder.time)}</b></div>`).join('')}</div>` : `<p class="muted small">${esc(t('pushNoReminders'))}</p>`}`;
   }
 
   /* ---------- GRUPOS (Fases 4-6): perfil, chat, roles con permisos, retos en vivo, votaciones, ranking y reputación ----------
