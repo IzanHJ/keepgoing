@@ -59,6 +59,15 @@
     for (const h of history || []) if (h.from <= k) cur = h;
     return cur;
   }
-  return { LEVELS, HABITS_PER_LEVEL, PERFECT_DAY_POINTS, DEFAULT_PCT, DEFAULT_INCOME, DOTS, BEFORE_FIRST, AFTER_LAST,
+  /* ---------- v1.21: puntos iguales para todos los niveles (el nivel solo cambia el texto del contrato) ----------
+     El día vale su % de cumplimiento × un máximo que crece con la carga: 10 puntos con 1-2 hábitos, +1 por cada hábito
+     más, hasta 15 con 7 o más. Así quien lleva 2 hábitos y quien lleva 8 pueden sacar un día perfecto, y la carga extra
+     se premia sin dejar muy atrás a quien lleva pocos. 10 puntos = ingreso neto × un único porcentaje (0,5 % por defecto). */
+  const DEFAULT_P = 0.5, MAX_EXTRA = 5;
+  const maxDayPoints = n => (Number(n) > 0 ? PERFECT_DAY_POINTS + Math.min(MAX_EXTRA, Math.max(0, Math.floor(Number(n)) - 2)) : 0);
+  const dayPointsV2 = (ratio, n) => maxDayPoints(n) * Math.min(1, Math.max(0, Number(ratio) || 0));
+  // Nivel de compromiso según los hábitos que tengas (en el registro): hasta 3 Chill, de 4 a 6 Serio, 7 o más Locked-In
+  const levelForCount = n => (n >= 7 ? 'locked' : n >= 4 ? 'serio' : 'chill');
+  return { DEFAULT_P, MAX_EXTRA, maxDayPoints, dayPointsV2, levelForCount, LEVELS, HABITS_PER_LEVEL, PERFECT_DAY_POINTS, DEFAULT_PCT, DEFAULT_INCOME, DOTS, BEFORE_FIRST, AFTER_LAST,
     pointsPerHabit, dayPoints, tenPointsValue, moneyFor, sliderPos, pctFromPos, parseNumber, onDay };
 });

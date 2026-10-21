@@ -1,6 +1,13 @@
 /* KeepGoing — textos de la v1.21: «Registrar» (importar el CSV del banco) (ES / EN) */
 (function () {
   const es = {
+    perfectHow2: 'Un día es perfecto cuando cumples todos los hábitos diarios que tocaban ese día y no recaes en ninguno de los que quieres dejar.',
+    capPctOne: 'Porcentaje (escríbelo a mano si quieres)',
+    ptsHow: 'Un día perfecto vale 10 puntos con 2 hábitos y 1 punto más por cada hábito extra, hasta 15 con 7 o más. Los días parciales suman su parte. Los hábitos semanales y mensuales cuentan su parte proporcional cada día, y los hábitos a dejar cuentan por cada día limpio ya cerrado. Los puntos de antes se conservan y este sistema cuenta desde el {since2}. Tu XP (puntos × 10) marca tu nivel.',
+    commitd_chill: 'Chill: solo cambia el texto de tu contrato. Los puntos dependen de cuántos hábitos tengas (de 10 a 15 por día perfecto).',
+    commitd_serio: 'Serio: solo cambia el texto de tu contrato. Los puntos dependen de cuántos hábitos tengas (de 10 a 15 por día perfecto).',
+    commitd_locked: 'Locked-In: solo cambia el texto de tu contrato. Los puntos dependen de cuántos hábitos tengas (de 10 a 15 por día perfecto).',
+    capFormula: '10 puntos = Ingreso neto total × (porcentaje ÷ 100). Es el mismo porcentaje para todos los niveles. Los cambios cuentan desde hoy y no recalculan días pasados.',
     obCalTitle: 'Tu Calendario de turnos', obCalSub: 'Organiza tus turnos de trabajo y mira cuántas horas haces y cuánto cobras.',
     obCal1T: 'Mes y año', obCal1: 'Mira tus turnos de un vistazo, mes a mes o el año entero.',
     obCal2T: 'Edición rápida', obCal2: 'Elige un turno y toca los días para ponerlo o quitarlo.',
@@ -47,6 +54,13 @@
     rgNote_interest: 'Intereses', rgNote_cashback: 'Cashback', rgNote_dividend: 'Dividendo', rgNote_buy: 'Compra', rgNote_sell: 'Venta', rgNote_cardCredit: 'Devolución'
   };
   const en = {
+    perfectHow2: 'A day is perfect when you complete every daily habit due that day and do not slip on any habit you are quitting.',
+    capPctOne: 'Percentage (type it if you like)',
+    ptsHow: 'A perfect day is worth 10 points with 2 habits and 1 more point per extra habit, up to 15 with 7 or more. Partial days add their share. Weekly and monthly habits count their proportional share each day, and quit habits count for each closed clean day. Earlier points are kept and this system counts from {since2}. Your XP (points × 10) sets your level.',
+    commitd_chill: 'Chill: it only changes your contract text. Points depend on how many habits you have (10 to 15 per perfect day).',
+    commitd_serio: 'Serious: it only changes your contract text. Points depend on how many habits you have (10 to 15 per perfect day).',
+    commitd_locked: 'Locked-In: it only changes your contract text. Points depend on how many habits you have (10 to 15 per perfect day).',
+    capFormula: '10 points = Total net income × (percentage ÷ 100). It is the same percentage for every level. Changes count from today and do not recalculate past days.',
     obCalTitle: 'Your shift Calendar', obCalSub: 'Plan your work shifts and see how many hours you work and how much you earn.',
     obCal1T: 'Month and year', obCal1: 'See your shifts at a glance, month by month or the whole year.',
     obCal2T: 'Quick edit', obCal2: 'Pick a shift and tap days to add or remove it.',
