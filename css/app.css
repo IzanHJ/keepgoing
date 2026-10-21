@@ -1734,3 +1734,17 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 @media (min-width: 640px) { .ledger-tools { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 @media (max-width: 360px) { .ledger-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); } .tool-ico { width: 46px; height: 46px; } }
 .tool-lbl { overflow-wrap: normal; hyphens: auto; }
+/* Pasos del registro que explican el Calendario y la Libreta */
+.ob-demo { padding: 14px; border-radius: var(--r-lg); display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.ob-demo-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.ob-demo-day { display: flex; flex-direction: column; gap: 4px; padding: 6px 3px; border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.ob-demo-day b { font-size: 12px; padding-left: 3px; }
+.ob-demo-day i { font-style: normal; font-size: 10px; font-weight: var(--fw-ui); background: var(--c); color: #fff; border-radius: 999px; padding: 1px 4px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-demo-led { display: flex; flex-direction: column; gap: 6px; }
+.ob-demo-led i { display: block; height: 10px; border-radius: 999px; }
+.ob-demo-sum { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.ob-demo-sum b { color: var(--fg); margin-left: 4px; }
+.ob-tour { display: flex; flex-direction: column; gap: 12px; }
+.ob-feat { display: flex; align-items: center; gap: 14px; }
+.ob-feat .tool-ico { flex: none; width: 46px; height: 46px; border-radius: 14px; }
+.ob-feat .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

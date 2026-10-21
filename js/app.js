@@ -2673,31 +2673,52 @@
 
   /* ---------- ONBOARDING ---------- */
   // Pasos: idioma, color, compromiso, hábitos (mínimo según el nivel), @nametag (opcional, con cuenta) y contrato
-  const OB_STEPS = 6;
+  // v1.21: pasos con nombre; «cal» y «ledger» explican el Calendario y la Libreta antes del @nametag y el contrato
+  const OB = ['lang', 'color', 'commit', 'habits', 'cal', 'ledger', 'tag', 'contract'], OB_STEPS = OB.length;
+  const obAt = () => OB[clamp(state.obStep | 0, 0, OB_STEPS - 1)], obGo = name => { state.obStep = OB.indexOf(name); };
   const obMin = () => CAP.HABITS_PER_LEVEL[state.commitment] || 2;
   const COMMIT_EMO = { chill: '🌿', serio: '🎯', locked: '🔒' };
   let obPending = [], obForm = null;
   const SUGGESTIONS = [['sugTeeth', '🦷', 'daily', 2], ['sugWater', '💧', 'daily', 1], ['sugRead', '📚', 'daily', 1], ['sugGym', '💪', 'weekly', 3], ['sugMeditate', '🧘', 'daily', 1], ['sugSleep', '😴', 'daily', 1], ['sugWalk', '🚶', 'daily', 1], ['sugStudy', '✍️', 'daily', 1]];
 
+  // Pasos que explican el Calendario y la Libreta: una pequeña muestra y las funciones principales con iconos de línea
+  const OB_TOUR = {
+    cal: [['calendar', 'obCal1'], ['edit', 'obCal2'], ['clock', 'obCal3'], ['repeat', 'obCal4'], ['users', 'obCal5']],
+    ledger: [['lock', 'obLed1'], ['tag', 'obLed2'], ['upload', 'obLed3'], ['budget', 'obLed4'], ['calc', 'obLed5'], ['share', 'obLed6']]
+  };
+  function obTourHtml(at) {
+    let demo;
+    if (at === 'cal') {
+      const S = [['#f5a623', 'obDemoM'], ['#ef6c00', 'obDemoT'], ['#5c6bc0', 'obDemoN'], ['#43a047', 'obDemoL']], plan = [0, 0, 1, 1, 2, 2, 3];
+      demo = `<div class="ob-demo clay"><div class="ob-demo-week">${plan.map((p, i) => `<span class="ob-demo-day"><b>${i + 1}</b><i style="--c:${S[p][0]}">${esc(t(S[p][1]))}</i></span>`).join('')}</div><div class="ob-demo-sum"><span>${esc(t('tfHours'))} <b>48 h</b></span><span>${esc(t('tfShiftsN'))} <b>6</b></span></div></div>`;
+    } else {
+      const bars = [[64, 'var(--accent)'], [38, '#e5484d'], [22, '#e5484d'], [12, '#e5484d']];
+      demo = `<div class="ob-demo clay"><div class="ob-demo-led">${bars.map(([w, c]) => `<i style="width:${w}%;background:${c}"></i>`).join('')}</div><div class="ob-demo-sum"><span>${esc(t('ledgerIncome'))} <b style="color:var(--accent)">+1.850 €</b></span><span>${esc(t('ledgerExpense'))} <b style="color:#e5484d">−1.120 €</b></span></div></div>`;
+    }
+    return `${demo}<div class="ob-tour">${OB_TOUR[at].map(([i, k]) => `<div class="ob-feat"><span class="tool-ico">${ico(i)}</span><span class="grow"><b>${esc(t(k + 'T'))}</b><span class="muted small">${esc(t(k))}</span></span></div>`).join('')}</div>
+      <p class="muted small center" style="margin-top:14px">${esc(t(at === 'cal' ? 'obCalWhere' : 'obLedWhere'))}</p>`;
+  }
   function renderOnboarding() {
-    const s = state.obStep;
+    const s = clamp(state.obStep | 0, 0, OB_STEPS - 1), at = OB[s];
     const dots = Array.from({ length: OB_STEPS }, (_, i) => `<i class="${i <= s ? 'on' : ''}"></i>`).join('');
     let body = '', title = '', lead = '', next = t('next');
-    if (s === 0) {
+    if (at === 'lang') {
       title = t('obLangTitle'); lead = t('obLangSub');
       body = `<div class="lang-list">${[['es', '🇪🇸', 'Español'], ['en', '🇬🇧', 'English']].map(([l, f, n]) => `<button class="lang-opt clay ${state.lang === l ? 'on' : ''}" data-ob-lang="${l}"><span class="flag">${f}</span><span class="grow">${n}</span>${state.lang === l ? ico('check') : ''}</button>`).join('')}</div>
         <div class="center" style="margin-top:26px"><button class="chip" data-ob-login>${ico('refresh')} ${esc(t('obHaveAccount'))}</button></div>`;
-    } else if (s === 1) {
+    } else if (at === 'color') {
       title = t('obColorTitle'); lead = t('obColorSub');
       body = `<div id="ob-theme">${themeEditorHtml()}</div><div class="field" style="margin-top:22px"><span class="muted small" style="font-weight:var(--fw-label);text-transform:uppercase;letter-spacing:.04em">${esc(t('preview'))}</span><div id="ob-preview" style="margin-top:8px">${samplePreview()}</div></div>`;
-    } else if (s === 2) {
+    } else if (at === 'commit') {
       title = t('obCommitTitle'); lead = t('obCommitSub');
-      body = `<div class="lang-list">${['chill', 'serio', 'locked'].map(l => { const on = state.commitment === l; return `<button class="lang-opt commit-opt clay ${on ? 'on' : ''}" data-ob-commit="${l}"><span class="flag">${COMMIT_EMO[l]}</span><span class="grow"><b>${esc(t('commit_' + l))}</b><span class="commit-sub">${esc(t('ct_sub_' + l))}</span><span class="muted small">${esc(t('commitd_' + l))}</span></span>${on ? ico('check') : ''}</button>`; }).join('')}</div>
-        <label class="check ob-privacy clay"><input type="checkbox" data-ob-privacy ${privacyOn() ? 'checked' : ''}><span class="grow"><b>${esc(t('privacyModeLabel'))}</b><br><span class="muted small">${esc(t('privacyModeHint'))}</span></span></label>`;
-    } else if (s === 5) {
+      body = `<div class="lang-list">${['chill', 'serio', 'locked'].map(l => { const on = state.commitment === l; return `<button class="lang-opt commit-opt clay ${on ? 'on' : ''}" data-ob-commit="${l}"><span class="flag">${COMMIT_EMO[l]}</span><span class="grow"><b>${esc(t('commit_' + l))}</b><span class="commit-sub">${esc(t('ct_sub_' + l))}</span><span class="muted small">${esc(t('commitd_' + l))}</span></span>${on ? ico('check') : ''}</button>`; }).join('')}</div>`;
+    } else if (at === 'cal' || at === 'ledger') {
+      title = t(at === 'cal' ? 'obCalTitle' : 'obLedTitle'); lead = t(at === 'cal' ? 'obCalSub' : 'obLedSub');
+      body = obTourHtml(at);
+    } else if (at === 'contract') {
       title = t('obContractTitle'); lead = t('obContractSub'); next = t('contractSignBtn');
       body = contractFormHtml(state.contract ? state.contract.name : '');
-    } else if (s === 4) {
+    } else if (at === 'tag') {
       title = t('obTagTitle'); lead = t('obTagSub'); next = auth && myTag() ? t('next') : t('obTagSkip');
       body = auth ? `<label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="ob-tag" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(myTag())}" placeholder="${esc(t('nametagPh'))}"></div></label><p class="muted small">${esc(t('nametagHint'))}</p>`
         : `<div class="clay card center"><div style="font-size:40px">🏷️</div><p class="muted" style="margin:6px 0 14px">${esc(t('obTagNeedAccount'))}</p><button class="btn primary" data-ob-login>${ico('user')} ${esc(t('obTagCreate'))}</button></div>`;
@@ -2717,11 +2738,11 @@
   }
   function mountOnboarding() {
     const root = $('.ob');
-    if (state.obStep === 1) bindThemeEditor($('#ob-theme'), () => { $('#ob-theme').innerHTML = themeEditorHtml(); $('#ob-preview').innerHTML = samplePreview(); });
-    if (state.obStep === 5) obForm = mountContractForm(root);
-    if (state.obStep === 4 && auth && !repState.loaded) loadRep().then(() => { const i = $('#ob-tag'); if (i && !i.value && myTag()) i.value = myTag(); }).catch(() => {});
-    if (state.obStep === 4 && $('#ob-tag')) $('#ob-tag').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob="next"]').click(); } });
-    if (state.obStep === 3) $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
+    if (obAt() === 'color') bindThemeEditor($('#ob-theme'), () => { $('#ob-theme').innerHTML = themeEditorHtml(); $('#ob-preview').innerHTML = samplePreview(); });
+    if (obAt() === 'contract') obForm = mountContractForm(root);
+    if (obAt() === 'tag' && auth && !repState.loaded) loadRep().then(() => { const i = $('#ob-tag'); if (i && !i.value && myTag()) i.value = myTag(); }).catch(() => {});
+    if (obAt() === 'tag' && $('#ob-tag')) $('#ob-tag').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob="next"]').click(); } });
+    if (obAt() === 'habits') $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
     window.scrollTo(0, 0);
   }
   function onboardingClick(e) {
@@ -2740,20 +2761,20 @@
     if ((el = q('[data-ob]'))) {
       if (el.dataset.ob === 'back') { state.obStep = Math.max(0, state.obStep - 1); save(); render(); return true; }
       // Hábitos: hace falta un mínimo según el nivel de compromiso (Chill 2, Serio 4, Locked-In 7)
-      if (state.obStep === 3) {
+      if (obAt() === 'habits') {
         const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 });
         if (obPending.length < obMin()) { if (v) render(); toast(t('obNeedHabits', { n: obMin() - obPending.length, level: t('commit_' + state.commitment) })); return true; }
       }
       // @nametag: opcional y solo con cuenta
-      if (state.obStep === 4) {
+      if (obAt() === 'tag') {
         const i = $('#ob-tag'), v = i ? i.value.trim().replace(/^@/, '') : '';
         if (auth && v && v.toLowerCase() !== myTag().toLowerCase()) {
           el.disabled = true;
-          saveNametag(v).then(ok => { if (ok) { state.obStep = 5; save(); render(); } else el.disabled = false; });
+          saveNametag(v).then(ok => { if (ok) { obGo('contract'); save(); render(); } else el.disabled = false; });
           return true;
         }
       }
-      if (state.obStep === 5) {
+      if (obAt() === 'contract') {
         if (!obForm.name()) { toast(t('contractNeedName')); obForm.focus(); return true; }
         const prev = state.contract;
         const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
