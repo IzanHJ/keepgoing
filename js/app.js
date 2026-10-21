@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.20.0';
+  const VERSION = '1.21.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -371,6 +371,8 @@
     // Los puntos de compromiso empiezan en la fecha más antigua en que cualquier dispositivo migró
     const ps = [L.pointsSince, R.pointsSince].filter(Boolean).sort();
     out.pointsSince = ps[0] || null;
+    const p2 = [L.pointsV2, R.pointsV2].filter(Boolean).sort();
+    out.pointsV2 = p2[0] || null;
     out.legacyShop = L.legacyShop || R.legacyShop || null;
     // Uniones: cartas secretas (fecha más antigua), retos superados, rutinas completadas y minutos de temporizador
     out.secrets = { ...(R.secrets || {}), ...(L.secrets || {}) };
@@ -631,6 +633,7 @@
         if (sc >= 1) { done++; base += 10; } else base += Math.round(10 * sc);
       }
       const need = CAP.HABITS_PER_LEVEL[lvKey];
+      if (pointsV2On(k)) return dayInfoV2(k, lvKey);
       if (pointsOn(k)) {
         const cpts = CAP.dayPoints(units, lvKey), c = capOn(k);
         return { pts: cpts * 10, cpts, money: CAP.moneyFor(cpts, c.income, c.pct[lvKey]), perfect: cpts >= CAP.PERFECT_DAY_POINTS - 1e-9, level: lvKey, units, need, due, done, slip };
@@ -640,6 +643,41 @@
       if (k < today) pts += (due - done) * lv.miss;
       return { pts, cpts: 0, money: 0, perfect, level: lvKey, units, need, due, done, slip };
     });
+  }
+  /* v1.21: desde pointsV2 los puntos no dependen del nivel. Cada hábito pesa 1 al día (los semanales n/7 y los mensuales
+     n/días del mes) y cuenta lo cumplido de su periodo; el día vale ese % × el máximo según la carga (10 a 15).
+     Día perfecto = todos los hábitos diarios del día hechos y sin recaídas (los semanales y mensuales no lo rompen). */
+  const pointsV2On = k => !!state.pointsV2 && k >= state.pointsV2;
+  function dayInfoV2(k, lvKey) {
+    const today = todayKey();
+    let weight = 0, got = 0, n = 0, due = 0, done = 0, slip = false, quitClean = 0, units = 0;
+    for (const h of state.habits) {
+      if (k < firstKey(h) || (h.archived && !cnt(h, k))) continue;
+      if (isQuit(h)) {
+        n++;
+        if (cnt(h, k)) { slip = true; weight++; }
+        else if (k < today) { quitClean++; weight++; got++; units++; }
+        continue;
+      }
+      if (h.freq !== 'daily') {
+        n++;
+        if (periodState(h, periodStart(h, k)) === 'off' && !cnt(h, k)) continue;
+        const span = h.freq === 'weekly' ? 7 : diffDays(periodStart(h, k), addDays(nextPeriod(h, periodStart(h, k)), -1)) + 1;
+        const w = Math.min(1, (+h.target || 1) / span);
+        weight += w; got += w * Math.min(1, periodSum(h, k) / (+h.target || 1));
+        if (cnt(h, k) > 0) units++;
+        continue;
+      }
+      if (isOffDay(h, k) && !cnt(h, k)) continue;
+      n++; due++;
+      const sc = Math.min(1, cnt(h, k) / dayGoal(h));
+      weight++; got += sc; units += sc;
+      if (sc >= 1) done++;
+    }
+    const ratio = weight > 0 ? got / weight : 0, cpts = CAP.dayPointsV2(ratio, n), c = capOn(k);
+    const pct = c.p != null ? c.p : CAP.DEFAULT_P;
+    const perfect = !slip && (due > 0 ? done === due : quitClean > 0 || (weight > 0 && ratio >= 1 - 1e-9));
+    return { pts: cpts * 10, cpts, max: CAP.maxDayPoints(n), money: CAP.moneyFor(cpts, c.income, pct), perfect, level: lvKey, units, need: n, due, done, slip, ratio };
   }
   function firstDay() { return cached('first', () => state.habits.reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, todayKey())); }
   function eachDay(fn) { const today = todayKey(); for (let k = firstDay(); k <= today; k = addDays(k, 1)) fn(k); }
@@ -1363,7 +1401,7 @@
         <span class="muted small folder-sub">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}${hs.length ? ' · ' + esc(t('folderCount', { n: hs.length })) : ''}${due.length ? ' · ' + esc(t('folderToday', { a: done, b: due.length })) : ''}</span>
       </button>
       <div class="folder-minis">${minis || `<span class="muted small">${esc(t('folderEmpty'))}</span>`}</div>
-      ${hs.length ? calHtml({ id: 'p:' + p.id, proj: p }) : ''}
+      ${hs.length && !p.hideCal ? calHtml({ id: 'p:' + p.id, proj: p }) : ''}
       <button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button>
     </article>`;
   }
@@ -1377,7 +1415,7 @@
   function folderViewHtml(p) {
     const hs = p.habitIds.map(getHabit).filter(h => h && !h.archived);
     let html = `<div class="folder-bar"><button class="chip" data-act="folder-close">${ico('left')} ${esc(t('viewAll'))}</button><span class="muted small grow">${esc(t('folderInside'))}</span><button class="chip" data-act="proj-edit" data-id="${p.id}">${ico('edit')} ${esc(t('edit'))}</button></div>`;
-    html += `<div class="folder-summary">${projCard(p)}${hs.length ? `<div class="clay card folder-cal">${calHtml({ id: 'p:' + p.id, proj: p })}<button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button></div>` : ''}</div>`;
+    html += `<div class="folder-summary">${projCard(p)}${hs.length && !p.hideCal ? `<div class="clay card folder-cal">${calHtml({ id: 'p:' + p.id, proj: p })}<button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button></div>` : ''}</div>`;
     html += hs.length ? `<div class="habit-grid" id="habit-grid" data-folder="${p.id}">${hs.map(habitCard).join('')}</div><p class="grid-hint">${esc(t('folderOutHint'))}</p>`
       : `<p class="muted center">${esc(t('folderEmptyHint'))}</p>`;
     html += `<div class="center" style="margin-top:14px"><button class="btn" data-act="proj-edit" data-id="${p.id}">${ico('plus')} ${esc(t('folderAddHabits'))}</button></div>`;
@@ -1437,7 +1475,7 @@
         ${+h.duration > 0 && !isQuit(h) ? `<button class="icon-btn sm timer-btn" data-timer="${h.id}" aria-label="${esc(t('timer'))}">${ico('timer')}</button>` : ''}
         ${ring}
       </div>
-      ${calHtml(h)}
+      ${h.hideCal ? '' : calHtml(h)}
       <button class="more-btn" data-act="more" data-kind="habit" data-id="${h.id}">${esc(t('seeMore'))} ${ico('down')}</button>
     </article>`;
   }
@@ -1452,16 +1490,41 @@
   const projHabits = p => p.habitIds.map(getHabit).filter(h => h && !h.archived);
   const projFirst = p => projHabits(p).reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, p.createdAt || todayKey());
   const calSubj = id => { if (!String(id).startsWith('p:')) return getHabit(id); const p = state.projects.find(x => x.id === id.slice(2)); return p ? { id, proj: p } : null; };
+  // Día perfecto del proyecto: todos sus hábitos diarios que tocaban hechos y ninguna recaída (null si ese día no tocaba ninguno)
+  function projDayPerfect(hs, k) {
+    let any = false;
+    for (const h of hs) {
+      if (!isQuit(h) && (h.freq || 'daily') !== 'daily') continue;
+      const v = dayScore(h, k); if (v == null) continue;
+      any = true; if (v < 1) return false;
+    }
+    return any ? true : null;
+  }
+  // Semana perfecta: cada día con algo que hacer fue perfecto y los hábitos semanales se cumplieron. Entonces se rellena la semana entera.
+  function projWeekPerfect(hs, ws, fk) {
+    const today = todayKey(), end = addDays(ws, 6) < today ? addDays(ws, 6) : today;
+    let any = false;
+    for (let d = ws < fk ? fk : ws; d <= end; d = addDays(d, 1)) { const v = projDayPerfect(hs, d); if (v === false) return false; if (v) any = true; }
+    for (const h of hs) {
+      if (isQuit(h) || h.freq !== 'weekly' || firstKey(h) > end) continue;
+      const st = periodState(h, periodStart(h, ws)); if (st === 'miss') return false; if (st === 'done') any = true;
+    }
+    return any;
+  }
   function projMonthCal(p, ym) {
     const [y, m] = ym.split('-').map(Number), today = todayKey(), hs = projHabits(p), fk = projFirst(p);
     let out = '';
-    for (const w of LED.monthGrid(y, m)) for (const k of w) {
+    for (const w of LED.monthGrid(y, m)) {
+      const k0 = w.find(Boolean), ws = k0 ? weekStart(k0) : null, wPerfect = ws && ws <= today && addDays(ws, 6) >= fk ? projWeekPerfect(hs, ws, fk) : false;
+      for (const k of w) {
       if (!k) { out += '<i class="dot blank"></i>'; continue; }
       const n = +k.slice(8);
       if (k > today) { out += `<span class="dot future">${n}</span>`; continue; }
       const sc = hs.map(h => dayScore(h, k)).filter(v => v != null), v = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : null;
-      const cls = 'dot' + (v == null ? ' off' : v >= 1 ? ' on' : v > 0 ? ' part' : '') + (k < fk ? ' pre' : '') + (k === today ? ' today' : '');
+      const full = k >= fk && (wPerfect || projDayPerfect(hs, k) === true);
+      const cls = 'dot' + (full ? ' on' : v == null ? ' off' : v > 0 ? ' part' : '') + (k < fk ? ' pre' : '') + (k === today ? ' today' : '');
       out += `<span class="${cls}" title="${esc(fmtDate(k))}${v == null ? '' : ': ' + Math.round(v * 100) + '%'}">${n}</span>`;
+      }
     }
     return `<div class="mcal" data-ym="${ym}"><div class="mcal-grid">${out}</div></div>`;
   }
@@ -1595,6 +1658,7 @@
           <input class="input ${f.remOn ? '' : 'hidden'}" id="hf-rem-time" type="time" value="${esc(f.remTime)}" style="max-width:160px"></div>` : ''}
         ${h && h.groupId ? `<button type="button" class="chip" data-hm="group">👥 ${esc(t('groupOpen'))}</button>`
           : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareWithFriendsHint' : 'groupNeedLogin'))}</span></span></label>`}
+        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-hidecal" ${f.hideCal ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('hideCal'))}</b><br><span class="muted small">${esc(t('hideCalHint'))}</span></span></label>
         <label class="field"><span>${esc(t('habitDesc'))}</span><textarea class="input" id="hf-note" maxlength="300" placeholder="${esc(t('habitDescPh'))}">${esc(f.note || '')}</textarea></label>
         ${!isNew ? `<div class="row wrap">
           <button type="button" class="chip" data-hm="up">${ico('up')} ${esc(t('moveUp'))}</button>
@@ -1616,6 +1680,7 @@
       f.chDays = Math.max(0, parseInt($('#hf-ch', w).value, 10) || 0);
       if ($('#hf-rem', w)) { f.remOn = $('#hf-rem', w).checked; f.remTime = $('#hf-rem-time', w).value; }
       if ($('#hf-share', w)) f.share = $('#hf-share', w).checked;
+      f.hideCal = $('#hf-hidecal', w).checked;
     };
     openModal({
       title: esc(isNew ? t('newHabit') : t('editHabit')),
@@ -1668,7 +1733,7 @@
           if (!f.name) { toast(t('habitNeedName')); $('#hf-name', w).focus(); return; }
           if (f.kind === 'quit') Object.assign(f, { freq: 'daily', target: 1, multi: false, measure: 'count', duration: 0 });
           if (f.remOn && !f.remTime) { toast(t('remindNeedTime')); return; }
-          const props = { kind: f.kind, name: f.name, icon: f.icon, color: f.color, freq: f.freq, target: f.target, multi: f.multi, note: f.note, days: f.days, measure: f.measure, unit: f.unit, step: f.step, timeOfDay: f.timeOfDay, duration: f.duration, reminder: { on: !!f.remOn && f.kind !== 'quit', time: f.remTime || '' } };
+          const props = { kind: f.kind, name: f.name, icon: f.icon, color: f.color, freq: f.freq, target: f.target, multi: f.multi, note: f.note, days: f.days, measure: f.measure, unit: f.unit, step: f.step, timeOfDay: f.timeOfDay, duration: f.duration, hideCal: f.hideCal || undefined, reminder: { on: !!f.remOn && f.kind !== 'quit', time: f.remTime || '' } };
           // Reto: se conserva la fecha de inicio si solo cambian los días
           const oldCh = h && h.challenge;
           if (f.chDays > 0) props.challenge = oldCh && !oldCh.done ? { ...oldCh, days: f.chDays } : { tid: 'custom', days: f.chDays, start: todayKey() };
@@ -1680,6 +1745,7 @@
           } else {
             Object.assign(h, props);
             if (!props.challenge) delete h.challenge;
+            if (!props.hideCal) delete h.hideCal;
             checkPerfectMastery(true); checkChallenge(h);
           }
           save(); close();
@@ -1893,12 +1959,14 @@
           <div class="muted small">${esc(t('projectHabitsHint'))}</div>
           <div class="sug-list" style="margin-top:6px">${avail.length ? avail.map(h => `<button type="button" class="chip ${f.habitIds.includes(h.id) ? 'on' : ''}" data-link="${h.id}">${esc(h.icon)} ${esc(h.name)}</button>`).join('') : `<span class="muted small">${esc(t('noHabitsYet'))}</span>`}</div>
         </div>
+        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-hidecal" ${f.hideCal ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('hideCal'))}</b><br><span class="muted small">${esc(t('hideCalHintP'))}</span></span></label>
         ${f.groupId ? '' : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareProjectHint' : 'groupNeedLogin'))}</span></span></label>`}
       </div>`;
     };
     const readInputs = w => {
       f.name = $('#pf-name', w).value.trim(); f.desc = $('#pf-desc', w).value.trim();
       if ($('#pf-share', w)) f.share = $('#pf-share', w).checked;
+      if ($('#pf-hidecal', w)) { f.hideCal = $('#pf-hidecal', w).checked; if (!f.hideCal) delete f.hideCal; }
       if ($('#pf-start', w)) { f.goal.start = parseFloat($('#pf-start', w).value) || 0; f.goal.target = parseFloat($('#pf-target', w).value) || 0; f.goal.unit = $('#pf-unit', w).value.trim(); }
       if ($('#pf-deadline', w)) { f.deadline = $('#pf-deadline', w).value || f.deadline; if (f.deadline && !f.retoFrom) f.retoFrom = todayKey(); }
     };
@@ -1924,7 +1992,7 @@
           if (!f.name) { toast(t('projectNeedName')); $('#pf-name', w).focus(); return; }
           const share = f.share; delete f.share;
           if (isNew) { f.id = uid(); f.createdAt = todayKey(); state.projects.push(f); }
-          else Object.assign(p, f);
+          else { Object.assign(p, f); if (!f.hideCal) delete p.hideCal; }
           save(); close(); state.ui.tab = 'habits'; render();
           const obj = isNew ? f : p;
           if (share && !obj.groupId) shareAsGroup('project', obj); else if (isNew) openProject(obj);
@@ -2295,7 +2363,7 @@
       <span class="muted small">${esc(t('perfectStreakBest', { n: pr.best }))}</span>
       ${next ? `<div class="bar ${pct ? '' : 'zero'}" style="height:10px;margin-top:10px"><i style="width:${pct}%"></i></div><span class="small streak-next">${esc(t('perfectNext', { n: Math.max(0, next[1] - pr.cur), rank: t('rank_' + next[0]) }))}</span>` : `<span class="small">${esc(t('masteryMax'))}</span>`}
       </div></section>`;
-    html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">👑</div><div class="grow"><h3>${esc(t('perfectSeries'))}</h3><div class="muted small">${esc(t('perfectHow', { n: CAP.HABITS_PER_LEVEL[commitOn(todayKey())] }))}</div></div><b style="font-size:20px">${got}/${RANKS.length}</b></div>
+    html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">👑</div><div class="grow"><h3>${esc(t('perfectSeries'))}</h3><div class="muted small">${esc(t('perfectHow2'))}</div></div><b style="font-size:20px">${got}/${RANKS.length}</b></div>
       <div class="cards-row">${RANKS.map(([r, th], i) => { const m = state.perfectMastery[r]; return `<button class="kcard-btn" data-act="pcard-open" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${m ? cardFace(PSUBJ(), i, 'front') : cardLocked(i)}<span class="cap">${esc(t('rank_' + r))}<small>${m ? esc(fmtShort(m.date)) : esc(t('perfectReq', { n: th }))}</small></span></button>`; }).join('')}</div></section>`;
     if (state.challengeCards.length) {
       html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">🏁</div><div class="grow"><h3>${esc(t('challengeCards'))}</h3></div><b style="font-size:20px">${state.challengeCards.length}</b></div>
@@ -2672,41 +2740,96 @@
   }
 
   /* ---------- ONBOARDING ---------- */
-  // Pasos: idioma, color, compromiso, hábitos (mínimo según el nivel), @nametag (opcional, con cuenta) y contrato
-  const OB_STEPS = 6;
-  const obMin = () => CAP.HABITS_PER_LEVEL[state.commitment] || 2;
-  const COMMIT_EMO = { chill: '🌿', serio: '🎯', locked: '🔒' };
-  let obPending = [], obForm = null;
-  const SUGGESTIONS = [['sugTeeth', '🦷', 'daily', 2], ['sugWater', '💧', 'daily', 1], ['sugRead', '📚', 'daily', 1], ['sugGym', '💪', 'weekly', 3], ['sugMeditate', '🧘', 'daily', 1], ['sugSleep', '😴', 'daily', 1], ['sugWalk', '🚶', 'daily', 1], ['sugStudy', '✍️', 'daily', 1]];
+  // Pasos: idioma, color, hábitos y proyectos, Calendario, Libreta, @nametag (opcional, con cuenta) y contrato
+  // v1.21: pasos con nombre; ya no se elige el nivel de compromiso: sale solo según los hábitos que crees (sin mínimo)
+  const OB = ['lang', 'color', 'habits', 'cal', 'ledger', 'tag', 'contract'], OB_STEPS = OB.length;
+  const obAt = () => OB[clamp(state.obStep | 0, 0, OB_STEPS - 1)], obGo = name => { state.obStep = OB.indexOf(name); };
+  // obPending: hábitos elegidos ({ key, es, en, icon, x } de las plantillas o { name } escritos a mano); obProj: proyectos elegidos
+  let obPending = [], obProj = [], obPack = 'salud', obKeepScroll = false, obForm = null;
+  // Proyectos de ejemplo con sus hábitos: [id, tamaño, es, en, icono, meta, hábitos]
+  const OB_PROJECTS = [
+    ['tidy', 'small', 'Ordenar la casa', 'Tidy up the house', '🏠', { type: 'checklist', items: ['Armario|Wardrobe', 'Escritorio|Desk', 'Cocina|Kitchen', 'Trastero|Storage room'] }, [['Ordenar 10 minutos', 'Tidy up for 10 minutes', '🧹', { duration: 10 }]]],
+    ['book1', 'small', 'Leer un libro', 'Read a book', '📖', { type: 'numeric', start: 0, target: 300, unit: 'páginas|pages' }, [['Leer', 'Read', '📚', { measure: 'amount', target: 20, unit: 'páginas|pages', step: 5, timeOfDay: 'night' }]]],
+    ['run5k', 'small', 'Correr 5 km seguidos', 'Run 5 km non-stop', '🏃', { type: 'numeric', start: 0, target: 5, unit: 'km' }, [['Salir a correr', 'Go for a run', '🏃', { freq: 'weekly', target: 3 }]]],
+    ['detox', 'small', 'Un mes sin redes sociales', 'A month without social media', '🌱', { type: 'simple' }, [['Redes sociales', 'Social media', '📵', { kind: 'quit' }]]],
+    ['savings', 'large', 'Ahorrar 1.000 €', 'Save €1,000', '💰', { type: 'numeric', start: 0, target: 1000, unit: '€' }, [['Apuntar gastos', 'Log expenses', '💰', { timeOfDay: 'night' }], ['Ahorrar', 'Save money', '🐷', { measure: 'amount', target: 5, unit: '€', step: 1 }], ['Compras impulsivas', 'Impulse buying', '🛍️', { kind: 'quit' }]]],
+    ['language', 'large', 'Aprender un idioma', 'Learn a language', '🗣️', { type: 'checklist', items: ['A1', 'A2', 'B1', 'B2', 'C1'] }, [['Practicar el idioma', 'Practise the language', '🗣️', { duration: 15 }], ['Ver una serie en ese idioma', 'Watch a show in that language', '🎬', { freq: 'weekly', target: 2 }]]],
+    ['weight', 'large', 'Llegar a mi peso objetivo', 'Reach my target weight', '⚖️', { type: 'numeric', start: 80, target: 72, unit: 'kg' }, [['Gimnasio', 'Gym', '🏋️', { freq: 'weekly', target: 3 }], ['Beber 2 L de agua', 'Drink 2 L of water', '💧', { measure: 'amount', target: 2, unit: 'L', step: .25 }], ['Comer fruta', 'Eat fruit', '🍎', {}]]],
+    ['books12', 'large', 'Leer 12 libros en un año', 'Read 12 books in a year', '📚', { type: 'numeric', start: 0, target: 12, unit: 'libros|books' }, [['Leer', 'Read', '📚', { measure: 'amount', target: 20, unit: 'páginas|pages', step: 5, timeOfDay: 'night' }]]]
+  ];
+  // Hábitos distintos que se crearán (los elegidos y los de los proyectos, sin repetir el mismo nombre)
+  function obHabitList() {
+    const m = new Map();
+    const add = (es, en, icon, x) => { const name = en == null ? es : L2(es, en), k = name.toLowerCase(); if (!m.has(k)) m.set(k, { name, icon, x: x || {} }); };
+    obPending.forEach(p => (p.key ? add(p.es, p.en, p.icon, p.x) : add(p.name, null, '#', {})));
+    OB_PROJECTS.filter(pr => obProj.includes(pr[0])).forEach(pr => pr[6].forEach(([es, en, icon, x]) => add(es, en, icon, x)));
+    return m;
+  }
+  function obCreateAll() {
+    const ids = new Map();
+    for (const [k, h] of obHabitList()) { const nh = newHabitFrom(h.name, h.icon, h.x); state.habits.push(nh); ids.set(k, nh.id); }
+    for (const [id, , es, en, icon, g, hs] of OB_PROJECTS.filter(pr => obProj.includes(pr[0]))) {
+      state.projects.push({ id: uid(), name: L2(es, en), icon, color: null, desc: '', habitIds: hs.map(([hes, hen]) => ids.get(L2(hes, hen).toLowerCase())).filter(Boolean),
+        goal: { type: g.type, start: g.start || 0, target: g.target || 0, unit: unitL(g.unit || ''), entries: [], items: (g.items || []).map(x => ({ id: uid(), text: unitL(x), done: false })), achieved: false },
+        deadline: null, milestones: [], photos: {}, createdAt: todayKey(), tpl: id });
+    }
+    obPending = []; obProj = [];
+  }
 
+  // Pasos que explican el Calendario y la Libreta: una pequeña muestra y las funciones principales con iconos de línea
+  const OB_TOUR = {
+    cal: [['calendar', 'obCal1'], ['edit', 'obCal2'], ['clock', 'obCal3'], ['repeat', 'obCal4'], ['users', 'obCal5']],
+    ledger: [['lock', 'obLed1'], ['tag', 'obLed2'], ['upload', 'obLed3'], ['budget', 'obLed4'], ['calc', 'obLed5'], ['share', 'obLed6']]
+  };
+  function obTourHtml(at) {
+    let demo;
+    if (at === 'cal') {
+      const S = [['#f5a623', 'obDemoM'], ['#ef6c00', 'obDemoT'], ['#5c6bc0', 'obDemoN'], ['#43a047', 'obDemoL']], plan = [0, 0, 1, 1, 2, 2, 3];
+      demo = `<div class="ob-demo clay"><div class="ob-demo-week">${plan.map((p, i) => `<span class="ob-demo-day"><b>${i + 1}</b><i style="--c:${S[p][0]}">${esc(t(S[p][1]))}</i></span>`).join('')}</div><div class="ob-demo-sum"><span>${esc(t('tfHours'))} <b>48 h</b></span><span>${esc(t('tfShiftsN'))} <b>6</b></span></div></div>`;
+    } else {
+      const bars = [[64, 'var(--accent)'], [38, '#e5484d'], [22, '#e5484d'], [12, '#e5484d']];
+      demo = `<div class="ob-demo clay"><div class="ob-demo-led">${bars.map(([w, c]) => `<i style="width:${w}%;background:${c}"></i>`).join('')}</div><div class="ob-demo-sum"><span>${esc(t('ledgerIncome'))} <b style="color:var(--accent)">+1.850 €</b></span><span>${esc(t('ledgerExpense'))} <b style="color:#e5484d">−1.120 €</b></span></div></div>`;
+    }
+    return `${demo}<div class="ob-tour">${OB_TOUR[at].map(([i, k]) => `<div class="ob-feat"><span class="tool-ico">${ico(i)}</span><span class="grow"><b>${esc(t(k + 'T'))}</b><span class="muted small">${esc(t(k))}</span></span></div>`).join('')}</div>
+      <p class="muted small center" style="margin-top:14px">${esc(t(at === 'cal' ? 'obCalWhere' : 'obLedWhere'))}</p>`;
+  }
   function renderOnboarding() {
-    const s = state.obStep;
+    const s = clamp(state.obStep | 0, 0, OB_STEPS - 1), at = OB[s];
     const dots = Array.from({ length: OB_STEPS }, (_, i) => `<i class="${i <= s ? 'on' : ''}"></i>`).join('');
     let body = '', title = '', lead = '', next = t('next');
-    if (s === 0) {
+    if (at === 'lang') {
       title = t('obLangTitle'); lead = t('obLangSub');
       body = `<div class="lang-list">${[['es', '🇪🇸', 'Español'], ['en', '🇬🇧', 'English']].map(([l, f, n]) => `<button class="lang-opt clay ${state.lang === l ? 'on' : ''}" data-ob-lang="${l}"><span class="flag">${f}</span><span class="grow">${n}</span>${state.lang === l ? ico('check') : ''}</button>`).join('')}</div>
         <div class="center" style="margin-top:26px"><button class="chip" data-ob-login>${ico('refresh')} ${esc(t('obHaveAccount'))}</button></div>`;
-    } else if (s === 1) {
+    } else if (at === 'color') {
       title = t('obColorTitle'); lead = t('obColorSub');
       body = `<div id="ob-theme">${themeEditorHtml()}</div><div class="field" style="margin-top:22px"><span class="muted small" style="font-weight:var(--fw-label);text-transform:uppercase;letter-spacing:.04em">${esc(t('preview'))}</span><div id="ob-preview" style="margin-top:8px">${samplePreview()}</div></div>`;
-    } else if (s === 2) {
-      title = t('obCommitTitle'); lead = t('obCommitSub');
-      body = `<div class="lang-list">${['chill', 'serio', 'locked'].map(l => { const on = state.commitment === l; return `<button class="lang-opt commit-opt clay ${on ? 'on' : ''}" data-ob-commit="${l}"><span class="flag">${COMMIT_EMO[l]}</span><span class="grow"><b>${esc(t('commit_' + l))}</b><span class="commit-sub">${esc(t('ct_sub_' + l))}</span><span class="muted small">${esc(t('commitd_' + l))}</span></span>${on ? ico('check') : ''}</button>`; }).join('')}</div>
-        <label class="check ob-privacy clay"><input type="checkbox" data-ob-privacy ${privacyOn() ? 'checked' : ''}><span class="grow"><b>${esc(t('privacyModeLabel'))}</b><br><span class="muted small">${esc(t('privacyModeHint'))}</span></span></label>`;
-    } else if (s === 5) {
+    } else if (at === 'cal' || at === 'ledger') {
+      title = t(at === 'cal' ? 'obCalTitle' : 'obLedTitle'); lead = t(at === 'cal' ? 'obCalSub' : 'obLedSub');
+      body = obTourHtml(at);
+    } else if (at === 'contract') {
       title = t('obContractTitle'); lead = t('obContractSub'); next = t('contractSignBtn');
       body = contractFormHtml(state.contract ? state.contract.name : '');
-    } else if (s === 4) {
+    } else if (at === 'tag') {
       title = t('obTagTitle'); lead = t('obTagSub'); next = auth && myTag() ? t('next') : t('obTagSkip');
       body = auth ? `<label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="ob-tag" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(myTag())}" placeholder="${esc(t('nametagPh'))}"></div></label><p class="muted small">${esc(t('nametagHint'))}</p>`
         : `<div class="clay card center"><div style="font-size:40px">🏷️</div><p class="muted" style="margin:6px 0 14px">${esc(t('obTagNeedAccount'))}</p><button class="btn primary" data-ob-login>${ico('user')} ${esc(t('obTagCreate'))}</button></div>`;
     } else {
-      const min = obMin(), n = obPending.length;
-      title = t('obAddTitle'); lead = t('obAddSubMin', { n: min, level: t('commit_' + state.commitment) });
-      body = `<p class="ob-count ${n >= min ? 'ok' : ''}">${n >= min ? ico('check') : ''} ${esc(t('obHabitsCount', { n, m: min }))}</p><div class="field"><span>${esc(t('suggestions'))}</span><div class="sug-list">${SUGGESTIONS.map(([k, e]) => { const on = obPending.some(p => p.key === k); return `<button class="chip ${on ? 'on' : ''}" data-ob-sug="${k}">${e} ${esc(t(k))}${on ? ' ' + ico('check') : ''}</button>`; }).join('')}</div></div>
-        <div class="field" style="margin-top:20px"><span>${esc(t('customHabit'))}</span><div class="row"><input class="input" id="ob-custom" maxlength="60" placeholder="${esc(t('habitNamePh'))}"><button class="btn" data-ob-add>${ico('plus')} ${esc(t('add'))}</button></div></div>
-        ${obPending.filter(p => !p.key).length ? `<div class="sug-list" style="margin-top:14px">${obPending.filter(p => !p.key).map((p, i) => `<button class="chip on" data-ob-del="${i}"># ${esc(p.name)} ${ico('x')}</button>`).join('')}</div>` : ''}`;
+      const n = obHabitList().size, lv = CAP.levelForCount(n), custom = obPending.filter(p => !p.key);
+      title = t('obHabTitle'); lead = t('obHabSub');
+      const hChip = (key, es, en, icon, x) => { const on = obPending.some(p => p.key === key); return `<button class="chip ob-hchip ${on ? 'on' : ''}" data-ob-hab="${key}"><span>${icon} ${esc(L2(es, en))}${on ? ' ' + ico('check') : ''}</span><small>${esc(packSub(x))}</small></button>`; };
+      const pRow = ([id, , es, en, icon, , hs]) => { const on = obProj.includes(id); return `<button class="create-opt clay ob-proj ${on ? 'on' : ''}" data-ob-proj="${id}"><span style="font-size:26px">${icon}</span><span class="grow"><b>${esc(L2(es, en))}</b><br><span class="muted small">${esc(t('obProjIncludes', { list: hs.map(([a, b, , x]) => `${L2(a, b)} (${packSub(x)})`).join(', ') }))}</span></span>${on ? ico('check') : ico('plus')}</button>`; };
+      body = `<h3 class="section-title">${esc(t('obHabSection'))}</h3>
+        <div class="chip-scroll">${Object.keys(PACKS).map(k => `<button class="chip ${obPack === k ? 'on' : ''}" data-ob-pack="${k}">${esc(t('pack_' + k))}</button>`).join('')}</div>
+        <div class="sug-list" style="margin-top:10px">${PACKS[obPack].map(([es, en, icon, x], i) => hChip(obPack + ':' + i, es, en, icon, x)).join('')}</div>
+        <div class="field" style="margin-top:16px"><span>${esc(t('customHabit'))}</span><div class="row"><input class="input" id="ob-custom" maxlength="60" placeholder="${esc(t('habitNamePh'))}"><button class="btn" data-ob-add>${ico('plus')} ${esc(t('add'))}</button></div></div>
+        ${custom.length ? `<div class="sug-list" style="margin-top:12px">${custom.map((p, i) => `<button class="chip on" data-ob-del="${i}"># ${esc(p.name)} ${ico('x')}</button>`).join('')}</div>` : ''}
+        <h3 class="section-title" style="margin-top:24px">${esc(t('obProjSection'))}</h3>
+        <p class="muted small" style="margin-top:0">${esc(t('obProjHint'))}</p>
+        <div class="muted small ob-sub">${esc(t('obProjSmall'))}</div><div class="stack" style="gap:8px">${OB_PROJECTS.filter(p => p[1] === 'small').map(pRow).join('')}</div>
+        <div class="muted small ob-sub">${esc(t('obProjLarge'))}</div><div class="stack" style="gap:8px">${OB_PROJECTS.filter(p => p[1] === 'large').map(pRow).join('')}</div>
+        <div class="ob-feat clay ob-later"><span class="tool-ico">${ico('users')}</span><span class="muted small grow">${esc(t('obLaterNote'))}</span></div>
+        <div class="ob-level clay"><span class="tool-ico">${ico('target')}</span><span class="grow"><b>${esc(t('obLevelIs', { n, level: t('commit_' + lv) }))}</b><span class="muted small">${esc(t('obLevelScale'))}</span></span></div>`;
     }
     return `<div class="ob">
       <div class="ob-top"><span class="ob-brand">KeepGoing</span><div class="ob-dots" aria-label="${esc(t('obStep', { n: s + 1, total: OB_STEPS }))}">${dots}</div></div>
@@ -2717,49 +2840,49 @@
   }
   function mountOnboarding() {
     const root = $('.ob');
-    if (state.obStep === 1) bindThemeEditor($('#ob-theme'), () => { $('#ob-theme').innerHTML = themeEditorHtml(); $('#ob-preview').innerHTML = samplePreview(); });
-    if (state.obStep === 5) obForm = mountContractForm(root);
-    if (state.obStep === 4 && auth && !repState.loaded) loadRep().then(() => { const i = $('#ob-tag'); if (i && !i.value && myTag()) i.value = myTag(); }).catch(() => {});
-    if (state.obStep === 4 && $('#ob-tag')) $('#ob-tag').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob="next"]').click(); } });
-    if (state.obStep === 3) $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
-    window.scrollTo(0, 0);
+    if (obAt() === 'color') bindThemeEditor($('#ob-theme'), () => { $('#ob-theme').innerHTML = themeEditorHtml(); $('#ob-preview').innerHTML = samplePreview(); });
+    if (obAt() === 'contract') obForm = mountContractForm(root);
+    if (obAt() === 'tag' && auth && !repState.loaded) loadRep().then(() => { const i = $('#ob-tag'); if (i && !i.value && myTag()) i.value = myTag(); }).catch(() => {});
+    if (obAt() === 'tag' && $('#ob-tag')) $('#ob-tag').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob="next"]').click(); } });
+    if (obAt() === 'habits') $('#ob-custom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-ob-add]').click(); } });
+    if (obKeepScroll) obKeepScroll = false; else window.scrollTo(0, 0);
   }
   function onboardingClick(e) {
     const q = s => e.target.closest(s); let el;
     if (q('[data-ob-login]')) { openLogin(); return true; }
     if ((el = q('[data-ob-lang]'))) { state.lang = el.dataset.obLang; save(); render(); return true; }
-    if ((el = q('[data-ob-commit]'))) { setCommitment(el.dataset.obCommit); render(); return true; }
-    if ((el = q('[data-ob-privacy]'))) { setPrivacy(el.checked); return true; }
-    if ((el = q('[data-ob-sug]'))) {
-      const k = el.dataset.obSug; const i = obPending.findIndex(p => p.key === k);
-      if (i >= 0) obPending.splice(i, 1); else { const s = SUGGESTIONS.find(x => x[0] === k); obPending.push({ key: k, name: t(k), icon: s[1], freq: s[2], target: s[3] }); }
-      const v = $('#ob-custom')?.value; render(); if (v) $('#ob-custom').value = v; return true;
+    const keep = () => { const v = $('#ob-custom')?.value; obKeepScroll = true; render(); if (v) $('#ob-custom').value = v; };
+    if ((el = q('[data-ob-pack]'))) { obPack = el.dataset.obPack; keep(); return true; }
+    if ((el = q('[data-ob-hab]'))) {
+      const k = el.dataset.obHab, i = obPending.findIndex(p => p.key === k);
+      if (i >= 0) obPending.splice(i, 1); else { const [pk, n] = k.split(':'), [es, en, icon, x] = PACKS[pk][+n]; obPending.push({ key: k, es, en, icon, x }); }
+      keep(); return true;
     }
-    if (q('[data-ob-add]')) { const v = $('#ob-custom').value.trim(); if (v) { obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 }); render(); $('#ob-custom').focus(); } return true; }
-    if ((el = q('[data-ob-del]'))) { const custom = obPending.filter(p => !p.key); obPending = obPending.filter(p => p !== custom[+el.dataset.obDel]); render(); return true; }
+    if ((el = q('[data-ob-proj]'))) { const id = el.dataset.obProj; obProj = obProj.includes(id) ? obProj.filter(x => x !== id) : [...obProj, id]; keep(); return true; }
+    if (q('[data-ob-add]')) { const v = $('#ob-custom').value.trim(); if (v) { obPending.push({ name: v }); obKeepScroll = true; render(); $('#ob-custom').focus({ preventScroll: true }); } return true; }
+    if ((el = q('[data-ob-del]'))) { const custom = obPending.filter(p => !p.key); obPending = obPending.filter(p => p !== custom[+el.dataset.obDel]); keep(); return true; }
     if ((el = q('[data-ob]'))) {
       if (el.dataset.ob === 'back') { state.obStep = Math.max(0, state.obStep - 1); save(); render(); return true; }
-      // Hábitos: hace falta un mínimo según el nivel de compromiso (Chill 2, Serio 4, Locked-In 7)
-      if (state.obStep === 3) {
-        const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v, icon: '#', freq: 'daily', target: 1 });
-        if (obPending.length < obMin()) { if (v) render(); toast(t('obNeedHabits', { n: obMin() - obPending.length, level: t('commit_' + state.commitment) })); return true; }
+      // Hábitos: sin mínimo; el nivel de compromiso sale solo según cuántos hábitos crees (2-3 Chill, 4-6 Serio, 7+ Locked-In)
+      if (obAt() === 'habits') {
+        const v = $('#ob-custom').value.trim(); if (v) obPending.push({ name: v });
+        setCommitment(CAP.levelForCount(obHabitList().size));
       }
       // @nametag: opcional y solo con cuenta
-      if (state.obStep === 4) {
+      if (obAt() === 'tag') {
         const i = $('#ob-tag'), v = i ? i.value.trim().replace(/^@/, '') : '';
         if (auth && v && v.toLowerCase() !== myTag().toLowerCase()) {
           el.disabled = true;
-          saveNametag(v).then(ok => { if (ok) { state.obStep = 5; save(); render(); } else el.disabled = false; });
+          saveNametag(v).then(ok => { if (ok) { obGo('contract'); save(); render(); } else el.disabled = false; });
           return true;
         }
       }
-      if (state.obStep === 5) {
+      if (obAt() === 'contract') {
         if (!obForm.name()) { toast(t('contractNeedName')); obForm.focus(); return true; }
         const prev = state.contract;
         const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
         if (!prev || prev.name !== obForm.name() || obForm.sig() || prev.g !== obForm.g() || prev.level !== state.commitment || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w, obForm.g());
-        obPending.forEach(p => state.habits.push({ id: uid(), name: p.name, icon: p.icon, color: null, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], freq: p.freq, target: p.target, multi: false, note: '', createdAt: todayKey(), archived: false }));
-        obPending = []; state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
+        obCreateAll(); state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
       }
       state.obStep++; save(); render(); return true;
     }
@@ -2916,7 +3039,7 @@
         ${group(t('setGroupCommit'), [
           acc('contract', ico('doc'), t('setContract'), c ? (cLeft < 0 ? t('contractEnded') : t('contractActive', { n: cLeft })) : t('contractNone'), `<div class="row wrap"><button class="chip" data-s="contract">${esc(c ? t('contractView') : t('contractSignNow'))}</button>${c ? `<button class="chip" data-s="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}</div>`),
           acc('commit', '⭐', t('commitTitle'), t('commit_' + state.commitment), `<div id="st-commit">${commitSegHtml()}</div>`),
-          acc('caprice', '💶', t('capConverter'), `${t('capShort', { m: fmtMoney(CAP.tenPointsValue(state.caprice.income, state.caprice.pct[state.commitment])) })}`, capHtml()),
+          acc('caprice', '💶', t('capConverter'), `${t('capShort', { m: fmtMoney(CAP.tenPointsValue(state.caprice.income, capP())) })}`, capHtml()),
           acc('vac', '🏖️', t('vacTitle'), activeVacation() ? t('vacActive', { date: fmtDate(activeVacation().to) }) : '', `<div class="row wrap"><span class="grow muted small">${esc(t('vacHintShort'))}</span><button class="chip" data-s="vacations">${esc(t('vacManage'))}</button></div>`)
         ])}
         ${group(t('setGroupNotices'), [
@@ -3177,6 +3300,8 @@
 
   /* ---------- nivel, puntos de compromiso y Dinero Caprichable ---------- */
   const COMMIT_LEVELS = CAP.LEVELS;
+  // v1.21: un único porcentaje para el Dinero Caprichable (0,5 % por defecto)
+  const capP = () => (state.caprice.p != null ? state.caprice.p : CAP.DEFAULT_P);
   const fmtMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
   const fmtPct = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 4 }).format(v) + ' %';
   const fmtPctIn = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 4, useGrouping: false }).format(v);
@@ -3207,6 +3332,8 @@
      cuentan desde hoy. Las recompensas, canjes y ⭐ antiguos no encajan en el nuevo sistema: NO se borran,
      se guardan tal cual (state.rewards / state.redemptions) y se avisa al usuario. */
   function migrateShop() {
+    // v1.21: desde hoy los puntos son iguales para todos los niveles y el Dinero Caprichable usa un único porcentaje
+    if (!state.pointsV2) { state.pointsV2 = todayKey(); setCaprice({ p: state.caprice.p != null ? state.caprice.p : CAP.DEFAULT_P }); }
     if (state.pointsSince) return;
     const bal = state.habits.length ? pointsInfo().starBalance : 0;
     const hasLegacy = state.rewards.length || state.redemptions.length || bal;
@@ -3231,8 +3358,9 @@
     const c = state.caprice, k = todayKey();
     if (patch.income != null) c.income = patch.income;
     if (patch.pct) c.pct = { ...c.pct, ...patch.pct };
+    if (patch.p != null) c.p = patch.p;
     c.history = c.history.filter(h => h.from !== k);
-    c.history.push({ from: k, income: c.income, pct: { ...c.pct } });
+    c.history.push({ from: k, income: c.income, pct: { ...c.pct }, ...(c.p != null ? { p: c.p } : {}) });
     c.history.sort((a, b) => a.from < b.from ? -1 : 1);
     save();
   }
@@ -3240,14 +3368,13 @@
     const c = state.caprice;
     return `<div class="cap-conv" data-cap>
       <p class="muted small" style="margin-top:0">${esc(t('capFormula'))}</p>
-      <div class="field"><span>${esc(t('capEditFor'))}</span><div class="seg" data-cap-levels>${COMMIT_LEVELS.map(l => `<button type="button" data-cap-lv="${l}">${esc(t('commit_' + l))}</button>`).join('')}</div></div>
       <div class="cap-slider">
         <div class="cap-track" role="slider" tabindex="0" aria-valuemin="0.1" aria-valuemax="1" aria-label="${esc(t('capSliderLabel'))}">
           <span class="cap-line" aria-hidden="true"></span>
-          ${CAP.DOTS.map((d, i) => `<button type="button" class="cap-dot" data-cap-dot="${i}" style="left:${d.pos}%" tabindex="-1" aria-label="${esc(t('commit_' + d.lv) + ' · ' + fmtPct(d.pct))}"><span>${i + 1}</span></button>`).join('')}
+          ${CAP.DOTS.map((d, i) => `<button type="button" class="cap-dot" data-cap-dot="${i}" style="left:${d.pos}%" tabindex="-1" aria-label="${esc(fmtPct(d.pct))}"><span>${i + 1}</span></button>`).join('')}
           <span class="cap-thumb" aria-hidden="true"></span>
         </div>
-        <div class="cap-labels" aria-hidden="true">${CAP.DOTS.map(d => `<span style="left:${d.pos}%">${esc(t('commit_' + d.lv))}<small>${esc(fmtPct(d.pct))}</small></span>`).join('')}</div>
+        <div class="cap-labels" aria-hidden="true">${CAP.DOTS.map(d => `<span style="left:${d.pos}%">${esc(fmtPct(d.pct))}</span>`).join('')}</div>
       </div>
       <label class="field cap-pct"><span data-cap-pct-label></span><span class="cap-input"><input class="input" data-cap-pct inputmode="decimal" autocomplete="off"><b>%</b></span></label>
       <p class="small cap-hint" data-cap-hint role="status"></p>
@@ -3256,26 +3383,24 @@
         <label class="field"><span>${esc(t('capIncome'))}</span><span class="cap-input"><input class="input" data-cap-income inputmode="decimal" autocomplete="off" value="${esc(fmtPctIn(c.income))}"><b>€</b></span></label>
         ${monthIncome() > 0 ? `<button type="button" class="chip" data-cap-use-income style="margin-top:8px">💼 ${esc(t('capUseIncome', { m: cents(monthIncome()) }))}</button>` : ''}
         <p class="small" style="margin:10px 0 6px">${esc(t('capEquals'))}</p>
-        <ul class="cap-prev-list">${COMMIT_LEVELS.map(l => `<li data-cap-prev="${l}"><span>${esc(t('commit_' + l))} <small data-cap-prev-pct></small></span><b data-cap-prev-val></b></li>`).join('')}</ul>
+        <ul class="cap-prev-list"><li data-cap-prev class="on"><span><small data-cap-prev-pct></small></span><b data-cap-prev-val></b></li></ul>
       </div>
     </div>`;
   }
   // Actualiza el conversor sin volver a pintarlo (para que el marcador se desplace con animación)
   function updateCap(root) {
     const box = $('[data-cap]', root); if (!box) return;
-    const c = state.caprice, lv = box._lv || (box._lv = state.commitment), pct = c.pct[lv];
+    const c = state.caprice, pct = capP();
     const inc = box._income != null ? box._income : c.income;
-    $$('[data-cap-lv]', box).forEach(b => { b.classList.toggle('on', b.dataset.capLv === lv); b.setAttribute('aria-pressed', b.dataset.capLv === lv); });
     $('.cap-thumb', box).style.left = CAP.sliderPos(pct) + '%';
     const tr = $('.cap-track', box);
-    tr.setAttribute('aria-valuenow', pct); tr.setAttribute('aria-valuetext', `${fmtPct(pct)} · ${t('commit_' + lv)}`);
-    $('[data-cap-pct-label]', box).textContent = t('capPctFor', { l: t('commit_' + lv) });
+    tr.setAttribute('aria-valuenow', pct); tr.setAttribute('aria-valuetext', fmtPct(pct));
+    $('[data-cap-pct-label]', box).textContent = t('capPctOne');
     const pi = $('[data-cap-pct]', box); if (document.activeElement !== pi) pi.value = fmtPctIn(pct);
     $('[data-cap-hint]', box).textContent = pct > 1 ? t('capAbove') : pct < 0.1 ? t('capBelow') : '';
     $$('[data-cap-prev]', box).forEach(li => {
-      const l = li.dataset.capPrev; li.classList.toggle('on', l === state.commitment);
-      $('[data-cap-prev-pct]', li).textContent = `(${fmtPct(c.pct[l])})${l === state.commitment ? ' · ' + t('capCurrent') : ''}`;
-      $('[data-cap-prev-val]', li).textContent = fmtMoney(CAP.tenPointsValue(inc, c.pct[l]));
+      $('[data-cap-prev-pct]', li).textContent = fmtPct(pct);
+      $('[data-cap-prev-val]', li).textContent = fmtMoney(CAP.tenPointsValue(inc, pct));
     });
   }
   function bindCap(root, onSaved = () => {}) {
@@ -3283,14 +3408,12 @@
     const setPct = (v, animate = true) => {
       const b = box(); if (!b) return;
       b.classList.toggle('no-anim', !animate);
-      setCaprice({ pct: { [b._lv]: v } }); updateCap(root); onSaved();
+      setCaprice({ p: v }); updateCap(root); onSaved();
     };
     root.addEventListener('click', e => {
       const b = box(); if (!b) return; let el;
-      if ((el = e.target.closest('[data-cap-lv]'))) { b._lv = el.dataset.capLv; b.classList.remove('no-anim'); updateCap(root); return; }
       if ((el = e.target.closest('[data-cap-dot]'))) { setPct(CAP.DOTS[+el.dataset.capDot].pct); return; }
       if (e.target.closest('[data-cap-use-income]')) { const v = monthIncome() / 100; b._income = v; setCaprice({ income: v }); $('[data-cap-income]', b).value = fmtPctIn(v); updateCap(root); onSaved(); toast(t('saved')); return; }
-      if (e.target.closest('[data-commit]')) setTimeout(() => { const bb = box(); if (bb) { bb._lv = state.commitment; updateCap(root); } }, 0);
     });
     // Arrastrar o pulsar en la barra
     root.addEventListener('pointerdown', e => {
@@ -3305,7 +3428,7 @@
     // Teclado: ← más porcentaje (hacia Chill), → menos (hacia Locked-In)
     root.addEventListener('keydown', e => {
       const tr = e.target.closest('.cap-track'); if (!tr) return;
-      const b = box(), cur = CAP.sliderPos(state.caprice.pct[b._lv]);
+      const cur = CAP.sliderPos(capP());
       const pos = { ArrowLeft: cur - 2.5, ArrowDown: cur + 2.5, ArrowRight: cur + 2.5, ArrowUp: cur - 2.5, Home: 10, End: 90 }[e.key];
       if (pos == null) return;
       e.preventDefault(); setPct(CAP.pctFromPos(pos));
@@ -3323,7 +3446,7 @@
     root.addEventListener('change', e => {
       const b = box(); if (!b || !e.target.matches('[data-cap-pct]')) return;
       const v = CAP.parseNumber(e.target.value);
-      if (v == null || !(v > 0)) { toast(t('capPctInvalid')); e.target.value = fmtPctIn(state.caprice.pct[b._lv]); return; }
+      if (v == null || !(v > 0)) { toast(t('capPctInvalid')); e.target.value = fmtPctIn(capP()); return; }
       setPct(v); e.target.value = fmtPctIn(v);
     });
     root.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-cap-pct], [data-cap-income]')) e.target.blur(); });
@@ -3337,9 +3460,9 @@
       $('#lvl', wref).innerHTML = `<div class="stack" style="gap:18px">
         <div class="row" style="gap:16px"><div class="lvl-big">${lv.level}</div><div class="grow"><div style="font-size:22px;font-weight:var(--fw-title)">${esc(lv.title)}</div>
           <div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))}</div><div class="bar" style="margin-top:8px"><i style="width:${lv.pct}%"></i></div></div></div>
-        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtPts(d.cpts)}<small>/10</small></b><span>${esc(t('ptsToday'))}</span></div><div class="kpi clay"><b>${fmtPts(pi.points)}</b><span>${esc(t('ptsTotal'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div></div>
+        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtPts(d.cpts)}<small>/${d.max || 10}</small></b><span>${esc(t('ptsToday'))}</span></div><div class="kpi clay"><b>${fmtPts(pi.points)}</b><span>${esc(t('ptsTotal'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div></div>
         <section><h3 class="section-title">${esc(t('commitTitle'))}</h3>${commitSegHtml()}</section>
-        <p class="muted small" style="margin:0">${esc(t('ptsHow', { since: fmtDate(state.pointsSince || todayKey()) }))}</p>
+        <p class="muted small" style="margin:0">${esc(t('ptsHow', { since: fmtDate(state.pointsSince || todayKey()), since2: fmtDate(state.pointsV2 || todayKey()) }))}</p>
       </div>`;
     };
     openModal({
@@ -3470,7 +3593,7 @@
       <form class="stack vault-form" data-vault="setup" autocomplete="off" style="gap:12px">
         <input class="input" type="password" id="vault-pw" minlength="6" autocomplete="new-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
         <input class="input" type="password" id="vault-pw2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}" aria-label="${esc(t('vaultPw2'))}">
-        <label class="check tgl tgl-block"><input type="checkbox" id="vault-ack"><span class="small">${esc(t('vaultAck'))}</span></label>
+        <label class="ack-check"><input type="checkbox" id="vault-ack"><span class="ack-box" aria-hidden="true">${ico('check')}</span><span class="small">${esc(t('vaultAck'))}</span></label>
         <button class="btn primary" type="submit">${ico('lock')} ${esc(t('vaultCreate'))}</button></form></section>`;
     loadDevMethods();
     const pinMode = DEVM.vid === VAULT.vidOf(state.ledgerVault) && DEVM.pin && !pwMode;
@@ -3732,7 +3855,7 @@
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
     // Herramientas de la Libreta: icono de línea con su nombre debajo (mismo estilo que la calculadora)
     const nRec = LV.recurring.filter(r => !r.archived).length;
-    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
+    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
@@ -4952,6 +5075,105 @@
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
+  /* ---------- v1.21: «Registrar» — importar el CSV de movimientos del banco (por ahora, Trading 212) ----------
+     No se deduce nada: por cada tipo de movimiento se pregunta qué es (gasto, ingreso o ignorar), su categoría y, salvo en
+     los pagos con tarjeta, si se agrupan. Los depósitos y las retiradas se ignoran. Lo importado lleva extIds para no duplicarse. */
+  const BCSV = window.KGBankCsv;
+  const rgKindName = g => g.kind === 'card' ? t('rgKind_card', { c: rgMcat(g.mcat) }) : g.kind === 'other' ? t('rgKind_other', { a: g.action }) : t('rgKind_' + g.kind);
+  const rgMcat = m => { const s = String(m || '').replace(/_/g, ' ').toLowerCase().trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : t('rgNoMcat'); };
+  const rgCanGroup = g => g.kind !== 'card' && g.kind !== 'cardCredit';
+  function rgNote(e) {
+    const n = e.count > 1 ? ` (${e.count})` : '';
+    if (e.kind === 'card' || e.kind === 'cardCredit') return e.extGroup ? rgMcat(e.label) + n : e.label;
+    if (e.kind === 'other') return (e.label || '') + n;
+    return t('rgNote_' + e.kind) + (e.extGroup ? n : e.label ? ' · ' + e.label : '');
+  }
+  function openRegistrar() {
+    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {} };
+    let wref;
+    const cats = type => LV.cats.filter(c => !c.archived && (c.type === type || c.type === 'both'));
+    const missing = () => {
+      let n = 0;
+      for (const g of S.q) { const a = S.ans[g.id] || {}; if (!a.type || (a.type !== 'skip' && (!a.categoryId || (rgCanGroup(g) && !a.group)))) n++; }
+      for (const c of Object.keys(S.cur)) if (!S.curMode[c] || (S.curMode[c] === 'rate' && !(S.rates[c] > 0))) n++;
+      return n;
+    };
+    const draw = () => {
+      const box = $('#rg', wref); if (!box) return;
+      if (S.step === 'intro') {
+        box.innerHTML = `<div class="stack" style="gap:14px"><p style="margin:0">${esc(t('rgIntro'))}</p>
+          <ol class="rg-steps">${['rgStep1', 'rgStep2', 'rgStep3'].map(k => `<li>${esc(t(k))}</li>`).join('')}</ol>
+          <p class="muted small" style="margin:0">${esc(t('rgOnlyT212'))}</p>
+          <label class="btn calc-blue block">${ico('upload')} ${esc(t('rgChoose'))}<input type="file" accept=".csv,text/csv" class="sr-only" data-rg-file></label>
+          <p class="muted small" style="margin:0">${esc(t('rgPrivacy'))}</p></div>`;
+        $('.sheet-foot', wref) && ($('.sheet-foot', wref).innerHTML = '');
+        return;
+      }
+      const d = S.data, miss = missing();
+      const seg = (gid, key, opts, val) => `<div class="seg seg-sm" role="group">${opts.map(([v, k]) => `<button type="button" data-rg-set="${esc(gid)}" data-k="${key}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>`;
+      box.innerHTML = `<div class="stack" style="gap:14px">
+        <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${d.ignored.deposit + d.ignored.withdrawal ? ' · ' + esc(t('rgIgnored', { d: d.ignored.deposit, w: d.ignored.withdrawal })) : ''}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
+        <p style="margin:0">${esc(t('rgAsk'))}</p>
+        ${S.q.map(g => { const a = S.ans[g.id] || {}; return `<section class="rg-q clay">
+          <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><b class="grow">${esc(rgKindName(g))}</b><span class="muted small" style="white-space:nowrap">${g.count} · ${money(g.cents / 100)}</span></div>
+          ${g.sample.length ? `<p class="muted small" style="margin:0">${esc(t('rgSample', { s: g.sample.join(', ') }))}</p>` : ''}
+          <p class="muted small" style="margin:0">${esc(t('rgHint_' + g.kind))}</p>
+          <span class="rg-l">${esc(t('rgWhat'))}</span>${seg(g.id, 'type', [['expense', 'ledgerExpenseOne'], ['income', 'ledgerIncomeOne'], ['skip', 'rgSkip']], a.type)}
+          ${a.type && a.type !== 'skip' ? `<label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-rg-cat="${esc(g.id)}"><option value="">${esc(t('rgPickCat'))}</option>${cats(a.type).map(c => `<option value="${esc(c.id)}" ${a.categoryId === c.id ? 'selected' : ''}>${esc((c.icon ? c.icon + ' ' : '') + catName(c))}</option>`).join('')}</select></label>
+            ${rgCanGroup(g) ? `<span class="rg-l">${esc(t('rgGroupQ'))}</span>${seg(g.id, 'group', [['none', 'rgGroupNo'], ['day', 'rgGroupDay'], ['month', 'rgGroupMonth']], a.group)}` : ''}` : ''}
+        </section>`; }).join('')}
+        ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay"><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
+          ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgConvert']], S.curMode[c])}
+          ${S.curMode[c] === 'rate' ? `<label class="field"><span>${esc(t('rgRate', { c }))}</span><input class="input" inputmode="decimal" data-rg-rate="${esc(c)}" value="${S.rates[c] ? esc(String(S.rates[c]).replace('.', state.lang === 'es' ? ',' : '.')) : ''}" placeholder="1,15"></label>` : ''}</section>`).join('')}
+        ${S.q.length ? '' : `<p class="muted">${esc(t('rgNothing'))}</p>`}</div>`;
+      const foot = $('.sheet-foot', wref);
+      if (foot) foot.innerHTML = S.q.length ? `<p class="muted small" style="margin:0;flex-basis:100%">${miss ? esc(t('rgMissing', { n: miss })) : ''}</p><button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button><button class="btn primary" data-rg="go" ${miss ? 'disabled' : ''}>${ico('check')} ${esc(t('rgImport'))}</button>` : `<button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button>`;
+    };
+    const load = async input => {
+      const f = input.files && input.files[0]; input.value = '';
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { toast(t('tfFileBig')); return; }
+      const d = BCSV.read(await f.text());
+      if (!d.format) { toast(t('rgUnknown')); return; }
+      const known = new Set(); for (const e of LV.entries) for (const k of e.extIds || []) known.add(k);
+      const fresh = d.rows.filter(r => !known.has(r.key));
+      S.dupN = d.rows.length - fresh.length;
+      S.data = d; S.rows = fresh; S.q = BCSV.questions(fresh); S.cur = BCSV.currencies(fresh); S.ans = {};
+      // Lo único que se sabe seguro: un pago con tarjeta es un gasto (la categoría la elige el usuario)
+      for (const g of S.q) if (g.kind === 'card') S.ans[g.id] = { type: 'expense' };
+      S.step = 'ask'; draw(); const sh = $('.sheet', wref); if (sh) sh.scrollTop = 0;
+    };
+    openModal({
+      title: `${ico('upload')} ${esc(t('rgTitle'))}`, cls: 'rg-modal', body: '<div id="rg"></div>', foot: ' ',
+      onMount: w => {
+        wref = w; draw();
+        w.addEventListener('change', e => {
+          if (e.target.matches('[data-rg-file]')) { load(e.target); return; }
+          if (e.target.matches('[data-rg-cat]')) { const a = S.ans[e.target.dataset.rgCat] || (S.ans[e.target.dataset.rgCat] = {}); a.categoryId = e.target.value; draw(); }
+          if (e.target.matches('[data-rg-rate]')) { const v = Number(String(e.target.value).replace(',', '.')); S.rates[e.target.dataset.rgRate] = v > 0 && v < 1000 ? v : 0; draw(); }
+        });
+      },
+      onClick: (e, close) => {
+        let el;
+        if ((el = e.target.closest('[data-rg-set]'))) {
+          const id = el.dataset.rgSet, k = el.dataset.k, v = el.dataset.v;
+          if (k === 'cur') S.curMode[id.slice(4)] = v;
+          else { const a = S.ans[id] || (S.ans[id] = {}); if (k === 'type' && a.type !== v) { a.type = v; a.categoryId = ''; } else a[k] = v; }
+          draw(); return;
+        }
+        if (!(el = e.target.closest('[data-rg]'))) return;
+        if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
+        if (missing()) return;
+        const rates = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] === 'rate') rates[c] = S.rates[c];
+        const p = BCSV.plan(S.rows, S.ans, rates, LV.entries);
+        for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, ...(x.extGroup ? { extGroup: x.extGroup } : {}) });
+        for (const u of p.update) { const en = LV.entries.find(x => x.id === u.id); if (en) { en.amountCents += u.addCents; en.extIds = [...(en.extIds || []), ...u.addIds]; const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${+m[1] + u.addIds.length})`); } }
+        ledgerSave(); close(); render(); sfx('money');
+        toast(t('rgDone', { n: p.create.length, u: p.update.length }));
+      }
+    });
+  }
+
   function openLedgerShare(pre = null) {
     if (!ledgerOpen()) { toast(t('vaultOpenFirst')); return; }
     const td = todayKey(), sp = LED.span(LV.entries);
@@ -5475,9 +5697,11 @@
     estudio: [['Estudiar', 'Study', '✍️', { duration: 45, timeOfDay: 'afternoon' }], ['Leer', 'Read', '📚', { measure: 'amount', target: 20, unit: 'páginas|pages', step: 5, timeOfDay: 'night' }], ['Repasar apuntes', 'Review notes', '🧠', {}], ['Móvil mientras estudio', 'Phone while studying', '📵', { kind: 'quit' }]],
     finanzas: [['Apuntar gastos', 'Log expenses', '💰', { timeOfDay: 'night' }], ['Revisar presupuesto', 'Review budget', '📈', { freq: 'weekly', target: 1 }], ['Compras impulsivas', 'Impulse buying', '🛍️', { kind: 'quit' }], ['Ahorrar', 'Save money', '🐷', { measure: 'amount', target: 5, unit: '€', step: 1 }]],
     deporte: [['Gimnasio', 'Gym', '🏋️', { freq: 'weekly', target: 3 }], ['Estiramientos', 'Stretching', '🧘', { duration: 10, timeOfDay: 'morning' }], ['Correr', 'Running', '🏃', { measure: 'amount', target: 15, unit: 'km', step: 1, freq: 'weekly' }], ['Tomar proteína', 'Take protein', '🥛', {}]],
-    mente: [['Meditar', 'Meditate', '🧘', { duration: 10, timeOfDay: 'morning' }], ['Escribir un diario', 'Journal', '📝', { timeOfDay: 'night' }], ['Gratitud: 3 cosas', 'Gratitude: 3 things', '🙏', { timeOfDay: 'night' }], ['Redes antes de dormir', 'Social media before bed', '📵', { kind: 'quit' }]]
+    mente: [['Meditar', 'Meditate', '🧘', { duration: 10, timeOfDay: 'morning' }], ['Escribir un diario', 'Journal', '📝', { timeOfDay: 'night' }], ['Gratitud: 3 cosas', 'Gratitude: 3 things', '🙏', { timeOfDay: 'night' }], ['Redes antes de dormir', 'Social media before bed', '📵', { kind: 'quit' }], ['Desconectar una hora', 'Unplug for an hour', '🌙', { timeOfDay: 'night' }]],
+    hogar: [['Hacer la cama', 'Make the bed', '🛏️', { timeOfDay: 'morning' }], ['Ordenar 10 minutos', 'Tidy up for 10 minutes', '🧹', { duration: 10 }], ['Cocinar en casa', 'Cook at home', '🍳', { freq: 'weekly', target: 4 }], ['Regar las plantas', 'Water the plants', '🪴', { freq: 'weekly', target: 2 }], ['Limpieza a fondo', 'Deep clean', '🧽', { freq: 'monthly', target: 1 }]],
+    social: [['Llamar a la familia', 'Call your family', '📞', { freq: 'weekly', target: 1 }], ['Quedar con amigos', 'Meet up with friends', '🍻', { freq: 'weekly', target: 1 }], ['Un detalle con alguien', 'Do something kind for someone', '💌', { freq: 'weekly', target: 2 }], ['Tabaco', 'Smoking', '🚭', { kind: 'quit' }]]
   };
-  const PACK_ICONS = { salud: '❤️', estudio: '🎓', finanzas: '💶', deporte: '💪', mente: '🧠' };
+  const PACK_ICONS = { salud: '❤️', estudio: '🎓', finanzas: '💶', deporte: '💪', mente: '🧠', hogar: '🏠', social: '🤝' };
   // Las unidades con «es|en» se traducen al crear
   const unitL = u => u && u.includes('|') ? L2(...u.split('|')) : u;
   const CHALLENGES = [
@@ -5514,8 +5738,8 @@
   }
   function packSub(x) {
     if (x.kind === 'quit') return t('kindQuit');
-    const per = ' / ' + t(x.freq === 'weekly' ? 'periodWeek' : 'periodDay');
-    let s = x.measure === 'amount' ? `${fmtNum(x.target)} ${unitL(x.unit)}${per}` : x.freq === 'weekly' ? t('timesPer', { n: x.target, period: t('periodWeek') }) : x.target > 1 ? t('timesPer', { n: x.target, period: t('periodDay') }) : t('freqDaily');
+    const pk = x.freq === 'weekly' ? 'periodWeek' : x.freq === 'monthly' ? 'periodMonth' : 'periodDay', per = ' / ' + t(pk);
+    let s = x.measure === 'amount' ? `${fmtNum(x.target)} ${unitL(x.unit)}${per}` : (x.freq || 'daily') !== 'daily' || x.target > 1 ? t('timesPer', { n: x.target, period: t(pk) }) : t('freqDaily');
     if (x.duration) s += ` · ⏱ ${x.duration} min`;
     return s;
   }
@@ -6885,6 +7109,7 @@
           </div>
           ${live}
         </section>
+        ${g.spec && Object.keys(g.spec).length ? `<section class="clay card g-spec"><h3 class="section-title">${ico('eye')} ${esc(t(g.kind === 'habit' ? 'gSpecHabit' : 'gSpecProject'))}</h3>${pvSpecHtml(g.kind === 'habit' ? 'habit' : 'project', g.spec)}</section>` : ''}
         ${can('invite') && link ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('groupLeave'))}</button></div>
       </div>`;
@@ -7913,6 +8138,7 @@
       case 'ledger-recs': openLedgerRecs(); break;
       case 'ledger-events': openLedgerEvents(); break;
       case 'ledger-budget': openBudgets(); break;
+      case 'ledger-import': if (ledgerOpen()) openRegistrar(); break;
       case 'ledger-share': openLedgerShare(); break;
       case 'profile': openProfile(); break;
       case 'cview': state.ui.chatView = a.dataset.v; save(); render(); break;

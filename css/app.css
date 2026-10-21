@@ -1715,3 +1715,45 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 @keyframes tfUp { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (max-width: 520px) { .tf-cell .tf-tag .tn { display: none; } .tf-cell .tf-tag .ini { display: inline; } .tf-cell .tf-tag { text-align: center; } }
 @media (max-width: 420px) { .tf-cell { min-height: 66px; } .tf-cell .tf-tag { font-size: 10.5px; padding: 1px 5px; } .tf-form { grid-template-columns: 1fr; } }
+
+/* ---------- v1.21: casilla visible para aceptar el aviso de la contraseña de la Libreta ---------- */
+.ack-check { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: var(--r-md); background: var(--surface-2); cursor: pointer; text-align: left; line-height: 1.4; }
+.ack-check input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.ack-box { flex: none; width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--muted); display: grid; place-items: center; transition: background .15s, border-color .15s; }
+.ack-box svg.i { width: 18px; height: 18px; opacity: 0; color: var(--accent-ink); stroke-width: 3; }
+.ack-check:has(input:checked) .ack-box { background: var(--accent); border-color: var(--accent); }
+.ack-check:has(input:checked) .ack-box svg.i { opacity: 1; }
+.ack-check:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* «Registrar» (CSV del banco) */
+.rg-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.rg-q { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--r-lg); }
+.rg-l { font-size: 13px; font-weight: var(--fw-label); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.rg-q .seg { width: 100%; }
+/* v1.21: siete herramientas en la Libreta (con «Registrar»): 4 por fila en el móvil, todas en una fila en pantallas anchas */
+.ledger-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 12px; }
+@media (min-width: 640px) { .ledger-tools { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+@media (max-width: 360px) { .ledger-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); } .tool-ico { width: 46px; height: 46px; } }
+.tool-lbl { overflow-wrap: normal; hyphens: auto; }
+/* Pasos del registro que explican el Calendario y la Libreta */
+.ob-demo { padding: 14px; border-radius: var(--r-lg); display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.ob-demo-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.ob-demo-day { display: flex; flex-direction: column; gap: 4px; padding: 6px 3px; border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.ob-demo-day b { font-size: 12px; padding-left: 3px; }
+.ob-demo-day i { font-style: normal; font-size: 10px; font-weight: var(--fw-ui); background: var(--c); color: #fff; border-radius: 999px; padding: 1px 4px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-demo-led { display: flex; flex-direction: column; gap: 6px; }
+.ob-demo-led i { display: block; height: 10px; border-radius: 999px; }
+.ob-demo-sum { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.ob-demo-sum b { color: var(--fg); margin-left: 4px; }
+.ob-tour { display: flex; flex-direction: column; gap: 12px; }
+.ob-feat { display: flex; align-items: center; gap: 14px; }
+.ob-feat .tool-ico { flex: none; width: 46px; height: 46px; border-radius: 14px; }
+.ob-feat .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* v1.21: paso de hábitos y proyectos del registro */
+.ob-hchip { flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; height: auto; padding-top: 8px; padding-bottom: 8px; }
+.ob-hchip small { font-size: 11.5px; opacity: .7; font-weight: 500; }
+.ob-sub { margin: 12px 0 6px; text-transform: uppercase; letter-spacing: .04em; font-weight: var(--fw-label); }
+.ob-proj.on { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ob-later { margin-top: 20px; padding: 12px 14px; border-radius: var(--r-md, 16px); }
+.ob-level { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding: 14px; border-radius: var(--r-md, 16px); }
+.ob-level .grow { display: flex; flex-direction: column; gap: 4px; }
+.g-spec .section-title svg { width: 18px; height: 18px; vertical-align: -3px; }

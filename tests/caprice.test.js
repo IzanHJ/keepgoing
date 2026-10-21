@@ -73,3 +73,24 @@ test('historial: el ajuste vigente depende del día', () => {
   assert.equal(C.onDay(h, '2026-10-16').v, 'b');
   assert.equal(C.onDay(h, '2027-01-01').v, 'b');
 });
+
+test('v1.21: día perfecto = 10 con 2 hábitos, +1 por hábito extra, máximo 15', () => {
+  assert.strictEqual(C.maxDayPoints(0), 0);
+  assert.strictEqual(C.maxDayPoints(1), 10);
+  assert.strictEqual(C.maxDayPoints(2), 10);
+  assert.strictEqual(C.maxDayPoints(5), 13);
+  assert.strictEqual(C.maxDayPoints(7), 15);
+  assert.strictEqual(C.maxDayPoints(12), 15);
+  assert.strictEqual(C.dayPointsV2(0.5, 4), 6);
+  assert.strictEqual(C.dayPointsV2(2, 3), 11);
+  assert.strictEqual(C.dayPointsV2(-1, 3), 0);
+});
+
+test('v1.21: nivel automático según el nº de hábitos', () => {
+  assert.strictEqual(C.levelForCount(0), 'chill');
+  assert.strictEqual(C.levelForCount(3), 'chill');
+  assert.strictEqual(C.levelForCount(4), 'serio');
+  assert.strictEqual(C.levelForCount(6), 'serio');
+  assert.strictEqual(C.levelForCount(7), 'locked');
+  assert.strictEqual(C.DEFAULT_P, 0.5);
+});
