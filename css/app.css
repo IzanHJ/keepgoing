@@ -1760,3 +1760,30 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 /* v1.22: cuadrícula sin huecos; las tarjetas no se estiran a la altura de la fila */
 .habit-grid.masonry { grid-auto-rows: 1px; row-gap: 0; align-items: start; }
 .habit-grid.masonry > .folder { align-self: start; }
+/* v1.22: Ayuda en la aplicación y novedades */
+.help-box { display: flex; flex-direction: column; gap: 10px; }
+.help-item { border-radius: var(--r-lg); overflow: hidden; }
+.help-item summary { display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.help-item summary::-webkit-details-marker { display: none; }
+.help-item .tool-ico { width: 40px; height: 40px; border-radius: 12px; flex: none; }
+.help-item[open] .acc-chev { transform: rotate(90deg); }
+.help-body { padding: 0 14px 14px; font-size: 14px; line-height: 1.5; }
+.help-body h4 { margin: 14px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.help-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.wn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.wn-list li { display: flex; gap: 12px; align-items: flex-start; }
+.wn-list .grow { display: flex; flex-direction: column; gap: 3px; }
+.wn-dot { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); }
+.wn-dot svg { width: 16px; height: 16px; }
+/* v1.22: deslizar meses y transiciones */
+.tf-grid, .tf-year, .ledger-cal .cal { touch-action: pan-y; }
+.cal-swipe { cursor: grab; }
+.cal-swipe.dragging { cursor: grabbing; }
+.slide-l { animation: slideL .28s cubic-bezier(.2, .8, .2, 1); }
+.slide-r { animation: slideR .28s cubic-bezier(.2, .8, .2, 1); }
+@keyframes slideL { from { opacity: .2; transform: translateX(36px); } to { opacity: 1; transform: none; } }
+@keyframes slideR { from { opacity: .2; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .slide-l, .slide-r { animation: none; } }
+/* v1.22: casi nada se puede seleccionar ni copiar, salvo lo que sí tiene sentido copiar */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select, [contenteditable="true"], .contract, .contract *, .help-txt, .help-txt *, .msg-text, .msg-bubble, .msg-who, .pv-note, .pv-desc, .g-head h2, .sel-ok, .sel-ok * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }

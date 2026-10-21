@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.21.0';
+  const VERSION = '1.22.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1594,6 +1594,54 @@
     const b = calBounds(h); calOff[hid] = clamp((calOff[hid] || 0) + d, b.min, b.max);
     $$(`.cal-box[data-hid="${hid}"]`).forEach(box => { const tmp = document.createElement('div'); tmp.innerHTML = calHtml(h).trim(); const n = tmp.firstElementChild; box.replaceWith(n); initCals(n.parentElement); });
   }
+  /* v1.22: cambiar de mes deslizando con el dedo o arrastrando con el ratón (Calendario, Libreta y calendarios de los hábitos) */
+  const SWIPE_ZONES = [['.tf-grid, .tf-year', '[data-tf="prev"]', '[data-tf="next"]', '.tf-grid, .tf-year'], ['.ledger-cal .cal', '[data-act="ledger-month"][data-d="-1"]', '[data-act="ledger-month"][data-d="1"]', '.ledger-cal .cal']];
+  let mSw = null, mSwBlock = false;
+  document.addEventListener('pointerdown', e => {
+    if (e.button || e.target.closest('input, select, textarea')) return;
+    const cs = e.pointerType === 'mouse' && e.target.closest('.cal-swipe');
+    if (cs) { mSw = { kind: 'cs', el: cs, x: e.clientX, y: e.clientY, sl: cs.scrollLeft, moved: false }; return; }
+    const z = SWIPE_ZONES.find(([sel]) => e.target.closest(sel));
+    if (z) mSw = { kind: 'zone', z, x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
+  }, true);
+  document.addEventListener('pointermove', e => {
+    if (!mSw) return;
+    const dx = e.clientX - mSw.x, dy = e.clientY - mSw.y;
+    if (!mSw.moved && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { mSw.moved = true; if (mSw.kind === 'cs') { mSw.el.style.scrollSnapType = 'none'; mSw.el.classList.add('dragging'); } }
+    if (mSw.moved && mSw.kind === 'cs') mSw.el.scrollLeft = mSw.sl - dx;
+  }, true);
+  document.addEventListener('pointerup', e => {
+    const g = mSw; mSw = null; if (!g || !g.moved) return;
+    mSwBlock = true; setTimeout(() => { mSwBlock = false; }, 80);
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (g.kind === 'cs') {
+      const el = g.el, w = el.clientWidth, start = Math.round(g.sl / w), to = Math.abs(dx) > w * .18 ? start + (dx < 0 ? 1 : -1) : start;
+      el.classList.remove('dragging'); el.scrollTo({ left: clamp(to, 0, el.children.length - 1) * w, behavior: 'smooth' });
+      setTimeout(() => { el.style.scrollSnapType = ''; }, 400);
+      return;
+    }
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    const [, prev, next, after] = g.z, btn = $(dx < 0 ? next : prev); if (!btn) return;
+    mSwBlock = false; btn.click(); mSwBlock = true;
+    const box = $(after); if (box) { box.classList.remove('slide-l', 'slide-r'); void box.offsetWidth; box.classList.add(dx < 0 ? 'slide-l' : 'slide-r'); }
+  }, true);
+  document.addEventListener('pointercancel', () => { if (mSw && mSw.kind === 'cs') { mSw.el.classList.remove('dragging'); mSw.el.style.scrollSnapType = ''; } mSw = null; }, true);
+  window.addEventListener('click', e => { if (mSwBlock) { e.preventDefault(); e.stopPropagation(); mSwBlock = false; } }, true);
+  /* v1.22: con el ratón, la rueda sube o baja el número del campo que estás editando */
+  document.addEventListener('wheel', e => {
+    const el = e.target.closest && e.target.closest('input[type="number"], input[inputmode="decimal"], input[inputmode="numeric"]');
+    if (!el || el !== document.activeElement || el.disabled || el.readOnly) return;
+    const raw = String(el.value || '').trim(), comma = raw.includes(',') || (!raw.includes('.') && state.lang === 'es' && el.type !== 'number');
+    const v = Number(raw.replace(/\./g, comma ? '' : '.').replace(',', '.')) || 0;
+    const step = Number(el.step) > 0 ? Number(el.step) : Number(el.dataset.step) > 0 ? Number(el.dataset.step) : (!Number.isInteger(v) && Math.abs(v) < 10 ? .1 : 1);
+    let nv = Math.round((v + (e.deltaY < 0 ? step : -step)) * 1000) / 1000;
+    if (el.min !== '' && nv < Number(el.min)) nv = Number(el.min);
+    if (el.max !== '' && nv > Number(el.max)) nv = Number(el.max);
+    if (!(el.type === 'number' || el.min !== '') && nv < 0 && v >= 0) nv = 0;
+    e.preventDefault();
+    el.value = el.type === 'number' ? String(nv) : (comma ? String(nv).replace('.', ',') : String(nv));
+    el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { passive: false });
   // Al terminar de deslizar, el mes que queda a la vista pasa a ser el actual de ese calendario
   const calTimers = new WeakMap();
   document.addEventListener('scroll', e => {
@@ -2759,6 +2807,42 @@
     root.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.thColor) { save(); redraw(); } });
   }
 
+  /* ---------- v1.22: Ayuda en la aplicación (Ajustes) y novedades de cada versión ---------- */
+  const HELP = [['habits', 'checklist'], ['cal', 'calendar'], ['ledger', 'wallet'], ['chat', 'chat'], ['mastery', 'crown']];
+  function helpHtml() {
+    const list = k => `<ul class="help-list">${t(k).split('|').filter(Boolean).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+    return `<p class="muted small help-txt" style="margin-top:0">${esc(t('helpIntro'))}</p><div class="help-box">${HELP.map(([k, i]) => `<details class="help-item clay">
+      <summary><span class="tool-ico">${ico(i)}</span><b class="grow">${esc(t('help_' + k + '_t'))}</b><span class="acc-chev">${ico('right')}</span></summary>
+      <div class="help-body help-txt"><p>${esc(t('help_' + k + '_what'))}</p>
+        <h4>${esc(t('helpStart'))}</h4><ol class="help-list">${t('help_' + k + '_start').split('|').map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+        <h4>${esc(t('helpFeat'))}</h4>${list('help_' + k + '_feat')}
+        <h4>${esc(t('helpLinks'))}</h4>${list('help_' + k + '_links')}</div></details>`).join('')}</div>`;
+  }
+  // Novedades: para quien ya usaba la app, una vez por versión y dispositivo. Cada línea es «título|detalle».
+  const SEEN_KEY = 'keepgoing.seenVersion', WN = { '1.22.0': 8 };
+  const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
+  function openWhatsNew() {
+    const n = WN[VERSION] || 0; if (!n) return;
+    const items = Array.from({ length: n }, (_, i) => t(`wn_${VERSION.replace(/\./g, '_')}_${i + 1}`).split('|'));
+    let more = false, wref;
+    const draw = () => {
+      $('#wn', wref).innerHTML = `<ul class="wn-list">${items.map(([ti, de]) => `<li><span class="wn-dot">${ico('sparkle')}</span><span class="grow"><b>${esc(ti)}</b>${more && de ? `<span class="muted small">${esc(de)}</span>` : ''}</span></li>`).join('')}</ul>`;
+      $('[data-wn="more"]', wref).innerHTML = `${ico(more ? 'up' : 'down')} ${esc(t(more ? 'whatsNewLess' : 'whatsNewSee'))}`;
+    };
+    seenVersion(VERSION);
+    openModal({
+      title: `${ico('sparkle')} ${esc(t('whatsNewTitle', { v: VERSION.replace(/\.0$/, '') }))}`, cls: 'wn-modal', body: '<div id="wn"></div>',
+      foot: `<button class="btn" data-wn="more"></button><button class="btn primary" data-wn="ok">${esc(t('whatsNewClose'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onClick: (e, close) => { const b = e.target.closest('[data-wn]'); if (!b) return; if (b.dataset.wn === 'ok') close(); else { more = !more; draw(); } }
+    });
+  }
+  function maybeWhatsNew() {
+    if (!state.onboarded || seenVersion() === VERSION) return;
+    if (!WN[VERSION]) { seenVersion(VERSION); return; }
+    whenFree(openWhatsNew);
+  }
+
   /* ---------- ONBOARDING ---------- */
   // Pasos: idioma, color, hábitos y proyectos, Calendario, Libreta, @nametag (opcional, con cuenta) y contrato
   // v1.21: pasos con nombre; ya no se elige el nivel de compromiso: sale solo según los hábitos que crees (sin mínimo)
@@ -2902,7 +2986,7 @@
         const prev = state.contract;
         const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
         if (!prev || prev.name !== obForm.name() || obForm.sig() || prev.g !== obForm.g() || prev.level !== state.commitment || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w, obForm.g());
-        obCreateAll(); state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
+        obCreateAll(); seenVersion(VERSION); state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
       }
       state.obStep++; save(); render(); return true;
     }
@@ -3050,6 +3134,10 @@
       const nOff = PROMPTS.filter(p => !promptOn(p.id)).length, nRem = state.habits.filter(h => !h.archived && h.reminder && h.reminder.on).length;
       const preset = PRESETS.find(p => p.id === state.theme.preset);
       $('#st', wref).innerHTML = `<div class="stack" style="gap:20px">
+        ${group(t('setGroupHelp'), [
+          acc('help', ico('info'), t('helpTitle'), t('helpSub'), helpHtml()),
+          acc('news', ico('sparkle'), t('whatsNew'), t('version', { v: VERSION }), `<button class="btn block" data-s="news">${ico('sparkle')} ${esc(t('whatsNewAll'))}</button>`)
+        ])}
         ${group(t('setGroupGeneral'), [
           acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
           acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
@@ -3130,6 +3218,7 @@
           case 'report': close(); openReport(); break;
           case 'import': $('#st-file', w).click(); break;
           case 'hw-restore': state.hiddenW = (state.hiddenW || []).filter(k => k !== el.dataset.v); save(); render(); draw(); toast(t('hwRestored')); break;
+          case 'news': close(); openWhatsNew(); break;
           case 'replay': close(); state.onboarded = false; state.obStep = 0; save(); render(); break;
           case 'reset':
             if (await confirmDialog(t('resetQ')) && await confirmDialog(t('resetQ2'))) {
@@ -8325,7 +8414,7 @@
     else if (isMulti(h) || !cnt(h, k)) setCount(h, k, cnt(h, k) + 1);
     render(); vibrate(20); toast(t('shortcutDone', { name: h.name }));
   })();
-  setTimeout(() => { if (state.onboarded) { offerShields(); maybeWeeklyReview(); processJoin(); checkRetos(); } }, 1200);
+  setTimeout(() => { if (state.onboarded) { maybeWhatsNew(); offerShields(); maybeWeeklyReview(); processJoin(); checkRetos(); } }, 1200);
   // Solo para pruebas en local
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') window.__kg = { mergeStates, stampChanges };
 })();
