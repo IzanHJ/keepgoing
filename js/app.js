@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.20.0';
+  const VERSION = '1.21.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -3470,7 +3470,7 @@
       <form class="stack vault-form" data-vault="setup" autocomplete="off" style="gap:12px">
         <input class="input" type="password" id="vault-pw" minlength="6" autocomplete="new-password" placeholder="${esc(t('vaultPw'))}" aria-label="${esc(t('vaultPw'))}">
         <input class="input" type="password" id="vault-pw2" autocomplete="new-password" placeholder="${esc(t('vaultPw2'))}" aria-label="${esc(t('vaultPw2'))}">
-        <label class="check tgl tgl-block"><input type="checkbox" id="vault-ack"><span class="small">${esc(t('vaultAck'))}</span></label>
+        <label class="ack-check"><input type="checkbox" id="vault-ack"><span class="ack-box" aria-hidden="true">${ico('check')}</span><span class="small">${esc(t('vaultAck'))}</span></label>
         <button class="btn primary" type="submit">${ico('lock')} ${esc(t('vaultCreate'))}</button></form></section>`;
     loadDevMethods();
     const pinMode = DEVM.vid === VAULT.vidOf(state.ledgerVault) && DEVM.pin && !pwMode;
@@ -3732,7 +3732,7 @@
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
     // Herramientas de la Libreta: icono de línea con su nombre debajo (mismo estilo que la calculadora)
     const nRec = LV.recurring.filter(r => !r.archived).length;
-    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
+    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
@@ -4952,6 +4952,105 @@
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
+  /* ---------- v1.21: «Registrar» — importar el CSV de movimientos del banco (por ahora, Trading 212) ----------
+     No se deduce nada: por cada tipo de movimiento se pregunta qué es (gasto, ingreso o ignorar), su categoría y, salvo en
+     los pagos con tarjeta, si se agrupan. Los depósitos y las retiradas se ignoran. Lo importado lleva extIds para no duplicarse. */
+  const BCSV = window.KGBankCsv;
+  const rgKindName = g => g.kind === 'card' ? t('rgKind_card', { c: rgMcat(g.mcat) }) : g.kind === 'other' ? t('rgKind_other', { a: g.action }) : t('rgKind_' + g.kind);
+  const rgMcat = m => { const s = String(m || '').replace(/_/g, ' ').toLowerCase().trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : t('rgNoMcat'); };
+  const rgCanGroup = g => g.kind !== 'card' && g.kind !== 'cardCredit';
+  function rgNote(e) {
+    const n = e.count > 1 ? ` (${e.count})` : '';
+    if (e.kind === 'card' || e.kind === 'cardCredit') return e.extGroup ? rgMcat(e.label) + n : e.label;
+    if (e.kind === 'other') return (e.label || '') + n;
+    return t('rgNote_' + e.kind) + (e.extGroup ? n : e.label ? ' · ' + e.label : '');
+  }
+  function openRegistrar() {
+    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {} };
+    let wref;
+    const cats = type => LV.cats.filter(c => !c.archived && (c.type === type || c.type === 'both'));
+    const missing = () => {
+      let n = 0;
+      for (const g of S.q) { const a = S.ans[g.id] || {}; if (!a.type || (a.type !== 'skip' && (!a.categoryId || (rgCanGroup(g) && !a.group)))) n++; }
+      for (const c of Object.keys(S.cur)) if (!S.curMode[c] || (S.curMode[c] === 'rate' && !(S.rates[c] > 0))) n++;
+      return n;
+    };
+    const draw = () => {
+      const box = $('#rg', wref); if (!box) return;
+      if (S.step === 'intro') {
+        box.innerHTML = `<div class="stack" style="gap:14px"><p style="margin:0">${esc(t('rgIntro'))}</p>
+          <ol class="rg-steps">${['rgStep1', 'rgStep2', 'rgStep3'].map(k => `<li>${esc(t(k))}</li>`).join('')}</ol>
+          <p class="muted small" style="margin:0">${esc(t('rgOnlyT212'))}</p>
+          <label class="btn calc-blue block">${ico('upload')} ${esc(t('rgChoose'))}<input type="file" accept=".csv,text/csv" class="sr-only" data-rg-file></label>
+          <p class="muted small" style="margin:0">${esc(t('rgPrivacy'))}</p></div>`;
+        $('.sheet-foot', wref) && ($('.sheet-foot', wref).innerHTML = '');
+        return;
+      }
+      const d = S.data, miss = missing();
+      const seg = (gid, key, opts, val) => `<div class="seg seg-sm" role="group">${opts.map(([v, k]) => `<button type="button" data-rg-set="${esc(gid)}" data-k="${key}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>`;
+      box.innerHTML = `<div class="stack" style="gap:14px">
+        <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${d.ignored.deposit + d.ignored.withdrawal ? ' · ' + esc(t('rgIgnored', { d: d.ignored.deposit, w: d.ignored.withdrawal })) : ''}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
+        <p style="margin:0">${esc(t('rgAsk'))}</p>
+        ${S.q.map(g => { const a = S.ans[g.id] || {}; return `<section class="rg-q clay">
+          <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><b class="grow">${esc(rgKindName(g))}</b><span class="muted small" style="white-space:nowrap">${g.count} · ${money(g.cents / 100)}</span></div>
+          ${g.sample.length ? `<p class="muted small" style="margin:0">${esc(t('rgSample', { s: g.sample.join(', ') }))}</p>` : ''}
+          <p class="muted small" style="margin:0">${esc(t('rgHint_' + g.kind))}</p>
+          <span class="rg-l">${esc(t('rgWhat'))}</span>${seg(g.id, 'type', [['expense', 'ledgerExpenseOne'], ['income', 'ledgerIncomeOne'], ['skip', 'rgSkip']], a.type)}
+          ${a.type && a.type !== 'skip' ? `<label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-rg-cat="${esc(g.id)}"><option value="">${esc(t('rgPickCat'))}</option>${cats(a.type).map(c => `<option value="${esc(c.id)}" ${a.categoryId === c.id ? 'selected' : ''}>${esc((c.icon ? c.icon + ' ' : '') + catName(c))}</option>`).join('')}</select></label>
+            ${rgCanGroup(g) ? `<span class="rg-l">${esc(t('rgGroupQ'))}</span>${seg(g.id, 'group', [['none', 'rgGroupNo'], ['day', 'rgGroupDay'], ['month', 'rgGroupMonth']], a.group)}` : ''}` : ''}
+        </section>`; }).join('')}
+        ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay"><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
+          ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgConvert']], S.curMode[c])}
+          ${S.curMode[c] === 'rate' ? `<label class="field"><span>${esc(t('rgRate', { c }))}</span><input class="input" inputmode="decimal" data-rg-rate="${esc(c)}" value="${S.rates[c] ? esc(String(S.rates[c]).replace('.', state.lang === 'es' ? ',' : '.')) : ''}" placeholder="1,15"></label>` : ''}</section>`).join('')}
+        ${S.q.length ? '' : `<p class="muted">${esc(t('rgNothing'))}</p>`}</div>`;
+      const foot = $('.sheet-foot', wref);
+      if (foot) foot.innerHTML = S.q.length ? `<p class="muted small" style="margin:0;flex-basis:100%">${miss ? esc(t('rgMissing', { n: miss })) : ''}</p><button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button><button class="btn primary" data-rg="go" ${miss ? 'disabled' : ''}>${ico('check')} ${esc(t('rgImport'))}</button>` : `<button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button>`;
+    };
+    const load = async input => {
+      const f = input.files && input.files[0]; input.value = '';
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) { toast(t('tfFileBig')); return; }
+      const d = BCSV.read(await f.text());
+      if (!d.format) { toast(t('rgUnknown')); return; }
+      const known = new Set(); for (const e of LV.entries) for (const k of e.extIds || []) known.add(k);
+      const fresh = d.rows.filter(r => !known.has(r.key));
+      S.dupN = d.rows.length - fresh.length;
+      S.data = d; S.rows = fresh; S.q = BCSV.questions(fresh); S.cur = BCSV.currencies(fresh); S.ans = {};
+      // Lo único que se sabe seguro: un pago con tarjeta es un gasto (la categoría la elige el usuario)
+      for (const g of S.q) if (g.kind === 'card') S.ans[g.id] = { type: 'expense' };
+      S.step = 'ask'; draw(); const sh = $('.sheet', wref); if (sh) sh.scrollTop = 0;
+    };
+    openModal({
+      title: `${ico('upload')} ${esc(t('rgTitle'))}`, cls: 'rg-modal', body: '<div id="rg"></div>', foot: ' ',
+      onMount: w => {
+        wref = w; draw();
+        w.addEventListener('change', e => {
+          if (e.target.matches('[data-rg-file]')) { load(e.target); return; }
+          if (e.target.matches('[data-rg-cat]')) { const a = S.ans[e.target.dataset.rgCat] || (S.ans[e.target.dataset.rgCat] = {}); a.categoryId = e.target.value; draw(); }
+          if (e.target.matches('[data-rg-rate]')) { const v = Number(String(e.target.value).replace(',', '.')); S.rates[e.target.dataset.rgRate] = v > 0 && v < 1000 ? v : 0; draw(); }
+        });
+      },
+      onClick: (e, close) => {
+        let el;
+        if ((el = e.target.closest('[data-rg-set]'))) {
+          const id = el.dataset.rgSet, k = el.dataset.k, v = el.dataset.v;
+          if (k === 'cur') S.curMode[id.slice(4)] = v;
+          else { const a = S.ans[id] || (S.ans[id] = {}); if (k === 'type' && a.type !== v) { a.type = v; a.categoryId = ''; } else a[k] = v; }
+          draw(); return;
+        }
+        if (!(el = e.target.closest('[data-rg]'))) return;
+        if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
+        if (missing()) return;
+        const rates = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] === 'rate') rates[c] = S.rates[c];
+        const p = BCSV.plan(S.rows, S.ans, rates, LV.entries);
+        for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, ...(x.extGroup ? { extGroup: x.extGroup } : {}) });
+        for (const u of p.update) { const en = LV.entries.find(x => x.id === u.id); if (en) { en.amountCents += u.addCents; en.extIds = [...(en.extIds || []), ...u.addIds]; const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${+m[1] + u.addIds.length})`); } }
+        ledgerSave(); close(); render(); sfx('money');
+        toast(t('rgDone', { n: p.create.length, u: p.update.length }));
+      }
+    });
+  }
+
   function openLedgerShare(pre = null) {
     if (!ledgerOpen()) { toast(t('vaultOpenFirst')); return; }
     const td = todayKey(), sp = LED.span(LV.entries);
@@ -5514,8 +5613,8 @@
   }
   function packSub(x) {
     if (x.kind === 'quit') return t('kindQuit');
-    const per = ' / ' + t(x.freq === 'weekly' ? 'periodWeek' : 'periodDay');
-    let s = x.measure === 'amount' ? `${fmtNum(x.target)} ${unitL(x.unit)}${per}` : x.freq === 'weekly' ? t('timesPer', { n: x.target, period: t('periodWeek') }) : x.target > 1 ? t('timesPer', { n: x.target, period: t('periodDay') }) : t('freqDaily');
+    const pk = x.freq === 'weekly' ? 'periodWeek' : x.freq === 'monthly' ? 'periodMonth' : 'periodDay', per = ' / ' + t(pk);
+    let s = x.measure === 'amount' ? `${fmtNum(x.target)} ${unitL(x.unit)}${per}` : (x.freq || 'daily') !== 'daily' || x.target > 1 ? t('timesPer', { n: x.target, period: t(pk) }) : t('freqDaily');
     if (x.duration) s += ` · ⏱ ${x.duration} min`;
     return s;
   }
@@ -7913,6 +8012,7 @@
       case 'ledger-recs': openLedgerRecs(); break;
       case 'ledger-events': openLedgerEvents(); break;
       case 'ledger-budget': openBudgets(); break;
+      case 'ledger-import': if (ledgerOpen()) openRegistrar(); break;
       case 'ledger-share': openLedgerShare(); break;
       case 'profile': openProfile(); break;
       case 'cview': state.ui.chatView = a.dataset.v; save(); render(); break;
