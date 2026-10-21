@@ -983,7 +983,7 @@ p { font-weight: var(--fw-body); }
    ========================================================= */
 /* ---------- barra de pestañas (4) con indicador que se desliza ---------- */
 .nav { isolation: isolate; }
-.nav button { position: relative; z-index: 1; width: clamp(70px, calc((100vw - 54px) / 4), 104px); padding: 0 4px; }
+.nav button { position: relative; z-index: 1; width: clamp(58px, calc((100vw - 54px) / 5), 96px); padding: 0 3px; }
 .nav button span { line-height: 1.1; text-align: center; }
 .nav button.on { background: transparent; box-shadow: none; }
 .nav-ind { position: absolute; left: 0; top: 0; z-index: 0; border-radius: 999px; background: var(--surface-3); box-shadow: var(--sh-in); pointer-events: none;
@@ -991,7 +991,7 @@ p { font-weight: var(--fw-body); }
 .nav-bounce svg.i { animation: navIco .5s cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes navIco { 0% { transform: scale(.7) translateY(3px); } 60% { transform: scale(1.18) translateY(-2px); } 100% { transform: none; } }
 @media (min-width: 900px), (orientation: landscape) and (max-height: 540px) { .nav button { width: 84px; height: 66px; font-size: 10.5px; } }
-@media (max-width: 360px) { .nav button { width: calc((100vw - 46px) / 4); font-size: 9.5px; } }
+@media (max-width: 360px) { .nav button { width: calc((100vw - 46px) / 5); font-size: 9px; } }
 
 /* ---------- transiciones al cambiar de pestaña o de vista: se desliza desde el lado correspondiente ---------- */
 .main.anim-fwd > *, .main.anim-back > *, .main.anim-in > * { animation: .46s cubic-bezier(.2, .85, .25, 1) both; }
@@ -1632,3 +1632,86 @@ button.proj-got-row { cursor: pointer; }
 .proj-peer { gap: 10px; align-items: center; }
 .proj-view .calc-hero { text-align: left; }
 .proj-update { white-space: nowrap; }
+
+/* ---------- v1.20: Calendario de turnos (traído de TurnoFlow, con los colores de la Apariencia) ---------- */
+.avatar.xs { width: 22px; height: 22px; font-size: 11px; }
+.tf-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: relative; margin: 14px 0 12px; }
+.tf-title { display: flex; align-items: center; gap: 12px; min-width: 0; flex-wrap: nowrap; }
+.tf-pick { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+.tf-pick select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: var(--fg); cursor: pointer; padding: 0 26px 0 0; font-family: inherit;
+  font-size: clamp(26px, 6.6vw, 42px); font-weight: var(--fw-title); letter-spacing: -.02em; line-height: 1.1; max-width: 100%; }
+.tf-pick select option { font-size: 16px; font-weight: 600; background: var(--surface); color: var(--fg); }
+.tf-pick svg.i { position: absolute; right: 0; width: 22px; height: 22px; pointer-events: none; color: var(--muted); }
+.tf-menu { position: absolute; right: 0; top: 56px; z-index: 30; min-width: 220px; padding: 8px; border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-out), var(--sh-in); animation: tfUp .2s ease; }
+:root[data-style="minimal"] .tf-menu { box-shadow: 0 10px 30px rgba(0, 0, 0, .25); border: 1px solid var(--line); }
+.tf-menu button { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; color: var(--fg); padding: 12px 14px; border-radius: var(--r-md); text-align: left; font-weight: var(--fw-ui); font-size: 15px; }
+.tf-menu button:hover, .tf-menu button:focus-visible { background: var(--surface-2); }
+.tf-nav { margin-bottom: 12px; }
+.tf-cal { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.tf-dow, .tf-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.tf-dow span { text-align: center; font-size: 12px; font-weight: var(--fw-label); color: var(--muted); padding: 4px 0; text-transform: uppercase; letter-spacing: .04em; }
+.tf-cell { min-height: 76px; border: 0; background: var(--surface); color: var(--fg); border-radius: var(--r-sm); padding: 5px; text-align: left; display: flex; flex-direction: column; gap: 2px;
+  overflow: hidden; box-shadow: var(--sh-in); font-weight: var(--fw-body); cursor: pointer; min-width: 0; }
+:root[data-style="minimal"] .tf-cell { box-shadow: none; border: 1px solid var(--line); }
+.tf-cell.out { opacity: .4; }
+.tf-cell.today { box-shadow: var(--sh-in), 0 0 0 2px var(--accent); }
+.tf-cell .n { font-size: 13px; font-weight: var(--fw-ui); display: flex; justify-content: space-between; gap: 2px; }
+.tf-cell .n i { font-style: normal; color: var(--accent); font-weight: var(--fw-label); font-size: 10.5px; }
+.tf-cell .more { font-size: 11px; color: var(--muted); }
+.tf-tag { display: block; background: var(--c, #888); color: var(--fg-c, #fff); border-radius: 999px; padding: 1px 6px; font-size: 11.5px; font-weight: var(--fw-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tf-tag.big { display: inline-block; font-size: 14px; padding: 5px 12px; }
+.tf-tag.ghost { background: transparent; color: var(--fg); box-shadow: inset 0 0 0 1.5px var(--c); }
+.tf-tag .who { opacity: .8; margin-right: 3px; }
+.tf-tag .ini { display: none; }
+.tf-tag.erase { background: var(--surface-3); color: var(--fg); font-size: 14px; padding: 5px 12px; display: inline-block; }
+.tf-tag.off { display: inline-block; background: var(--surface-2); color: var(--muted); }
+td .tf-tag, .tf-palette .tf-tag, .row .tf-tag { display: inline-block; }
+.tf-summary { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 16px 18px; margin-bottom: 12px; border-radius: var(--r-lg); }
+.tf-summary > div { display: flex; flex-direction: column; gap: 2px; }
+.tf-summary b { font-size: 20px; font-weight: var(--fw-num); font-variant-numeric: tabular-nums; }
+.tf-tools { margin-bottom: 14px; }
+.tf-pal { border: 0; padding: 0; background: transparent; border-radius: 999px; flex: none; cursor: pointer; }
+.tf-pal .tf-tag { font-size: 14px; padding: 5px 12px; border: 2px solid transparent; }
+.tf-pal[aria-pressed="true"] .tf-tag { border-color: var(--fg); box-shadow: 0 0 0 2px var(--accent); }
+.tf-palette { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + var(--safe-b)); z-index: 35; max-width: calc(100vw - 24px);
+  display: flex; gap: 6px; padding: 8px; overflow-x: auto; scrollbar-width: none; border-radius: 999px; background: var(--surface); box-shadow: var(--sh-out), var(--sh-in); }
+@media (min-width: 900px), (orientation: landscape) and (max-height: 540px) { .tf-palette { bottom: calc(14px + var(--safe-b)); } }
+.tf-year { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+@media (min-width: 640px) { .tf-year { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tf-mini { padding: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; border-radius: var(--r-lg); }
+.tf-mini-title { border: 0; background: transparent; color: var(--fg); padding: 0; text-align: left; font-size: 15px; font-weight: var(--fw-subtitle); cursor: pointer; }
+.tf-mini-grid, .tf-mini-dow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.tf-mini-dow span { font-size: 9px; color: var(--muted); text-align: center; font-weight: var(--fw-label); }
+.mc { aspect-ratio: 1; border: 0; padding: 0; border-radius: 6px; background: var(--surface-2); color: var(--fg); font-size: 10px; font-weight: var(--fw-ui); display: grid; place-items: center; position: relative; cursor: pointer; min-width: 0; }
+.mc.on { background: var(--c); color: var(--fg-c); }
+.mc.multi::after { content: ""; position: absolute; right: 2px; top: 2px; width: 4px; height: 4px; border-radius: 50%; background: var(--fg-c); }
+.mc.today { box-shadow: 0 0 0 2px var(--accent); }
+.mc.blank { background: transparent; pointer-events: none; }
+.tf-entry { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: var(--sh-in); }
+.tf-hrs { flex: none; min-width: 44px; text-align: right; }
+.tf-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: var(--sh-in); min-width: 0; }
+.tf-item .grow { min-width: 0; }
+.tf-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+.tf-kpis .kpi { border-radius: var(--r-lg); }
+.tf-kpis .kpi b { font-size: 26px; }
+.main[data-tab="cal"] .card { margin-top: 12px; }
+.tf-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tf-table th, .tf-table td { text-align: right; padding: 8px 4px; border-bottom: 1px solid var(--line); }
+.tf-table th { color: var(--muted); font-weight: var(--fw-label); }
+.tf-table th:first-child, .tf-table td:first-child { text-align: left; }
+.tf-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c); flex: none; }
+.tf-form { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tf-form .full { grid-column: 1 / -1; }
+.tf-form .input { min-width: 0; width: 100%; }
+input[type="color"].tf-swatch { width: 50px; height: 50px; border: 0; padding: 0; border-radius: 50%; background: none; cursor: pointer; }
+input[type="color"].tf-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"].tf-swatch::-webkit-color-swatch { border: 3px solid var(--surface-3); border-radius: 50%; }
+input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surface-3); border-radius: 50%; }
+.tf-rect { border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .22); padding: 14px; }
+.tf-special { position: relative; display: flex; flex-direction: column; gap: 10px; }
+.tf-special .tf-del { position: absolute; top: -8px; right: -8px; z-index: 1; }
+/* con la Edición rápida abierta hay que dejar sitio a la paleta, que flota sobre la barra de pestañas */
+.main[data-tab="cal"]:has(.tf-palette) { padding-bottom: calc(var(--nav-h) + var(--safe-b) + 110px); }
+@keyframes tfUp { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 520px) { .tf-cell .tf-tag .tn { display: none; } .tf-cell .tf-tag .ini { display: inline; } .tf-cell .tf-tag { text-align: center; } }
+@media (max-width: 420px) { .tf-cell { min-height: 66px; } .tf-cell .tf-tag { font-size: 10.5px; padding: 1px 5px; } .tf-form { grid-template-columns: 1fr; } }
