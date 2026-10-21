@@ -1,7 +1,7 @@
 /* KeepGoing — «Registrar»: leer el CSV de movimientos de un banco y convertirlo en movimientos de la Libreta (lógica pura, sin DOM).
    Por ahora entiende el formato de Trading 212. No deduce lo que no sabe: agrupa los movimientos por tipo y la app
    pregunta al usuario qué es cada tipo (gasto, ingreso o ignorar), en qué categoría va y si quiere agruparlos.
-   Los depósitos y las retiradas se ignoran siempre (son dinero que entra o sale de tu propia cuenta).
+   v1.22: los depósitos y las retiradas también se preguntan (ignorarlos o ponerles categoría), como cualquier otro tipo.
    Se usa en el navegador (window.KGBankCsv) y en los tests de Node (require). */
 (function (root, factory) {
   const api = factory();
@@ -52,7 +52,6 @@
     if (a === 'market sell' || a === 'limit sell' || a === 'stop sell') return 'sell';
     return 'other';
   }
-  const IGNORED = ['deposit', 'withdrawal'];
   const pad = n => String(n).padStart(2, '0');
   // «2026-10-01 18:55:13+00:00» (UTC) → fecha del día en la zona horaria del dispositivo
   function localDate(time) {
@@ -67,17 +66,16 @@
     return Number.isFinite(x) ? Math.round(Math.abs(x) * 100) : null;
   }
 
-  /* Lee el CSV. Devuelve { format, rows, ignored: { deposit, withdrawal }, bad } o { format: null } si no es un formato conocido.
+  /* Lee el CSV. Devuelve { format, rows, bad } o { format: null } si no es un formato conocido.
      Cada fila: { key, kind, action, date, cents, sign, currency, merchant, mcat, name } */
   function read(text) {
     const all = parseCsv(text), header = all[0] || [], format = detect(header);
-    if (!format) return { format: null, rows: [], ignored: { deposit: 0, withdrawal: 0 }, bad: 0 };
+    if (!format) return { format: null, rows: [], bad: 0 };
     const col = name => header.indexOf(name), get = (r, name) => { const i = col(name); return i >= 0 ? String(r[i] || '').trim() : ''; };
-    const rows = [], ignored = { deposit: 0, withdrawal: 0 }, seen = new Set();
+    const rows = [], seen = new Set();
     let bad = 0;
     for (const r of all.slice(1)) {
       const action = get(r, 'Action'), kind = kindOf(action), time = get(r, 'Time (UTC)');
-      if (IGNORED.includes(kind)) { ignored[kind]++; continue; }
       const date = localDate(time), c = cents(get(r, 'Total'));
       if (!date || c === null) { bad++; continue; }
       const total = Number(get(r, 'Total'));
@@ -88,7 +86,7 @@
       rows.push({ key, kind, action: action.slice(0, 60), date, cents: c, sign: total < 0 ? -1 : 1, currency: (get(r, 'Currency (Total)') || 'EUR').toUpperCase().slice(0, 3),
         merchant: get(r, 'Merchant name').slice(0, 80), mcat: get(r, 'Merchant category').slice(0, 40), name: (get(r, 'Name') || get(r, 'Ticker')).slice(0, 80) });
     }
-    return { format, rows, ignored, bad };
+    return { format, rows, bad };
   }
 
   /* Preguntas para el usuario: un grupo por tipo de movimiento (los pagos con tarjeta, uno por categoría del comercio;
@@ -152,5 +150,5 @@
     return { create: [...create, ...bucket.values()].sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0)), update: [...upd.values()], dup, skipped, unanswered };
   }
 
-  return { parseCsv, detect, kindOf, localDate, read, questions, currencies, plan, groupId, IGNORED };
+  return { parseCsv, detect, kindOf, localDate, read, questions, currencies, plan, groupId };
 });

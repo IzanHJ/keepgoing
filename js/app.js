@@ -197,6 +197,7 @@
       // v1.19: presupuestos mensuales (cifrados con la Libreta, un elemento por presupuesto)
       ledgerBudgets: [],
       ledgerProjs: [],
+      ledgerImports: [], // v1.22: registros de lo importado con «Registrar» (cifrados como el resto de la Libreta)
       // v1.20: Calendario de turnos (trabajos, plantillas, días, calendario externo y ajustes)
       calJobs: [], calShifts: [], calDays: {}, cdmt: {}, calExt: { list: [] }, cemt: {}, calPrefs: { weekStart: 1, alarms: false, hide: {} },
       // Fase 3 (v1.10): sonidos activados por defecto
@@ -210,7 +211,7 @@
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
   const ORDER_LISTS = ['projects', 'routines'];
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'calJobs', 'calShifts'];
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'calJobs', 'calShifts'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt']]; // hábito → día → valor
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt']];             // clave → valor
   function normalize(s) {
@@ -235,7 +236,7 @@
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'calJobs', 'calShifts']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'calJobs', 'calShifts']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.calDays = s.calDays && typeof s.calDays === 'object' && !Array.isArray(s.calDays) ? s.calDays : {};
     out.calExt = s.calExt && Array.isArray(s.calExt.list) ? s.calExt : { list: [] };
     const cp0 = s.calPrefs && typeof s.calPrefs === 'object' ? s.calPrefs : {};
@@ -3511,8 +3512,8 @@
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
   const VAULT = window.KGVault, DEV = window.KGVaultDevice;
-  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs']];
-  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs'], ['imports', 'ledgerImports']];
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
   const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
   const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
@@ -3551,7 +3552,7 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
   async function useKey(key, raw) { LV.key = key; LV.raw = raw; sessTried = ''; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
   // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
@@ -3874,7 +3875,7 @@
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
     // Herramientas de la Libreta: icono de línea con su nombre debajo (mismo estilo que la calculadora)
     const nRec = LV.recurring.filter(r => !r.archived).length;
-    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
+    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-imports', 'doc', 'rgsTitle', LV.imports.length], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
@@ -5108,7 +5109,7 @@
     return t('rgNote_' + e.kind) + (e.extGroup ? n : e.label ? ' · ' + e.label : '');
   }
   function openRegistrar() {
-    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {} };
+    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {}, file: '' };
     let wref;
     const cats = type => LV.cats.filter(c => !c.archived && (c.type === type || c.type === 'both'));
     const missing = () => {
@@ -5131,7 +5132,7 @@
       const d = S.data, miss = missing();
       const seg = (gid, key, opts, val) => `<div class="seg seg-sm" role="group">${opts.map(([v, k]) => `<button type="button" data-rg-set="${esc(gid)}" data-k="${key}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>`;
       box.innerHTML = `<div class="stack" style="gap:14px">
-        <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${d.ignored.deposit + d.ignored.withdrawal ? ' · ' + esc(t('rgIgnored', { d: d.ignored.deposit, w: d.ignored.withdrawal })) : ''}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
+        <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
         <p style="margin:0">${esc(t('rgAsk'))}</p>
         ${S.q.map(g => { const a = S.ans[g.id] || {}; return `<section class="rg-q clay">
           <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><b class="grow">${esc(rgKindName(g))}</b><span class="muted small" style="white-space:nowrap">${g.count} · ${money(g.cents / 100)}</span></div>
@@ -5157,7 +5158,7 @@
       const known = new Set(); for (const e of LV.entries) for (const k of e.extIds || []) known.add(k);
       const fresh = d.rows.filter(r => !known.has(r.key));
       S.dupN = d.rows.length - fresh.length;
-      S.data = d; S.rows = fresh; S.q = BCSV.questions(fresh); S.cur = BCSV.currencies(fresh); S.ans = {};
+      S.data = d; S.rows = fresh; S.file = String(f.name || '').slice(0, 120); S.q = BCSV.questions(fresh); S.cur = BCSV.currencies(fresh); S.ans = {};
       // Lo único que se sabe seguro: un pago con tarjeta es un gasto (la categoría la elige el usuario)
       for (const g of S.q) if (g.kind === 'card') S.ans[g.id] = { type: 'expense' };
       S.step = 'ask'; draw(); const sh = $('.sheet', wref); if (sh) sh.scrollTop = 0;
@@ -5184,11 +5185,67 @@
         if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
         if (missing()) return;
         const rates = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] === 'rate') rates[c] = S.rates[c];
-        const p = BCSV.plan(S.rows, S.ans, rates, LV.entries);
-        for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, ...(x.extGroup ? { extGroup: x.extGroup } : {}) });
+        const p = BCSV.plan(S.rows, S.ans, rates, LV.entries), importId = uid();
+        for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, importId, ...(x.extGroup ? { extGroup: x.extGroup } : {}) });
+        // v1.22: cada importación queda como un registro (fecha, hora y archivo) para poder revisarla, editarla o borrarla entera
+        if (p.create.length || p.update.length) LV.imports.push({ id: importId, at: Date.now(), file: S.file, format: S.data.format, n: p.create.length, updates: p.update.map(u => ({ id: u.id, addCents: u.addCents, addIds: u.addIds })) });
         for (const u of p.update) { const en = LV.entries.find(x => x.id === u.id); if (en) { en.amountCents += u.addCents; en.extIds = [...(en.extIds || []), ...u.addIds]; const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${+m[1] + u.addIds.length})`); } }
         ledgerSave(); close(); render(); sfx('money');
         toast(t('rgDone', { n: p.create.length, u: p.update.length }));
+      }
+    });
+  }
+
+  /* ---------- v1.22: «Registros» — lo importado con «Registrar», con su fecha y hora. Se puede revisar, editar o borrar entero ---------- */
+  const rgsWhen = r => new Date(r.at).toLocaleString(state.lang === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  // Borra lo que añadió una importación: sus movimientos y lo que sumó a movimientos agrupados de importaciones anteriores
+  function undoImport(rec) {
+    LV.entries = LV.entries.filter(e => e.importId !== rec.id);
+    for (const u of rec.updates || []) {
+      const en = LV.entries.find(x => x.id === u.id); if (!en) continue;
+      const ids = new Set(u.addIds || []);
+      en.extIds = (en.extIds || []).filter(k => !ids.has(k));
+      en.amountCents -= u.addCents || 0;
+      const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${Math.max(1, +m[1] - ids.size)})`);
+      if (en.amountCents <= 0 || !en.extIds.length) LV.entries = LV.entries.filter(x => x !== en);
+    }
+    LV.imports = LV.imports.filter(x => x.id !== rec.id);
+  }
+  function openRegistros() {
+    let wref, sel = null;
+    const draw = () => {
+      const box = $('#rgs', wref); if (!box) return;
+      const list = [...LV.imports].sort((a, b) => b.at - a.at), rec = sel && LV.imports.find(x => x.id === sel);
+      if (!rec) {
+        sel = null;
+        box.innerHTML = list.length ? `<p class="muted small" style="margin-top:0">${esc(t('rgsIntro'))}</p><div class="stack" style="gap:10px">${list.map(r => { const n = LV.entries.filter(e => e.importId === r.id).length; return `<button class="create-opt clay" data-rgs-open="${esc(r.id)}"><span class="tool-ico">${ico('doc')}</span><span class="grow"><b>${esc(rgsWhen(r))}</b><br><span class="muted small">${esc(r.file || 'CSV')} · ${esc(t('rgsEntries', { n }))}${(r.updates || []).length ? ' · ' + esc(t('rgsUpdated', { n: r.updates.length })) : ''}</span></span>${ico('right')}</button>`; }).join('')}</div>`
+          : `<div class="center" style="padding:20px 0"><span class="tool-ico" style="margin:0 auto 10px">${ico('doc')}</span><p class="muted">${esc(t('rgsEmpty'))}</p><button class="btn primary" data-rgs="new">${ico('upload')} ${esc(t('rgTitle'))}</button></div>`;
+        return;
+      }
+      const es = LV.entries.filter(e => e.importId === rec.id).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)), tot = LED.totals(es);
+      box.innerHTML = `<div class="stack" style="gap:12px"><button class="chip" data-rgs="list" style="align-self:flex-start">${ico('left')} ${esc(t('rgsTitle'))}</button>
+        <div><b>${esc(rgsWhen(rec))}</b><div class="muted small">${esc(rec.file || 'CSV')}</div></div>
+        <div class="kpis ls-kpis" style="margin:0"><div class="kpi clay"><b>${es.length}</b><span>${esc(t('evEntries'))}</span></div><div class="kpi clay"><b class="amt-in">${privacyOn() ? '•••' : cents(tot.income)}</b><span>${esc(t('ledgerIncome'))}</span></div><div class="kpi clay"><b class="amt-out">${privacyOn() ? '•••' : cents(tot.expense)}</b><span>${esc(t('ledgerExpense'))}</span></div></div>
+        ${(rec.updates || []).length ? `<p class="muted small" style="margin:0">${esc(t('rgsUpdatedHint', { n: rec.updates.length }))}</p>` : ''}
+        ${es.length ? `<p class="muted small" style="margin:0">${esc(t('rgsEditHint'))}</p><ul class="ledger-list">${es.map(e => `<li>${entryRow(e, true)}</li>`).join('')}</ul>` : `<p class="muted small">${esc(t('rgsNoEntries'))}</p>`}
+        <button class="btn danger-text block" data-rgs="del">${ico('trash')} ${esc(t('rgsDelAll'))}</button></div>`;
+    };
+    openModal({
+      title: `${ico('doc')} ${esc(t('rgsTitle'))}`, cls: 'wide', body: '<div id="rgs"></div>',
+      onMount: w => { wref = w; draw(); },
+      onClick: async (e, close) => {
+        if (swipeClick(e, close, draw)) return;
+        let el;
+        if ((el = e.target.closest('[data-rgs-open]'))) { sel = el.dataset.rgsOpen; draw(); const sh = $('.sheet', wref); if (sh) sh.scrollTop = 0; return; }
+        if (!(el = e.target.closest('[data-rgs]'))) return;
+        const a = el.dataset.rgs;
+        if (a === 'list') { sel = null; draw(); return; }
+        if (a === 'new') { close(); openRegistrar(); return; }
+        if (a === 'del') {
+          const rec = LV.imports.find(x => x.id === sel); if (!rec) return;
+          if (!(await confirmDialog(t('rgsDelQ', { when: rgsWhen(rec) })))) return;
+          undoImport(rec); ledgerSave(); sel = null; draw(); render(); sfx('undo'); toast(t('rgsDeleted'));
+        }
       }
     });
   }
@@ -8158,6 +8215,7 @@
       case 'ledger-events': openLedgerEvents(); break;
       case 'ledger-budget': openBudgets(); break;
       case 'ledger-import': if (ledgerOpen()) openRegistrar(); break;
+      case 'ledger-imports': if (ledgerOpen()) openRegistros(); break;
       case 'ledger-share': openLedgerShare(); break;
       case 'profile': openProfile(); break;
       case 'cview': state.ui.chatView = a.dataset.v; save(); render(); break;

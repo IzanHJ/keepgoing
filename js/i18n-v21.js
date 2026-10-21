@@ -1,6 +1,14 @@
 /* KeepGoing — textos de la v1.21: «Registrar» (importar el CSV del banco) (ES / EN) */
 (function () {
   const es = {
+    rgsTitle: 'Registros', rgsIntro: 'Cada vez que importas un CSV con «Registrar» queda aquí un registro con su fecha y hora. Ábrelo para revisar, editar o borrar todo lo que añadió.',
+    rgsEmpty: 'Aún no has importado ningún CSV.', rgsEntries: '{n} movimientos', rgsUpdated: '{n} agrupados ampliados',
+    rgsUpdatedHint: 'Además sumó importes a {n} movimientos agrupados de importaciones anteriores. Si borras este registro, también se restan.',
+    rgsEditHint: 'Toca un movimiento para editarlo, o deslízalo a la izquierda para borrarlo.', rgsNoEntries: 'Ya no queda ningún movimiento de este registro.',
+    rgsDelAll: 'Borrar todo lo de este registro', rgsDelQ: '¿Borrar todos los movimientos importados el {when}? No se puede deshacer.', rgsDeleted: 'Registro borrado',
+    rgKind_deposit: 'Depósitos', rgKind_withdrawal: 'Retiradas',
+    rgHint_deposit: 'Dinero que has metido en la cuenta. Ignóralo si solo lo mueves desde otra cuenta tuya, o ponle categoría si quieres apuntarlo.',
+    rgHint_withdrawal: 'Dinero que has sacado de la cuenta. Ignóralo si solo lo mueves a otra cuenta tuya, o ponle categoría si quieres apuntarlo.',
     hideCal: 'Ocultar el calendario', hideCalHint: 'No se muestra el calendario del mes en la tarjeta de este hábito. Tus registros no se borran.', hideCalHintP: 'No se muestra el calendario del mes en este proyecto. Tus registros no se borran.',
     gSpecHabit: 'El hábito en detalle', gSpecProject: 'El proyecto en detalle',
     pack_hogar: 'Hogar', pack_social: 'Social',
@@ -62,6 +70,14 @@
     rgNote_interest: 'Intereses', rgNote_cashback: 'Cashback', rgNote_dividend: 'Dividendo', rgNote_buy: 'Compra', rgNote_sell: 'Venta', rgNote_cardCredit: 'Devolución'
   };
   const en = {
+    rgsTitle: 'Imports', rgsIntro: 'Each time you import a CSV with “Import”, a record with its date and time is kept here. Open it to review, edit or delete everything it added.',
+    rgsEmpty: 'You have not imported any CSV yet.', rgsEntries: '{n} entries', rgsUpdated: '{n} grouped entries extended',
+    rgsUpdatedHint: 'It also added amounts to {n} grouped entries from earlier imports. If you delete this record, those are subtracted too.',
+    rgsEditHint: 'Tap an entry to edit it, or swipe it left to delete it.', rgsNoEntries: 'No entries from this record are left.',
+    rgsDelAll: 'Delete everything from this record', rgsDelQ: 'Delete all entries imported on {when}? This cannot be undone.', rgsDeleted: 'Record deleted',
+    rgKind_deposit: 'Deposits', rgKind_withdrawal: 'Withdrawals',
+    rgHint_deposit: 'Money you put into the account. Ignore it if you only moved it from another account of yours, or pick a category to log it.',
+    rgHint_withdrawal: 'Money you took out of the account. Ignore it if you only moved it to another account of yours, or pick a category to log it.',
     hideCal: 'Hide the calendar', hideCalHint: 'The month calendar is not shown on this habit card. Your records are kept.', hideCalHintP: 'The month calendar is not shown on this project. Your records are kept.',
     gSpecHabit: 'The habit in detail', gSpecProject: 'The project in detail',
     pack_hogar: 'Home', pack_social: 'Social',
@@ -93,7 +109,7 @@
     obLed6T: 'Share', obLed6: 'Share your ledger or projections with friends, encrypted and view-only.',
     obLedWhere: 'It lives in the Ledger tab. The first time it asks you to create a password.',
     obDemoM: 'M', obDemoT: 'A', obDemoN: 'N', obDemoL: 'O',
-    rgTitle: 'Import',
+    rgTitle: 'Import CSV',
     rgIntro: 'Any bank or neobank app lets you download a summary of all your transactions as a CSV file. Upload it here and KeepGoing turns it into entries in your Ledger.',
     rgStep1: 'Open your bank app and go to your transactions or history.',
     rgStep2: 'Look for “Export”, “Download” or “Statement” and choose CSV.',

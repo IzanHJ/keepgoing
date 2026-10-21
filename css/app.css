@@ -1731,7 +1731,7 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 .rg-q .seg { width: 100%; }
 /* v1.21: siete herramientas en la Libreta (con «Registrar»): 4 por fila en el móvil, todas en una fila en pantallas anchas */
 .ledger-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 12px; }
-@media (min-width: 640px) { .ledger-tools { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+@media (min-width: 640px) { .ledger-tools { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
 @media (max-width: 360px) { .ledger-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); } .tool-ico { width: 46px; height: 46px; } }
 .tool-lbl { overflow-wrap: normal; hyphens: auto; }
 /* Pasos del registro que explican el Calendario y la Libreta */

@@ -28,11 +28,12 @@ test('detect: reconoce Trading 212 y rechaza otros', () => {
   assert.strictEqual(B.read('Fecha,Concepto,Importe\n2026-01-01,Pan,-1').format, null);
 });
 
-test('read: ignora depósitos y retiradas y saca céntimos en positivo con su signo', () => {
+test('read: depósitos y retiradas se leen (se preguntan) y los céntimos van en positivo con su signo', () => {
   const r = B.read(CSV);
   assert.strictEqual(r.format, 't212');
-  assert.deepStrictEqual(r.ignored, { deposit: 1, withdrawal: 1 });
-  assert.strictEqual(r.rows.length, 10);
+  assert.strictEqual(r.rows.length, 12);
+  const w = r.rows.find(x => x.key === 'w1');
+  assert.strictEqual(w.kind, 'withdrawal'); assert.strictEqual(w.sign, -1); assert.strictEqual(w.cents, 1000);
   const k1 = r.rows.find(x => x.key === 'k1');
   assert.strictEqual(k1.cents, 1278); assert.strictEqual(k1.sign, -1); assert.strictEqual(k1.kind, 'card'); assert.strictEqual(k1.merchant, 'HD TRIANA');
   const div = r.rows.find(x => x.kind === 'dividend');
@@ -43,7 +44,7 @@ test('read: ignora depósitos y retiradas y saca céntimos en positivo con su si
 test('questions: un grupo por tipo y por categoría de comercio; monedas distintas del euro', () => {
   const r = B.read(CSV), q = B.questions(r.rows);
   const ids = q.map(g => g.id).sort();
-  assert.deepStrictEqual(ids, ['buy', 'card:RETAIL_STORES', 'cardCredit', 'cashback', 'dividend', 'interest', 'other:Stock split']);
+  assert.deepStrictEqual(ids, ['buy', 'card:RETAIL_STORES', 'cardCredit', 'cashback', 'deposit', 'dividend', 'interest', 'other:Stock split', 'withdrawal']);
   const card = q.find(g => g.id === 'card:RETAIL_STORES');
   assert.strictEqual(card.count, 2); assert.strictEqual(card.cents, 23877); assert.deepStrictEqual(card.sample, ['HD TRIANA', 'HiperDino']);
   assert.deepStrictEqual(B.currencies(r.rows), { GBP: 1 });
@@ -59,7 +60,7 @@ test('plan: sin respuesta no se importa; ignorar; agrupar por mes; convertir mon
     dividend: { type: 'income', categoryId: 'extra', group: 'none' }
   };
   const p = B.plan(r.rows, answers, { GBP: 1.2 }, []);
-  assert.strictEqual(p.unanswered, 2); // compra y «Stock split» sin responder
+  assert.strictEqual(p.unanswered, 4); // compra, «Stock split», depósito y retirada sin responder
   assert.strictEqual(p.skipped, 1);
   const g = p.create.find(e => e.extGroup);
   assert.strictEqual(g.amountCents, 12 + 6 + 11); // 0,05 GBP × 1,2 = 0,06 €
@@ -79,4 +80,12 @@ test('plan: sin tasa, la otra moneda se ignora; reimportar no duplica y amplía 
   assert.strictEqual(second.create.length, 0);
   assert.deepStrictEqual(second.update, [{ id: existing.find(e => e.extGroup).id, addCents: 11, addIds: ['i3'] }]);
   assert.strictEqual(second.dup, 3);
+});
+
+test('plan: un depósito se puede ignorar o apuntar como ingreso', () => {
+  const r = B.read(CSV);
+  const p1 = B.plan(r.rows, { deposit: { type: 'skip' }, withdrawal: { type: 'skip' } }, {}, []);
+  assert.strictEqual(p1.skipped, 2); assert.strictEqual(p1.create.length, 0);
+  const p2 = B.plan(r.rows, { deposit: { type: 'income', categoryId: 'salary', group: 'none' } }, {}, []);
+  assert.deepStrictEqual(p2.create.map(e => [e.type, e.amountCents, e.categoryId]), [['income', 5000, 'salary']]);
 });
