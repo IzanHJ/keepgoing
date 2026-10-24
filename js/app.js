@@ -596,7 +596,7 @@
     else sfx('tap');
     const gain = day.cpts - snap.day.cpts;
     if (gain > 1e-9) setTimeout(() => { pointsPop(gain); if (!(lvl > snap.lvl) && !(day.perfect && !snap.day.perfect) && !(done && !snap.done)) sfx('points'); }, 120);
-    if (lvl > snap.lvl) setTimeout(() => toast(t('levelUpToast', { n: lvl, title: levelTitle(lvl) })), 200);
+    if (lvl > snap.lvl) setTimeout(() => { toast(t('levelUpToast', { n: lvl, title: levelTitle(lvl) })); const k = PETS.KINDS.find(x => PET_LEVEL[x] > snap.lvl && PET_LEVEL[x] <= lvl); if (k) setTimeout(() => toast(t('petUnlocked_' + k)), 2600); }, 200);
   }
   // «+2,5 pts» que sube junto a la insignia de nivel
   function pointsPop(n) {
@@ -3156,7 +3156,7 @@
         <h4>${esc(t('helpLinks'))}</h4>${list('help_' + k + '_links')}</div></details>`).join('')}</div>`;
   }
   // Novedades: para quien ya usaba la app, una vez por versión y dispositivo. Cada línea es «título|detalle».
-  const SEEN_KEY = 'keepgoing.seenVersion', WN = { '1.22.0': 8, '1.23.0': 10 };
+  const SEEN_KEY = 'keepgoing.seenVersion', WN = { '1.22.0': 8, '1.23.0': 10, '1.23.1': 3 };
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   function openWhatsNew() {
     const n = WN[VERSION] || 0; if (!n) return;
@@ -3521,7 +3521,7 @@
           if (nt) { state.prompts[nt] = { ...(state.prompts[nt] || {}), note: e.target.value.trim() }; save(); toast(t('saved')); }
           if (e.target.dataset && e.target.dataset.ntf) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntf]: e.target.checked }; const at = e.target.closest('.ntf-row').querySelector('[data-ntf-at]'); if (at) at.disabled = !e.target.checked; save(); toast(t(e.target.checked ? 'ntfOn' : 'ntfOff')); }
           if (e.target.dataset && e.target.dataset.ntfAt && /^\d{2}:\d{2}$/.test(e.target.value)) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntfAt]: e.target.value }; save(); toast(t('saved')); }
-          if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); toast(t('saved')); }
+          if (e.target.id === 'pet-name') { petSetName(e.target.value); toast(t('saved')); }
           if (e.target.closest && e.target.closest('#st-priv')) privacyChange(e, w);
           if (e.target.matches && e.target.matches('[data-s-sound]')) { state.soundOn = e.target.checked; save(); if (state.soundOn) sfx('toggle'); toast(t(state.soundOn ? 'soundOnToast' : 'soundOffToast')); }
           if (e.target.matches && e.target.matches('[data-s-motion]')) setFlip(e.target.checked);
@@ -4723,7 +4723,7 @@
     let html = topBar(calcTopActions(true));
     html += `<div class="calc-head"><button class="icon-btn sm" data-act="calc-close" aria-label="${esc(t('calcBack'))}" title="${esc(t('calcBack'))}">${ico('left')}</button><div class="grow"><h1 class="calc-title">${esc(t('calcTitle'))}</h1><p class="muted small">${esc(t('calcSub'))}</p></div></div>`;
     if (!LV.calc.length && !state.ui.calcLegacyDone && calcLegacyRaw()) html += `<div class="banner clay">${ico('calc')}<span class="grow small">${esc(t('calcLegacyFound'))}</span><button class="chip sm" data-calc="legacy">${esc(t('calcLegacyImport'))}</button></div>`;
-    html += `<section class="calc-hub clay" aria-label="${esc(t('calcTitle'))}">${[['start', 'calcStart', 'compass'], ['modules', 'calcModules', 'puzzle'], ['time', 'calcTime', 'timer'], ['projections', 'calcProjections', 'folder'], ['reset', 'calcReset', 'refresh'], ['pdf', 'calcShare', 'share']].map(([k, l, i]) => `<button class="chip" data-calc="${k}">${ico(i)} ${esc(t(l))}</button>`).join('')}</section>`;
+    html += `<section class="calc-hub clay" aria-label="${esc(t('calcTitle'))}">${[['start', 'calcStart', 'compass'], ['modules', 'calcModules', 'puzzle'], ['time', 'calcTime', 'timer'], ['projections', 'calcProjections', 'folder'], ['reset', 'calcReset', 'refresh'], ['pdf', 'calcShare', 'share']].map(([k, l, i]) => `<button class="chip" data-calc="${k}">${ico(i)} ${esc(t(l))}</button>`).join('')}<button class="chip calc-pace" data-calc="pace">${ico('trend')} ${esc(t('paceBtn'))}</button></section>`;
     // Patrimonio proyectado y Proyección
     // La primera vez que aparece el cashback invertido o los redondeos, su métrica se muestra sola (luego se quita o pone desde «Ver»)
     for (const k of ['cbInvest', 'roundup']) if (calcMetricOn(res, k) && !u.seen.includes(k)) { u.seen.push(k); if (!u.metrics.includes(k)) u.metrics.push(k); save(); }
@@ -4772,6 +4772,7 @@
       case 'reset': openCalcReset(); break;
       case 'pdf': openCalcPdf(); break;
       case 'projections': openProjections(); break;
+      case 'pace': paceProjection(); break;
       case 'view': openCalcView(); break;
       case 'mode': u.mode = u.mode === 'investments' ? 'patrimony' : 'investments'; save(); render(); break;
       case 'graph': u.hideGraph = !u.hideGraph; save(); render(); break;
@@ -5293,6 +5294,25 @@
      en una proyección compartida, se vuelve a cifrar para cada amigo y ven siempre la última versión. */
   const PROJ = { list: null, busy: false };
   const projSnap = () => JSON.parse(JSON.stringify(LV.calc.filter(x => x.kind !== 'preset')));
+  /* v1.23.1: «Proyección según Ritmo Actual». Se guarda como proyección nueva (la calculadora no cambia): parte del Patrimonio
+     actual de hoy y del ritmo medio de los últimos 3 meses (ingresos, gastos y lo invertido al mes como aportación periódica).
+     De la calculadora se conservan los destinos de inversión, el interés de la cuenta, el techo de liquidez y el horizonte. */
+  function paceProjection() {
+    const d = worthData(), n = d.now, pc = d.pace, items = projSnap(), KEEP = ['savings', 'liquidityCap'];
+    if (!LV.entries.length) { toast(t('paceNoData')); return; }
+    const out = items.filter(x => x.kind === 'inv' || (x.kind === 'applied' && KEEP.includes(x.type)));
+    const st = { ...(items.find(x => x.kind === 'start') || calcData().model.start), id: CALC.START_ID, kind: 'start' };
+    Object.assign(st, { digital: Math.max(0, n.digital) / 100, cash: Math.max(0, n.cash) / 100, salary: pc.income / 100, expenses: pc.expenses / 100, date: todayKey() }); delete st.cur;
+    out.push(st);
+    let ord = out.reduce((m, x) => Math.max(m, x.ord || 0), 0) + 1, inv = out.find(x => x.kind === 'inv');
+    if (!inv && (n.invested > 0 || pc.invest > 0)) { inv = { id: uid(), kind: 'inv', name: t('woFundName'), rate: 0, accumulative: true, ord: ord++ }; out.push(inv); }
+    if (n.invested > 0) out.push({ id: 'led-fund', kind: 'fund', name: t('woFundName'), amount: n.invested / 100, target: inv.id, ord: ord++ });
+    if (pc.invest > 0) out.push({ id: uid(), kind: 'applied', type: 'periodic', name: t('paceInvestName'), values: { target: inv.id, amount: pc.invest / 100, frequency: 'monthly', timing: 'end' }, ord: ord++ });
+    const name = t('paceProjName', { d: fmtDate(todayKey(), { day: 'numeric', month: 'short', year: 'numeric' }) }).slice(0, 60);
+    LV.projs.push({ id: uid(), name, items: out, at: Date.now() }); save(); ledgerSave(); sfx('pop');
+    toast(t('paceSaved', { name }) + (inv && !inv.rate ? ' ' + t('paceNoRate') : ''));
+    openProjections();
+  }
   const projKey = items => JSON.stringify([...items].sort((a, b) => String(a.id).localeCompare(String(b.id))));
   const projDirty = p => projKey(p.items || []) !== projKey(projSnap());
   async function projRefresh() {
@@ -7081,7 +7101,23 @@
   const PETS = window.KGPets;
   const safeImg = s => typeof s === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(s) ? s : '';
   const PET_EMOJI = { cat: '🐈', dog: '🐕', cockatiel: '🐦' };
-  const petOf = () => { const p = { kind: 'cat', name: '', fur: true, ...(state.pet || {}) }; if (!PETS.KINDS.includes(p.kind)) p.kind = 'cat'; if (!Array.isArray(p.colors) || !p.colors.length) p.colors = PETS.defaults(p.kind); return p; };
+  /* v1.23.1: cada mascota tiene su nombre (pet.names[kind], con uno por defecto) y su aspecto (pet.looks[kind]).
+     El perro se desbloquea en el nivel 5 y la ninfa en el 8; quien ya la tenía antes la conserva (pet.keep). */
+  const PET_LEVEL = { cat: 0, dog: 5, cockatiel: 8 };
+  function petOf() {
+    // Sin tocar state.pet (solo se guarda cuando el usuario cambia algo): las mascotas de antes de la v1.23.1 se leen igual
+    const s = state.pet && typeof state.pet === 'object' ? state.pet : {};
+    const names = s.names && typeof s.names === 'object' ? { ...s.names } : s.name ? { [PETS.KINDS.includes(s.kind) ? s.kind : 'cat']: s.name } : {};
+    const keep = Array.isArray(s.keep) ? [...s.keep] : PETS.KINDS.includes(s.kind) && s.kind !== 'cat' ? [s.kind] : [];
+    const p = { kind: 'cat', fur: true, ...s, names, looks: { ...(s.looks || {}) }, keep };
+    if (!PETS.KINDS.includes(p.kind) || !petUnlocked(p.kind, p)) { p.kind = 'cat'; Object.assign(p, { fur: true, colors: null }, p.looks.cat || {}); }
+    if (!Array.isArray(p.colors) || !p.colors.length) p.colors = PETS.defaults(p.kind);
+    p.name = p.names[p.kind] || '';
+    return p;
+  }
+  const petUnlocked = (k, p = state.pet || {}) => k === 'cat' || levelInfo().level >= (PET_LEVEL[k] || 0) || (Array.isArray(p.keep) ? p.keep.includes(k) : p.kind === k);
+  const petName = (p = petOf()) => p.name || t('petName_' + p.kind);
+  function petSetName(v) { const p = petOf(); p.names[p.kind] = String(v || '').trim().slice(0, 20); p.name = p.names[p.kind]; state.pet = p; save(); }
   const catSvg = (pet, mood = 'neutral', size = 120) => PETS.svg(pet, mood, size);
   function petMood() {
     const today = todayKey(), hour = new Date().getHours(), di = dayInfo(today);
@@ -7119,8 +7155,8 @@
   let petIdx = 0;
   function petCardHtml() {
     const pet = petOf(), msgs = petMessages(), msg = msgs[petIdx % msgs.length];
-    return `<div class="pet-card clay" data-w="pet"><button class="pet-btn" data-act="pet" aria-label="${esc(pet.name || t('petDefaultName'))}">${catSvg(pet, petMood(), 96)}</button>
-      <div class="bubble grow"><b>${esc(pet.name || t('petDefaultName'))}</b><span id="pet-msg">${esc(msg)}</span></div>
+    return `<div class="pet-card clay" data-w="pet"><button class="pet-btn" data-act="pet" aria-label="${esc(petName(pet))}">${catSvg(pet, petMood(), 96)}</button>
+      <div class="bubble grow"><b>${esc(petName(pet))}</b><span id="pet-msg">${esc(msg)}</span></div>
       <button class="icon-btn sm pet-edit" data-act="pet-edit" aria-label="${esc(t('petCustomize'))}" title="${esc(t('petCustomize'))}">${ico('edit')}</button></div>`;
   }
   // Personalizar la mascota (solo desde su tarjeta en la vista Hoy)
@@ -7128,15 +7164,16 @@
     openModal({
       title: `${PET_EMOJI[petOf().kind]} ${esc(t('petTitle'))}`, cls: 'wide',
       body: `<div id="st-pet">${petSettingsHtml()}</div>`,
-      onMount: w => w.addEventListener('change', e => { if (e.target.id === 'pet-name') { state.pet = { ...petOf(), name: e.target.value.trim() }; save(); render(); toast(t('saved')); } }),
+      onMount: w => w.addEventListener('change', e => { if (e.target.id === 'pet-name') { petSetName(e.target.value); render(); toast(t('saved')); } }),
       onClick: (e, close, w) => { if (petSettingsClick(e, w)) render(); }
     });
   }
   function petSettingsHtml() {
     const pet = petOf();
     return `<div class="pet-settings"><div class="pet-preview">${catSvg(pet, 'happy', 120)}</div><div class="stack grow" style="gap:12px;min-width:200px">
-      <label class="field"><span>${esc(t('petName'))}</span><input class="input" id="pet-name" maxlength="20" value="${esc(pet.name)}" placeholder="${esc(t('petDefaultName'))}"></label>
-      <div class="field"><span>${esc(t('petKind'))}</span><div class="seg">${PETS.KINDS.map(k => `<button data-pet-kind="${k}" class="${pet.kind === k ? 'on' : ''}">${PET_EMOJI[k]} ${esc(t('petKind_' + k))}</button>`).join('')}</div></div>
+      <label class="field"><span>${esc(t('petName'))}</span><input class="input" id="pet-name" maxlength="20" value="${esc(pet.name)}" placeholder="${esc(t('petName_' + pet.kind))}"></label>
+      <div class="field"><span>${esc(t('petKind'))}</span><div class="seg">${PETS.KINDS.map(k => petUnlocked(k) ? `<button data-pet-kind="${k}" class="${pet.kind === k ? 'on' : ''}">${PET_EMOJI[k]} ${esc(t('petKind_' + k))}</button>` : `<button data-pet-kind="${k}" class="locked" aria-disabled="true" title="${esc(t('petLockedAt', { n: PET_LEVEL[k] }))}">${ico('lock', 'xs')} ${esc(t('petKind_' + k))} <span class="muted small">${esc(t('petLevelN', { n: PET_LEVEL[k] }))}</span></button>`).join('')}</div>
+        <span class="muted small">${esc(t('petNamesHint'))}</span></div>
       ${pet.kind === 'cockatiel' ? '' : `<div class="field"><span>${esc(t(pet.kind === 'dog' ? 'petEars' : 'petFur'))}</span><div class="seg"><button data-pet-fur="1" class="${pet.fur ? 'on' : ''}">${esc(t(pet.kind === 'dog' ? 'petLongEars' : 'petWithFur'))}</button><button data-pet-fur="0" class="${pet.fur ? '' : 'on'}">${esc(t(pet.kind === 'dog' ? 'petShortHair' : 'petHairless'))}</button></div></div>`}
       <div class="field"><span>${esc(t('petColors'))}</span>
         ${PETS.palettes(pet.kind).map((slot, i) => `<div class="swatches" style="margin-top:8px"><span class="small muted" style="width:78px">${esc(t('petSlot_' + slot.key))}</span>${i ? `<button class="sw auto ${pet.colors[i] ? '' : 'on'}" data-pet-c="${i}:" title="${esc(t('petAuto'))}" aria-label="${esc(t('petAuto'))}">∅</button>` : ''}${slot.options.filter(([, hex]) => hex).map(([k, hex]) => `<button class="sw ${pet.colors[i] === hex ? 'on' : ''}" data-pet-c="${i}:${hex}" style="--c:${hex}" title="${esc(t('pc_' + k))}" aria-label="${esc(t('pc_' + k))}"></button>`).join('')}</div>`).join('')}</div>
@@ -7144,10 +7181,15 @@
   }
   function petSettingsClick(e, root) {
     let el; const pet = petOf();
-    if ((el = e.target.closest('[data-pet-kind]'))) { if (pet.kind !== el.dataset.petKind) { pet.kind = el.dataset.petKind; pet.colors = PETS.defaults(pet.kind); pet.fur = true; } }
+    if ((el = e.target.closest('[data-pet-kind]'))) {
+      const k = el.dataset.petKind;
+      if (!petUnlocked(k)) { toast(t('petLockedAt', { n: PET_LEVEL[k] })); return true; }
+      if (pet.kind !== k) { pet.looks[pet.kind] = { fur: pet.fur, colors: pet.colors }; Object.assign(pet, { kind: k, fur: true, colors: PETS.defaults(k) }, pet.looks[k] || {}); pet.name = pet.names[k] || ''; }
+    }
     else if ((el = e.target.closest('[data-pet-fur]'))) pet.fur = el.dataset.petFur === '1';
     else if ((el = e.target.closest('[data-pet-c]'))) { const [i, hex] = el.dataset.petC.split(':'); while (pet.colors.length <= +i) pet.colors.push(''); pet.colors[+i] = hex || (pet.kind === 'cockatiel' && +i === 2 ? 'none' : ''); while (pet.colors.length > 1 && !pet.colors[pet.colors.length - 1]) pet.colors.pop(); }
     else return false;
+    pet.looks[pet.kind] = { fur: pet.fur, colors: pet.colors };
     state.pet = pet; save(); $('#st-pet', root).innerHTML = petSettingsHtml(); return true;
   }
 
