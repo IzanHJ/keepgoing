@@ -1,6 +1,6 @@
 /* KeepGoing — «Patrimonio actual» de la Libreta (v1.23): lógica pura, sin DOM.
-   Parte del punto de partida real de la Libreta (saldos al empezar un día: cuenta digital, efectivo e invertido) y le suma
-   los movimientos desde ese día. Un gasto o un ingreso en efectivo mueve el efectivo; el resto, la cuenta digital.
+   Parte del punto de partida real de la Libreta (saldos al final de un día: cuenta digital, efectivo e invertido, que ya
+   incluyen lo apuntado hasta ese día) y le suma los movimientos posteriores. Sin punto de partida, cuenta desde 0 con todo. Un gasto o un ingreso en efectivo mueve el efectivo; el resto, la cuenta digital.
    Una inversión saca el dinero de la cuenta (o del efectivo) y lo pasa a invertido: el patrimonio no cambia.
    Importes en céntimos. Se usa en el navegador (window.KGWorth) y en los tests de Node (require). */
 (function (root, factory) {
@@ -30,7 +30,8 @@
   function series(saved, entries, today) {
     const b = baseOf(saved, entries, today), byDay = new Map();
     for (const e of entries || []) {
-      if (!isKey(e.date) || e.date < b.date || e.date > today) continue;
+      // v1.23.1: los saldos reales son los del final de ese día, así que lo apuntado hasta ese día ya va incluido
+      if (!isKey(e.date) || (b.set ? e.date <= b.date : e.date < b.date) || e.date > today) continue;
       (byDay.get(e.date) || byDay.set(e.date, []).get(e.date)).push(e);
     }
     const rows = [], inv = {};

@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.23.0';
+  const VERSION = '1.23.1';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -4456,9 +4456,9 @@
     }
     save(); render(); return true;
   }
-  // Punto de partida de la Libreta: lo que tenías de verdad al empezar un día
+  // Punto de partida de la Libreta: lo que tenías de verdad al final de un día (ya incluye lo apuntado hasta ese día)
   function openWorthStart() {
-    const b = worthBase() || { id: 'worth', date: LED.span(LV.entries)?.from || todayKey(), digital: 0, cash: 0, invested: 0 };
+    const b = worthBase() || { id: 'worth', date: todayKey(), digital: 0, cash: 0, invested: 0 };
     const val = c => c ? esc(fmtPctIn(c / 100)) : '';
     openModal({
       title: calcHead(t('woEyebrow'), t('woBaseTitle')), cls: 'calc-sheet',
