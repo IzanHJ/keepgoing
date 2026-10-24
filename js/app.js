@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.23.1';
+  const VERSION = '1.23.2';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -3156,7 +3156,7 @@
         <h4>${esc(t('helpLinks'))}</h4>${list('help_' + k + '_links')}</div></details>`).join('')}</div>`;
   }
   // Novedades: para quien ya usaba la app, una vez por versión y dispositivo. Cada línea es «título|detalle».
-  const SEEN_KEY = 'keepgoing.seenVersion', WN = { '1.22.0': 8, '1.23.0': 10, '1.23.1': 3 };
+  const SEEN_KEY = 'keepgoing.seenVersion', WN = { '1.22.0': 8, '1.23.0': 10, '1.23.2': 3 };
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   function openWhatsNew() {
     const n = WN[VERSION] || 0; if (!n) return;

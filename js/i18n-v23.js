@@ -96,9 +96,9 @@
     paceSaved: 'Guardada «{name}» en Proyecciones. Tu calculadora no ha cambiado.', paceNoRate: 'Ponle la rentabilidad a su inversión al aplicarla.',
     paceNoData: 'Apunta movimientos en la Libreta para calcular tu ritmo.'
 ,
-    wn_1_23_1_1: 'Saldos reales sin contar dos veces|El punto de partida de «Patrimonio actual» es lo que tienes al final del día que elijas (por defecto hoy). Lo apuntado hasta ese día ya va incluido y solo suman los movimientos siguientes.',
-    wn_1_23_1_2: 'Proyección según Ritmo Actual|En la Calculadora, este botón guarda una proyección nueva con tu patrimonio real de hoy y tu ritmo de los últimos 3 meses (ingresos, gastos e inversión mensual). Tu calculadora no cambia.',
-    wn_1_23_1_3: 'Mascotas con nombre propio|Cada mascota tiene su nombre y su aspecto. El perro se desbloquea en el nivel 5 y la ninfa en el 8 (si ya la tenías, la conservas).'
+    wn_1_23_2_1: 'Saldos reales sin contar dos veces|El punto de partida de «Patrimonio actual» es lo que tienes al final del día que elijas (por defecto hoy). Lo apuntado hasta ese día ya va incluido y solo suman los movimientos siguientes.',
+    wn_1_23_2_2: 'Proyección según Ritmo Actual|En la Calculadora, este botón guarda una proyección nueva con tu patrimonio real de hoy y tu ritmo de los últimos 3 meses (ingresos, gastos e inversión mensual). Tu calculadora no cambia.',
+    wn_1_23_2_3: 'Mascotas con nombre propio|Cada mascota tiene su nombre y su aspecto. El perro se desbloquea en el nivel 5 y la ninfa en el 8 (si ya la tenías, la conservas).'
   };
   const en = {
     ledgerInvestOne: 'Investment', ctype_invest: 'Investment', catInvest: 'Investment', ledgerInvest: 'Investments',
@@ -183,9 +183,9 @@
     paceSaved: 'Saved “{name}” in Projections. Your calculator has not changed.', paceNoRate: 'Set its investment return when you apply it.',
     paceNoData: 'Log entries in the Ledger to work out your pace.'
 ,
-    wn_1_23_1_1: 'Real balances without double counting|The “Current net worth” starting point is what you have at the end of the chosen day (today by default). Everything logged up to that day is included and only later entries add up.',
-    wn_1_23_1_2: 'Projection at current pace|In the Calculator, this button saves a new projection with your real net worth today and your pace over the last 3 months (income, expenses and monthly investing). Your calculator does not change.',
-    wn_1_23_1_3: 'Pets with their own names|Each pet has its own name and look. The dog unlocks at level 5 and the cockatiel at level 8 (if you already had it, you keep it).'
+    wn_1_23_2_1: 'Real balances without double counting|The “Current net worth” starting point is what you have at the end of the chosen day (today by default). Everything logged up to that day is included and only later entries add up.',
+    wn_1_23_2_2: 'Projection at current pace|In the Calculator, this button saves a new projection with your real net worth today and your pace over the last 3 months (income, expenses and monthly investing). Your calculator does not change.',
+    wn_1_23_2_3: 'Pets with their own names|Each pet has its own name and look. The dog unlocks at level 5 and the cockatiel at level 8 (if you already had it, you keep it).'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
