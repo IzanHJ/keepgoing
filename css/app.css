@@ -1850,3 +1850,6 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .tf-rt-wd button { min-width: 40px; }
 .badge-n { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 10.5px; background: var(--accent); color: var(--accent-ink); margin-left: 2px; }
 .tf-rt-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+/* v1.23.1: mascotas bloqueadas hasta su nivel */
+.seg button.locked { opacity: .55; }
+.seg button.locked .ico { width: 14px; height: 14px; }

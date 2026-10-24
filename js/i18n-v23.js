@@ -87,6 +87,18 @@
     help_cal_feat: 'Vista de mes y de año, con selector de mes y año.|Rutinas de un día o semana tipo, con plantillas, para poner varios turnos de una vez.|Rotaciones (4×4, 2-2-3, Panamá, DuPont, Continental, 5×2 o la tuya) para rellenar meses de golpe.|Categorías con o sin paga y tipos editables que cuentan o no para la paga.|Informes por semana, mes, año o rango: horas, extras, paga y reparto por turno.|Horas extra y pluses por franja horaria.|Avisos antes de cada turno, importar y exportar .ics y copia de seguridad .json.|PDF del mes para descargar o enviar.',
     help_ledger_feat: 'Patrimonio actual: tu patrimonio real desde un punto de partida, con gráfico, proyección y «Comparar» con tus proyecciones.|Registrar: importa el CSV de tu banco, desglosa los grupos y contesta qué es cada movimiento.|Registros: revisa, edita o borra entera cada importación.|Movimientos de tipo Ingreso, Gasto, Ambos o Inversión (en blanco, no suma ni resta).|Presupuesto mensual, movimientos que se repiten y eventos (un viaje, una mudanza…).|Gráficos plegables por porcentaje, evolución y filtros por categoría y fechas.|Calculadora: sueldo, gastos, inversiones, pagas extra, cambios futuros, proyecciones guardadas en PDF y «Aplicar datos de la Libreta actual».|Divisas: apunta en cualquier moneda, déjalo en su moneda o conviértelo, y elige tu moneda principal.|Abrir con PIN o huella en este dispositivo y modo privacidad para ocultar importes.',
     help_chat_links: 'Los hábitos y proyectos compartidos se marcan desde Hábitos y Proyectos y el grupo ve tu progreso.|Cualquier «Compartir» de la app (maestrías, cartas, invitaciones…) se puede enviar a un chat.|En el chat te llegan las libretas, proyecciones, eventos y PDF que te envían, y los añades con «Añadir».'
+,
+    // v1.23.1: mascotas y proyección según el ritmo actual
+    petName_cat: 'Michi', petName_dog: 'Toby', petName_cockatiel: 'Kiwi', petLockedAt: 'Se desbloquea en el nivel {n}', petLevelN: 'Nivel {n}',
+    petNamesHint: 'Cada mascota guarda su propio nombre y su aspecto. El perro se desbloquea en el nivel 5 y la ninfa en el 8.',
+    petUnlocked_dog: '¡Has desbloqueado el perro! Elígelo al personalizar tu mascota.', petUnlocked_cockatiel: '¡Has desbloqueado la ninfa! Elígela al personalizar tu mascota.',
+    paceBtn: 'Proyección según Ritmo Actual', paceProjName: 'Ritmo actual ({d})', paceInvestName: 'Inversión al ritmo actual',
+    paceSaved: 'Guardada «{name}» en Proyecciones. Tu calculadora no ha cambiado.', paceNoRate: 'Ponle la rentabilidad a su inversión al aplicarla.',
+    paceNoData: 'Apunta movimientos en la Libreta para calcular tu ritmo.'
+,
+    wn_1_23_2_1: 'Saldos reales sin contar dos veces|El punto de partida de «Patrimonio actual» es lo que tienes al final del día que elijas (por defecto hoy). Lo apuntado hasta ese día ya va incluido y solo suman los movimientos siguientes.',
+    wn_1_23_2_2: 'Proyección según Ritmo Actual|En la Calculadora, este botón guarda una proyección nueva con tu patrimonio real de hoy y tu ritmo de los últimos 3 meses (ingresos, gastos e inversión mensual). Tu calculadora no cambia.',
+    wn_1_23_2_3: 'Mascotas con nombre propio|Cada mascota tiene su nombre y su aspecto. El perro se desbloquea en el nivel 5 y la ninfa en el 8 (si ya la tenías, la conservas).'
   };
   const en = {
     ledgerInvestOne: 'Investment', ctype_invest: 'Investment', catInvest: 'Investment', ledgerInvest: 'Investments',
@@ -163,6 +175,17 @@
     help_cal_feat: 'Month and year views, with a month and year picker.|Day routines or typical weeks, with templates, to add several shifts at once.|Rotations (4×4, 2-2-3, Panama, DuPont, Continental, 5×2 or your own) to fill months at once.|Paid or unpaid categories and editable types that count for pay or not.|Reports by week, month, year or range: hours, overtime, pay and split by shift.|Overtime and time-band bonuses.|Alerts before each shift, .ics import/export and .json backup.|Month PDF to download or send.',
     help_ledger_feat: 'Current net worth: your real net worth from a starting point, with chart, projection and “Compare” with your projections.|Import: load your bank CSV, split the groups and answer what each entry is.|Imports: review, edit or delete each import entirely.|Income, Expense, Both or Investment entries (white, neither adds nor subtracts).|Monthly budget, recurring entries and events (a trip, a move…).|Foldable charts by percentage, evolution and filters by category and dates.|Calculator: salary, expenses, investments, extra payments, future changes, projections saved as PDF and “Apply current Ledger data”.|Currencies: log in any currency, keep it or convert it, and choose your main currency.|Open with PIN or fingerprint on this device and privacy mode to hide amounts.',
     help_chat_links: 'Shared habits and projects are checked off from Habits and Projects and the group sees your progress.|Any “Share” in the app (masteries, cards, invites…) can be sent to a chat.|Ledgers, projections, events and PDFs sent to you arrive in chat and you add them with “Add”.'
+,
+    petName_cat: 'Kitty', petName_dog: 'Toby', petName_cockatiel: 'Kiwi', petLockedAt: 'Unlocks at level {n}', petLevelN: 'Level {n}',
+    petNamesHint: 'Each pet keeps its own name and look. The dog unlocks at level 5 and the cockatiel at level 8.',
+    petUnlocked_dog: 'You unlocked the dog! Pick it when customizing your pet.', petUnlocked_cockatiel: 'You unlocked the cockatiel! Pick it when customizing your pet.',
+    paceBtn: 'Projection at current pace', paceProjName: 'Current pace ({d})', paceInvestName: 'Investing at current pace',
+    paceSaved: 'Saved “{name}” in Projections. Your calculator has not changed.', paceNoRate: 'Set its investment return when you apply it.',
+    paceNoData: 'Log entries in the Ledger to work out your pace.'
+,
+    wn_1_23_2_1: 'Real balances without double counting|The “Current net worth” starting point is what you have at the end of the chosen day (today by default). Everything logged up to that day is included and only later entries add up.',
+    wn_1_23_2_2: 'Projection at current pace|In the Calculator, this button saves a new projection with your real net worth today and your pace over the last 3 months (income, expenses and monthly investing). Your calculator does not change.',
+    wn_1_23_2_3: 'Pets with their own names|Each pet has its own name and look. The dog unlocks at level 5 and the cockatiel at level 8 (if you already had it, you keep it).'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
