@@ -120,7 +120,11 @@
 ,
     wn_1_23_3_1: 'Inversiones con su valor actual|En Patrimonio actual → Inversiones, cada inversión tiene «Introducir Nuevo Valor Actual» (fecha de hoy e importe). Con eso se estima su rentabilidad anual y tu patrimonio cuenta lo que valen de verdad.',
     wn_1_23_3_2: 'Proyección según Ritmo Actual paso a paso|Un asistente de 3 pasos: punto de partida, en qué inversiones está tu dinero (con su valor, rentabilidad y aportación mensual) y guardar.',
-    wn_1_23_3_3: 'Historial de Novedades|Ajustes → Novedades junta las mejoras pequeñas con su versión y guarda un historial de las versiones anteriores.'
+    wn_1_23_3_3: 'Historial de Novedades|Ajustes → Novedades junta las mejoras pequeñas con su versión y guarda un historial de las versiones anteriores.',
+    lkTitle: 'Movimientos vinculados', lkAdd: 'Vincular otro movimiento', lkUnlink: 'Desvincular', lkSearch: 'Buscar por nota, categoría o importe',
+    lkNone: 'No hay movimientos que coincidan.', lkLinked: 'Vinculado con otro movimiento',
+    lkHint: 'Por ejemplo, un gasto y la devolución que te hacen: cuentan solo la diferencia.',
+    lkNetOut: 'Cuentan como un gasto de {a} en {c}', lkNetIn: 'Cuentan como un ingreso de {a} en {c}', lkNetZero: 'Se compensan: no cuentan nada'
   };
   const en = {
     ledgerInvestOne: 'Investment', ctype_invest: 'Investment', catInvest: 'Investment', ledgerInvest: 'Investments',
@@ -228,7 +232,11 @@
 ,
     wn_1_23_3_1: 'Investments with their current value|In Current net worth → Investments, each investment has “Enter New Current Value” (today’s date and an amount). Its yearly return is estimated and your net worth counts what they are really worth.',
     wn_1_23_3_2: 'Projection at current pace, step by step|A 3-step assistant: starting point, which investments hold your money (with value, return and monthly contribution) and save.',
-    wn_1_23_3_3: 'What’s new history|Settings → What’s new groups small improvements with their version and keeps a history of previous versions.'
+    wn_1_23_3_3: 'What’s new history|Settings → What’s new groups small improvements with their version and keeps a history of previous versions.',
+    lkTitle: 'Linked entries', lkAdd: 'Link another entry', lkUnlink: 'Unlink', lkSearch: 'Search by note, category or amount',
+    lkNone: 'No matching entries.', lkLinked: 'Linked to another entry',
+    lkHint: 'For example, an expense and the refund you get: only the difference counts.',
+    lkNetOut: 'They count as a {a} expense in {c}', lkNetIn: 'They count as {a} of income in {c}', lkNetZero: 'They cancel out: nothing counts'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);

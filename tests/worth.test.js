@@ -74,3 +74,16 @@ test('una inversión: depositado, valor y rentabilidad', () => {
   const s2 = W.invStats('etf', base, [], [], '2026-10-24');
   assert.equal(s2.rate, null);
 });
+
+test('v1.23.4: vinculados — el saldo usa lo real y los gastos el neto', () => {
+  const L = require('../js/ledger.js');
+  const es = [
+    { id: 'a', date: '2026-10-02', type: 'expense', amountCents: 5000, link: 'g' },
+    { id: 'b', date: '2026-10-03', type: 'income', amountCents: 4000, link: 'g' }
+  ];
+  const { rows } = W.series({ date: '2026-10-01', digital: 100000 }, L.netLinked(es), '2026-10-03');
+  assert.equal(rows[1].digital, 95000);
+  assert.equal(rows[2].digital, 99000);
+  assert.equal(rows[2].expenses, 1000);
+  assert.equal(rows[2].income, 0);
+});

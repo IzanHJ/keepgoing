@@ -170,7 +170,8 @@
     layers: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>',
     compare: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/><path d="M14 6l3-2 3 2" stroke-dasharray="2 2"/>',
     split: '<path d="M6 3v6a6 6 0 0 0 6 6h0a6 6 0 0 1 6 6M18 3v6a6 6 0 0 1-3 5.2M6 21v0"/><path d="M3 6l3-3 3 3M15 6l3-3 3 3"/>',
-    branch: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/>'
+    branch: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/>',
+    link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1-1"/>'
   };
   const ico = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
@@ -3993,6 +3994,8 @@
      Importes en céntimos enteros. Solo viajan a la copia privada de la cuenta, nunca a grupos ni perfiles.
      ========================================================= */
   const LED = window.KGLedger;
+  // v1.23.4: lista con los vinculados ya netos (para sumar, nunca para guardar ni para pintar filas)
+  const NET = list => LED.netLinked(list, LV.entries);
   const privacyOn = () => !!(state.ledgerPrefs && state.ledgerPrefs.privacy);
   // Importe visible respetando el modo privacidad («•••••»)
   const money = v => LED.mask(fmtMoney(v), privacyOn());
@@ -4333,13 +4336,13 @@
     }
     if (added) ledgerSave();
   }
-  const monthIncome = (ym = todayKey().slice(0, 7)) => LED.totals(LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7))).income;
+  const monthIncome = (ym = todayKey().slice(0, 7)) => LED.totals(NET(LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7)))).income;
 
   function viewLedger() {
     if (ledgerOpen() && state.ui.ledgerView === 'calc') return viewCalc();
     const priv = privacyOn(), ym = ledgerMonth(), y = +ym.slice(0, 4), m = +ym.slice(5, 7);
     const sel = state.ui.ledgerDay && state.ui.ledgerDay.startsWith(ym) ? state.ui.ledgerDay : (todayKey().startsWith(ym) ? todayKey() : null);
-    const monthEntries = LED.inMonth(LV.entries, y, m), tot = LED.totals(monthEntries), days = LED.byDay(monthEntries);
+    const monthEntries = LED.inMonth(LV.entries, y, m), tot = LED.totals(NET(monthEntries)), days = LED.byDay(NET(monthEntries));
     let html = topBar(ledgerOpen() ? calcTopActions(false) : '');
     html += `<h1 class="page-title">${esc(t('tabLedger'))}</h1>`;
     if (!ledgerOpen()) return html + ledgerLockedHtml();
@@ -4401,10 +4404,10 @@
       .filter(r => r.st.deposited || r.st.last || cats.size === 1);
   }
   function worthData() {
-    const key = JSON.stringify(LV.worth) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
+    const key = JSON.stringify(LV.worth) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + LV.entries.filter(e => e.link).map(e => e.id + e.link).join() + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
     if (worthMemo.key !== key) {
-      const d = WORTH.series(worthBase(), LV.entries, todayKey(), worthVals());
-      worthMemo = { key, ...d, now: d.rows[d.rows.length - 1], pace: WORTH.pace(LV.entries, todayKey()) };
+      const d = WORTH.series(worthBase(), NET(LV.entries), todayKey(), worthVals());
+      worthMemo = { key, ...d, now: d.rows[d.rows.length - 1], pace: WORTH.pace(NET(LV.entries), todayKey()) };
     }
     return worthMemo;
   }
@@ -5700,7 +5703,7 @@
     const span = LED.span(LV.entries);
     // 1) Tarta: periodo y desglose
     const pp = ['month', 'year', 'all'].includes(ui.ledPie) ? ui.ledPie : 'month', pm = ['io', 'expense', 'income'].includes(ui.ledPieMode) ? ui.ledPieMode : 'io';
-    const pList = pp === 'month' ? LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7)) : pp === 'year' ? LED.inRange(LV.entries, ym.slice(0, 4) + '-01-01', ym.slice(0, 4) + '-12-31') : LV.entries;
+    const pList = NET(pp === 'month' ? LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7)) : pp === 'year' ? LED.inRange(LV.entries, ym.slice(0, 4) + '-01-01', ym.slice(0, 4) + '-12-31') : LV.entries);
     const tot = LED.totals(pList);
     const segs = pm === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }, { label: t('ledgerInvest'), value: tot.invest, color: INV_C }].filter(s => s.value)
       : LED.byCategory(pList, pm).map((c, i) => { const cat = catOf(c.id); return { label: `${cat.icon} ${catName(cat)}`, value: c.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
@@ -5713,14 +5716,14 @@
       <div class="${privacyOn() ? 'priv' : ''}">${pieLine() ? pieLineChart(pList, pm, pp, ym, segs) : pm === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net), pieModeBtn()) : donutChart(segs, t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'), null, pieModeBtn())}</div></section>`;
     // 2) Evolución a lo largo de los meses o años registrados
     const lu = ui.ledLine === 'year' ? 'year' : 'month';
-    const from = span ? span.from : today, rows = LED.series(LV.entries, from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
+    const from = span ? span.from : today, rows = LED.series(NET(LV.entries), from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
     if (!hidW('ledLine')) html += `<section class="chart-card clay" data-w="ledLine"><h3>${ico('trend')}<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
       ${span ? twoDotChart(rows, { aria: t('ledLineTitle') }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
     html += '</div>';
     // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
     const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
     const fev = String(lf.cat).startsWith('ev:') ? LV.events.find(x => 'ev:' + x.id === lf.cat) : null;
-    const fl = LED.inRange(fev ? eventEntries(fev) : LV.entries, lf.from, lf.to).filter(e => fev || lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
+    const fl = LED.inRange(NET(fev ? eventEntries(fev) : LV.entries), lf.from, lf.to).filter(e => fev || lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
     const days = lf.from && lf.to ? diffDays(lf.from, lf.to) + 1 : 0, fu = days <= 62 ? 'day' : days <= 3 * 366 ? 'month' : 'year';
     const frows = lf.from && lf.to && lf.from <= lf.to ? LED.series(fl, lf.from, lf.to, fu).map(r => ({ ...r, label: bucketLabel(r.key, fu), sub: bucketSub(r.key, fu) })) : [];
     if (!hidW('ledFilter')) html += `<section class="chart-card clay led-filter" data-w="ledFilter"><h3>${ico('search')}<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
@@ -5750,7 +5753,7 @@
   // Importe corto para las celdas del calendario (sin decimales si es redondo)
   const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: FX.AUTO.includes(ledgerMain()) ? ledgerMain() : 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
   function ledgerDayHtml(k) {
-    const list = LV.entries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(list);
+    const list = LV.entries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(NET(list));
     return `<section class="ledger-day clay" aria-live="polite"><div class="row"><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>
       ${list.length ? `<ul class="ledger-list">${list.map(e => `<li>${entryRow(e)}</li>`).join('')}</ul>
         <div class="entry"><span class="muted">${esc(t('ledgerDayNet'))}</span><b>${cents(tot.net)}</b></div>` : `<p class="muted small" style="margin:10px 0 0">${esc(t('ledgerDayEmpty'))}</p>`}
@@ -5766,11 +5769,13 @@
   }
   // Añadir o editar un movimiento
   /* Movimiento en una lista: al deslizarlo hacia la izquierda (dedo o ratón) aparecen Editar y Borrar */
+  // v1.23.4: ¿está vinculado a algún otro movimiento que todavía exista?
+  const linkedNow = e => !!(e.link && e.type !== 'invest' && LV.entries.some(x => x !== e && x.link === e.link && x.type !== 'invest'));
   function entryRow(e, withDate = false) {
     const c = catOf(e.categoryId), priv = privacyOn(), inc = e.type === 'income', inv = e.type === 'invest';
     const ac = inv ? 'amt-inv' : inc ? 'amt-in' : 'amt-out', sg = inv ? '' : inc ? '+' : '−';
     return `<div class="swipe" data-swipe="${esc(e.id)}"><div class="swipe-acts"><button class="sw-act edit" data-sw-edit="${esc(e.id)}" aria-label="${esc(t('edit'))}" title="${esc(t('edit'))}">${ico('edit')}</button><button class="sw-act del" data-sw-del="${esc(e.id)}" aria-label="${esc(t('delete'))}" title="${esc(t('delete'))}">${ico('trash')}</button></div>
-      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${ac}">${priv ? '•••' : sg + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${ac}">${priv ? '•••' : sg + cents(e.amountCents)}</b>`}</button></div>`;
+      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}${linkedNow(e) ? ` · <span class="led-link" title="${esc(t('lkLinked'))}">${ico('link', 'xs')}</span>` : ''}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${ac}">${priv ? '•••' : sg + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${ac}">${priv ? '•••' : sg + cents(e.amountCents)}</b>`}</button></div>`;
   }
   const SW_W = 124;
   let swg = null, swOpen = null, swBlock = false;
@@ -5830,7 +5835,34 @@
     // v1.22: moneda del movimiento (por defecto la principal) y su cambio estimado, que se puede corregir a mano
     const main = ledgerMain();
     f.cur = f.fx && f.fx.cur ? f.fx.cur : main; f.rate = f.fx ? f.fx.rate : 0; f.rateSet = !!f.fx;
-    let wref;
+    // v1.23.4: «Vincular otro movimiento» (cualquier categoría): ids de los otros movimientos de su grupo
+    const linkOf = en => (en && en.link && en.type !== 'invest' ? LV.entries.filter(x => x.id !== (entry && entry.id) && x.link === en.link && x.type !== 'invest').map(x => x.id) : []);
+    f.links = linkOf(entry); const links0 = [...f.links];
+    let pick = null, wref;
+    const linkSigned = (type, c) => (type === 'income' ? 1 : -1) * c;
+    const linkBox = () => {
+      const box = $('#le-link', wref); if (!box) return;
+      if (f.type === 'invest' || (isNew && ($('#le-every', wref) || {}).value)) { box.innerHTML = ''; return; }
+      const priv = privacyOn(), mine = LED.parseCents(($('#le-amt', wref) || {}).value || '') || 0;
+      const myC = f.cur !== main && f.rate ? FX.toMain(mine, FX.roundRate(f.rate)) : mine;
+      const mem = f.links.map(id => LV.entries.find(x => x.id === id)).filter(Boolean);
+      const net = mem.reduce((a, x) => a + LED.signed(x), linkSigned(f.type, myC));
+      const big = [{ type: f.type, amountCents: myC, categoryId: f.categoryId }, ...mem].reduce((a, x) => (x.amountCents || 0) > (a.amountCents || 0) ? x : a);
+      const row = (x, act) => { const c = catOf(x.categoryId), inc = x.type === 'income'; return `<div class="lk-row"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(x.note || catName(c))}</b><span class="muted small">${esc(fmtShort(x.date))} · ${esc(catName(c))}</span></span><b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + cents(x.amountCents)}</b>${act}</div>`; };
+      let html = `<div class="field"><span>${esc(t('lkTitle'))}</span>`;
+      if (mem.length) html += `<div class="lk-list">${mem.map(x => row(x, `<button type="button" class="icon-btn sm" data-lk-del="${esc(x.id)}" aria-label="${esc(t('lkUnlink'))}" title="${esc(t('lkUnlink'))}">${ico('x')}</button>`)).join('')}</div>
+        <p class="small lk-net" style="margin:6px 0 0">${ico('link', 'xs')} ${esc(t(net > 0 ? 'lkNetIn' : net < 0 ? 'lkNetOut' : 'lkNetZero', { a: priv ? '•••' : cents(Math.abs(net)), c: catName(catOf(big.categoryId)) }))}</p>`;
+      if (pick == null) html += `<button type="button" class="btn sm" data-lk="open" style="align-self:flex-start;margin-top:${mem.length ? 8 : 0}px">${ico('link')} ${esc(t('lkAdd'))}</button>${mem.length ? '' : `<p class="muted small" style="margin:6px 0 0">${esc(t('lkHint'))}</p>`}`;
+      else {
+        const q = pick.trim().toLowerCase(), skip = new Set([...(entry ? [entry.id] : []), ...f.links]);
+        const near = d => Math.abs(diffDays(d, f.date || todayKey()));
+        const cand = LV.entries.filter(x => !skip.has(x.id) && x.type !== 'invest' && (!q || (x.note || '').toLowerCase().includes(q) || catName(catOf(x.categoryId)).toLowerCase().includes(q) || fmtPctIn((x.amountCents || 0) / 100).includes(q)))
+          .sort((a, b) => near(a.date) - near(b.date) || (a.date < b.date ? 1 : -1)).slice(0, 40);
+        html += `<div class="lk-pick clay"><div class="row" style="gap:8px"><input class="input grow" id="lk-q" value="${esc(pick)}" placeholder="${esc(t('lkSearch'))}" autocomplete="off"><button type="button" class="icon-btn sm" data-lk="close" aria-label="${esc(t('close'))}">${ico('x')}</button></div>
+          <div class="lk-list" style="margin-top:8px">${cand.length ? cand.map(x => `<button type="button" class="lk-opt" data-lk-add="${esc(x.id)}">${row(x, '')}</button>`).join('') : `<p class="muted small" style="margin:4px 0">${esc(t('lkNone'))}</p>`}</div></div>`;
+      }
+      box.innerHTML = html + '</div>';
+    };
     const curOpts = () => [main, ...FX.ALL.filter(c => c !== main)].map(c => `<option value="${c}" ${f.cur === c ? 'selected' : ''}>${c}</option>`).join('');
     const fxPrev = () => {
       const p = $('#le-fx-p', wref); if (!p) return;
@@ -5862,6 +5894,7 @@
         <label class="field"><span>${esc(t('ledgerDate'))}</span><input class="input" type="date" id="le-date" value="${esc(f.date)}"></label>
         <label class="field"><span>${esc(t('ledgerNote'))}</span><input class="input" id="le-note" maxlength="140" value="${esc(f.note || '')}" placeholder="${esc(t('ledgerNotePh'))}"></label>
         <div class="field"><span>${esc(t('ledgerMethod'))}</span><div class="seg">${LED.METHODS.map(v => `<button type="button" data-le-method="${v}" class="${f.method === v ? 'on' : ''}" aria-pressed="${f.method === v}">${esc(t('method_' + v))}</button>`).join('')}</div></div>
+        <div id="le-link"></div>
         ${isNew ? `<label class="field"><span>${esc(t('ledgerRepeat'))}</span><select class="input" id="le-every"><option value="">${esc(t('repeat_none'))}</option>${LED.REPEATS.map(v => `<option value="${v}" ${f.every === v ? 'selected' : ''}>${esc(t('repeat_' + v))}</option>`).join('')}</select></label>
           <label class="field ${f.every ? '' : 'hidden'}" id="le-to-wrap"><span>${esc(t('ledgerRepeatTo'))}</span><input class="input" type="date" id="le-to" value="${esc(f.to || '')}"></label>` : entry.recurringId ? `<p class="muted small row" style="margin:0;gap:6px">${ico('repeat', 'xs')} ${esc(t('ledgerFromRec'))}</p>` : ''}
       </div>`;
@@ -5870,21 +5903,30 @@
     openModal({
       title: esc(t(isNew ? 'ledgerNew' : 'ledgerEdit')), body: '<div id="le"></div>',
       foot: `${isNew ? '' : `<button class="btn danger" data-le="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-le="save">${esc(t('save'))}</button>`,
-      onMount: w => { wref = w; draw(); fxFetchRate(); setTimeout(() => { const a = $('#le-amt', w); if (a && isNew) a.focus(); }, 60);
+      onMount: w => { wref = w; draw(); linkBox(); fxFetchRate(); setTimeout(() => { const a = $('#le-amt', w); if (a && isNew) a.focus(); }, 60);
         w.addEventListener('change', e => {
-          if (e.target.id === 'le-every') $('#le-to-wrap', w).classList.toggle('hidden', !e.target.value);
+          if (e.target.id === 'le-every') { $('#le-to-wrap', w).classList.toggle('hidden', !e.target.value); linkBox(); }
           if (e.target.id === 'le-cur') { f.cur = e.target.value; f.rateSet = false; f.rate = 0; fxLine(); fxFetchRate(); }
           if (e.target.id === 'le-date') { f.date = e.target.value || f.date; fxFetchRate(); }
         });
         w.addEventListener('input', e => {
-          if (e.target.id === 'le-amt') fxPrev();
+          if (e.target.id === 'le-amt') { fxPrev(); if (f.links.length) linkBox(); }
+          if (e.target.id === 'lk-q') { pick = e.target.value; const pos = e.target.selectionStart; linkBox(); const q = $('#lk-q', w); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
           if (e.target.id === 'le-rate') { const v = Number(String(e.target.value).replace(/\s/g, '').replace(',', '.')); if (v > 0) { f.rate = v; f.rateSet = true; } fxPrev(); }
         });
-        w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); $('[data-le="save"]', w).click(); } }); },
+        w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input') && e.target.id !== 'lk-q') { e.preventDefault(); $('[data-le="save"]', w).click(); } }); },
       onClick: async (e, close) => {
         let el;
         const keepAmt = () => { const a = $('#le-amt', wref); f._amt = a ? a.value : ''; };
-        const restore = () => { if (f._amt != null) $('#le-amt', wref).value = f._amt; fxLine(); };
+        const restore = () => { if (f._amt != null) $('#le-amt', wref).value = f._amt; fxLine(); linkBox(); };
+        if ((el = e.target.closest('[data-lk]'))) { pick = el.dataset.lk === 'open' ? '' : null; linkBox(); if (pick != null) { const q = $('#lk-q', wref); if (q) q.focus(); } return; }
+        if ((el = e.target.closest('[data-lk-del]'))) { f.links = f.links.filter(id => id !== el.dataset.lkDel); linkBox(); return; }
+        if ((el = e.target.closest('[data-lk-add]'))) {
+          // Si ya estaba vinculado con otros, entra todo su grupo
+          const x = LV.entries.find(y => y.id === el.dataset.lkAdd); if (!x) return;
+          const add = [x.id, ...(x.link ? LV.entries.filter(y => y.link === x.link && y.id !== x.id && y.type !== 'invest' && (!entry || y.id !== entry.id)).map(y => y.id) : [])];
+          f.links = [...new Set([...f.links, ...add])]; pick = null; linkBox(); return;
+        }
         if ((el = e.target.closest('[data-le-type]'))) { read(); keepAmt(); f.type = el.dataset.leType; const c = catOf(f.categoryId); if (!catFits(c, f.type)) f.categoryId = (LV.cats.find(x => !x.archived && catFits(x, f.type)) || { id: 'other' }).id; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-cat]'))) { read(); keepAmt(); f.categoryId = el.dataset.leCat; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-store]'))) { const r = $('#le-rate', wref); if (r) { const v = Number(String(r.value).replace(/\s/g, '').replace(',', '.')); if (v > 0) { f.rate = v; f.rateSet = true; } } f.conv = el.dataset.leStore === 'conv'; fxLine(); return; }
@@ -5909,13 +5951,28 @@
             LV.recurring.push({ id: uid(), ...data, every: f.every, from: f.date, to: f.to && f.to >= f.date ? f.to : '', archived: false });
             runRecurring();
             if (f.date > todayKey()) toast(t('ledgerRecFuture'));
-          } else if (isNew) LV.entries.push({ id: uid(), ...data, recurringId: '', createdAt: Date.now() });
-          else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; }
+          } else if (isNew) { const ne = { id: uid(), ...data, recurringId: '', createdAt: Date.now() }; LV.entries.push(ne); saveLinks(ne, f.type === 'invest' ? [] : f.links, []); }
+          else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; saveLinks(tg, f.type === 'invest' ? [] : f.links, links0); }
           state.ui.ledgerDay = f.date; state.ui.ledgerMonth = f.date.slice(0, 7);
           ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'expense' ? 'pop' : 'money');
         }
       }
     });
+  }
+
+  /* v1.23.4: guarda los vínculos de un movimiento: ids = los otros de su grupo, before = los que tenía al abrir el editor.
+     Todos comparten e.link; los que se quitan lo pierden y un grupo de uno solo deja de estar vinculado. */
+  function saveLinks(en, ids, before) {
+    const others = ids.map(id => LV.entries.find(x => x.id === id)).filter(x => x && x !== en);
+    for (const id of before) if (!ids.includes(id)) { const x = LV.entries.find(y => y.id === id); if (x) delete x.link; }
+    if (!others.length) { const old = en.link; delete en.link; if (old) { const rest = LV.entries.filter(x => x.link === old); if (rest.length < 2) rest.forEach(x => delete x.link); } return; }
+    const g = en.link || (others.find(x => x.link) || {}).link || uid();
+    for (const x of [en, ...others]) {
+      if (x.link && x.link !== g) LV.entries.forEach(y => { if (y.link === x.link && y !== x) y.link = g; });
+      x.link = g;
+    }
+    const rest = LV.entries.filter(x => x.link === g);
+    if (rest.length < 2) rest.forEach(x => delete x.link);
   }
 
   // Categorías: crear, renombrar (icono y nombre) y archivar. Archivar nunca borra movimientos.
@@ -5964,7 +6021,7 @@
     return KX;
   }
   function ledgerSlice(from, to, catIds = []) {
-    const entries = LED.inRange(LV.entries, from, to).filter(e => !catIds.length || catIds.includes(e.categoryId)).map(e => ({ id: e.id, date: e.date, type: e.type, amountCents: e.amountCents, categoryId: e.categoryId, note: e.note || '', method: e.method || '' }));
+    const entries = NET(LED.inRange(LV.entries, from, to)).filter(e => e._lk !== 'sub' && (!catIds.length || catIds.includes(e.categoryId))).map(e => ({ id: e.id, date: e.date, type: e.type, amountCents: e.amountCents, categoryId: e.categoryId, note: e.note || '', method: e.method || '' }));
     const used = new Set(entries.map(e => e.categoryId));
     return {
       entries,
@@ -6124,7 +6181,7 @@
           : `<div class="center" style="padding:20px 0"><span class="tool-ico" style="margin:0 auto 10px">${ico('doc')}</span><p class="muted">${esc(t('rgsEmpty'))}</p><button class="btn primary" data-rgs="new">${ico('upload')} ${esc(t('rgTitle'))}</button></div>`;
         return;
       }
-      const es = LV.entries.filter(e => e.importId === rec.id).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)), tot = LED.totals(es);
+      const es = LV.entries.filter(e => e.importId === rec.id).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)), tot = LED.totals(NET(es));
       box.innerHTML = `<div class="stack" style="gap:12px"><button class="chip" data-rgs="list" style="align-self:flex-start">${ico('left')} ${esc(t('rgsTitle'))}</button>
         <div><b>${esc(rgsWhen(rec))}</b><div class="muted small">${esc(rec.file || 'CSV')}</div></div>
         <div class="kpis ls-kpis" style="margin:0"><div class="kpi clay"><b>${es.length}</b><span>${esc(t('evEntries'))}</span></div><div class="kpi clay"><b class="amt-in">${privacyOn() ? '•••' : cents(tot.income)}</b><span>${esc(t('ledgerIncome'))}</span></div><div class="kpi clay"><b class="amt-out">${privacyOn() ? '•••' : cents(tot.expense)}</b><span>${esc(t('ledgerExpense'))}</span></div></div>
@@ -6396,7 +6453,7 @@
   const eventEntries = ev => LED.inRange(LV.entries, ev.from, ev.to).filter(e => !(ev.catIds || []).length || ev.catIds.includes(e.categoryId));
   const eventState = ev => { const k = todayKey(); return k < ev.from ? 'soon' : k > ev.to ? 'done' : 'now'; };
   function eventCard(ev) {
-    const tot = LED.totals(eventEntries(ev)), st = eventState(ev), priv = privacyOn();
+    const tot = LED.totals(NET(eventEntries(ev))), st = eventState(ev), priv = privacyOn();
     return `<button class="ev-card clay" data-ev-open="${esc(ev.id)}"><span class="ev-ico">${esc(ev.icon || '🗂️')}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(ev.name)}</b><span class="muted small">${esc(fmtShort(ev.from))} – ${esc(fmtShort(ev.to))} · <span class="ev-st ${st}">${esc(t('evSt_' + st))}</span></span></span>
       <span class="ev-amt"><b class="amt-out">${priv ? '•••' : cents(tot.expense)}</b>${tot.income ? `<small class="amt-in">+${priv ? '•••' : cents(tot.income)}</small>` : ''}</span></button>`;
   }
@@ -6439,7 +6496,7 @@
       if (!list.length) { box.innerHTML = `<div class="bud-empty"><span class="opt-ico">${ico('budget')}</span><p class="muted small">${esc(t('budEmpty'))}</p><button class="btn primary" data-bud="new-global">${ico('plus')} ${esc(t('budCreate'))}</button></div>`; return; }
       const b = list.find(x => x.id === u.sel) || list[0], nowYm = todayKey().slice(0, 7), first = LED.budgetFirst(b) || nowYm;
       const from = /^\d{4}-\d{2}$/.test(u.from[b.id] || '') ? u.from[b.id] : first;
-      const rows = from <= nowYm ? LED.budgetRows(b, LV.entries, from, nowYm) : [], cur = rows.find(r => r.ym === nowYm), acc = rows.length ? rows[rows.length - 1].acc : 0;
+      const rows = from <= nowYm ? LED.budgetRows(b, NET(LV.entries), from, nowYm) : [], cur = rows.find(r => r.ym === nowYm), acc = rows.length ? rows[rows.length - 1].acc : 0;
       const pct = cur && cur.budget ? Math.min(100, cur.spent / cur.budget * 100) : 0;
       const catsTxt = b.catIds && b.catIds.length ? b.catIds.map(id => { const c = LV.cats.find(x => x.id === id); return c ? `${c.icon || ''} ${catName(c)}` : ''; }).filter(Boolean).join(', ') : t('budAllExpenses');
       box.innerHTML = `${list.length > 1 ? `<div class="seg bud-seg" role="tablist">${list.map(x => `<button type="button" role="tab" aria-selected="${x.id === b.id}" data-bud-sel="${esc(x.id)}" class="${x.id === b.id ? 'on' : ''}">${esc(budName(x))}</button>`).join('')}</div>` : ''}
@@ -6537,9 +6594,9 @@
     let mode = 'io', wref;
     const days = Math.max(1, diffDays(ev.from, ev.to) + 1);
     const draw = () => {
-      const list = eventEntries(ev).sort((a, b) => a.date < b.date ? 1 : -1), tot = LED.totals(list), priv = privacyOn();
+      const list = eventEntries(ev).sort((a, b) => a.date < b.date ? 1 : -1), nl = NET(list), tot = LED.totals(nl), priv = privacyOn();
       const segs = mode === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }].filter(s => s.value)
-        : LED.byCategory(list, mode).map((r, i) => { const c = catOf(r.id); return { label: `${c.icon} ${catName(c)}`, value: r.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
+        : LED.byCategory(nl, mode).map((r, i) => { const c = catOf(r.id); return { label: `${c.icon} ${catName(c)}`, value: r.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
       $('#evd', wref).innerHTML = `<p class="muted" style="margin-top:0">${esc(fmtDate(ev.from))} – ${esc(fmtDate(ev.to))} · ${esc(t('evDays', { n: days }))} · <span class="ev-st ${eventState(ev)}">${esc(t('evSt_' + eventState(ev)))}</span></p>
         <div class="month-sum"><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${priv ? '•••' : cents(tot.expense)}</b></div><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${priv ? '•••' : cents(tot.income)}</b></div><div><span>${esc(t('evPerDay'))}</span><b>${priv ? '•••' : cents(Math.round(tot.expense / days))}</b></div></div>
         ${list.length ? `<div class="seg seg-sm" role="group" style="margin-top:14px;display:flex">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-evm="${v}" class="${mode === v ? 'on' : ''}" style="flex:1">${esc(t(k))}</button>`).join('')}</div>

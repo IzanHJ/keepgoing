@@ -106,3 +106,29 @@ test('v1.23: una inversión no suma ni resta', () => {
   assert.deepEqual(L.byDay(es)['2026-10-01'], { income: 1000, expense: 0, invest: 400, net: 1000, count: 2 });
   assert.deepEqual(L.series(es, '2026-10-01', '2026-10-31', 'month').map(r => [r.income, r.expense, r.invest]), [[1000, 100, 400]]);
 });
+
+test('v1.23.4: movimientos vinculados cuentan solo la diferencia', () => {
+  const all = [
+    { id: 'a', date: '2026-10-01', type: 'expense', amountCents: 5000, categoryId: 'leisure', link: 'g1', createdAt: 1 },
+    { id: 'b', date: '2026-10-03', type: 'income', amountCents: 2000, categoryId: 'gift', link: 'g1', createdAt: 2 },
+    { id: 'c', date: '2026-10-04', type: 'income', amountCents: 2000, categoryId: 'gift', link: 'g1', createdAt: 3 },
+    { id: 'd', date: '2026-10-02', type: 'expense', amountCents: 700, categoryId: 'food' },
+    { id: 'e', date: '2026-10-05', type: 'expense', amountCents: 900, link: 'solo' }
+  ];
+  const n = L.netLinked(all);
+  assert.equal(n.length, all.length);
+  assert.deepEqual(L.totals(n), { income: 0, expense: 1000 + 700 + 900, invest: 0, net: -2600 });
+  assert.deepEqual(L.byCategory(n, 'expense'), [{ id: 'leisure', cents: 1000 }, { id: 'other', cents: 900 }, { id: 'food', cents: 700 }]);
+  assert.deepEqual(L.byCategory(n, 'income'), []);
+  // un día que solo tiene la devolución no la cuenta, pero sigue contando como movimiento
+  const day = L.byDay(L.netLinked(all.filter(e => e.date === '2026-10-03'), all))['2026-10-03'];
+  assert.equal(day.income, 0); assert.equal(day.count, 1);
+  // los originales no cambian y la copia guarda el importe real
+  assert.equal(all[0].amountCents, 5000); assert.equal(n[0]._rc, 5000); assert.equal(n[0]._lk, 'main'); assert.equal(n[1]._lk, 'sub');
+  // si la devolución es mayor, queda como ingreso en la categoría del más grande
+  const flip = L.netLinked([{ id: 'x', date: '2026-10-01', type: 'expense', amountCents: 3000, link: 'g' }, { id: 'y', date: '2026-10-02', type: 'income', amountCents: 5000, categoryId: 'gift', link: 'g' }]);
+  assert.deepEqual([flip[1].type, flip[1].amountCents, flip[0].amountCents], ['income', 2000, 0]);
+  const info = L.linkInfo(all, 'g1');
+  assert.equal(info.net, -1000); assert.equal(info.main.id, 'a'); assert.equal(info.members.length, 3);
+  const plain = all.slice(3, 4); assert.equal(L.netLinked(plain), plain);
+});

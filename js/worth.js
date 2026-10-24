@@ -49,10 +49,12 @@
     let digital = b.digital, cash = b.cash, invested = b.invested, income = 0, expenses = 0;
     for (let k = b.date, i = 0; k <= today && i < 40000; k = addDays(k, 1), i++) {
       for (const e of byDay.get(k) || []) {
-        const c = int(e.amountCents), cashM = e.method === 'cash';
-        if (e.type === 'income') { income += c; if (cashM) cash += c; else digital += c; }
-        else if (e.type === 'invest') { invested += c; const cat = e.categoryId || 'invest'; inv[cat] = (inv[cat] || 0) + c; if (cashM) cash -= c; else digital -= c; }
-        else { expenses += c; if (cashM) cash -= c; else digital -= c; }
+        // v1.23.4: en los vinculados, los saldos usan el importe real (_rc/_rt) e ingresos/gastos el neto
+        const c = int(e.amountCents), cashM = e.method === 'cash', rt = e._rt || e.type, rc = e._rt ? int(e._rc) : c;
+        if (rt === 'income') { if (cashM) cash += rc; else digital += rc; }
+        else if (rt === 'invest') { invested += rc; const cat = e.categoryId || 'invest'; inv[cat] = (inv[cat] || 0) + rc; if (cashM) cash -= rc; else digital -= rc; }
+        else if (cashM) cash -= rc; else digital -= rc;
+        if (e.type === 'income') income += c; else if (e.type !== 'invest') expenses += c;
       }
       while (vi < vq.length && vq[vi].date <= k) { const v = vq[vi++]; gain[v.cat] = Math.round(+v.value) - (inv[v.cat] || 0); }
       const g = Object.values(gain).reduce((a, x) => a + x, 0), invVal = {};

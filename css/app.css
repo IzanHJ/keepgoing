@@ -1866,3 +1866,13 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .news-old summary::-webkit-details-marker { display: none; }
 .news-old[open] .acc-chev { transform: rotate(90deg); }
 .news-old .wn-list { margin-top: 8px; }
+
+/* v1.23.4: movimientos vinculados */
+.lk-list { display: flex; flex-direction: column; gap: 6px; }
+.lk-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lk-row .led-ico { width: 30px; height: 30px; font-size: 18px; border-radius: 10px; }
+.lk-opt { all: unset; box-sizing: border-box; cursor: pointer; display: block; width: 100%; padding: 6px 8px; border-radius: 12px; }
+.lk-opt:hover, .lk-opt:focus-visible { background: var(--surface-3); }
+.lk-pick { padding: 10px; border-radius: 16px; max-height: 320px; overflow: auto; }
+.lk-net { display: flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.led-link { display: inline-flex; vertical-align: -2px; color: var(--accent); }
