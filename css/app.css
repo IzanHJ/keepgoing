@@ -1844,3 +1844,9 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 @media (min-width: 900px) { .wo-split { grid-template-columns: 1fr 1fr; } }
 .wo-split-col { min-width: 0; }
 .wo-split-h { font-size: 15px; margin: 6px 0 8px; }
+/* v1.23: Rutinas del Calendario */
+.tf-rt-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2, rgba(127,127,127,.12)); flex: none; }
+.tf-rt-ic svg { width: 18px; height: 18px; }
+.tf-rt-wd button { min-width: 40px; }
+.badge-n { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 10.5px; background: var(--accent); color: var(--accent-ink); margin-left: 2px; }
+.tf-rt-quick { display: flex; flex-wrap: wrap; gap: 6px; }

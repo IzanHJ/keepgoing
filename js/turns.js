@@ -7,6 +7,10 @@
   const LIMITS = { specials: 6, shifts: 200, jobs: 20, days: 20000, perDay: 10, ext: 5000, text: 100, note: 500 };
   const KINDS = ['work', 'off', 'vacation', 'sick', 'training'];
   const KIND_LABEL = { work: 'Trabajo', off: 'Libre', vacation: 'Vacaciones', sick: 'Baja', training: 'Formación' };
+  /* v1.23: los tipos se pueden añadir, editar y borrar. Cada tipo dice si cuenta para la paga (como «Trabajo»);
+     un tipo que no la cobra (p. ej. «Ocio» para ir al cine) suma horas pero no dinero. «other» es «Otro», sin paga. */
+  const defaultKinds = () => [...KINDS, 'other'].map((id) => ({ id, name: '', paid: id === 'work' }));
+  const kindOk = (k) => typeof k === 'string' && RE_ID.test(k);
   const RE_DATE = /^\d{4}-\d{2}-\d{2}$/;
   const RE_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
   const RE_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -68,7 +72,7 @@
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Formato no válido');
     const def = defaults();
     const jobs = (Array.isArray(raw.jobs) ? raw.jobs : []).slice(0, LIMITS.jobs).map((j) => ({
-      id: id(j.id), name: str(j.name, LIMITS.text, 'Trabajo'),
+      id: id(j.id), name: str(j.name, LIMITS.text, 'Trabajo'), paid: j.paid !== false,
       color: RE_COLOR.test(j.color) ? j.color : '#4f6bed',
       rate: num(j.rate, 0, 100000, 0), otWeekHours: num(j.otWeekHours, 0, 168, 0),
       otMode: j.otMode === 'fixed' ? 'fixed' : 'mult', otPlus: normPlus(j.otMode, j.otPlus !== undefined ? j.otPlus : j.otMult, 1.5),
@@ -82,7 +86,7 @@
       id: id(s.id), jobId: jobIds.has(s.jobId) ? s.jobId : jobs[0].id,
       name: str(s.name, LIMITS.text, 'Turno'), emoji: str(s.emoji, 8),
       color: RE_COLOR.test(s.color) ? s.color : '#4f6bed',
-      kind: KINDS.includes(s.kind) ? s.kind : 'work',
+      kind: kindOk(s.kind) ? s.kind : 'work',
       start: timeOr(s.start), end: timeOr(s.end),
       breakMin: num(s.breakMin, 0, 720, 0), diffPct: num(s.diffPct, -100, 1000, 0), alarmMin: num(s.alarmMin, 0, 1440, 0),
     }));
@@ -115,8 +119,10 @@
     return Math.max(0, (b - a - shift.breakMin) / 60);
   }
 
-  /** Informe de horas/paga entre dos fechas ISO (inclusive). Extras semanales por trabajo. */
-  function report(data, from, to, weekStart) {
+  /** Informe de horas/paga entre dos fechas ISO (inclusive). Extras semanales por trabajo.
+      v1.23: paidKind(kind) dice si un tipo cuenta para la paga (por defecto solo 'work'); una categoría con paid === false no cobra. */
+  function report(data, from, to, weekStart, paidKind) {
+    const isPaid = (s, job) => (paidKind ? paidKind(s.kind) : s.kind === 'work') && job.paid !== false;
     const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
     const jobBy = Object.fromEntries(data.jobs.map((j) => [j.id, j]));
     const res = { hours: 0, pay: 0, otHours: 0, count: 0, byShift: {}, byKind: {}, byJob: {} };
@@ -128,14 +134,15 @@
         const job = jobBy[s.jobId] || data.jobs[0];
         const h = entryHours(s, e);
         let regular = h, ot = 0;
-        if (s.kind === 'work') {
+        const paid = isPaid(s, job);
+        if (paid) {
           const key = job.id + '|' + wk, prev = weekHours[key] || 0;
           weekHours[key] = prev + h;
           if (job.otWeekHours > 0) { regular = Math.min(h, Math.max(0, job.otWeekHours - prev)); ot = h - regular; }
         }
         if (!inRange) continue;
         let pay = 0;
-        if (s.kind === 'work') {
+        if (paid) {
           const { start, end: en } = entryTimes(s, e), fr = specialFractions(job, start, en), sps = job.specials || [];
           fr.forEach((f, i) => {
             if (!f) return;
@@ -187,6 +194,26 @@
       if (opts.overwrite || !has) { data.days[k] = [{ sid, note: '', start: '', end: '' }]; written++; }
     }
     return written;
+  }
+
+  /* ---- Rutinas (v1.23): grupos de turnos ya hechos.
+     { kind: 'day', day: [{ sid, start, end }] } se pone en los días elegidos; { kind: 'week', week: { 0..6: [...] } } (0 = lunes)
+     es una semana tipo. applyRoutine escribe en data.days entre from y to (incluidos); weekdays limita los días de una rutina
+     de un día (0 = lunes; vacío = todos). Con overwrite se sustituyen los turnos que ya hubiera; si no, se añaden.
+     Devuelve el nº de días cambiados. */
+  function applyRoutine(data, routine, opts) {
+    const from = parseISO(opts.from), to = parseISO(opts.to), wds = Array.isArray(opts.weekdays) ? opts.weekdays : [];
+    const ok = (e) => e && data.shifts.some((s) => s.id === e.sid);
+    let n = 0;
+    for (let d = from, i = 0; d <= to && i < 731; d = addDays(d, 1), i++) {
+      const wd = (d.getDay() + 6) % 7, k = iso(d);
+      const list = (routine.kind === 'week' ? ((routine.week || {})[wd] || []) : (!wds.length || wds.includes(wd) ? routine.day || [] : [])).filter(ok);
+      if (!list.length) continue;
+      const add = list.map((e) => ({ sid: e.sid, note: '', start: timeOr(e.start), end: timeOr(e.end) }));
+      const next = (opts.overwrite ? add : [...(data.days[k] || []), ...add]).slice(0, LIMITS.perDay);
+      data.days[k] = next; n++;
+    }
+    return n;
   }
 
   // ---- ICS (exportar / importar)
@@ -265,7 +292,7 @@
     const p = raw.payload;
     const shifts = (Array.isArray(p.shifts) ? p.shifts : []).slice(0, LIMITS.shifts).filter((s) => s && RE_ID.test(s.id)).map((s) => ({
       id: s.id, name: str(s.name, LIMITS.text, 'Turno'), emoji: str(s.emoji, 8), color: RE_COLOR.test(s.color) ? s.color : '#4f6bed',
-      kind: KINDS.includes(s.kind) ? s.kind : 'work', start: timeOr(s.start), end: timeOr(s.end),
+      kind: kindOk(s.kind) ? s.kind : 'work', start: timeOr(s.start), end: timeOr(s.end),
     }));
     const days = {}; let n = 0;
     const rd = p.days && typeof p.days === 'object' && !Array.isArray(p.days) ? p.days : {};
@@ -278,7 +305,7 @@
   }
 
   const api = {
-    LIMITS, KINDS, KIND_LABEL, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, defaultKinds, kindOk, applyRoutine, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;
