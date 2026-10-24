@@ -115,10 +115,11 @@
      answers: { [id de grupo]: { type: 'expense' | 'income' | 'invest' | 'skip', categoryId, group: 'none' | 'day' | 'month' } }
               v1.23: también { ['row:' + clave de la fila]: { type, categoryId } } para un movimiento desglosado (va suelto)
      rates:   { GBP: 1.15 } (moneda principal por unidad; sin tasa, esa moneda se ignora)
+     convert: { GBP: true } (v1.23: se guarda solo convertido, sin la moneda original)
      main:    moneda principal de la Libreta. v1.22: lo que va en otra moneda se apunta en esa moneda (fx = { cur, cents, rate })
      existing: movimientos de la Libreta (los importados llevan extIds y, si van agrupados, extGroup)
      Devuelve { create: [...], update: [{ id, addCents, addIds }], dup, skipped, unanswered } */
-  function plan(rows, answers, rates, existing, main = 'EUR') {
+  function plan(rows, answers, rates, existing, main = 'EUR', convert = {}) {
     const known = new Set(), groups = new Map();
     for (const e of existing || []) {
       for (const k of e.extIds || []) known.add(k);
@@ -140,23 +141,25 @@
         c = Math.round(r.cents * rate);
       }
       if (!r.cents) { skipped++; continue; }
+      // v1.23: «Convertir» apunta el importe ya pasado a la moneda principal, sin guardar la moneda original
+      const keepFx = foreign && !(convert || {})[r.currency];
       const base = { type: a.type, categoryId: a.categoryId || 'other', method: r.kind === 'card' || r.kind === 'cardCredit' ? 'card' : 'transfer' };
       if (!own && (a.group === 'day' || a.group === 'month')) {
         // Los agrupados en otra moneda van aparte (su propio grupo), para guardar el importe original
-        const period = a.group === 'day' ? r.date : r.date.slice(0, 7), gk = ['t212', groupId(r), a.type, period, ...(foreign ? [r.currency] : [])].join('|');
+        const period = a.group === 'day' ? r.date : r.date.slice(0, 7), gk = ['t212', groupId(r), a.type, period, ...(keepFx ? [r.currency] : [])].join('|');
         const ex = groups.get(gk);
         if (ex) {
           const u = upd.get(ex.id) || { id: ex.id, addCents: 0, addIds: [], addFx: 0 };
-          if (foreign && ex.fx) { u.addFx += r.cents; u.addCents += Math.round(r.cents * (ex.fx.rate || rate)); } else u.addCents += c;
+          if (keepFx && ex.fx) { u.addFx += r.cents; u.addCents += Math.round(r.cents * (ex.fx.rate || rate)); } else u.addCents += c;
           u.addIds.push(r.key); upd.set(ex.id, u); continue;
         }
-        const b = bucket.get(gk) || { ...base, date: r.date, amountCents: 0, extIds: [], extGroup: gk, kind: r.kind, label: r.kind === 'card' ? r.mcat : r.kind === 'other' ? r.action : '', count: 0, ...(foreign ? { fx: { cur: r.currency, cents: 0, rate } } : {}) };
+        const b = bucket.get(gk) || { ...base, date: r.date, amountCents: 0, extIds: [], extGroup: gk, kind: r.kind, label: r.kind === 'card' ? r.mcat : r.kind === 'other' ? r.action : '', count: 0, ...(keepFx ? { fx: { cur: r.currency, cents: 0, rate } } : {}) };
         if (b.fx) { b.fx.cents += r.cents; b.amountCents = Math.round(b.fx.cents * rate); } else b.amountCents += c;
         b.extIds.push(r.key); b.count++; if (r.date > b.date) b.date = r.date;
         bucket.set(gk, b);
         continue;
       }
-      create.push({ ...base, date: r.date, amountCents: c, extIds: [r.key], kind: r.kind, label: r.merchant || r.name || (r.kind === 'other' ? r.action : ''), count: 1, ...(foreign ? { fx: { cur: r.currency, cents: r.cents, rate } } : {}) });
+      create.push({ ...base, date: r.date, amountCents: c, extIds: [r.key], kind: r.kind, label: r.merchant || r.name || (r.kind === 'other' ? r.action : ''), count: 1, ...(keepFx ? { fx: { cur: r.currency, cents: r.cents, rate } } : {}) });
     }
     return { create: [...create, ...bucket.values()].sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0)), update: [...upd.values()], dup, skipped, unanswered };
   }

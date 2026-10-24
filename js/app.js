@@ -189,7 +189,7 @@
       v: 1, onboarded: false, obStep: 0, lang,
       theme: { ...DEFAULT_THEME },
       contract: null,
-      habits: [], logs: {}, projects: [], rest: {},
+      habits: [], logs: {}, sublogs: {}, projects: [], rest: {},
       mastery: {}, perfectMastery: {}, serial: 0, colorSeq: 0, contractCards: [],
       // Fase 1: rutinas, recompensas, vacaciones, escudos, energía, revisiones, avisos, retos, cartas secretas
       routines: [], rewards: [], redemptions: [], vacations: [],
@@ -205,6 +205,7 @@
       // v1.19: presupuestos mensuales (cifrados con la Libreta, un elemento por presupuesto)
       ledgerBudgets: [],
       ledgerProjs: [],
+      ledgerWorth: [], // v1.23: punto de partida real de la Libreta (saldos a una fecha) para «Patrimonio actual», cifrado
       ledgerImports: [], // v1.22: registros de lo importado con «Registrar» (cifrados como el resto de la Libreta)
       // v1.20: Calendario de turnos (trabajos, plantillas, días, calendario externo y ajustes)
       calJobs: [], calShifts: [], calDays: {}, cdmt: {}, calExt: { list: [] }, cemt: {}, calPrefs: { weekStart: 1, alarms: false, hide: {} }, notif: { ...NOTIF0 },
@@ -219,8 +220,8 @@
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
   const ORDER_LISTS = ['projects', 'routines'];
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'calJobs', 'calShifts'];
-  const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt']]; // hábito → día → valor
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'calJobs', 'calShifts'];
+  const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt'], ['sublogs', 'slmt']]; // hábito → día → valor (v1.23: sublogs = objetivos o maneras hechos ese día)
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt']];             // clave → valor
   function normalize(s) {
     const d = defaultState();
@@ -242,9 +243,9 @@
     out.perfectMastery = s.perfectMastery && typeof s.perfectMastery === 'object' && !Array.isArray(s.perfectMastery) ? s.perfectMastery : {};
     out.rest = s.rest && typeof s.rest === 'object' ? s.rest : {};
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
-    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
+    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'calJobs', 'calShifts']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'calJobs', 'calShifts']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.calDays = s.calDays && typeof s.calDays === 'object' && !Array.isArray(s.calDays) ? s.calDays : {};
     out.calExt = s.calExt && Array.isArray(s.calExt.list) ? s.calExt : { list: [] };
     const cp0 = s.calPrefs && typeof s.calPrefs === 'object' ? s.calPrefs : {};
@@ -465,7 +466,16 @@
   const hColor = h => h.color || h.autoColor || HABIT_COLORS[0];
   const cnt = (h, k) => (state.logs[h.id] || {})[k] || 0;
   const isMulti = h => h.measure !== 'amount' && (!!h.multi || (h.freq === 'daily' && h.target > 1));
-  const dayGoal = h => h.freq === 'daily' ? h.target : 1;
+  /* v1.23: Continuidad. Al cambiar la regla de un hábito (veces, días, objetivos o maneras) la anterior se guarda en
+     h.past = [{ until, target, days, mode, goals, ways }] (ordenada por until): los días antes de «until» usan esa regla. */
+  const RULE_KEYS = ['target', 'days', 'mode', 'goals', 'ways'];
+  const ruleAt = (h, k) => { if (k && Array.isArray(h.past)) for (const p of h.past) if (k < p.until) return p; return h; };
+  const tgtAt = (h, k) => +ruleAt(h, k).target || 1;
+  const dayGoal = (h, k) => h.freq === 'daily' ? (k ? tgtAt(h, k) : h.target) : 1;
+  // v1.23: hábitos con varios objetivos (hay que cumplirlos todos) o con varias maneras (vale cualquiera)
+  const subModeOf = (h, r) => !isQuit(h) && !isAmount(h) && ((r.mode === 'goals' && (r.goals || []).length) || (r.mode === 'ways' && (r.ways || []).length)) ? r.mode : '';
+  const subMode = h => subModeOf(h, h);
+  const subModeAt = (h, k) => subModeOf(h, ruleAt(h, k));
   function firstKey(h) {
     let f = h.createdAt; const L = state.logs[h.id] || {};
     for (const k in L) if (L[k] > 0 && k < f) f = k;
@@ -487,11 +497,11 @@
   const isRest = (h, k) => !!(state.rest[h.id] && state.rest[h.id][k]);
   const isShielded = (h, k) => !!(state.shields[h.id] && state.shields[h.id][k]);
   const inVacation = k => state.vacations.some(v => k >= v.from && k <= v.to);
-  const isScheduled = (h, k) => h.freq !== 'daily' || isQuit(h) || !Array.isArray(h.days) || h.days.length >= 7 || h.days.includes(wdOf(k));
+  const isScheduled = (h, k) => { const d = ruleAt(h, k).days; return h.freq !== 'daily' || isQuit(h) || !Array.isArray(d) || d.length >= 7 || d.includes(wdOf(k)); };
   // Días que no cuentan como fallo: no programados, de descanso, con escudo o de vacaciones (los hábitos a dejar no se pausan)
   const isOffDay = (h, k) => !isScheduled(h, k) || isRest(h, k) || isShielded(h, k) || (!isQuit(h) && inVacation(k));
   const isAmount = h => h.measure === 'amount';
-  const periodDone = (h, k) => isQuit(h) ? cnt(h, k) === 0 : periodSum(h, k) >= h.target;
+  const periodDone = (h, k) => isQuit(h) ? cnt(h, k) === 0 : periodSum(h, k) >= tgtAt(h, periodStart(h, k));
   function periodsBetween(h, from, to) {
     const out = []; let k = periodStart(h, from); const end = periodStart(h, to);
     while (k <= end && out.length < 20000) { out.push(k); k = nextPeriod(h, k); }
@@ -531,7 +541,7 @@
   // Días cumplidos (para las Maestrías). En hábitos a dejar: días limpios hasta ayer
   function successDays(h) {
     if (isQuit(h)) { const end = addDays(todayKey(), -1); let n = 0; for (let k = firstKey(h); k <= end; k = addDays(k, 1)) if (!cnt(h, k)) n++; return n; }
-    const L = state.logs[h.id] || {}; const g = dayGoal(h); let n = 0; for (const k in L) if (L[k] >= g) n++; return n;
+    const L = state.logs[h.id] || {}; let n = 0; for (const k in L) if (L[k] >= dayGoal(h, k)) n++; return n;
   }
   // Registros: veces marcadas (en hábitos con cantidad, cada día registrado cuenta como 1)
   function totalEntries(h, from, to) { if (isQuit(h)) return 0; const L = state.logs[h.id] || {}; let s = 0; for (const k in L) if ((!from || k >= from) && (!to || k <= to)) s += isAmount(h) ? (L[k] > 0 ? 1 : 0) : L[k]; return s; }
@@ -540,7 +550,7 @@
     if (k < firstKey(h) || k > todayKey()) return null;
     if (isQuit(h)) return k === todayKey() && !cnt(h, k) ? null : (cnt(h, k) ? 0 : 1);
     if (isOffDay(h, k) && !cnt(h, k)) return null;
-    return Math.min(1, cnt(h, k) / dayGoal(h));
+    return Math.min(1, cnt(h, k) / dayGoal(h, k));
   }
   // % de períodos cumplidos en los últimos n días (null si aún no hay períodos que evaluar)
   function rate(h, n, end = todayKey()) {
@@ -560,7 +570,7 @@
   function setCount(h, k, v) {
     const L = state.logs[h.id] || (state.logs[h.id] = {});
     const before = L[k] || 0;
-    const snap = { day: dayInfo(k), lvl: levelInfo().level, done: !isQuit(h) && cnt(h, k) >= dayGoal(h) };
+    const snap = { day: dayInfo(k), lvl: levelInfo().level, done: !isQuit(h) && cnt(h, k) >= dayGoal(h, k) };
     v = Math.max(0, isAmount(h) ? Math.round(v * 100) / 100 : Math.floor(v));
     if (v) L[k] = v; else delete L[k];
     // Hora del registro (para «a qué hora sueles hacerlo» y las cartas secretas)
@@ -575,7 +585,7 @@
   const sfx = name => { if (window.KGSound) { KGSound.setEnabled(state.soundOn !== false); KGSound.play(name); } };
   const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   function habitFeedback(h, k, before, v, snap) {
-    const day = dayInfo(k), lvl = levelInfo().level, done = !isQuit(h) && cnt(h, k) >= dayGoal(h);
+    const day = dayInfo(k), lvl = levelInfo().level, done = !isQuit(h) && cnt(h, k) >= dayGoal(h, k);
     if (v < before) sfx(isQuit(h) ? 'pop' : 'undo');
     else if (isQuit(h)) sfx('slip');
     else if (lvl > snap.lvl) sfx('levelup');
@@ -598,6 +608,7 @@
   function tapDay(h, k) {
     if (k > todayKey()) return;
     if (isAmount(h)) { openAmount(h, k); return; }
+    if (subModeAt(h, k)) { openSubDay(h, k); return; }
     const c = cnt(h, k);
     setCount(h, k, isMulti(h) ? c + 1 : (c ? 0 : 1));
     vibrate(8);
@@ -644,7 +655,7 @@
         if (h.freq !== 'daily') { if (cnt(h, k) > 0) { base += 10; units++; } continue; }
         if (isOffDay(h, k) && !cnt(h, k)) continue;
         due++;
-        const sc = Math.min(1, cnt(h, k) / dayGoal(h));
+        const sc = Math.min(1, cnt(h, k) / dayGoal(h, k));
         units += sc;
         if (sc >= 1) { done++; base += 10; } else base += Math.round(10 * sc);
       }
@@ -679,14 +690,14 @@
         n++;
         if (periodState(h, periodStart(h, k)) === 'off' && !cnt(h, k)) continue;
         const span = h.freq === 'weekly' ? 7 : diffDays(periodStart(h, k), addDays(nextPeriod(h, periodStart(h, k)), -1)) + 1;
-        const w = Math.min(1, (+h.target || 1) / span);
-        weight += w; got += w * Math.min(1, periodSum(h, k) / (+h.target || 1));
+        const tg = tgtAt(h, periodStart(h, k)), w = Math.min(1, tg / span);
+        weight += w; got += w * Math.min(1, periodSum(h, k) / tg);
         if (cnt(h, k) > 0) units++;
         continue;
       }
       if (isOffDay(h, k) && !cnt(h, k)) continue;
       n++; due++;
-      const sc = Math.min(1, cnt(h, k) / dayGoal(h));
+      const sc = Math.min(1, cnt(h, k) / dayGoal(h, k));
       weight++; got += sc; units += sc;
       if (sc >= 1) done++;
     }
@@ -1489,6 +1500,7 @@
       return cardShell(h, c, meta, ring);
     }
     if (isAmount(h)) meta.push(`${fmtNum(sum)} / ${fmtNum(h.target)} ${esc(h.unit || '')}${h.freq !== 'daily' ? ' · ' + esc(unitLabel(h)) : ''}`);
+    else if (subMode(h)) { meta.push(`${ico(h.mode === 'goals' ? 'list' : 'branch', 'xs')} ${esc(subMeta(h))}`); if (h.freq !== 'daily') meta.push(esc(t(h.freq === 'weekly' ? 'thisWeek' : 'thisMonth', { a: sum, b: h.target }))); }
     else {
       if (!(h.freq === 'daily' && h.target === 1)) meta.push(esc(t('timesPer', { n: h.target, period: unitLabel(h) })));
       if (h.freq === 'weekly') meta.push(esc(t('thisWeek', { a: sum, b: h.target })));
@@ -1569,7 +1581,7 @@
   }
   function monthCal(h, ym) {
     if (h.proj) return projMonthCal(h.proj, ym);
-    const [y, m] = ym.split('-').map(Number), today = todayKey(), fk = firstKey(h), goal = dayGoal(h), L = state.logs[h.id] || {};
+    const [y, m] = ym.split('-').map(Number), today = todayKey(), fk = firstKey(h), L = state.logs[h.id] || {};
     let out = '';
     for (const w of LED.monthGrid(y, m)) {
       for (const k of w) {
@@ -1582,7 +1594,7 @@
           if (c > 0) cls += ' slip';
           else if (k >= fk && k < today) cls += ' on';
         } else {
-          if (c >= goal) cls += ' on'; else if (c > 0) cls += ' part';
+          if (c >= dayGoal(h, k)) cls += ' on'; else if (c > 0) cls += ' part';
           else if (isShielded(h, k)) cls += ' shielded';
           else if (isRest(h, k) || inVacation(k)) cls += ' rest';
           else if (!isScheduled(h, k)) cls += ' off';
@@ -1692,6 +1704,10 @@
     f.measure = f.measure || 'count'; f.timeOfDay = f.timeOfDay || 'any'; f.duration = +f.duration || 0; f.step = +f.step || 1; f.unit = f.unit || '';
     f.chDays = h && h.challenge && !h.challenge.done ? h.challenge.days : 0;
     f.remOn = !!(h && h.reminder && h.reminder.on); f.remTime = (h && h.reminder && h.reminder.time) || ''; f.share = false;
+    // v1.23: cómo se cumple (simple, varios objetivos o varias maneras) y Continuidad al cambiar la regla
+    f.mode = ['goals', 'ways'].includes(f.mode) ? f.mode : 'simple'; f.goals = (f.goals || []).map(g => ({ ...g })); f.ways = (f.ways || []).map(w => ({ ...w })); f.cont = true;
+    if (f.mode === 'goals' && !f.goals.length) f.goals = [{ id: uid(), name: '', target: 1 }];
+    if (f.mode === 'ways' && !f.ways.length) f.ways = [{ id: uid(), name: '' }];
     const draw = w => {
       const b = $('#hf', w); const forcedMulti = f.freq === 'daily' && f.target > 1;
       const period = f.freq === 'daily' ? t('periodDay') : f.freq === 'weekly' ? t('periodWeek') : t('periodMonth');
@@ -1719,7 +1735,13 @@
           <div class="seg">${[['count', 'measureCount'], ['amount', 'measureAmount']].map(([v, k]) => `<button type="button" data-measure="${v}" class="${f.measure === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
           ${f.measure === 'amount' ? `<div class="muted small">${esc(t('measureAmountHint'))}</div>` : ''}
         </div>
-        <div class="field"><span>${esc(t('habitFreq'))}</span>
+        ${f.measure !== 'amount' ? `<div class="field"><span>${esc(t('subModeLbl'))}</span>
+          <div class="seg">${[['simple', 'subSimple'], ['goals', 'subGoals'], ['ways', 'subWays']].map(([v, k]) => `<button type="button" data-hmode="${v}" class="${f.mode === v ? 'on' : ''}" aria-pressed="${f.mode === v}">${esc(t(k))}</button>`).join('')}</div>
+          <div class="muted small">${esc(t('subHint_' + f.mode))}</div>
+          ${f.mode === 'goals' ? `<div class="stack sub-edit" style="gap:8px">${f.goals.map(g => `<div class="row" style="gap:8px" data-gid="${esc(g.id)}"><input class="input grow" data-g-name maxlength="40" value="${esc(g.name)}" placeholder="${esc(t('subGoalPh'))}" aria-label="${esc(t('subGoalName'))}"><input class="input" data-g-tg type="number" min="1" max="99" inputmode="numeric" value="${+g.target || 1}" style="width:76px" aria-label="${esc(t('subGoalTimes'))}" title="${esc(t('subGoalTimes'))}"><button type="button" class="icon-btn sm" data-g-del="${esc(g.id)}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('')}<button type="button" class="chip" data-g-add style="align-self:flex-start">${ico('plus')} ${esc(t('subAddGoal'))}</button></div>` : ''}
+          ${f.mode === 'ways' ? `<div class="stack sub-edit" style="gap:8px">${f.ways.map(g => `<div class="row" style="gap:8px" data-wid="${esc(g.id)}"><input class="input grow" data-w-name maxlength="40" value="${esc(g.name)}" placeholder="${esc(t('subWayPh'))}" aria-label="${esc(t('subWayName'))}"><button type="button" class="icon-btn sm" data-w-del="${esc(g.id)}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('')}<button type="button" class="chip" data-w-add style="align-self:flex-start">${ico('plus')} ${esc(t('subAddWay'))}</button></div>` : ''}
+        </div>` : ''}
+        <div class="field ${f.mode === 'goals' && f.measure !== 'amount' ? 'hidden' : ''}"><span>${esc(t('habitFreq'))}</span>
           <div class="seg">${['daily', 'weekly', 'monthly'].map(q => `<button type="button" data-freq="${q}" class="${f.freq === q ? 'on' : ''}">${esc(t(q === 'daily' ? 'freqDaily' : q === 'weekly' ? 'freqWeekly' : 'freqMonthly'))}</button>`).join('')}</div>
         </div>
         ${f.freq === 'daily' ? `<div class="field"><span>${esc(t('habitDays'))}</span>
@@ -1730,11 +1752,11 @@
           <label class="field grow"><span>${esc(t('amountGoal', { period }))}</span><input class="input" id="hf-target" type="number" min="0" step="any" inputmode="decimal" value="${f.target}"></label>
           <label class="field" style="width:120px"><span>${esc(t('goalUnit'))}</span><input class="input" id="hf-unit" maxlength="12" value="${esc(f.unit)}" placeholder="L, min, km…"></label>
           <label class="field" style="width:110px"><span>${esc(t('amountStep'))}</span><input class="input" id="hf-stepv" type="number" min="0" step="any" inputmode="decimal" value="${f.step}"></label>
-        </div>` : `<div class="field"><span>${esc(t('habitTarget'))}</span>
+        </div>` : f.mode === 'goals' ? '' : `<div class="field"><span>${esc(t(f.mode === 'ways' ? 'subWaysTarget' : 'habitTarget'))}</span>
           <div class="stepper"><button type="button" class="icon-btn sm" data-step="-1" aria-label="-1">${ico('minus')}</button><input class="input" id="hf-target" type="number" min="1" inputmode="numeric" value="${f.target}"><button type="button" class="icon-btn sm" data-step="1" aria-label="+1">${ico('plus')}</button></div>
           <div class="muted small">${esc(t('habitTargetHint', { period }))}</div>
         </div>
-        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-multi" ${f.multi || forcedMulti ? 'checked' : ''} ${forcedMulti ? 'disabled' : ''}><span></span></span><span class="grow"><b>${esc(t('habitMulti'))}</b><br><span class="muted small">${esc(t('habitMultiHint'))}</span></span></label>`}
+        ${f.mode !== 'simple' ? '' : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-multi" ${f.multi || forcedMulti ? 'checked' : ''} ${forcedMulti ? 'disabled' : ''}><span></span></span><span class="grow"><b>${esc(t('habitMulti'))}</b><br><span class="muted small">${esc(t('habitMultiHint'))}</span></span></label>`}`}
         <label class="field"><span>⏱ ${esc(t('habitDuration'))}</span><input class="input" id="hf-dur" type="number" min="0" max="600" inputmode="numeric" value="${f.duration || ''}" placeholder="${esc(t('habitDurationPh'))}" style="max-width:200px"></label>
         </div>
         <div class="field"><span>${esc(t('timeOfDay'))}</span><div class="seg" style="flex-wrap:wrap">${TOD.map(x => `<button type="button" data-tod="${x}" class="${f.timeOfDay === x ? 'on' : ''}">${TOD_ICON[x]} ${esc(t('tod_' + x))}</button>`).join('')}</div></div>
@@ -1746,6 +1768,7 @@
         ${h && h.groupId ? `<button type="button" class="chip" data-hm="group">👥 ${esc(t('groupOpen'))}</button>`
           : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareWithFriendsHint' : 'groupNeedLogin'))}</span></span></label>`}
         <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-hidecal" ${f.hideCal ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('hideCal'))}</b><br><span class="muted small">${esc(t('hideCalHint'))}</span></span></label>
+        ${!isNew && !quit ? `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-cont" ${f.cont ? 'checked' : ''}><span></span></span><span class="grow"><b>${ico('branch', 'xs')} ${esc(t('contTitle'))}</b><br><span class="muted small">${esc(t('contHint'))}</span></span></label>` : ''}
         <label class="field"><span>${esc(t('habitDesc'))}</span><textarea class="input" id="hf-note" maxlength="300" placeholder="${esc(t('habitDescPh'))}">${esc(f.note || '')}</textarea></label>
         ${!isNew ? `<div class="row wrap">
           <button type="button" class="chip" data-hm="up">${ico('up')} ${esc(t('moveUp'))}</button>
@@ -1759,7 +1782,7 @@
     const readInputs = w => {
       f.name = $('#hf-name', w).value.trim();
       f.icon = $('#hf-icon', w).value.trim() || '#';
-      f.target = f.measure === 'amount' ? Math.max(.01, parseFloat($('#hf-target', w).value) || 1) : Math.max(1, parseInt($('#hf-target', w).value, 10) || 1);
+      if ($('#hf-target', w)) f.target = f.measure === 'amount' ? Math.max(.01, parseFloat($('#hf-target', w).value) || 1) : Math.max(1, parseInt($('#hf-target', w).value, 10) || 1);
       f.note = $('#hf-note', w).value.trim();
       const mu = $('#hf-multi', w); if (mu && !mu.disabled) f.multi = mu.checked;
       if ($('#hf-unit', w)) { f.unit = $('#hf-unit', w).value.trim(); f.step = Math.max(.01, parseFloat($('#hf-stepv', w).value) || 1); }
@@ -1768,6 +1791,9 @@
       if ($('#hf-rem', w)) { f.remOn = $('#hf-rem', w).checked; f.remTime = $('#hf-rem-time', w).value; }
       if ($('#hf-share', w)) f.share = $('#hf-share', w).checked;
       f.hideCal = $('#hf-hidecal', w).checked;
+      $$('[data-gid]', w).forEach(r => { const g = f.goals.find(x => x.id === r.dataset.gid); if (g) { g.name = $('[data-g-name]', r).value.trim(); g.target = clamp(parseInt($('[data-g-tg]', r).value, 10) || 1, 1, 99); } });
+      $$('[data-wid]', w).forEach(r => { const g = f.ways.find(x => x.id === r.dataset.wid); if (g) g.name = $('[data-w-name]', r).value.trim(); });
+      if ($('#hf-cont', w)) f.cont = $('#hf-cont', w).checked;
     };
     let hw = null;
     const guard = unsavedGuard(() => { if (hw && $('#hf-name', hw)) readInputs(hw); return JSON.stringify(f); });
@@ -1791,6 +1817,11 @@
         if ((el = q('[data-kind]'))) { readInputs(w); f.kind = el.dataset.kind; draw(w); return; }
         if ((el = q('[data-measure]'))) { readInputs(w); f.measure = el.dataset.measure; if (f.measure === 'amount' && f.target === 1 && !f.unit) f.target = 1; draw(w); return; }
         if ((el = q('[data-tod]'))) { readInputs(w); f.timeOfDay = el.dataset.tod; draw(w); return; }
+        if ((el = q('[data-hmode]'))) { readInputs(w); f.mode = el.dataset.hmode; if (f.mode === 'goals' && !f.goals.length) f.goals.push({ id: uid(), name: '', target: 1 }); if (f.mode === 'ways' && !f.ways.length) f.ways.push({ id: uid(), name: '' }); draw(w); return; }
+        if (q('[data-g-add]')) { readInputs(w); if (f.goals.length < 10) f.goals.push({ id: uid(), name: '', target: 1 }); draw(w); setTimeout(() => { const l = [...$$('[data-g-name]', w)].pop(); if (l) l.focus(); }, 0); return; }
+        if (q('[data-w-add]')) { readInputs(w); if (f.ways.length < 20) f.ways.push({ id: uid(), name: '' }); draw(w); setTimeout(() => { const l = [...$$('[data-w-name]', w)].pop(); if (l) l.focus(); }, 0); return; }
+        if ((el = q('[data-g-del]'))) { readInputs(w); f.goals = f.goals.filter(x => x.id !== el.dataset.gDel); draw(w); return; }
+        if ((el = q('[data-w-del]'))) { readInputs(w); f.ways = f.ways.filter(x => x.id !== el.dataset.wDel); draw(w); return; }
         if ((el = q('[data-wd]'))) {
           readInputs(w); const i = +el.dataset.wd;
           f.days = f.days.includes(i) ? f.days.filter(x => x !== i) : [...f.days, i].sort();
@@ -1823,7 +1854,14 @@
           if (!f.name) { toast(t('habitNeedName')); $('#hf-name', w).focus(); return; }
           if (f.kind === 'quit') Object.assign(f, { freq: 'daily', target: 1, multi: false, measure: 'count', duration: 0 });
           if (f.remOn && !f.remTime) { toast(t('remindNeedTime')); return; }
-          const props = { kind: f.kind, name: f.name, icon: f.icon, color: f.color, freq: f.freq, target: f.target, multi: f.multi, note: f.note, days: f.days, measure: f.measure, unit: f.unit, step: f.step, timeOfDay: f.timeOfDay, duration: f.duration, hideCal: f.hideCal || undefined, reminder: { on: !!f.remOn && f.kind !== 'quit', time: f.remTime || '' } };
+          // v1.23: objetivos y maneras (sin nombre no cuentan). Con objetivos el hábito es diario y su meta = nº de objetivos
+          let mode = f.kind === 'quit' || f.measure === 'amount' ? 'simple' : f.mode;
+          const goals = f.goals.filter(g => g.name).map(g => ({ id: g.id, name: g.name.slice(0, 40), target: clamp(+g.target || 1, 1, 99) })), ways = f.ways.filter(g => g.name).map(g => ({ id: g.id, name: g.name.slice(0, 40) }));
+          if (mode === 'goals' && !goals.length) { toast(t('subNeedGoal')); return; }
+          if (mode === 'ways' && ways.length < 2) { toast(t('subNeedWays')); return; }
+          if (mode === 'goals') Object.assign(f, { freq: 'daily', target: goals.length, multi: false });
+          const props = { kind: f.kind, name: f.name, icon: f.icon, color: f.color, freq: f.freq, target: f.target, multi: f.multi, note: f.note, days: f.days, measure: f.measure, unit: f.unit, step: f.step, timeOfDay: f.timeOfDay, duration: f.duration, hideCal: f.hideCal || undefined, reminder: { on: !!f.remOn && f.kind !== 'quit', time: f.remTime || '' },
+            mode: mode === 'simple' ? undefined : mode, goals: mode === 'goals' ? goals : undefined, ways: mode === 'ways' ? ways : undefined };
           // Reto: se conserva la fecha de inicio si solo cambian los días
           const oldCh = h && h.challenge;
           if (f.chDays > 0) props.challenge = oldCh && !oldCh.done ? { ...oldCh, days: f.chDays } : { tid: 'custom', days: f.chDays, start: todayKey() };
@@ -1833,7 +1871,16 @@
             target = { id: uid(), ...props, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], createdAt: todayKey(), archived: false };
             state.habits.push(target);
           } else {
+            // Continuidad: si cambia la regla, los días pasados se quedan con la anterior (hasta hoy, sin incluirlo)
+            const ruleOf = x => JSON.stringify(RULE_KEYS.map(k => x[k] ?? null)), today = todayKey(), changed = ruleOf(h) !== ruleOf(props);
+            if (changed && f.cont) {
+              const past = (h.past || []).filter(p => p.until < today), last = (h.past || []).find(p => p.until === today);
+              past.push(last || { until: today, ...Object.fromEntries(RULE_KEYS.filter(k => h[k] != null).map(k => [k, JSON.parse(JSON.stringify(h[k]))])) });
+              h.past = past;
+            } else if (changed) delete h.past;
             Object.assign(h, props);
+            for (const k of ['mode', 'goals', 'ways']) if (props[k] === undefined) delete h[k];
+            if (changed) recountSubs(h, f.cont ? today : '');
             if (!props.challenge) delete h.challenge;
             if (!props.hideCal) delete h.hideCal;
             checkPerfectMastery(true); checkChallenge(h);
@@ -1849,9 +1896,55 @@
     });
   }
 
+  /* ---------- v1.23: objetivos o maneras de un día ----------
+     Objetivos: cada uno con sus veces (sublogs = { id: veces }); el registro del día = nº de objetivos cumplidos y el hábito
+     se cumple con todos. Maneras: se marca cuál hiciste (sublogs = { id: 1 }); el registro = nº de maneras hechas. */
+  const subOf = (h, k) => ((state.sublogs || {})[h.id] || {})[k] || {};
+  const subCount = (h, k, S = subOf(h, k), r = ruleAt(h, k)) => r.mode === 'goals' ? (r.goals || []).filter(g => (+S[g.id] || 0) >= (+g.target || 1)).length : (r.ways || []).filter(w => S[w.id]).length;
+  function setSub(h, k, S) {
+    const all = state.sublogs || (state.sublogs = {}), H = all[h.id] || (all[h.id] = {});
+    const clean = {}; for (const [id, v] of Object.entries(S)) if (+v > 0) clean[id] = +v;
+    if (Object.keys(clean).length) H[k] = clean; else delete H[k];
+    setCount(h, k, subCount(h, k, clean));
+  }
+  // Sin Continuidad: se recalcula el registro de cada día con los objetivos o maneras de ahora
+  function recountSubs(h, from = '') { for (const k of Object.keys(((state.sublogs || {})[h.id]) || {})) { if (k < from || !subModeAt(h, k)) continue; const v = subCount(h, k); const L = state.logs[h.id] || (state.logs[h.id] = {}); if (v) L[k] = v; else delete L[k]; } }
+  function subMeta(h, k = todayKey()) {
+    const r = ruleAt(h, k), S = subOf(h, k);
+    if (r.mode === 'goals') return t('subGoalsN', { a: subCount(h, k), b: (r.goals || []).length });
+    const done = (r.ways || []).filter(w => S[w.id]).map(w => w.name);
+    return done.length ? done.join(', ') : t('subWaysPick');
+  }
+  function openSubDay(h, k) {
+    if (k > todayKey()) return;
+    const r = ruleAt(h, k), goals = r.mode === 'goals';
+    let wref;
+    const draw = () => {
+      const S = subOf(h, k), list = goals ? r.goals : r.ways;
+      $('#sd', wref).innerHTML = `<p class="muted small" style="margin-top:0">${esc(t(goals ? 'subGoalsHint' : 'subWaysHint', { n: r.target || 1 }))}</p><div class="stack" style="gap:10px">${list.map(g => {
+        const v = +S[g.id] || 0;
+        if (goals) { const tg = +g.target || 1, ok = v >= tg; return `<div class="sub-row clay ${ok ? 'done' : ''}"><span class="sub-ck" aria-hidden="true">${ok ? ico('check') : ''}</span><span class="grow"><b>${esc(g.name)}</b><span class="muted small"> · ${v}/${tg}</span></span><div class="stepper"><button type="button" class="icon-btn sm" data-sd="-1" data-id="${esc(g.id)}" aria-label="−1">${ico('minus')}</button><button type="button" class="icon-btn sm" data-sd="1" data-id="${esc(g.id)}" aria-label="+1">${ico('plus')}</button></div></div>`; }
+        return `<button type="button" class="sub-row clay ${v ? 'done' : ''}" data-sw="${esc(g.id)}" aria-pressed="${!!v}"><span class="sub-ck" aria-hidden="true">${v ? ico('check') : ''}</span><span class="grow"><b>${esc(g.name)}</b></span></button>`;
+      }).join('')}</div>
+      <p class="center" style="margin:14px 0 0"><b class="${periodDone(h, k) ? 'amt-in' : 'muted'}">${esc(periodDone(h, k) ? t('subDone') : t('subNotYet'))}</b></p>`;
+    };
+    openModal({
+      title: `${esc(h.icon || '')} ${esc(h.name)}`, body: `<p class="muted small" style="margin:0 0 10px">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</p><div id="sd"></div>`,
+      foot: `<button class="btn primary block" data-m="x">${esc(t('done'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onClose: () => { refreshHabit(h.id); render(); },
+      onClick: e => {
+        let el; const S = { ...subOf(h, k) };
+        if ((el = e.target.closest('[data-sd]'))) { const g = r.goals.find(x => x.id === el.dataset.id); if (!g) return; S[g.id] = clamp((+S[g.id] || 0) + +el.dataset.sd, 0, 99); setSub(h, k, S); vibrate(8); draw(); return; }
+        if ((el = e.target.closest('[data-sw]'))) { const id = el.dataset.sw; if (S[id]) delete S[id]; else S[id] = 1; setSub(h, k, S); vibrate(8); draw(); }
+      }
+    });
+  }
+
   /* ---------- editor de un día concreto ---------- */
   function openDay(h, k) {
     if (isAmount(h)) { openAmount(h, k); return; }
+    if (subModeAt(h, k)) { openSubDay(h, k); return; }
     const quit = isQuit(h);
     const restBtn = () => {
       if (quit) return '';
@@ -3699,8 +3792,8 @@
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
   const VAULT = window.KGVault, DEV = window.KGVaultDevice;
-  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs'], ['imports', 'ledgerImports']];
-  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs'], ['imports', 'ledgerImports'], ['worth', 'ledgerWorth']];
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], worth: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
   const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
   const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
@@ -3741,7 +3834,7 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], worth: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
   async function useKey(key, raw) { LV.key = key; LV.raw = raw; sessTried = ''; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
   // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
@@ -4039,6 +4132,7 @@
     if (!ledgerOpen()) return html + ledgerLockedHtml();
     if (!capHidden()) html += `<button class="cap-link" data-act="caprice" aria-label="${esc(t('capOpen'))}">${capTotalHtml()}</button>`;
     if (LV.bad) html += `<div class="banner clay">${ico('alert')}<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
+    html += worthHtml();
     const years = new Set([y, +todayKey().slice(0, 4)]); LV.entries.forEach(e => years.add(+String(e.date).slice(0, 4)));
     const yMin = Math.min(...years) - 1, yMax = Math.max(...years) + 1;
     const monthNames = Array.from({ length: 12 }, (_, i) => fmtDate(`2026-${pad(i + 1)}-01`, { month: 'long' }));
@@ -4072,6 +4166,151 @@
     </div>`;
     return html;
   }
+  /* =========================================================
+     PATRIMONIO ACTUAL (v1.23): encima del calendario de la Libreta.
+     Sale del punto de partida real de la Libreta (LV.worth, cifrado; no depende de la calculadora) más los movimientos
+     desde ese día (js/worth.js). Gráfico «Patrimonio hasta la fecha» con los mismos botones que la calculadora y
+     «Comparar» con proyecciones guardadas: en el mismo gráfico o en dos gráficos separados.
+     ========================================================= */
+  const WORTH = window.KGWorth;
+  const WO_CMP = ['#f59e0b', '#ec4899', '#22d3ee', '#a3e635'];
+  let worthMemo = { key: '' };
+  const worthBase = () => LV.worth.find(x => x.id === 'worth') || null;
+  function worthData() {
+    const key = JSON.stringify(worthBase()) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
+    if (worthMemo.key !== key) {
+      const d = WORTH.series(worthBase(), LV.entries, todayKey());
+      worthMemo = { key, ...d, now: d.rows[d.rows.length - 1], pace: WORTH.pace(LV.entries, todayKey()) };
+    }
+    return worthMemo;
+  }
+  function worthUi() {
+    const u = state.ui.worth && typeof state.ui.worth === 'object' ? state.ui.worth : {};
+    state.ui.worth = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', hideGraph: !!u.hideGraph, ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) }, gran: u.gran === 'year' ? 'year' : 'month', cmp: Array.isArray(u.cmp) ? u.cmp.filter(id => LV.projs.some(p => p.id === id)) : [], split: !!u.split, cmpOn: !!u.cmpOn };
+    return state.ui.worth;
+  }
+  const woRow = r => ({ date: CALC.parseDate(r.key), patrimony: r.patrimony / 100, income: r.income / 100, expenses: r.expenses / 100, investments: r.investments / 100, funds: Object.fromEntries(Object.entries(r.inv).map(([k, v]) => [k, v / 100])) });
+  // Una proyección guardada calculada como en la calculadora (desde su fecha de inicio)
+  const projMemo = new Map();
+  function projCalc(p) {
+    const key = p.id + '|' + (p.at || 0) + '|' + ledgerMain() + '|' + todayKey();
+    if (!projMemo.has(key)) { const model = CALC.fromItems(calcConv(p.items || []), todayKey()), res = CALC.compute(model); projMemo.set(key, { model, res, rows: CALC.daily(res) }); }
+    return projMemo.get(key);
+  }
+  const woSeriesReal = u => [{ key: 'patrimony', label: t('woSerReal'), color: CALC_SER.patrimony }, ...['income', 'expenses', 'investments'].filter(k => u.ser[k]).map(k => ({ key: k, label: t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]), color: CALC_SER[k] }))];
+  function worthChartHtml(d, u) {
+    const inv = u.mode === 'investments', rows = d.rows.map(woRow);
+    if (inv) {
+      const cats = Object.keys(d.now.inv);
+      return calcChart('wo-main', rows, [{ key: 'investments', label: t('woInvested'), color: CALC_SER.investments }, ...cats.map((c, i) => ({ fund: c, label: catName(catOf(c)), color: CALC_COLORS[(i + 1) % CALC_COLORS.length] }))], { aria: t('woGraphInv'), noPat: true });
+    }
+    const sel = u.cmpOn ? LV.projs.filter(p => u.cmp.includes(p.id)) : [];
+    if (!sel.length) return calcChart('wo-main', rows, woSeriesReal(u), { aria: t('woGraph') });
+    if (u.split) {
+      // Dos gráficos: a la izquierda lo real, a la derecha cada proyección, cada uno con sus líneas y su «Más detalles»
+      const left = `<div class="wo-split-col"><h3 class="wo-split-h">${esc(t('woGraph'))}</h3>${calcChart('wo-main', rows, woSeriesReal(u), { aria: t('woGraph') })}${worthDetails(d, u, 'wo-real')}</div>`;
+      const right = sel.map(p => { const pc = projCalc(p); return `<div class="wo-split-col"><h3 class="wo-split-h">${esc(t('woProjOf', { name: p.name }))}</h3>${calcChart('wo-p-' + p.id, pc.rows, calcSeries(pc.model, { mode: 'patrimony', ser: u.ser, off: [] }), { aria: p.name })}<details class="calc-box inner" data-cd="wo-pd:${esc(p.id)}" ${calcIsOpen('wo-pd:' + p.id) ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(pc.res, 'patrimony', [], u.gran)}</details></div>`; }).join('');
+      return `<div class="wo-split">${left}${right}</div>`;
+    }
+    // Mismo gráfico: lo real hasta hoy y cada proyección desde su inicio hasta su final (discontinua)
+    const pcs = sel.map(p => ({ p, pc: projCalc(p) })), keyOf = CALC.keyOf;
+    let from = d.rows[0].key, to = todayKey();
+    for (const { pc } of pcs) { const a = keyOf(pc.rows[0].date), b = keyOf(pc.rows[pc.rows.length - 1].date); if (a < from) from = a; if (b > to) to = b; }
+    const real = new Map(d.rows.map(r => [r.key, r])), pm = pcs.map(({ pc }) => new Map(pc.rows.map(r => [keyOf(r.date), r])));
+    const out = [];
+    for (let k = from, i = 0; k <= to && i < 40000; k = addDays(k, 1), i++) {
+      const r = real.get(k), row = { date: CALC.parseDate(k), patrimony: r ? r.patrimony / 100 : null, income: r ? r.income / 100 : null, expenses: r ? r.expenses / 100 : null, investments: r ? r.investments / 100 : null };
+      pm.forEach((m, j) => { const x = m.get(k); row['cmp' + j] = x ? x.patrimony : null; });
+      out.push(row);
+    }
+    const ser = [...woSeriesReal(u), ...pcs.map(({ p }, j) => ({ key: 'cmp' + j, label: t('woProjOf', { name: p.name }), color: WO_CMP[j % WO_CMP.length], dash: true }))];
+    return calcChart('wo-main', out, ser, { aria: t('woCompare'), noPat: true });
+  }
+  function worthDetails(d, u, cd = 'wo-det') {
+    const per = WORTH.periods(d.rows, u.gran), b = d.base;
+    const head = ['calcDate', 'calcPatrimony', 'calcDiff', 'calcIncAcc', 'calcExpAcc', 'woInvested'].map(k => t(k));
+    const body = per.map((r, i) => { const prev = i ? per[i - 1].patrimony : b.digital + b.cash + b.invested, df = (r.patrimony - prev) / 100; return `<tr><th scope="row">${esc(fmtDate(r.key, { day: 'numeric', month: 'short', year: 'numeric' }))}</th><td>${money(r.patrimony / 100)}</td><td class="${cls(df)}">${esc(csign(df))}</td><td>${money(r.income / 100)}</td><td>${money(r.expenses / 100)}</td><td>${money(r.investments / 100)}</td></tr>`; }).reverse().join('');
+    return `<details class="calc-box inner" data-cd="${cd}" ${calcIsOpen(cd) ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><button type="button" class="chip sm calc-view-btn calc-gran" data-wo="gran">${ico('calendar')} ${esc(t(u.gran === 'month' ? 'calcGranMonth' : 'calcGranYear'))}</button><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="calc-table-wrap"><table class="calc-table"><thead><tr>${head.map(h => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div></details>`;
+  }
+  function worthHtml() {
+    const d = worthData(), u = worthUi(), n = d.now, b = d.base, start = (b.digital + b.cash + b.invested) / 100, delta = n.patrimony / 100 - start, pc = d.pace;
+    const inv = u.mode === 'investments';
+    let html = `<section class="calc-card clay wo-card" aria-labelledby="wo-total-l">
+      <div class="calc-hero"><div class="calc-eyebrow" id="wo-total-l">${esc(t('woEyebrow'))}</div><strong class="calc-total">${money(n.patrimony / 100)}</strong>
+        <div class="calc-trend ${delta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('woSince', { d: fmtShort(b.date), v: csign(delta) }))}</span></div>
+        ${b.set ? '' : `<p class="muted small">${esc(t('woNoBase'))}</p>`}
+        <button class="chip sm" data-wo="start">${ico('compass')} ${esc(t(b.set ? 'woEditBase' : 'woSetBase'))}</button></div>
+      <details class="calc-box" data-cd="wo-proj" ${calcIsOpen('wo-proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(n.digital / 100)}</strong></div><div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(n.invested / 100)}</strong></div></div>
+        <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('cmCash'))}</span><strong>${money(n.cash / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${money(n.income / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${money(n.expenses / 100)}</strong></div><div class="calc-metric"><span>${esc(t('woStart'))}</span><strong>${money(start)}</strong></div></div>
+        <p class="calc-fine">${esc(t('woPace', { net: csign(pc.net / 100), inv: money(pc.invest / 100), y: money(n.patrimony / 100 + pc.net * 12 / 100) }))}</p>
+      </details>`;
+    html += `<div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('woTrajEyebrow'))}</div><h2>${esc(t(inv ? 'woGraphInv' : 'woGraph'))}</h2></div><div class="row wrap calc-sec-acts"><button class="chip sm" data-wo="mode">${esc(t(inv ? 'calcModePat' : 'calcModeInv'))}</button><button class="chip sm" data-wo="graph" aria-expanded="${!u.hideGraph}">${esc(t(u.hideGraph ? 'calcShowGraph' : 'calcHideGraph'))}</button>${inv ? '' : `<button class="chip sm ${u.cmpOn ? 'on' : ''}" data-wo="cmp" aria-pressed="${u.cmpOn}">${ico('compare')} ${esc(t('woCompare'))}</button>`}</div></div>`;
+    if (!u.hideGraph) {
+      if (!inv) html += `<div class="row wrap calc-toggles" role="group" aria-label="${esc(t('calcSeriesAria'))}">${['income', 'expenses', 'investments'].map(k => `<button type="button" class="calc-toggle ${u.ser[k] ? 'on' : ''}" data-wo="ser" data-v="${k}" aria-pressed="${u.ser[k]}">${esc(t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]))}</button>`).join('')}</div>`;
+      if (!inv && u.cmpOn) html += LV.projs.length ? `<div class="wo-cmp"><span class="rg-l">${esc(t('woCmpPick'))}</span><div class="row wrap" style="gap:6px">${LV.projs.map((p, i) => `<button type="button" class="calc-toggle ${u.cmp.includes(p.id) ? 'on' : ''}" data-wo="cmp-p" data-id="${esc(p.id)}" aria-pressed="${u.cmp.includes(p.id)}">${esc(p.name)}</button>`).join('')}</div>
+          ${u.cmp.length ? `<div class="seg seg-sm" role="group" style="margin-top:8px">${[[false, 'woOneChart'], [true, 'woTwoCharts']].map(([v, k]) => `<button type="button" data-wo="split" data-v="${v ? 1 : 0}" class="${u.split === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>` : ''}</div>` : `<p class="muted small">${esc(t('woNoProjs'))}</p>`;
+      html += worthChartHtml(d, u);
+      if (!(u.cmpOn && u.split && u.cmp.length) || inv) html += worthDetails(d, u);
+    }
+    return html + '</section>';
+  }
+  function worthClick(e) {
+    const el = e.target.closest('[data-wo]'); if (!el) return false;
+    if (el.closest('summary')) e.preventDefault();
+    const u = worthUi(), k = el.dataset.wo;
+    switch (k) {
+      case 'start': openWorthStart(); return true;
+      case 'mode': u.mode = u.mode === 'investments' ? 'patrimony' : 'investments'; break;
+      case 'graph': u.hideGraph = !u.hideGraph; break;
+      case 'ser': u.ser[el.dataset.v] = !u.ser[el.dataset.v]; break;
+      case 'gran': u.gran = u.gran === 'month' ? 'year' : 'month'; break;
+      case 'cmp': u.cmpOn = !u.cmpOn; if (u.cmpOn && !u.cmp.length && LV.projs.length) u.cmp = [LV.projs[0].id]; break;
+      case 'cmp-p': u.cmp = u.cmp.includes(el.dataset.id) ? u.cmp.filter(x => x !== el.dataset.id) : [...u.cmp, el.dataset.id].slice(-4); break;
+      case 'split': u.split = el.dataset.v === '1'; break;
+      default: return false;
+    }
+    save(); render(); return true;
+  }
+  // Punto de partida de la Libreta: lo que tenías de verdad al empezar un día
+  function openWorthStart() {
+    const b = worthBase() || { id: 'worth', date: LED.span(LV.entries)?.from || todayKey(), digital: 0, cash: 0, invested: 0 };
+    const val = c => c ? esc(fmtPctIn(c / 100)) : '';
+    openModal({
+      title: calcHead(t('woEyebrow'), t('woBaseTitle')), cls: 'calc-sheet',
+      body: `<p class="muted small" style="margin-top:0">${esc(t('woBaseHint', { m: ledgerMain() }))}</p><div class="calc-grid">
+        <label class="field"><span>${esc(t('csDate'))}</span><input class="input" type="date" id="wo-date" value="${esc(b.date)}" max="${todayKey()}"></label>
+        ${[['digital', 'cmDigital'], ['cash', 'cmCash'], ['invested', 'cmInvestments']].map(([k, l]) => `<label class="field"><span>${esc(t(l))}</span><input class="input" inputmode="decimal" autocomplete="off" id="wo-${k}" value="${val(b[k])}" placeholder="0,00"></label>`).join('')}</div>
+        <p class="calc-fine">${esc(t('woBaseFine'))}</p>`,
+      foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-wb="save">${esc(t('save'))}</button>`,
+      onClick: (e, close, w) => {
+        if (!e.target.closest('[data-wb]')) return;
+        const date = $('#wo-date', w).value, nb = { id: 'worth', date };
+        if (!CALC.parseDate(date) || date > todayKey()) { toast(t('woBadDate')); return; }
+        for (const k of ['digital', 'cash', 'invested']) { const s = $('#wo-' + k, w).value.trim(), c = s ? LED.parseCents(s) : 0; if (c == null) { toast(t('calcNonNeg')); $('#wo-' + k, w).focus(); return; } nb[k] = c; }
+        LV.worth = [nb]; ledgerSave(); close(); render(); toast(t('saved'));
+      }
+    });
+  }
+  // Calculadora → Punto de partida → «Aplicar datos de la Libreta actual»: copia las cifras de hoy (la Libreta no cambia)
+  async function calcApplyWorth(done) {
+    const d = worthData(), n = d.now, pc = d.pace;
+    if (!(await confirmDialog(t('woApplyQ', { d: money(n.digital / 100), c: money(n.cash / 100), i: money(n.invested / 100) })))) return;
+    const s = calcStartItem();
+    Object.assign(s, { digital: Math.max(0, n.digital) / 100, cash: Math.max(0, n.cash) / 100, date: todayKey() }); delete s.cur;
+    if (pc.income) s.salary = pc.income / 100;
+    if (pc.expenses) s.expenses = pc.expenses / 100;
+    if (n.invested > 0) {
+      const { model } = calcData();
+      if (model.investments.length) {
+        let f = LV.calc.find(x => x.id === 'led-fund');
+        if (!f) { f = { id: 'led-fund', kind: 'fund', name: t('woFundName'), amount: 0, target: model.investments[0].id, ord: calcOrd() }; LV.calc.push(f); }
+        f.amount = n.invested / 100; delete f.cur;
+      } else toast(t('woNeedDest'));
+    }
+    calcCommit(t('woApplied')); done && done();
+  }
+
   /* =========================================================
      CALCULADORA DE PATRIMONIO PROYECTADO (v1.17)
      Vive dentro de la Libreta (botón de la calculadora junto al candado y el «+») y sus datos van cifrados con ella:
@@ -4133,19 +4372,24 @@
 
   /* ---------- gráfico de área (en pantalla con tooltip, ratón, dedo y teclado; en el PDF sin controles) ---------- */
   const calcCharts = new Map();
-  const calcVal = (pt, s) => s.fund ? (pt.funds[s.fund] || 0) : pt[s.key];
+  const calcVal = (pt, s) => s.fund ? ((pt.funds || {})[s.fund] || 0) : pt[s.key];
   function calcChart(id, rows, series, o = {}) {
     if (!series.length) return `<p class="muted small calc-empty">${esc(t('calcPickSeries'))}</p>`;
     const pts = CALC.sample(rows, o.print ? 160 : 240), n = pts.length;
     const W = o.print ? 640 : chartW(), H = o.print ? 250 : (W < 500 ? 220 : 260), pl = 58, pr = 14, pt = 16, pb = 30, iw = W - pl - pr, ih = H - pt - pb;
-    const all = pts.flatMap(p => series.map(s => calcVal(p, s)));
+    // v1.23: un valor null no se dibuja (p. ej. lo real después de hoy al comparar con una proyección); s.dash = línea discontinua sin relleno
+    const all = pts.flatMap(p => series.map(s => calcVal(p, s))).filter(v => v != null && Number.isFinite(v));
     const lo = Math.min(0, ...all), hi = Math.max(1, ...all), span = hi - lo || 1;
     const x = i => pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => pt + ih - (v - lo) / span * ih, base = y(Math.max(lo, 0));
     const lbl = v => privacyOn() ? '•••' : compactMoney(v);
     const grid = [0, 1, 2, 3, 4].map(k => lo + span * k / 4).map(v => `<line class="grid-line" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="axis-label" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(lbl(v))}</text>`).join('');
     const shapes = series.map(s => {
-      const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(calcVal(p, s)).toFixed(1)}`).join(' ');
-      return `<polygon points="${pl},${base.toFixed(1)} ${line} ${(W - pr)},${base.toFixed(1)}" fill="${s.color}" fill-opacity="${o.print ? '.16' : '.2'}"/><polyline points="${line}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round"/>`;
+      const runs = []; let cur = null;
+      pts.forEach((p, i) => { const v = calcVal(p, s); if (v == null || !Number.isFinite(v)) { cur = null; return; } if (!cur) runs.push(cur = []); cur.push([x(i), y(v)]); });
+      return runs.map(r => {
+        const line = r.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(' ');
+        return `${s.dash ? '' : `<polygon points="${r[0][0].toFixed(1)},${base.toFixed(1)} ${line} ${r[r.length - 1][0].toFixed(1)},${base.toFixed(1)}" fill="${s.color}" fill-opacity="${o.print ? '.16' : '.2'}"/>`}<polyline points="${line}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round"${s.dash ? ' stroke-dasharray="6 5"' : ''}/>`;
+      }).join('');
     }).join('');
     const d0 = pts[0].date, d1 = pts[n - 1].date, mid = pts[Math.floor((n - 1) / 2)].date;
     const xl = `<text class="axis-label" x="${pl}" y="${H - 8}">${esc(cdate(d0))}</text>${W >= 420 ? `<text class="axis-label" x="${x(Math.floor((n - 1) / 2)).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(cdate(mid))}</text>` : ''}<text class="axis-label" x="${W - pr}" y="${H - 8}" text-anchor="end">${esc(cdate(d1))}</text>`;
@@ -4163,11 +4407,11 @@
     const p = c.pts[idx], cx = c.x(idx), sx = svg.clientWidth / c.W, priv = privacyOn();
     const xh = svg.querySelector('.xhair'); xh.setAttribute('x1', cx); xh.setAttribute('x2', cx); xh.style.display = '';
     let top = Infinity;
-    c.series.forEach((s, i) => { const d = svg.querySelector(`.cdot[data-i="${i}"]`), cy = c.y(calcVal(p, s)); top = Math.min(top, cy); if (d) { d.setAttribute('cx', cx); d.setAttribute('cy', cy); d.style.display = ''; } });
+    c.series.forEach((s, i) => { const d = svg.querySelector(`.cdot[data-i="${i}"]`), v = calcVal(p, s); if (v == null || !Number.isFinite(v)) { if (d) d.style.display = 'none'; return; } const cy = c.y(v); top = Math.min(top, cy); if (d) { d.setAttribute('cx', cx); d.setAttribute('cy', cy); d.style.display = ''; } });
     let tip = box.querySelector(':scope > .tip');
     if (!tip) { tip = document.createElement('div'); tip.className = 'tip calc-tip'; box.appendChild(tip); }
     const v = n => priv ? '•••••' : fmtMoney(n);
-    tip.innerHTML = `<b>${esc(fmtDate(CALC.keyOf(p.date), { day: 'numeric', month: 'long', year: 'numeric' }))}</b>${c.single || c.noPat ? '' : `<span>${esc(t('calcSerPat'))}: ${esc(v(p.patrimony))}</span>`}${c.series.filter(s => !(s.key === 'patrimony')).map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}: ${esc(v(calcVal(p, s)))}</span>`).join('')}`;
+    tip.innerHTML = `<b>${esc(fmtDate(CALC.keyOf(p.date), { day: 'numeric', month: 'long', year: 'numeric' }))}</b>${c.single || c.noPat || p.patrimony == null ? '' : `<span>${esc(t('calcSerPat'))}: ${esc(v(p.patrimony))}</span>`}${c.series.filter(s => !(s.key === 'patrimony') && calcVal(p, s) != null).map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}: ${esc(v(calcVal(p, s)))}</span>`).join('')}`;
     tip.style.display = 'block';
     const half = tip.offsetWidth / 2 + 4, legendH = svg.offsetTop;
     tip.style.left = clamp(cx * sx, half, Math.max(half, box.clientWidth - half)) + 'px';
@@ -4388,6 +4632,7 @@
           <label class="field"><span>${esc(t('csDate'))}</span><input class="input" type="date" data-cs="date" value="${esc(s.date)}"></label>
           <label class="field"><span>${esc(t('fxCurrency'))}</span>${calcCurSel(s.cur, 'data-cs="cur"')}</label></div>
         <p class="calc-fine">${esc(t('calcStartHint'))}</p>
+        <button class="btn sm calc-blue" data-cs-act="apply-worth">${ico('wallet')} ${esc(t('woApply'))}</button>
         <div class="calc-part"><div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('calcFundsEyebrow'))}</div><h3>${esc(t('calcFundsTitle'))}</h3></div><button class="btn sm calc-blue" data-cs-act="add-fund">${ico('plus')} ${esc(t('calcAddFund'))}</button></div>
           ${funds.length ? funds.map(f => `<div class="calc-fund-edit" data-fund="${esc(f.id)}"><label class="field"><span>${esc(t('calcFundName'))}</span><input class="input" maxlength="60" data-cf="name" value="${esc(f.name)}"></label><label class="field"><span>${esc(t('calcFundAmount', { $cur: f.cur }))}</span><span class="cap-input"><input class="input" inputmode="decimal" data-cf="amount" value="${calcInVal(f.amount)}" placeholder="0,00">${calcCurSel(f.cur, 'data-cf="cur"').replace('class="input"', 'class="input cur-sel"')}</span></label><label class="field calc-fund-target"><span>${esc(t('calcFundTarget'))}</span><select class="input" data-cf="target">${invs.some(i => i.id === f.target) ? '' : `<option value="" selected disabled>${esc(t('calcSelectDest'))}</option>`}${optsInv(f.target)}</select></label><button class="icon-btn sm calc-del" data-cs-act="del-fund" data-id="${esc(f.id)}" aria-label="${esc(t('calcFundDel'))}" title="${esc(t('calcFundDel'))}">${ico('trash')}</button></div>`).join('') : `<p class="muted small calc-empty">${esc(t('calcNoFunds'))}</p>`}</div>
         <div class="calc-part"><div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('calcDestEyebrow'))}</div><h3>${esc(t('calcDestTitle'))}</h3></div><button class="btn sm" data-cs-act="add-dest">${ico('plus')} ${esc(t('calcAddDest'))}</button></div>
@@ -4423,6 +4668,7 @@
       onClick: async (e) => {
         const b = e.target.closest('[data-cs-act]'); if (!b) return;
         const { model } = calcData(), act = b.dataset.csAct, id = b.dataset.id;
+        if (act === 'apply-worth') { calcApplyWorth(draw); return; }
         if (act === 'add-fund') {
           if (!model.investments.length) { toast(t('calcNeedDestFirst')); return; }
           LV.calc.push({ id: uid(), kind: 'fund', name: t('calcNewFund'), amount: 0, target: model.investments[0].id, ord: calcOrd() }); calcCommit(); draw();
@@ -4730,7 +4976,8 @@
       for (const s of series) { const lw = P.width(s.label, 8) + 20; if (lx + lw > M + CW) { lx = M; d.y += 12; } d.circle(lx + 4, d.y + 4, 3.2, { fill: s.color }); d.text(lx + 11, d.y + 7, s.label, { size: 8, color: SUB }); lx += lw; }
       d.y += 14;
       const pts = CALC.sample(rows, 160), n = pts.length, top = d.y, iw = CW - pl - pr, ih = H - pt - pb;
-      const all = pts.flatMap(p => series.map(s => calcVal(p, s)));
+      // v1.23: un valor null no se dibuja (p. ej. lo real después de hoy al comparar con una proyección); s.dash = línea discontinua sin relleno
+    const all = pts.flatMap(p => series.map(s => calcVal(p, s))).filter(v => v != null && Number.isFinite(v));
       const lo = Math.min(0, ...all), hi = Math.max(1, ...all), span = hi - lo || 1;
       const x = i => M + pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => top + pt + ih - (v - lo) / span * ih, base = y(Math.max(lo, 0));
       for (const k of [0, 1, 2, 3, 4]) { const v = lo + span * k / 4; d.line(M + pl, y(v), M + CW - pr, y(v), { color: LINE, lw: .6 }); d.text(M + pl - 6, y(v) + 3, privacyOn() ? '•••' : compactMoney(v), { size: 7, color: SUB, align: 'right' }); }
@@ -5226,7 +5473,8 @@
       const box = $('#le-fx', wref); if (!box) return;
       if (f.cur === main) { box.innerHTML = ''; return; }
       const r = Number(f.rate) || 0;
-      box.innerHTML = `<label class="field"><span>${esc(t('fxRateLbl', { c: f.cur, m: main }))}</span><input class="input" id="le-rate" inputmode="decimal" autocomplete="off" value="${r ? esc(fmtPctIn(FX.roundRate(r))) : ''}" placeholder="${esc(t('fxNoRate'))}"></label>
+      box.innerHTML = `<div class="seg seg-sm" role="group" aria-label="${esc(t('fxStoreAria'))}">${[['keep', 'fxKeepCur'], ['conv', 'fxConvMain']].map(([v, k]) => `<button type="button" data-le-store="${v}" class="${(f.conv ? 'conv' : 'keep') === v ? 'on' : ''}" aria-pressed="${(f.conv ? 'conv' : 'keep') === v}">${esc(t(k, { c: f.cur, m: main }))}</button>`).join('')}</div>
+        <label class="field" style="margin-top:10px"><span>${esc(t('fxRateLbl', { c: f.cur, m: main }))}</span><input class="input" id="le-rate" inputmode="decimal" autocomplete="off" value="${r ? esc(fmtPctIn(FX.roundRate(r))) : ''}" placeholder="${esc(t('fxNoRate'))}"></label>
         <p class="muted small" id="le-fx-p" style="margin:6px 0 0"></p>`;
       fxPrev();
     };
@@ -5271,6 +5519,7 @@
         const restore = () => { if (f._amt != null) $('#le-amt', wref).value = f._amt; fxLine(); };
         if ((el = e.target.closest('[data-le-type]'))) { read(); keepAmt(); f.type = el.dataset.leType; const c = catOf(f.categoryId); if (!catFits(c, f.type)) f.categoryId = (LV.cats.find(x => !x.archived && catFits(x, f.type)) || { id: 'other' }).id; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-cat]'))) { read(); keepAmt(); f.categoryId = el.dataset.leCat; draw(); restore(); return; }
+        if ((el = e.target.closest('[data-le-store]'))) { const r = $('#le-rate', wref); if (r) { const v = Number(String(r.value).replace(/\s/g, '').replace(',', '.')); if (v > 0) { f.rate = v; f.rateSet = true; } } f.conv = el.dataset.leStore === 'conv'; fxLine(); return; }
         if ((el = e.target.closest('[data-le-method]'))) { read(); keepAmt(); f.method = el.dataset.leMethod; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le]'))) {
           if (el.dataset.le === 'del') {
@@ -5284,7 +5533,8 @@
           if (f.cur !== main) {
             const rt = FX.roundRate($('#le-rate', wref) ? Number(String($('#le-rate', wref).value).replace(/\s/g, '').replace(',', '.')) : f.rate);
             if (!(rt > 0)) { toast(t('fxNeedRate')); const ri = $('#le-rate', wref); if (ri) ri.focus(); return; }
-            data.fx = { cur: f.cur, cents: amt, rate: rt }; data.amountCents = FX.toMain(amt, rt);
+            // v1.23: «Convertir» guarda solo el importe en la moneda principal; «En su moneda», también la original (fx)
+            data.amountCents = FX.toMain(amt, rt); if (!f.conv) data.fx = { cur: f.cur, cents: amt, rate: rt };
             if (!data.amountCents) { toast(t('ledgerNeedAmount')); return; }
           }
           if (isNew && f.every) {
@@ -5391,7 +5641,7 @@
         if (rs.every(r => S.ans['row:' + r.key])) continue;
         const a = S.ans[g.id] || {}; if (!a.type || (a.type !== 'skip' && (!a.categoryId || (rgCanGroup(g) && !a.group)))) n++;
       }
-      for (const c of Object.keys(S.cur)) if (!S.curMode[c] || (S.curMode[c] === 'rate' && !(S.rates[c] > 0))) n++;
+      for (const c of Object.keys(S.cur)) if (!S.curMode[c] || (S.curMode[c] !== 'skip' && !(S.rates[c] > 0))) n++;
       return n;
     };
     const draw = () => {
@@ -5423,8 +5673,8 @@
             ${seg('row:' + r.key, 'type', [['', 'rgAsGroup'], ...RG_TYPES], ra ? ra.type : '')}${ra && ra.type && ra.type !== 'skip' ? catSel('row:' + r.key, ra) : ''}</li>`; }).join('')}</ul>${rs.length > RG_MAX_ROWS ? `<p class="muted small" style="margin:0">${esc(t('rgMoreRows', { n: rs.length - RG_MAX_ROWS }))}</p>` : ''}` : ''}
         </section>`; }).join('')}
         ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay"><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
-          ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgConvert']], S.curMode[c])}
-          ${S.curMode[c] === 'rate' ? `<label class="field"><span>${esc(t('fxRateLbl', { c, m: ledgerMain() }))}</span><input class="input" inputmode="decimal" data-rg-rate="${esc(c)}" value="${S.rates[c] ? esc(String(S.rates[c]).replace('.', state.lang === 'es' ? ',' : '.')) : ''}" placeholder="${esc(t('fxNoRate'))}"></label>${S.rates[c] ? `<p class="muted small" style="margin:0">${esc(fxRateTxt(c, S.rates[c]))} · ${esc(t('fxEstimate'))}</p>` : ''}` : ''}</section>`).join('')}
+          ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgKeepCur'], ['conv', 'rgConvMain']], S.curMode[c])}
+          ${S.curMode[c] === 'rate' || S.curMode[c] === 'conv' ? `<label class="field"><span>${esc(t('fxRateLbl', { c, m: ledgerMain() }))}</span><input class="input" inputmode="decimal" data-rg-rate="${esc(c)}" value="${S.rates[c] ? esc(String(S.rates[c]).replace('.', state.lang === 'es' ? ',' : '.')) : ''}" placeholder="${esc(t('fxNoRate'))}"></label>${S.rates[c] ? `<p class="muted small" style="margin:0">${esc(fxRateTxt(c, S.rates[c]))} · ${esc(t('fxEstimate'))}</p>` : ''}` : ''}</section>`).join('')}
         ${S.q.length ? '' : `<p class="muted">${esc(t('rgNothing'))}</p>`}</div>`;
       const foot = $('.sheet-foot', wref);
       if (foot) foot.innerHTML = S.q.length ? `<p class="muted small" style="margin:0;flex-basis:100%">${miss ? esc(t('rgMissing', { n: miss })) : ''}</p><button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button><button class="btn primary" data-rg="go" ${miss ? 'disabled' : ''}>${ico('check')} ${esc(t('rgImport'))}</button>` : `<button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button>`;
@@ -5468,8 +5718,8 @@
         if (!(el = e.target.closest('[data-rg]'))) return;
         if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
         if (missing()) return;
-        const rates = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] === 'rate') rates[c] = S.rates[c];
-        const p = BCSV.plan(S.rows, S.ans, rates, LV.entries, ledgerMain()), importId = uid();
+        const rates = {}, conv = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] !== 'skip') { rates[c] = S.rates[c]; if (S.curMode[c] === 'conv') conv[c] = true; }
+        const p = BCSV.plan(S.rows, S.ans, rates, LV.entries, ledgerMain(), conv), importId = uid();
         for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, importId, ...(x.extGroup ? { extGroup: x.extGroup } : {}), ...(x.fx ? { fx: { ...x.fx, rate: FX.roundRate(x.fx.rate) } } : {}) });
         // v1.22: cada importación queda como un registro (fecha, hora y archivo) para poder revisarla, editarla o borrarla entera
         if (p.create.length || p.update.length) LV.imports.push({ id: importId, at: Date.now(), file: S.file, format: S.data.format, n: p.create.length, updates: p.update.map(u => ({ id: u.id, addCents: u.addCents, addIds: u.addIds, addFx: u.addFx || 0 })) });
@@ -5979,7 +6229,7 @@
     if (isQuit(h)) return { due: true, done: !cnt(h, k), quit: true };
     if (h.freq === 'daily') {
       if (isOffDay(h, k) && !cnt(h, k)) return { due: false };
-      return { due: true, done: cnt(h, k) >= dayGoal(h) };
+      return { due: true, done: cnt(h, k) >= dayGoal(h, k) };
     }
     return { due: !periodDone(h, k) || cnt(h, k) > 0, done: periodDone(h, k) };
   }
@@ -5987,6 +6237,7 @@
     const k = todayKey();
     if (isQuit(h)) return cnt(h, k) ? t('quitSlippedToday') : t('quitDays', { n: currentStreak(h) });
     if (isAmount(h)) return `${fmtNum(periodSum(h, k))} / ${fmtNum(h.target)} ${h.unit || ''}${h.freq !== 'daily' ? ' · ' + unitLabel(h) : ''}`;
+    if (subMode(h) && h.freq === 'daily') return subMeta(h, k);
     if (h.freq === 'daily') return h.target > 1 ? `${cnt(h, k)} / ${h.target}` : (cnt(h, k) ? t('done') : t('pending'));
     return t(h.freq === 'weekly' ? 'thisWeek' : 'thisMonth', { a: periodSum(h, k), b: h.target });
   }
@@ -6073,7 +6324,7 @@
     const steps = routineSteps(r); if (!steps.length) return;
     let i = steps.findIndex(h => !todayStatus(h).done); if (i < 0) i = 0;
     let wref;
-    const markDone = h => { const k = todayKey(); const goal = isAmount(h) ? h.target : dayGoal(h); if (cnt(h, k) < goal) setCount(h, k, h.freq === 'daily' || isAmount(h) ? goal : cnt(h, k) + 1); };
+    const markDone = h => { if (subModeAt(h, todayKey())) { openSubDay(h, todayKey()); return; } const k = todayKey(); const goal = isAmount(h) ? h.target : dayGoal(h); if (cnt(h, k) < goal) setCount(h, k, h.freq === 'daily' || isAmount(h) ? goal : cnt(h, k) + 1); };
     const draw = () => {
       if (i >= steps.length) {
         state.routineRuns[r.id] = (state.routineRuns[r.id] || 0) + 1; save(); checkSecrets();
@@ -6206,7 +6457,7 @@
   function challengeProgress(h) {
     const c = h.challenge; if (!c) return 0;
     const end = isQuit(h) ? addDays(todayKey(), -1) : todayKey(); let n = 0;
-    for (let k = c.start; k <= end; k = addDays(k, 1)) if (isQuit(h) ? !cnt(h, k) : cnt(h, k) >= dayGoal(h)) n++;
+    for (let k = c.start; k <= end; k = addDays(k, 1)) if (isQuit(h) ? !cnt(h, k) : cnt(h, k) >= dayGoal(h, k)) n++;
     return n;
   }
   function checkChallenge(h, silent = false) {
@@ -8295,7 +8546,7 @@
   }));
   function deleteHabit(h) {
     state.habits = state.habits.filter(x => x !== h);
-    for (const k of ['logs', 'mastery', 'rest', 'shields', 'ltime']) delete state[k][h.id];
+    for (const k of ['logs', 'mastery', 'rest', 'shields', 'ltime', 'sublogs']) if (state[k]) delete state[k][h.id];
     state.routines.forEach(r => { r.habitIds = r.habitIds.filter(id => id !== h.id); });
     state.projects.forEach(p => { p.habitIds = p.habitIds.filter(id => id !== h.id); });
     save(); render(); toast(t('deleted'));
@@ -8548,7 +8799,7 @@
     if ((el = e.target.closest('[data-group]'))) { e.preventDefault(); openGroup(el.dataset.group); return; }
     if ((el = e.target.closest('[data-group-open]'))) { openGroup(el.dataset.groupOpen); return; }
     if (state.ui.tab === 'chat' && chatClick(e)) return;
-    if (state.ui.tab === 'ledger' && calcClick(e)) return;
+    if (state.ui.tab === 'ledger' && (calcClick(e) || worthClick(e))) return;
     if (state.ui.tab === 'cal' && tfClick(e)) return;
     if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
     if ((el = e.target.closest('[data-pin]'))) { pinKey(el.dataset.pin); return; }

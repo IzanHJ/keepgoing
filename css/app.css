@@ -1830,3 +1830,17 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .msg-img img { display: block; width: 100%; height: auto; }
 .msg-img-t { display: block; margin-top: 6px; }
 .card-big { display: block; width: 100%; height: auto; border-radius: var(--r-md); }
+/* Hábitos con objetivos o maneras */
+.sub-edit { margin-top: 10px; }
+.sub-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; border-radius: var(--r-md); color: var(--fg); text-align: left; font: inherit; cursor: pointer; }
+.sub-ck { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--surface-3); }
+.sub-row.done .sub-ck { background: var(--accent); color: var(--accent-ink); }
+.sub-ck svg.i { width: 16px; height: 16px; }
+/* Patrimonio actual */
+.wo-card { margin-bottom: 16px; }
+.wo-card .calc-hero .chip { margin-top: 10px; }
+.wo-cmp { margin: 4px 0 10px; display: flex; flex-direction: column; gap: 6px; }
+.wo-split { display: grid; gap: 16px; }
+@media (min-width: 900px) { .wo-split { grid-template-columns: 1fr 1fr; } }
+.wo-split-col { min-width: 0; }
+.wo-split-h { font-size: 15px; margin: 6px 0 8px; }

@@ -101,3 +101,12 @@ test('v1.23: desglosar un grupo; un movimiento suelto con su propia respuesta e 
   // i2 va en GBP sin tasa → se ignora; i3 se ignora por su respuesta; no queda grupo de intereses
   assert.ok(!p.create.some(x => x.extGroup && x.extGroup.includes('interest')));
 });
+
+test('v1.23: convertir una moneda la guarda solo en la principal', () => {
+  const d = B.read(CSV);
+  const ans = { interest: { type: 'income', categoryId: 'extra', group: 'none' } };
+  const keep = B.plan(d.rows, ans, { GBP: 1.2 }, [], 'EUR').create.find(x => x.extIds[0] === 'i2');
+  assert.deepStrictEqual(keep.fx, { cur: 'GBP', cents: 5, rate: 1.2 });
+  const conv = B.plan(d.rows, ans, { GBP: 1.2 }, [], 'EUR', { GBP: true }).create.find(x => x.extIds[0] === 'i2');
+  assert.strictEqual(conv.fx, undefined); assert.strictEqual(conv.amountCents, 6);
+});
