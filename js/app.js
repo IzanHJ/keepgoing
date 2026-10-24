@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.23.2';
+  const VERSION = '1.23.3';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -3156,19 +3156,48 @@
         <h4>${esc(t('helpLinks'))}</h4>${list('help_' + k + '_links')}</div></details>`).join('')}</div>`;
   }
   // Novedades: para quien ya usaba la app, una vez por versión y dispositivo. Cada línea es «título|detalle».
-  const SEEN_KEY = 'keepgoing.seenVersion', WN = { '1.22.0': 8, '1.23.0': 10, '1.23.2': 3 };
+  // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
+  // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
+  const SEEN_KEY = 'keepgoing.seenVersion';
+  const NEWS = [['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+    ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
+  const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
+  const newsItems = parts => parts.flatMap(([v, n]) => Array.from({ length: n }, (_, i) => t(`wn_${v.replace(/\./g, '_')}_${i + 1}`).split('|')));
+  // Lo nuevo desde la última versión vista: si ya usabas esta versión grande, solo sus mejoras posteriores
+  function freshNews() {
+    const [major, parts] = NEWS[0], seen = seenVersion() || '';
+    return seen.split('.').slice(0, 2).join('.') === major ? parts.filter(([v]) => vNum(v) > vNum(seen)) : parts;
+  }
+  const newsList = (items, more) => `<ul class="wn-list">${items.map(([ti, de]) => `<li><span class="wn-dot">${ico('sparkle')}</span><span class="grow"><b>${esc(ti)}</b>${more && de ? `<span class="muted small">${esc(de)}</span>` : ''}</span></li>`).join('')}</ul>`;
   function openWhatsNew() {
-    const n = WN[VERSION] || 0; if (!n) return;
-    const items = Array.from({ length: n }, (_, i) => t(`wn_${VERSION.replace(/\./g, '_')}_${i + 1}`).split('|'));
+    const items = newsItems(freshNews()); if (!items.length) return;
     let more = false, wref;
     const draw = () => {
-      $('#wn', wref).innerHTML = `<ul class="wn-list">${items.map(([ti, de]) => `<li><span class="wn-dot">${ico('sparkle')}</span><span class="grow"><b>${esc(ti)}</b>${more && de ? `<span class="muted small">${esc(de)}</span>` : ''}</span></li>`).join('')}</ul>`;
+      $('#wn', wref).innerHTML = newsList(items, more);
       $('[data-wn="more"]', wref).innerHTML = `${ico(more ? 'up' : 'down')} ${esc(t(more ? 'whatsNewLess' : 'whatsNewSee'))}`;
     };
     seenVersion(VERSION);
     openModal({
-      title: `${ico('sparkle')} ${esc(t('whatsNewTitle', { v: VERSION.replace(/\.0$/, '') }))}`, cls: 'wn-modal', body: '<div id="wn"></div>',
+      title: `${ico('sparkle')} ${esc(t('whatsNewTitle', { v: NEWS[0][0] }))}`, cls: 'wn-modal', body: '<div id="wn"></div>',
+      foot: `<button class="btn" data-wn="more"></button><button class="btn primary" data-wn="ok">${esc(t('whatsNewClose'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onClick: (e, close) => { const b = e.target.closest('[data-wn]'); if (!b) return; if (b.dataset.wn === 'ok') close(); else { more = !more; draw(); } }
+    });
+  }
+  // Ajustes → Novedades: la versión actual con sus mejoras y, debajo, el historial de versiones anteriores
+  function openNewsLog() {
+    let more = false, wref;
+    const draw = () => {
+      const [major, parts] = NEWS[0], later = parts.slice(1);
+      $('#wn', wref).innerHTML = `<h3 class="section-title" style="margin:0 0 6px">${esc(t('newsCurrent', { v: major }))}</h3>${newsList(newsItems(parts.slice(0, 1)), more)}
+        ${later.length ? `<h4 class="news-sub">${esc(t('newsUpdates', { v: later.map(p => p[0]).join(', ') }))}</h4>${newsList(newsItems(later), more)}` : ''}
+        <h3 class="section-title" style="margin:16px 0 6px">${esc(t('newsOlder'))}</h3>
+        <div class="stack" style="gap:8px">${NEWS.slice(1).map(([v, ps]) => `<details class="news-old clay"><summary><b class="grow">${esc(t('newsCurrent', { v }))}</b><span class="acc-chev">${ico('right')}</span></summary>${newsList(newsItems(ps), true)}</details>`).join('')}</div>`;
+      $('[data-wn="more"]', wref).innerHTML = `${ico(more ? 'up' : 'down')} ${esc(t(more ? 'whatsNewLess' : 'whatsNewSee'))}`;
+    };
+    openModal({
+      title: `${ico('sparkle')} ${esc(t('newsTitle'))}`, cls: 'wn-modal', body: '<div id="wn"></div>',
       foot: `<button class="btn" data-wn="more"></button><button class="btn primary" data-wn="ok">${esc(t('whatsNewClose'))}</button>`,
       onMount: w => { wref = w; draw(); },
       onClick: (e, close) => { const b = e.target.closest('[data-wn]'); if (!b) return; if (b.dataset.wn === 'ok') close(); else { more = !more; draw(); } }
@@ -3176,7 +3205,7 @@
   }
   function maybeWhatsNew() {
     if (!state.onboarded || seenVersion() === VERSION) return;
-    if (!WN[VERSION]) { seenVersion(VERSION); return; }
+    if (!freshNews().length) { seenVersion(VERSION); return; }
     whenFree(openWhatsNew);
   }
 
@@ -3557,7 +3586,7 @@
           case 'report': close(); openReport(); break;
           case 'import': $('#st-file', w).click(); break;
           case 'hw-restore': state.hiddenW = (state.hiddenW || []).filter(k => k !== el.dataset.v); save(); render(); draw(); toast(t('hwRestored')); break;
-          case 'news': close(); openWhatsNew(); break;
+          case 'news': close(); openNewsLog(); break;
           case 'replay': close(); state.onboarded = false; state.obStep = 0; save(); render(); break;
           case 'reset':
             if (await confirmDialog(t('resetQ')) && await confirmDialog(t('resetQ2'))) {
@@ -4360,10 +4389,21 @@
   const WO_CMP = ['#f59e0b', '#ec4899', '#22d3ee', '#a3e635'];
   let worthMemo = { key: '' };
   const worthBase = () => LV.worth.find(x => x.id === 'worth') || null;
+  /* v1.23.3: cada inversión (= categoría de tipo Inversión) guarda en LV.worth { id: 'inv:<cat>', kind: 'inv', cat, vals: [{ date, value }],
+     since (desde cuándo hay dinero sin movimientos apuntados), rate (rentabilidad a mano o null) }. Valores en céntimos. */
+  const worthInv = cat => LV.worth.find(x => x.id === 'inv:' + cat) || null;
+  const worthVals = () => LV.worth.filter(x => x.kind === 'inv').flatMap(x => (x.vals || []).map(v => ({ cat: x.cat, date: v.date, value: v.value })));
+  const investCats = () => { const b = worthBase(), used = new Set([...LV.entries.filter(e => e.type === 'invest').map(e => e.categoryId || 'invest'), ...Object.keys(WORTH.baseOf(b, [], todayKey()).invBy || {})]); return LV.cats.filter(c => c.type === 'invest' && (!c.archived || used.has(c.id))); };
+  function worthInvList() {
+    const d = worthData(), b = worthBase(), cats = new Map(investCats().map(c => [c.id, c]));
+    for (const k of Object.keys(d.now.inv)) if (!cats.has(k)) cats.set(k, catOf(k));
+    return [...cats.values()].map(c => { const x = worthInv(c.id) || {}, st = WORTH.invStats(c.id, b, LV.entries, worthVals(), todayKey(), x.since); return { c, x, st, rate: x.rate != null ? x.rate : st.rate }; })
+      .filter(r => r.st.deposited || r.st.last || cats.size === 1);
+  }
   function worthData() {
-    const key = JSON.stringify(worthBase()) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
+    const key = JSON.stringify(LV.worth) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
     if (worthMemo.key !== key) {
-      const d = WORTH.series(worthBase(), LV.entries, todayKey());
+      const d = WORTH.series(worthBase(), LV.entries, todayKey(), worthVals());
       worthMemo = { key, ...d, now: d.rows[d.rows.length - 1], pace: WORTH.pace(LV.entries, todayKey()) };
     }
     return worthMemo;
@@ -4373,7 +4413,7 @@
     state.ui.worth = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', hideGraph: !!u.hideGraph, ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) }, gran: u.gran === 'year' ? 'year' : 'month', cmp: Array.isArray(u.cmp) ? u.cmp.filter(id => LV.projs.some(p => p.id === id)) : [], split: !!u.split, cmpOn: !!u.cmpOn };
     return state.ui.worth;
   }
-  const woRow = r => ({ date: CALC.parseDate(r.key), patrimony: r.patrimony / 100, income: r.income / 100, expenses: r.expenses / 100, investments: r.investments / 100, funds: Object.fromEntries(Object.entries(r.inv).map(([k, v]) => [k, v / 100])) });
+  const woRow = r => ({ date: CALC.parseDate(r.key), patrimony: r.patrimony / 100, income: r.income / 100, expenses: r.expenses / 100, investments: r.investments / 100, funds: Object.fromEntries(Object.entries(r.invVal || r.inv).map(([k, v]) => [k, v / 100])) });
   // Una proyección guardada calculada como en la calculadora (desde su fecha de inicio)
   const projMemo = new Map();
   function projCalc(p) {
@@ -4425,10 +4465,17 @@
         ${b.set ? '' : `<p class="muted small">${esc(t('woNoBase'))}</p>`}
         <button class="chip sm" data-wo="start">${ico('compass')} ${esc(t(b.set ? 'woEditBase' : 'woSetBase'))}</button></div>
       <details class="calc-box" data-cd="wo-proj" ${calcIsOpen('wo-proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
-        <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(n.digital / 100)}</strong></div><div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(n.invested / 100)}</strong></div></div>
+        <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(n.digital / 100)}</strong></div><div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(n.value / 100)}</strong>${n.gains ? `<div class="calc-hl-st ${n.gains < 0 ? 'amt-out' : 'amt-in'}">${esc(t('woDepGain', { d: money(n.invested / 100), g: csign(n.gains / 100) }))}</div>` : ''}</div></div>
         <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('cmCash'))}</span><strong>${money(n.cash / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${money(n.income / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${money(n.expenses / 100)}</strong></div><div class="calc-metric"><span>${esc(t('woStart'))}</span><strong>${money(start)}</strong></div></div>
         <p class="calc-fine">${esc(t('woPace', { net: csign(pc.net / 100), inv: money(pc.invest / 100), y: money(n.patrimony / 100 + pc.net * 12 / 100) }))}</p>
       </details>`;
+    { const L = worthInvList();
+      html += `<details class="calc-box" data-cd="wo-inv" ${calcIsOpen('wo-inv') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woInvEyebrow'))}</span><strong>${esc(t('woInvTitle'))}</strong></span>${L.length ? `<span class="calc-pill">${L.length}</span>` : ''}<span class="calc-arrow" aria-hidden="true">›</span></summary>
+        ${L.length ? `<div class="stack" style="gap:8px">${L.map(({ c, st, rate, x }) => `<div class="wo-inv clay"><div class="row" style="justify-content:space-between;gap:8px"><b>${esc(c.icon || '')} ${esc(catName(c))}</b><strong>${money(st.value / 100)}</strong></div>
+          <div class="muted small">${esc(t('woInvLine', { d: money(st.deposited / 100), g: csign(st.gain / 100) }))}${st.last ? ' · ' + esc(t('woInvAt', { d: fmtShort(st.last.date) })) : ''}</div>
+          <div class="muted small">${esc(rate != null ? t(x.rate != null ? 'woInvRateManual' : 'woInvRate', { r: cpct(rate) }) : t('woInvNoRate'))}</div>
+          <button class="chip sm calc-blue" data-wo="val" data-id="${esc(c.id)}">${ico('edit')} ${esc(t('woNewVal'))}</button></div>`).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('woInvNone'))}</p>`}
+        <p class="calc-fine">${esc(t('woInvHint'))}</p></details>`; }
     html += `<div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('woTrajEyebrow'))}</div><h2>${esc(t(inv ? 'woGraphInv' : 'woGraph'))}</h2></div><div class="row wrap calc-sec-acts"><button class="chip sm" data-wo="mode">${esc(t(inv ? 'calcModePat' : 'calcModeInv'))}</button><button class="chip sm" data-wo="graph" aria-expanded="${!u.hideGraph}">${esc(t(u.hideGraph ? 'calcShowGraph' : 'calcHideGraph'))}</button>${inv ? '' : `<button class="chip sm ${u.cmpOn ? 'on' : ''}" data-wo="cmp" aria-pressed="${u.cmpOn}">${ico('compare')} ${esc(t('woCompare'))}</button>`}</div></div>`;
     if (!u.hideGraph) {
       if (!inv) html += `<div class="row wrap calc-toggles" role="group" aria-label="${esc(t('calcSeriesAria'))}">${['income', 'expenses', 'investments'].map(k => `<button type="button" class="calc-toggle ${u.ser[k] ? 'on' : ''}" data-wo="ser" data-v="${k}" aria-pressed="${u.ser[k]}">${esc(t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]))}</button>`).join('')}</div>`;
@@ -4445,6 +4492,7 @@
     const u = worthUi(), k = el.dataset.wo;
     switch (k) {
       case 'start': openWorthStart(); return true;
+      case 'val': openWorthValue(el.dataset.id); return true;
       case 'mode': u.mode = u.mode === 'investments' ? 'patrimony' : 'investments'; break;
       case 'graph': u.hideGraph = !u.hideGraph; break;
       case 'ser': u.ser[el.dataset.v] = !u.ser[el.dataset.v]; break;
@@ -4458,38 +4506,77 @@
   }
   // Punto de partida de la Libreta: lo que tenías de verdad al final de un día (ya incluye lo apuntado hasta ese día)
   function openWorthStart() {
-    const b = worthBase() || { id: 'worth', date: todayKey(), digital: 0, cash: 0, invested: 0 };
+    const b = worthBase() || { id: 'worth', date: todayKey(), digital: 0, cash: 0, invested: 0 }, by = WORTH.baseOf(b, [], todayKey()).invBy, cats = investCats();
+    for (const k of Object.keys(by)) if (!cats.some(c => c.id === k)) cats.push(catOf(k));
     const val = c => c ? esc(fmtPctIn(c / 100)) : '';
     openModal({
       title: calcHead(t('woEyebrow'), t('woBaseTitle')), cls: 'calc-sheet',
       body: `<p class="muted small" style="margin-top:0">${esc(t('woBaseHint', { m: ledgerMain() }))}</p><div class="calc-grid">
         <label class="field"><span>${esc(t('csDate'))}</span><input class="input" type="date" id="wo-date" value="${esc(b.date)}" max="${todayKey()}"></label>
-        ${[['digital', 'cmDigital'], ['cash', 'cmCash'], ['invested', 'cmInvestments']].map(([k, l]) => `<label class="field"><span>${esc(t(l))}</span><input class="input" inputmode="decimal" autocomplete="off" id="wo-${k}" value="${val(b[k])}" placeholder="0,00"></label>`).join('')}</div>
+        ${[['digital', 'cmDigital'], ['cash', 'cmCash']].map(([k, l]) => `<label class="field"><span>${esc(t(l))}</span><input class="input" inputmode="decimal" autocomplete="off" id="wo-${k}" value="${val(b[k])}" placeholder="0,00"></label>`).join('')}</div>
+        <h3 class="section-title" style="margin:14px 0 4px">${esc(t('woBaseInv'))}</h3><p class="muted small" style="margin:0 0 8px">${esc(t('woBaseInvHint'))}</p>
+        <div class="calc-grid">${cats.map(c => `<label class="field"><span>${esc(c.icon || '')} ${esc(catName(c))}</span><input class="input" inputmode="decimal" autocomplete="off" data-wo-inv="${esc(c.id)}" value="${val(by[c.id])}" placeholder="0,00"></label>`).join('')}</div>
         <p class="calc-fine">${esc(t('woBaseFine'))}</p>`,
       foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-wb="save">${esc(t('save'))}</button>`,
       onClick: (e, close, w) => {
         if (!e.target.closest('[data-wb]')) return;
-        const date = $('#wo-date', w).value, nb = { id: 'worth', date };
+        const date = $('#wo-date', w).value, nb = { id: 'worth', date, invBy: {} };
         if (!CALC.parseDate(date) || date > todayKey()) { toast(t('woBadDate')); return; }
-        for (const k of ['digital', 'cash', 'invested']) { const s = $('#wo-' + k, w).value.trim(), c = s ? LED.parseCents(s) : 0; if (c == null) { toast(t('calcNonNeg')); $('#wo-' + k, w).focus(); return; } nb[k] = c; }
-        LV.worth = [nb]; ledgerSave(); close(); render(); toast(t('saved'));
+        const read = el => { const s = el.value.trim(), c = s ? LED.parseCents(s) : 0; if (c == null) { toast(t('calcNonNeg')); el.focus(); } return c; };
+        for (const k of ['digital', 'cash']) { const c = read($('#wo-' + k, w)); if (c == null) return; nb[k] = c; }
+        for (const el of $$('[data-wo-inv]', w)) { const c = read(el); if (c == null) return; if (c) nb.invBy[el.dataset.woInv] = c; }
+        nb.invested = Object.values(nb.invBy).reduce((a, v) => a + v, 0);
+        LV.worth = [nb, ...LV.worth.filter(x => x.id !== 'worth')]; ledgerSave(); close(); render(); toast(t('saved'));
       }
     });
   }
+  // «Introducir Nuevo Valor Actual» de una inversión: fecha (hoy por defecto) e importe. Con eso se estima su rentabilidad
+  function openWorthValue(cat, after) {
+    const x0 = worthInv(cat), st = WORTH.invStats(cat, worthBase(), LV.entries, worthVals(), todayKey(), x0 && x0.since), c = catOf(cat);
+    const needSince = st.unrecorded > 0;
+    openModal({
+      title: calcHead(catName(c), t('woNewVal')), cls: 'calc-sheet',
+      body: `<p class="muted small" style="margin-top:0">${esc(t('woValHint', { d: money(st.deposited / 100) }))}</p><div class="calc-grid">
+        <label class="field"><span>${esc(t('woValDate'))}</span><input class="input" type="date" id="wv-date" value="${todayKey()}" max="${todayKey()}"></label>
+        <label class="field"><span>${esc(t('woValAmt', { m: ledgerMain() }))}</span><input class="input" inputmode="decimal" autocomplete="off" id="wv-amt" placeholder="0,00"></label>
+        ${needSince ? `<label class="field full"><span>${esc(t('woValSince', { d: money(st.unrecorded / 100) }))}</span><input class="input" type="date" id="wv-since" value="${esc((x0 && x0.since) || st.first)}" max="${todayKey()}"></label>` : ''}
+        <label class="field full"><span>${esc(t('woValRate'))}</span><input class="input" inputmode="decimal" autocomplete="off" id="wv-rate" value="${x0 && x0.rate != null ? esc(fmtPctIn(x0.rate)) : ''}" placeholder="${esc(t('woValRateAuto'))}"></label></div>
+        ${x0 && (x0.vals || []).length ? `<h3 class="section-title" style="margin:12px 0 6px">${esc(t('woValHistory'))}</h3><div class="stack" style="gap:6px">${[...x0.vals].sort((a, b) => a.date < b.date ? 1 : -1).map(v => `<div class="row" style="gap:8px"><span class="grow">${esc(fmtShort(v.date))}</span><b>${money(v.value / 100)}</b><button class="icon-btn sm danger-text" data-wv-del="${esc(v.date)}" aria-label="${esc(t('delete'))}">${ico('trash')}</button></div>`).join('')}</div>` : ''}`,
+      foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-wv="save">${esc(t('save'))}</button>`,
+      onClick: (e, close, w) => {
+        const x = worthInv(cat) || { id: 'inv:' + cat, kind: 'inv', cat, vals: [], since: null, rate: null };
+        const put = () => { LV.worth = [...LV.worth.filter(y => y.id !== x.id), x]; ledgerSave(); render(); };
+        const del = e.target.closest('[data-wv-del]');
+        if (del) { x.vals = (x.vals || []).filter(v => v.date !== del.dataset.wvDel); put(); close(); openWorthValue(cat, after); return; }
+        if (!e.target.closest('[data-wv="save"]')) return;
+        const date = $('#wv-date', w).value, amt = $('#wv-amt', w).value.trim(), rs = $('#wv-rate', w).value.trim();
+        if (!CALC.parseDate(date) || date > todayKey()) { toast(t('woBadDate')); return; }
+        const cents = amt ? LED.parseCents(amt) : null;
+        if (amt && cents == null) { toast(t('calcNonNeg')); return; }
+        const rate = rs ? CALC.parseNum(rs) : null;
+        if (rs && !Number.isFinite(rate)) { toast(t('woBadRate')); return; }
+        if (cents != null) x.vals = [...(x.vals || []).filter(v => v.date !== date), { date, value: cents }].slice(-60);
+        if ($('#wv-since', w)) x.since = $('#wv-since', w).value || null;
+        x.rate = rate;
+        put(); close(); toast(t('saved')); after && after();
+      }
+    });
+  }
+
   // Calculadora → Punto de partida → «Aplicar datos de la Libreta actual»: copia las cifras de hoy (la Libreta no cambia)
   async function calcApplyWorth(done) {
     const d = worthData(), n = d.now, pc = d.pace;
-    if (!(await confirmDialog(t('woApplyQ', { d: money(n.digital / 100), c: money(n.cash / 100), i: money(n.invested / 100) })))) return;
+    if (!(await confirmDialog(t('woApplyQ', { d: money(n.digital / 100), c: money(n.cash / 100), i: money(n.value / 100) })))) return;
     const s = calcStartItem();
     Object.assign(s, { digital: Math.max(0, n.digital) / 100, cash: Math.max(0, n.cash) / 100, date: todayKey() }); delete s.cur;
     if (pc.income) s.salary = pc.income / 100;
     if (pc.expenses) s.expenses = pc.expenses / 100;
-    if (n.invested > 0) {
+    if (n.value > 0) {
       const { model } = calcData();
       if (model.investments.length) {
         let f = LV.calc.find(x => x.id === 'led-fund');
         if (!f) { f = { id: 'led-fund', kind: 'fund', name: t('woFundName'), amount: 0, target: model.investments[0].id, ord: calcOrd() }; LV.calc.push(f); }
-        f.amount = n.invested / 100; delete f.cur;
+        f.amount = n.value / 100; delete f.cur;
       } else toast(t('woNeedDest'));
     }
     calcCommit(t('woApplied')); done && done();
@@ -5294,24 +5381,101 @@
      en una proyección compartida, se vuelve a cifrar para cada amigo y ven siempre la última versión. */
   const PROJ = { list: null, busy: false };
   const projSnap = () => JSON.parse(JSON.stringify(LV.calc.filter(x => x.kind !== 'preset')));
-  /* v1.23.1: «Proyección según Ritmo Actual». Se guarda como proyección nueva (la calculadora no cambia): parte del Patrimonio
-     actual de hoy y del ritmo medio de los últimos 3 meses (ingresos, gastos y lo invertido al mes como aportación periódica).
-     De la calculadora se conservan los destinos de inversión, el interés de la cuenta, el techo de liquidez y el horizonte. */
+  /* «Proyección según Ritmo Actual» (v1.23.3: asistente de 3 pasos). Se guarda como proyección nueva y la calculadora no cambia.
+     1) Punto de partida real de hoy y ritmo de los últimos 3 meses (editable). 2) Cada inversión de la Libreta: a qué destino de la
+     calculadora va, su valor de hoy, su rentabilidad estimada (o a mano) y su aportación mensual. 3) Nombre y guardar.
+     Del resto de la calculadora se conservan el interés de la cuenta, el techo de liquidez y el horizonte. */
+  function invPaceOf(cat) {
+    const [y, m] = todayKey().split('-').map(Number), from = CALC.keyOf(new Date(y, m - 4, 1)), to = CALC.keyOf(new Date(y, m - 1, 0));
+    return Math.round(LV.entries.filter(e => e.type === 'invest' && (e.categoryId || 'invest') === cat && e.date >= from && e.date <= to).reduce((a, e) => a + (e.amountCents || 0), 0) / 3);
+  }
   function paceProjection() {
-    const d = worthData(), n = d.now, pc = d.pace, items = projSnap(), KEEP = ['savings', 'liquidityCap'];
-    if (!LV.entries.length) { toast(t('paceNoData')); return; }
-    const out = items.filter(x => x.kind === 'inv' || (x.kind === 'applied' && KEEP.includes(x.type)));
-    const st = { ...(items.find(x => x.kind === 'start') || calcData().model.start), id: CALC.START_ID, kind: 'start' };
-    Object.assign(st, { digital: Math.max(0, n.digital) / 100, cash: Math.max(0, n.cash) / 100, salary: pc.income / 100, expenses: pc.expenses / 100, date: todayKey() }); delete st.cur;
-    out.push(st);
-    let ord = out.reduce((m, x) => Math.max(m, x.ord || 0), 0) + 1, inv = out.find(x => x.kind === 'inv');
-    if (!inv && (n.invested > 0 || pc.invest > 0)) { inv = { id: uid(), kind: 'inv', name: t('woFundName'), rate: 0, accumulative: true, ord: ord++ }; out.push(inv); }
-    if (n.invested > 0) out.push({ id: 'led-fund', kind: 'fund', name: t('woFundName'), amount: n.invested / 100, target: inv.id, ord: ord++ });
-    if (pc.invest > 0) out.push({ id: uid(), kind: 'applied', type: 'periodic', name: t('paceInvestName'), values: { target: inv.id, amount: pc.invest / 100, frequency: 'monthly', timing: 'end' }, ord: ord++ });
-    const name = t('paceProjName', { d: fmtDate(todayKey(), { day: 'numeric', month: 'short', year: 'numeric' }) }).slice(0, 60);
-    LV.projs.push({ id: uid(), name, items: out, at: Date.now() }); save(); ledgerSave(); sfx('pop');
-    toast(t('paceSaved', { name }) + (inv && !inv.rate ? ' ' + t('paceNoRate') : ''));
-    openProjections();
+    if (!LV.entries.length && !worthBase()) { toast(t('paceNoData')); return; }
+    const d0 = worthData(), items = projSnap(), start0 = items.find(x => x.kind === 'start') || calcData().model.start, dests = items.filter(x => x.kind === 'inv');
+    const W = { step: 1, name: t('paceProjName', { d: fmtDate(todayKey(), { day: 'numeric', month: 'short', year: 'numeric' }) }).slice(0, 60),
+      digital: d0.now.digital / 100, cash: d0.now.cash / 100, salary: d0.pace.income / 100, expenses: d0.pace.expenses / 100, rows: null };
+    const mkRows = () => worthInvList().map(({ c, st, rate }) => {
+      const old = (W.rows || []).find(r => r.cat === c.id), dest = dests.find(x => String(x.name).trim().toLowerCase() === catName(c).trim().toLowerCase());
+      return old ? { ...old, dep: st.deposited / 100, value: st.value / 100, rate: old.rateTouched ? old.rate : rate != null ? rate : old.rate }
+        : { cat: c.id, name: catName(c), dep: st.deposited / 100, value: st.value / 100, rate: rate != null ? rate : dest ? dest.rate : null, dest: dest ? dest.id : 'new', monthly: invPaceOf(c.id) / 100, rateTouched: false };
+    });
+    W.rows = mkRows();
+    const totalDep = () => Math.round(worthData().now.invested) / 100;
+    const num = v => { const x = CALC.parseNum(v); return Number.isFinite(x) ? x : null; };
+    let wref;
+    const inp = (attr, v, ph = '0,00') => `<input class="input" inputmode="decimal" autocomplete="off" ${attr} value="${v == null || v === '' ? '' : esc(fmtPctIn(v))}" placeholder="${esc(ph)}">`;
+    const draw = () => {
+      const steps = [1, 2, 3].map(n => `<span class="pace-step ${W.step === n ? 'on' : W.step > n ? 'done' : ''}">${n}. ${esc(t('paceStep' + n))}</span>`).join('');
+      let body = '';
+      if (W.step === 1) body = `<p class="muted small" style="margin:0">${esc(t('paceS1Hint'))}</p><div class="calc-grid">
+          ${[['digital', 'cmDigital'], ['cash', 'cmCash'], ['salary', 'csSalary'], ['expenses', 'csExpenses']].map(([k, l]) => `<label class="field"><span>${esc(t(l, { $cur: ledgerMain() }))}</span>${inp(`data-pw="${k}"`, W[k])}</label>`).join('')}</div>
+          <p class="calc-fine">${esc(t('paceS1Fine', { h: cmonths(CALC.horizonMonths(start0)) }))}</p>`;
+      else if (W.step === 2) {
+        const sum = W.rows.reduce((a, r) => a + (+r.dep || 0), 0), tot = totalDep(), diff = Math.round((tot - sum) * 100) / 100;
+        body = `<p class="muted small" style="margin:0">${esc(t('paceS2Hint'))}</p>
+          ${W.rows.length ? W.rows.map((r, i) => `<div class="pace-inv clay" data-pi="${i}"><div class="row" style="justify-content:space-between;gap:8px"><b>${esc(r.name)}</b><button type="button" class="chip sm calc-blue" data-pw-val="${esc(r.cat)}">${ico('edit')} ${esc(t('woNewVal'))}</button></div>
+            <div class="calc-grid">
+              <label class="field"><span>${esc(t('paceDest'))}</span><select class="input" data-pr="dest"><option value="new" ${r.dest === 'new' ? 'selected' : ''}>${esc(t('paceDestNew', { name: r.name }))}</option>${dests.map(x => `<option value="${esc(x.id)}" ${r.dest === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+              <label class="field"><span>${esc(t('paceDep'))}</span>${inp('data-pr="dep"', r.dep)}</label>
+              <label class="field"><span>${esc(t('paceValue'))}</span>${inp('data-pr="value"', r.value)}</label>
+              <label class="field"><span>${esc(t('paceRate'))}</span>${inp('data-pr="rate"', r.rate, t('paceRatePh'))}</label>
+              <label class="field"><span>${esc(t('paceMonthly'))}</span>${inp('data-pr="monthly"', r.monthly)}</label></div>
+            <p class="calc-fine" style="margin:0">${esc(r.rate == null ? t('paceRateNone') : r.rateTouched ? t('paceRateManual') : t('paceRateAuto', { r: cpct(r.rate) }))}</p></div>`).join('') : `<p class="muted small">${esc(t('woInvNone'))}</p>`}
+          <div class="pace-sum ${diff ? 'amt-out' : 'amt-in'}">${esc(diff ? t('paceDiff', { t: money(tot), s: money(sum), d: money(Math.abs(diff)) }) : t('paceOk', { t: money(tot) }))}</div>`;
+      } else {
+        const R = W.rows, inv = R.reduce((a, r) => a + (+r.value || 0), 0), mon = R.reduce((a, r) => a + (+r.monthly || 0), 0);
+        body = `<label class="field"><span>${esc(t('calcName'))}</span><input class="input" maxlength="60" data-pw="name" value="${esc(W.name)}"></label>
+          <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('cmDigital'))}</span><strong>${money(W.digital)}</strong></div><div class="calc-metric"><span>${esc(t('cmCash'))}</span><strong>${money(W.cash)}</strong></div>
+            <div class="calc-metric"><span>${esc(t('cmInvestments'))}</span><strong>${money(inv)}</strong></div><div class="calc-metric"><span>${esc(t('paceNetMonth'))}</span><strong>${esc(csign(W.salary - W.expenses))}</strong></div>
+            <div class="calc-metric"><span>${esc(t('paceMonthly'))}</span><strong>${money(mon)}</strong></div></div>
+          <p class="calc-fine">${esc(t('paceS3Hint'))}</p>`;
+      }
+      $('#pw', wref).innerHTML = `<div class="pace-steps">${steps}</div><div class="stack" style="gap:12px;margin-top:12px">${body}</div>`;
+      $('[data-pw-go="back"]', wref).style.visibility = W.step > 1 ? 'visible' : 'hidden';
+      $('[data-pw-go="next"]', wref).textContent = t(W.step === 3 ? 'paceSave' : 'paceNext');
+    };
+    const read = () => {
+      $$('[data-pw]', wref).forEach(el => { const k = el.dataset.pw; if (k === 'name') W.name = el.value.trim().slice(0, 60); else { const v = num(el.value); W[k] = v == null ? 0 : v; } });
+      $$('[data-pi]', wref).forEach(box => { const r = W.rows[+box.dataset.pi]; $$('[data-pr]', box).forEach(el => { const k = el.dataset.pr; if (k === 'dest') r.dest = el.value; else { const v = el.value.trim() === '' ? null : num(el.value); if (k === 'rate') { if (v !== r.rate) r.rateTouched = true; r.rate = v; } else r[k] = v == null ? 0 : v; } }); });
+    };
+    const finish = close => {
+      const KEEP = ['savings', 'liquidityCap'], out = items.filter(x => x.kind === 'applied' && KEEP.includes(x.type));
+      const st = { ...start0, id: CALC.START_ID, kind: 'start', digital: Math.max(0, W.digital), cash: Math.max(0, W.cash), salary: Math.max(0, W.salary), expenses: Math.max(0, W.expenses), date: todayKey() }; delete st.cur;
+      out.push(st);
+      let ord = 1;
+      const used = new Map();
+      for (const r of W.rows) {
+        let dest;
+        if (r.dest !== 'new' && dests.some(x => x.id === r.dest)) { dest = used.get(r.dest) || { ...dests.find(x => x.id === r.dest), ord: ord++ }; if (!used.has(r.dest)) { used.set(r.dest, dest); out.push(dest); } }
+        else { dest = { id: uid(), kind: 'inv', name: r.name.slice(0, 60), rate: 0, accumulative: true, ord: ord++ }; out.push(dest); }
+        if (r.rate != null) dest.rate = r.rate;
+        if (r.value > 0) out.push({ id: uid(), kind: 'fund', name: r.name.slice(0, 60), amount: r.value, target: dest.id, ord: ord++ });
+        if (r.monthly > 0) out.push({ id: uid(), kind: 'applied', type: 'periodic', name: t('paceInvestOf', { name: r.name }).slice(0, 60), values: { target: dest.id, amount: r.monthly, frequency: 'monthly', timing: 'end' }, ord: ord++ });
+      }
+      for (const x of dests) if (!used.has(x.id) && !out.includes(x)) out.push({ ...x, ord: ord++ });
+      const name = W.name || t('paceProjName', { d: todayKey() });
+      LV.projs.push({ id: uid(), name, items: out, at: Date.now() }); save(); ledgerSave(); sfx('pop');
+      close(); toast(t('paceSaved', { name })); openProjections();
+    };
+    openModal({
+      title: calcHead(t('paceEyebrow'), t('paceBtn')), cls: 'wide calc-sheet', body: '<div id="pw"></div>',
+      foot: `<button class="btn" data-pw-go="back">${esc(t('paceBack'))}</button><button class="btn primary" data-pw-go="next"></button>`,
+      onMount: w => { wref = w; draw(); },
+      onClick: (e, close) => {
+        const v = e.target.closest('[data-pw-val]');
+        if (v) { read(); openWorthValue(v.dataset.pwVal, () => { W.rows = mkRows(); if (wref.isConnected) draw(); }); return; }
+        const g = e.target.closest('[data-pw-go]'); if (!g) return;
+        read();
+        if (g.dataset.pwGo === 'back') { W.step = Math.max(1, W.step - 1); draw(); return; }
+        if (W.step === 2) {
+          const sum = W.rows.reduce((a, r) => a + (+r.dep || 0), 0);
+          if (Math.abs(sum - totalDep()) > 0.009) { toast(t('paceNeedSum')); return; }
+          if (W.rows.some(r => r.value > 0 && r.rate == null)) { toast(t('paceNeedRate')); return; }
+        }
+        if (W.step < 3) { W.step++; draw(); return; }
+        finish(close);
+      }
+    });
   }
   const projKey = items => JSON.stringify([...items].sort((a, b) => String(a.id).localeCompare(String(b.id))));
   const projDirty = p => projKey(p.items || []) !== projKey(projSnap());

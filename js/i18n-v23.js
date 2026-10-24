@@ -99,6 +99,28 @@
     wn_1_23_2_1: 'Saldos reales sin contar dos veces|El punto de partida de «Patrimonio actual» es lo que tienes al final del día que elijas (por defecto hoy). Lo apuntado hasta ese día ya va incluido y solo suman los movimientos siguientes.',
     wn_1_23_2_2: 'Proyección según Ritmo Actual|En la Calculadora, este botón guarda una proyección nueva con tu patrimonio real de hoy y tu ritmo de los últimos 3 meses (ingresos, gastos e inversión mensual). Tu calculadora no cambia.',
     wn_1_23_2_3: 'Mascotas con nombre propio|Cada mascota tiene su nombre y su aspecto. El perro se desbloquea en el nivel 5 y la ninfa en el 8 (si ya la tenías, la conservas).'
+,
+    // v1.23.3: inversiones con valor actual y asistente de la proyección según el ritmo actual
+    woDepGain: 'Depositado {d} · {g}', woInvEyebrow: 'Tus inversiones', woInvTitle: 'Inversiones', woInvLine: 'Depositado neto {d} · {g}', woInvAt: 'valor del {d}',
+    woInvRate: 'Rentabilidad estimada: {r} al año', woInvRateManual: 'Rentabilidad a mano: {r} al año', woInvNoRate: 'Sin rentabilidad: introduce su valor actual para estimarla.',
+    woInvNone: 'Aún no tienes inversiones. Apunta un movimiento de tipo Inversión o pon lo invertido en el punto de partida.',
+    woInvHint: 'Cada categoría de tipo Inversión es una inversión. Con su valor actual y las fechas de lo que has aportado se estima su rentabilidad anual.',
+    woNewVal: 'Introducir Nuevo Valor Actual', woValHint: 'Lo que vale hoy (o en la fecha que elijas). Llevas {d} depositados netos.', woValDate: 'Fecha', woValAmt: 'Valor actual ({m})',
+    woValSince: 'Desde cuándo tienes los {d} que no están apuntados como movimientos', woValRate: 'Rentabilidad anual a mano (%)', woValRateAuto: 'Vacío = la estimada',
+    woValHistory: 'Valores anteriores', woBadRate: 'Escribe un número para la rentabilidad.',
+    woBaseInv: 'Invertido (depositado neto)', woBaseInvHint: 'Lo que tienes metido en cada inversión ese día, sin contar ganancias. Su valor actual se pone en «Inversiones».',
+    paceEyebrow: 'Ritmo actual', paceStep1: 'Punto de partida', paceStep2: 'Inversiones', paceStep3: 'Guardar', paceBack: 'Atrás', paceNext: 'Siguiente', paceSave: 'Guardar proyección',
+    paceS1Hint: 'Tus saldos reales de hoy y tu ritmo medio de los últimos 3 meses. Puedes corregirlos.', paceS1Fine: 'Se proyecta {h}, como en tu calculadora.',
+    paceS2Hint: 'Para cada inversión: a qué destino de la calculadora va, cuánto has depositado, lo que vale hoy, su rentabilidad anual y cuánto le aportas al mes.',
+    paceDest: 'Destino en la calculadora', paceDestNew: 'Nuevo: {name}', paceDep: 'Depositado neto', paceValue: 'Valor de hoy', paceRate: 'Rentabilidad anual (%)', paceRatePh: 'Sin estimar',
+    paceMonthly: 'Aportación mensual', paceRateNone: 'Sin rentabilidad: introduce su valor actual o escríbela a mano.', paceRateManual: 'Rentabilidad escrita a mano.', paceRateAuto: 'Estimada con su valor actual: {r} al año.',
+    paceDiff: 'Tienes {t} invertidos y has repartido {s}: faltan o sobran {d}.', paceOk: 'Repartido todo lo invertido ({t}).', paceNeedSum: 'Reparte exactamente todo lo invertido antes de seguir.',
+    paceNeedRate: 'Falta la rentabilidad de alguna inversión.', paceNetMonth: 'Ahorro al mes', paceS3Hint: 'Se guarda en Proyecciones. Tu calculadora no cambia; puedes aplicarla o compararla en la Libreta.',
+    paceInvestOf: 'Aportación a {name}'
+,
+    wn_1_23_3_1: 'Inversiones con su valor actual|En Patrimonio actual → Inversiones, cada inversión tiene «Introducir Nuevo Valor Actual» (fecha de hoy e importe). Con eso se estima su rentabilidad anual y tu patrimonio cuenta lo que valen de verdad.',
+    wn_1_23_3_2: 'Proyección según Ritmo Actual paso a paso|Un asistente de 3 pasos: punto de partida, en qué inversiones está tu dinero (con su valor, rentabilidad y aportación mensual) y guardar.',
+    wn_1_23_3_3: 'Historial de Novedades|Ajustes → Novedades junta las mejoras pequeñas con su versión y guarda un historial de las versiones anteriores.'
   };
   const en = {
     ledgerInvestOne: 'Investment', ctype_invest: 'Investment', catInvest: 'Investment', ledgerInvest: 'Investments',
@@ -186,6 +208,27 @@
     wn_1_23_2_1: 'Real balances without double counting|The “Current net worth” starting point is what you have at the end of the chosen day (today by default). Everything logged up to that day is included and only later entries add up.',
     wn_1_23_2_2: 'Projection at current pace|In the Calculator, this button saves a new projection with your real net worth today and your pace over the last 3 months (income, expenses and monthly investing). Your calculator does not change.',
     wn_1_23_2_3: 'Pets with their own names|Each pet has its own name and look. The dog unlocks at level 5 and the cockatiel at level 8 (if you already had it, you keep it).'
+,
+    woDepGain: 'Deposited {d} · {g}', woInvEyebrow: 'Your investments', woInvTitle: 'Investments', woInvLine: 'Net deposited {d} · {g}', woInvAt: 'value on {d}',
+    woInvRate: 'Estimated return: {r} a year', woInvRateManual: 'Manual return: {r} a year', woInvNoRate: 'No return yet: enter its current value to estimate it.',
+    woInvNone: 'No investments yet. Log an Investment entry or set what you have invested in the starting point.',
+    woInvHint: 'Each Investment category is one investment. Its yearly return is estimated from its current value and the dates of what you put in.',
+    woNewVal: 'Enter New Current Value', woValHint: 'What it is worth today (or on the date you pick). You have {d} net deposited.', woValDate: 'Date', woValAmt: 'Current value ({m})',
+    woValSince: 'Since when you have the {d} not logged as entries', woValRate: 'Manual yearly return (%)', woValRateAuto: 'Empty = estimated',
+    woValHistory: 'Previous values', woBadRate: 'Type a number for the return.',
+    woBaseInv: 'Invested (net deposited)', woBaseInvHint: 'What you had put into each investment that day, without gains. Its current value goes in “Investments”.',
+    paceEyebrow: 'Current pace', paceStep1: 'Starting point', paceStep2: 'Investments', paceStep3: 'Save', paceBack: 'Back', paceNext: 'Next', paceSave: 'Save projection',
+    paceS1Hint: 'Your real balances today and your average pace over the last 3 months. You can correct them.', paceS1Fine: 'It projects {h}, like your calculator.',
+    paceS2Hint: 'For each investment: which calculator destination it goes to, how much you deposited, what it is worth today, its yearly return and your monthly contribution.',
+    paceDest: 'Calculator destination', paceDestNew: 'New: {name}', paceDep: 'Net deposited', paceValue: 'Value today', paceRate: 'Yearly return (%)', paceRatePh: 'Not estimated',
+    paceMonthly: 'Monthly contribution', paceRateNone: 'No return: enter its current value or type it.', paceRateManual: 'Return typed by hand.', paceRateAuto: 'Estimated from its current value: {r} a year.',
+    paceDiff: 'You have {t} invested and assigned {s}: {d} off.', paceOk: 'All invested money assigned ({t}).', paceNeedSum: 'Assign exactly all your invested money before continuing.',
+    paceNeedRate: 'An investment is missing its return.', paceNetMonth: 'Monthly savings', paceS3Hint: 'Saved in Projections. Your calculator does not change; apply it or compare it in the Ledger.',
+    paceInvestOf: 'Contribution to {name}'
+,
+    wn_1_23_3_1: 'Investments with their current value|In Current net worth → Investments, each investment has “Enter New Current Value” (today’s date and an amount). Its yearly return is estimated and your net worth counts what they are really worth.',
+    wn_1_23_3_2: 'Projection at current pace, step by step|A 3-step assistant: starting point, which investments hold your money (with value, return and monthly contribution) and save.',
+    wn_1_23_3_3: 'What’s new history|Settings → What’s new groups small improvements with their version and keeps a history of previous versions.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
