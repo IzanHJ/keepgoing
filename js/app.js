@@ -163,7 +163,13 @@
     loan: '<circle cx="9" cy="12" r="6"/><path d="M9 9v6M7.2 10.5h3M15.5 7.5H21M18.5 4.5l3 3-3 3M15.5 16.5H21"/>',
     budget: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M14.5 9.2c-.6-.8-1.5-1.2-2.5-1.2-1.4 0-2.5.8-2.5 2s1.1 1.6 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1 0-2-.4-2.6-1.2"/>',
     line: '<path d="M3 20h18"/><path d="M4 16l5-6 4 3 7-8"/>',
-    eyeOff: '<path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
+    eyeOff: '<path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+    // v1.23
+    list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+    layers: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>',
+    compare: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/><path d="M14 6l3-2 3 2" stroke-dasharray="2 2"/>',
+    split: '<path d="M6 3v6a6 6 0 0 0 6 6h0a6 6 0 0 1 6 6M18 3v6a6 6 0 0 1-3 5.2M6 21v0"/><path d="M3 6l3-3 3 3M15 6l3-3 3 3"/>',
+    branch: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/>'
   };
   const ico = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
@@ -841,7 +847,7 @@
     let html = '<div class="tf-grid">';
     for (let i = 0; i < cells; i++) {
       const date = TF.addDays(new Date(y, mo, 1), i - lead), k = TF.iso(date), inMonth = date.getMonth() === mo, items = [];
-      for (const e of state.calDays[k] || []) { const s = tfShift(e.sid); if (s) items.push({ s }); }
+      for (const e of tfSorted(state.calDays[k] || [])) { const s = tfShift(e.sid); if (s) items.push({ s }); }
       for (const f of shown) for (const id of f.days[k] || []) { const s = f.shifts.find(x => x.id === id); if (s) items.push({ s, who: f.name }); }
       const ext = extBy[k] || [];
       const aria = tfLong(k) + (items.length ? ': ' + items.map(it => (it.who ? it.who + ' · ' : '') + it.s.name).join(', ') : '');
@@ -857,7 +863,7 @@
       const lead = (new Date(y, mo, 1).getDay() - ws + 7) % 7, dim = new Date(y, mo + 1, 0).getDate();
       let cells = '<span class="mc blank"></span>'.repeat(lead);
       for (let d = 1; d <= dim; d++) {
-        const k = TF.iso(new Date(y, mo, d)), list = state.calDays[k] || [], s = list.length ? tfShift(list[0].sid) : null;
+        const k = TF.iso(new Date(y, mo, d)), list = tfSorted(state.calDays[k] || []), s = list.length ? tfShift(list[0].sid) : null;
         cells += `<button class="mc ${s ? 'on' : ''} ${list.length > 1 ? 'multi' : ''} ${k === today ? 'today' : ''}" ${s ? `style="--c:${tfColor(s.color)};--fg-c:${tfFg(tfColor(s.color))}"` : ''} data-tf-day="${k}" aria-label="${esc(tfLong(k) + (list.length ? ': ' + list.map(e => (tfShift(e.sid) || {}).name).join(', ') : ''))}">${d}</button>`;
       }
       html += `<div class="tf-mini clay"><button class="tf-mini-title" data-tf-month="${mo}">${esc(M[mo])}</button><div class="tf-mini-dow">${ini.map(n => `<span>${esc(n)}</span>`).join('')}</div><div class="tf-mini-grid">${cells}</div></div>`;
@@ -874,14 +880,18 @@
     else {
       const list = state.calDays[k] ? [...state.calDays[k]] : [], i = list.findIndex(e => e.sid === TFS.quick);
       if (i >= 0) list.splice(i, 1); else if (list.length < TF.LIMITS.perDay) list.push({ sid: TFS.quick, note: '', start: '', end: '' });
-      if (list.length) state.calDays[k] = list; else delete state.calDays[k];
+      tfSetDay(k, list);
     }
     sfx('tap'); tfSave();
   }
-  const tfSetDay = (k, list) => { if (list.length) state.calDays[k] = list; else delete state.calDays[k]; };
+  // v1.23: los turnos de un día van de más pronto a más tarde (los que no tienen hora, al final, en su orden)
+  const tfStartMin = e => { const s = tfShift(e.sid), st = s ? TF.entryTimes(s, e).start : ''; if (!st) return 1e4; const [h, m] = st.split(':').map(Number); return h * 60 + m; };
+  const tfSorted = list => list.map((e, i) => [e, i]).sort((a, b) => tfStartMin(a[0]) - tfStartMin(b[0]) || a[1] - b[1]).map(x => x[0]);
+  const tfSetDay = (k, list) => { if (list.length) state.calDays[k] = tfSorted(list); else delete state.calDays[k]; };
   function tfOpenDay(k) {
     let wref;
     const draw = () => {
+      if (state.calDays[k]) state.calDays[k] = tfSorted(state.calDays[k]);
       const list = state.calDays[k] || [], shown = tfShown();
       const comp = shown.map(f => ({ f, ids: f.days[k] || [] })).filter(c => c.ids.length), ext = tfData().ext.filter(e => e.date === k);
       $('#tfd', wref).innerHTML = `<div class="stack" style="gap:12px">${list.length ? '' : `<p class="muted" style="margin:0">${esc(t('tfNoShifts'))}</p>`}
@@ -899,7 +909,7 @@
         w.addEventListener('change', e => {
           const row = e.target.closest('[data-i]'); if (!row) return;
           const list = [...(state.calDays[k] || [])], i = +row.dataset.i, en = list[i] && { ...list[i] }, s = en && tfShift(en.sid); if (!s) return;
-          if (e.target.matches('[data-tfd-t]')) { const which = e.target.dataset.tfdT; en[which] = e.target.value === s[which] ? '' : e.target.value; list[i] = en; tfSetDay(k, list); tfSave(false); $('.tf-hrs', row).textContent = tfH(TF.entryHours(s, en)) + ' h'; }
+          if (e.target.matches('[data-tfd-t]')) { const which = e.target.dataset.tfdT; en[which] = e.target.value === s[which] ? '' : e.target.value; list[i] = en; tfSetDay(k, list); tfSave(false); if (which === 'start') draw(); else $('.tf-hrs', row).textContent = tfH(TF.entryHours(s, en)) + ' h'; }
           if (e.target.matches('[data-tfd-note]')) { en.note = e.target.value.slice(0, TF.LIMITS.note); list[i] = en; tfSetDay(k, list); save(); }
         });
       },
@@ -1759,11 +1769,14 @@
       if ($('#hf-share', w)) f.share = $('#hf-share', w).checked;
       f.hideCal = $('#hf-hidecal', w).checked;
     };
+    let hw = null;
+    const guard = unsavedGuard(() => { if (hw && $('#hf-name', hw)) readInputs(hw); return JSON.stringify(f); });
     openModal({
       title: esc(isNew ? t('newHabit') : t('editHabit')),
       body: '<div id="hf"></div>',
       foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-m="save">${esc(t('save'))}</button>`,
-      onMount: w => { draw(w); if (isNew) setTimeout(() => $('#hf-name', w)?.focus(), 250); },
+      beforeClose: w => guard.check(w),
+      onMount: w => { draw(w); hw = w; guard.start(); if (isNew) setTimeout(() => $('#hf-name', w)?.focus(), 250); },
       onInput: (e, w) => {
         if (e.target.id === 'hf-color') { f.color = e.target.value; $$('.sw', w).forEach(s => s.classList.remove('on')); }
         if (e.target.id === 'hf-icon') { $$('[data-emoji]', w).forEach(b => b.classList.toggle('on', b.dataset.emoji === e.target.value.trim())); }
@@ -2047,12 +2060,15 @@
       if ($('#pf-start', w)) { f.goal.start = parseFloat($('#pf-start', w).value) || 0; f.goal.target = parseFloat($('#pf-target', w).value) || 0; f.goal.unit = $('#pf-unit', w).value.trim(); }
       if ($('#pf-deadline', w)) { f.deadline = $('#pf-deadline', w).value || f.deadline; if (f.deadline && !f.retoFrom) f.retoFrom = todayKey(); }
     };
+    let pw = null;
+    const guard = unsavedGuard(() => { if (pw && $('#pf-name', pw)) readInputs(pw); const { share, ...rest } = f; return JSON.stringify([rest, !!share]); });
     const addItem = w => { const i = $('#pf-item', w); const v = i.value.trim(); if (!v) return; readInputs(w); f.goal.items.push({ id: uid(), text: v, done: false }); draw(w); setTimeout(() => $('#pf-item', w)?.focus(), 0); };
     openModal({
       title: esc(isNew ? t('newProject') : t('editProject')),
       body: '<div id="pf"></div>',
       foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-m="save">${esc(isNew ? t('create') : t('save'))}</button>`,
-      onMount: w => { draw(w); w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pf-item') { e.preventDefault(); addItem(w); } }); },
+      beforeClose: w => guard.check(w),
+      onMount: w => { draw(w); pw = w; guard.start(); w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pf-item') { e.preventDefault(); addItem(w); } }); },
       onClick: (e, close, w) => {
         const q = s => e.target.closest(s); let el;
         if ((el = q('[data-emoji]'))) { readInputs(w); f.icon = el.dataset.emoji; draw(w); return; }
@@ -2552,8 +2568,43 @@
     }
     return cv;
   }
-  // Comparte (hoja de compartir del móvil: «Guardar imagen») o descarga el PNG
-  async function shareCanvas(make, filename, title) {
+  /* v1.23: todo «Compartir» de una imagen (maestrías, trofeos, contrato, carnet…) se puede enviar a un chat de la app
+     o sacar fuera (hoja de compartir del móvil o descarga). */
+  function shareCanvas(make, filename, title) {
+    openModal({
+      title: `${ico('share')} ${esc(t('share'))}`,
+      body: `<div class="stack" style="gap:10px"><button class="create-opt clay" data-sc="chat"><span class="opt-ico">${ico('send')}</span><span class="grow"><b>${esc(t('shareToChat'))}</b><br><span class="muted small">${esc(t('shareToChatSub'))}</span></span>${ico('right')}</button>
+        <button class="create-opt clay" data-sc="out"><span class="opt-ico">${ico('upload')}</span><span class="grow"><b>${esc(t('shareOut'))}</b><br><span class="muted small">${esc(t('shareOutSub'))}</span></span>${ico('right')}</button></div>`,
+      onClick: (e, close) => { const b = e.target.closest('[data-sc]'); if (!b) return; close(); if (b.dataset.sc === 'chat') shareCanvasToChat(make, title); else shareCanvasOut(make, filename, title); }
+    });
+  }
+  // Elegir un chat (grupo o amigo) y hacer algo con él
+  async function pickChat(title, onPick) {
+    if (!auth) { toast(t('groupNeedLogin')); return; }
+    await refreshMyGroups(true);
+    const list = myGroups.list || [];
+    openModal({
+      title: `${ico('send')} ${esc(title)}`,
+      body: list.length ? `<div class="stack" style="gap:8px">${list.map(g => `<button class="btn block" style="justify-content:flex-start" data-pick-g="${esc(g.id)}">${g.chat === 'dm' ? avatarHtml(g.peer || {}, 'sm') : esc(g.icon || '👥')} ${esc(chatName(g))}</button>`).join('')}</div>` : `<p class="muted">${esc(t('shareNoChats'))}</p>`,
+      onClick: async (e, close) => {
+        const g = e.target.closest('[data-pick-g]'); if (!g) return;
+        g.disabled = true;
+        try { await onPick(g.dataset.pickG); sfx('pop'); toast(t('shareSent')); close(); } catch (err) { g.disabled = false; toast(chatErr(err)); }
+      }
+    });
+  }
+  // La imagen va como tarjeta en el chat (JPEG pequeño dentro del mensaje; se abre en grande y se puede guardar)
+  async function shareCanvasToChat(make, title) {
+    let img;
+    try {
+      const cv = await make(), max = 900, k = Math.min(1, max / Math.max(cv.width, cv.height));
+      const c2 = document.createElement('canvas'); c2.width = Math.round(cv.width * k); c2.height = Math.round(cv.height * k);
+      const cx = c2.getContext('2d'); cx.fillStyle = '#000'; cx.fillRect(0, 0, c2.width, c2.height); cx.drawImage(cv, 0, 0, c2.width, c2.height);
+      for (let q = .82; q > .3; q -= .12) { img = c2.toDataURL('image/jpeg', q); if (img.length < 180000) break; }
+    } catch (err) { toast(t('shareWebOnly')); return; }
+    pickChat(t('shareToChat'), gid => rpc('kg_post', { p_group: gid, p_kind: 'share', p_body: '', p_payload: { type: 'card', title: String(title || '').slice(0, 120), img } }));
+  }
+  async function shareCanvasOut(make, filename, title) {
     let blob;
     try {
       const cv = await make();
@@ -3666,8 +3717,10 @@
       LV[k] = out;
     }
     if (!LV.cats.length) LV.cats = defaultLedgerCats();
+    let addInv = false;
+    if (!LV.cats.some(c => c.type === 'invest')) { LV.cats.push(defaultLedgerCats().find(c => c.id === 'invest')); addInv = true; }
     LV.bad = bad; LV.sig = ledgerSig();
-    if (legacy || !state.ledgerCats.length) await ledgerCommit();
+    if (legacy || addInv || !state.ledgerCats.length) await ledgerCommit();
   }
   // Cifra lo que haya cambiado en memoria y lo guarda (los que no se pudieron descifrar se conservan intactos)
   async function ledgerCommit() {
@@ -3984,11 +4037,6 @@
     let html = topBar(ledgerOpen() ? calcTopActions(false) : '');
     html += `<h1 class="page-title">${esc(t('tabLedger'))}</h1>`;
     if (!ledgerOpen()) return html + ledgerLockedHtml();
-    // Opciones de la pestaña: privacidad (casilla), boca abajo (móvil) y mostrar el Dinero Caprichable
-    html += `<div class="led-opts clay" role="group" aria-label="${esc(t('ledOptions'))}">
-      <label class="check tgl"><input type="checkbox" data-led-opt="privacy" ${priv ? 'checked' : ''}> ${ico(priv ? 'eyeOff' : 'eye')} ${esc(t('privacyModeLabel'))}</label>
-      <label class="check tgl"><input type="checkbox" data-led-opt="cap" ${capHidden() ? '' : 'checked'}> ${ico('wallet')} ${esc(t('capShowWidget'))}</label>
-    </div>`;
     if (!capHidden()) html += `<button class="cap-link" data-act="caprice" aria-label="${esc(t('capOpen'))}">${capTotalHtml()}</button>`;
     if (LV.bad) html += `<div class="banner clay">${ico('alert')}<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
     const years = new Set([y, +todayKey().slice(0, 4)]); LV.entries.forEach(e => years.add(+String(e.date).slice(0, 4)));
@@ -4001,12 +4049,13 @@
         <select class="input sel" data-ledger-y aria-label="${esc(t('ledgerYearSel'))}">${Array.from({ length: yMax - yMin + 1 }, (_, i) => yMin + i).map(v => `<option ${v === y ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <button class="icon-btn sm" data-act="ledger-month" data-d="1" aria-label="${esc(t('ledgerNext'))}">${ico('right')}</button></div>
       <div class="month-sum"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(tot.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(tot.expense)}</b></div><div><span>${esc(t('ledgerBalance'))}</span><b>${cents(tot.net)}</b></div></div>
+      ${tot.invest ? `<p class="muted small center led-inv-line">${ico('trend', 'xs')} ${esc(t('ledgerInvested'))}: <b class="amt-inv">${cents(tot.invest)}</b></p>` : ''}
       ${ledgerFxLine(monthEntries)}
       <div class="cal" role="grid"><div class="cal-row cal-wd" role="row">${wd.map(d => `<span role="columnheader">${esc(d)}</span>`).join('')}</div>
       ${LED.monthGrid(y, m).map(w => `<div class="cal-row" role="row">${w.map(k => {
         if (!k) return '<span class="cal-cell empty" role="gridcell"></span>';
         const d = days[k], lbl = `${fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' })}${d ? ` · ${t('ledgerIncome')} ${cents(d.income)} · ${t('ledgerExpense')} ${cents(d.expense)}` : ''}`;
-        return `<button class="cal-cell ${k === sel ? 'on' : ''} ${k === todayKey() ? 'today' : ''}" role="gridcell" data-ledger-day="${k}" aria-label="${esc(lbl)}" aria-pressed="${k === sel}"><span class="cal-n">${+k.slice(8)}</span>${d ? `<span class="cal-dots">${d.income ? '<i class="in"></i>' : ''}${d.expense ? '<i class="out"></i>' : ''}</span><span class="cal-net ${d.net < 0 ? 'amt-out' : 'amt-in'}">${priv ? '•••' : esc(compactMoney(d.net / 100))}</span>` : ''}</button>`;
+        return `<button class="cal-cell ${k === sel ? 'on' : ''} ${k === todayKey() ? 'today' : ''}" role="gridcell" data-ledger-day="${k}" aria-label="${esc(lbl)}" aria-pressed="${k === sel}"><span class="cal-n">${+k.slice(8)}</span>${d ? `<span class="cal-dots">${d.income ? '<i class="in"></i>' : ''}${d.expense ? '<i class="out"></i>' : ''}${d.invest ? '<i class="inv"></i>' : ''}</span><span class="cal-net ${d.net < 0 ? 'amt-out' : 'amt-in'}">${priv ? '•••' : esc(compactMoney(d.net / 100))}</span>` : ''}</button>`;
       }).join('')}</div>`).join('')}</div>
     </section>`;
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
@@ -4016,6 +4065,11 @@
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
+    // v1.23: opciones de la pestaña al final, debajo de «Gráficos»: privacidad y mostrar el Dinero Caprichable
+    html += `<div class="led-opts clay" role="group" aria-label="${esc(t('ledOptions'))}">
+      <label class="check tgl"><input type="checkbox" data-led-opt="privacy" ${priv ? 'checked' : ''}> ${ico(priv ? 'eyeOff' : 'eye')} ${esc(t('privacyModeLabel'))}</label>
+      <label class="check tgl"><input type="checkbox" data-led-opt="cap" ${capHidden() ? '' : 'checked'}> ${ico('wallet')} ${esc(t('capShowWidget'))}</label>
+    </div>`;
     return html;
   }
   /* =========================================================
@@ -4145,7 +4199,11 @@
   });
   document.addEventListener('focusout', e => { const box = e.target.closest && e.target.closest('.calc-chart'); if (box) calcTipHide(box); });
   // Los desplegables recuerdan si estaban abiertos al redibujar
-  document.addEventListener('toggle', e => { const d = e.target; if (d && d.matches && d.matches('details[data-cd]')) calcOpenD.set(d.dataset.cd, d.open); }, true);
+  document.addEventListener('toggle', e => {
+    const d = e.target; if (!d || !d.matches) return;
+    if (d.matches('details[data-cd]')) calcOpenD.set(d.dataset.cd, d.open);
+    if (d.matches('details[data-led-charts]') && state.ui.ledChartsShut !== !d.open) { state.ui.ledChartsShut = !d.open; save(); }
+  }, true);
 
   // Series del gráfico principal según el modo
   function calcSeries(model, u) {
@@ -4959,7 +5017,7 @@
 
   /* ---------- Libreta: gráficas (tarta por categorías y evolución de ingresos y gastos) ---------- */
   const PIE_COLORS = ['#ff6b6b', '#4cc9f0', '#f7c948', '#c77dff', '#3ddc97', '#ff8a5b', '#5b8cff', '#ff5d8f', '#a3e635', '#2ec4b6', '#b8b8c8'];
-  const IN_C = '#2fbf71', OUT_C = '#e5484d';
+  const IN_C = '#2fbf71', OUT_C = '#e5484d', INV_C = '#d8d8de';
   const capHidden = () => !!(state.ledgerPrefs && state.ledgerPrefs.capHidden);
   // Tarta (anillo) con leyenda; en modo privacidad se ocultan los importes
   // «Mostrar porcentajes» (casilla bajo cada tarta): etiquetas sobre el anillo y en la leyenda
@@ -4991,14 +5049,14 @@
     if (!list.length || !segs.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p><div class="row wrap pie-tools">${pieModeBtn()}</div>`;
     const base = LED.series([], from, to, unit), idx = new Map(base.map((b, i) => [b.key, i]));
     const keyFor = d => unit === 'month' ? d.slice(0, 7) : d;
-    const ids = pm === 'io' ? ['income', 'expense'] : LED.byCategory(list, pm).map(c => c.id);
+    const ids = pm === 'io' ? ['income', 'expense', 'invest'] : LED.byCategory(list, pm).map(c => c.id);
     const rows = base.map(b => ({ date: CALC.parseDate(unit === 'month' ? b.key + '-01' : b.key), ...Object.fromEntries(ids.map(id => ['c:' + id, 0])) }));
     for (const e of list) {
       const i = idx.get(keyFor(e.date)); if (i == null) continue;
-      const k = pm === 'io' ? 'c:' + (e.type === 'income' ? 'income' : 'expense') : e.type === pm ? 'c:' + (e.categoryId || 'other') : null;
+      const k = pm === 'io' ? 'c:' + LED.kindKey(e) : e.type === pm ? 'c:' + (e.categoryId || 'other') : null;
       if (k && k in rows[i]) rows[i][k] += (e.amountCents || 0) / 100;
     }
-    const series = pm === 'io' ? [{ key: 'c:income', label: t('ledgerIncome'), color: IN_C }, { key: 'c:expense', label: t('ledgerExpense'), color: OUT_C }]
+    const series = pm === 'io' ? [{ key: 'c:income', label: t('ledgerIncome'), color: IN_C }, { key: 'c:expense', label: t('ledgerExpense'), color: OUT_C }, ...(list.some(e => e.type === 'invest') ? [{ key: 'c:invest', label: t('ledgerInvest'), color: INV_C }] : [])]
       : ids.map((id, i) => ({ key: 'c:' + id, label: segs[i] ? segs[i].label : id, color: segs[i] ? segs[i].color : PIE_COLORS[i % PIE_COLORS.length] }));
     return `${calcChart('led-pie', rows, series, { aria: t('ledPieTitle'), noPat: true })}<div class="row wrap pie-tools">${pieModeBtn()}</div>`;
   }
@@ -5029,10 +5087,11 @@
     const pp = ['month', 'year', 'all'].includes(ui.ledPie) ? ui.ledPie : 'month', pm = ['io', 'expense', 'income'].includes(ui.ledPieMode) ? ui.ledPieMode : 'io';
     const pList = pp === 'month' ? LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7)) : pp === 'year' ? LED.inRange(LV.entries, ym.slice(0, 4) + '-01-01', ym.slice(0, 4) + '-12-31') : LV.entries;
     const tot = LED.totals(pList);
-    const segs = pm === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }].filter(s => s.value)
+    const segs = pm === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }, { label: t('ledgerInvest'), value: tot.invest, color: INV_C }].filter(s => s.value)
       : LED.byCategory(pList, pm).map((c, i) => { const cat = catOf(c.id); return { label: `${cat.icon} ${catName(cat)}`, value: c.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
     const pName = pp === 'month' ? fmtDate(ym + '-01', { month: 'long', year: 'numeric' }) : pp === 'year' ? ym.slice(0, 4) : t('ledAll');
-    let html = `<h2 class="section-title led-h">${ico('chart')} ${esc(t('ledCharts'))}</h2><div class="chart-grid">`;
+    // v1.23: «Gráficos» se pliega y despliega (se recuerda)
+    let html = `<details class="led-charts" data-led-charts ${state.ui.ledChartsShut ? '' : 'open'}><summary class="section-title led-h">${ico('chart')} <span class="grow">${esc(t('ledCharts'))}</span><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="chart-grid">`;
     if (!hidW('ledPie')) html += `<section class="chart-card clay" data-w="ledPie"><h3>${ico('pie')}<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
       <div class="seg seg-sm" role="group">${[['month', 'ledThisMonth'], ['year', 'ledThisYear'], ['all', 'ledAll']].map(([v, k]) => `<button data-act="led-pie" data-v="${v}" class="${pp === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
       <div class="seg seg-sm" role="group" style="margin-top:8px">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-act="led-pie-mode" data-v="${v}" class="${pm === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
@@ -5059,7 +5118,7 @@
       <div class="month-sum"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(ft.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(ft.expense)}</b></div><div><span>${esc(t('ledBalance'))}</span><b>${cents(ft.net)}</b></div></div>
       <p class="muted small" style="margin:8px 0 4px">${esc(t('ledFilterCount', { n: fl.length }))}</p>
       ${twoDotChart(frows, { aria: t('ledFilterTitle') })}</section>`;
-    return html;
+    return html + '</details>';
   }
   // Dinero Caprichable: solo en la Libreta. Ventana con el total, el conversor y la opción de ocultarlo.
   function openCaprice() {
@@ -5093,9 +5152,10 @@
   // Añadir o editar un movimiento
   /* Movimiento en una lista: al deslizarlo hacia la izquierda (dedo o ratón) aparecen Editar y Borrar */
   function entryRow(e, withDate = false) {
-    const c = catOf(e.categoryId), priv = privacyOn(), inc = e.type === 'income';
+    const c = catOf(e.categoryId), priv = privacyOn(), inc = e.type === 'income', inv = e.type === 'invest';
+    const ac = inv ? 'amt-inv' : inc ? 'amt-in' : 'amt-out', sg = inv ? '' : inc ? '+' : '−';
     return `<div class="swipe" data-swipe="${esc(e.id)}"><div class="swipe-acts"><button class="sw-act edit" data-sw-edit="${esc(e.id)}" aria-label="${esc(t('edit'))}" title="${esc(t('edit'))}">${ico('edit')}</button><button class="sw-act del" data-sw-del="${esc(e.id)}" aria-label="${esc(t('delete'))}" title="${esc(t('delete'))}">${ico('trash')}</button></div>
-      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${inc ? 'amt-in' : 'amt-out'}">${priv ? '•••' : (inc ? '+' : '−') + cents(e.amountCents)}</b>`}</button></div>`;
+      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${ac}">${priv ? '•••' : sg + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${ac}">${priv ? '•••' : sg + cents(e.amountCents)}</b>`}</button></div>`;
   }
   const SW_W = 124;
   let swg = null, swOpen = null, swBlock = false;
@@ -5146,6 +5206,9 @@
     }
     return false;
   }
+  // v1.23: tipos de movimiento (Gasto, Ingreso, Inversión). «Ambos» vale para gasto e ingreso; la inversión tiene sus categorías
+  const LTYPE_K = { expense: 'ledgerExpenseOne', income: 'ledgerIncomeOne', invest: 'ledgerInvestOne' };
+  const catFits = (c, type) => c.type === type || (c.type === 'both' && type !== 'invest');
   function openEntry(entry, date) {
     const isNew = !entry;
     const f = entry ? { ...entry } : { type: 'expense', amountCents: 0, categoryId: 'food', note: '', method: 'card', date: date || todayKey(), every: '', to: '' };
@@ -5173,10 +5236,10 @@
       if (cur !== f.cur || f.rateSet) return;
       f.rate = r || 0; fxLine();
     };
-    const catsHtml = () => LV.cats.filter(c => !c.archived && (c.type === 'both' || c.type === f.type)).map(c => `<button type="button" class="chip ${f.categoryId === c.id ? 'on' : ''}" data-le-cat="${c.id}" aria-pressed="${f.categoryId === c.id}">${esc(c.icon)} ${esc(catName(c))}</button>`).join('');
+    const catsHtml = () => LV.cats.filter(c => !c.archived && catFits(c, f.type)).map(c => `<button type="button" class="chip ${f.categoryId === c.id ? 'on' : ''}" data-le-cat="${c.id}" aria-pressed="${f.categoryId === c.id}">${esc(c.icon)} ${esc(catName(c))}</button>`).join('');
     const draw = () => {
       $('#le', wref).innerHTML = `<div class="stack" style="gap:16px">
-        <div class="seg" role="group" aria-label="${esc(t('ledgerType'))}">${['expense', 'income'].map(v => `<button type="button" data-le-type="${v}" class="${f.type === v ? 'on' : ''}" aria-pressed="${f.type === v}">${esc(t(v === 'expense' ? 'ledgerExpenseOne' : 'ledgerIncomeOne'))}</button>`).join('')}</div>
+        <div class="seg" role="group" aria-label="${esc(t('ledgerType'))}">${LED.TYPES.map(v => `<button type="button" data-le-type="${v}" class="${f.type === v ? 'on' : ''}" aria-pressed="${f.type === v}">${esc(t(LTYPE_K[v]))}</button>`).join('')}</div>
         <label class="field"><span>${esc(t('ledgerAmount'))}</span><span class="cap-input"><input class="input amt-input" id="le-amt" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${f.fx ? esc(fmtPctIn(f.fx.cents / 100)) : f.amountCents ? esc(fmtPctIn(f.amountCents / 100)) : ''}"><select class="input cur-sel" id="le-cur" aria-label="${esc(t('fxCurrency'))}">${curOpts()}</select></span></label>
         <div id="le-fx"></div>
         <div class="field"><span>${esc(t('ledgerCategory'))}</span><div class="sug-list">${catsHtml()}</div></div>
@@ -5206,7 +5269,7 @@
         let el;
         const keepAmt = () => { const a = $('#le-amt', wref); f._amt = a ? a.value : ''; };
         const restore = () => { if (f._amt != null) $('#le-amt', wref).value = f._amt; fxLine(); };
-        if ((el = e.target.closest('[data-le-type]'))) { read(); keepAmt(); f.type = el.dataset.leType; const c = catOf(f.categoryId); if (!(c.type === 'both' || c.type === f.type)) f.categoryId = f.type === 'income' ? 'salary' : 'food'; draw(); restore(); return; }
+        if ((el = e.target.closest('[data-le-type]'))) { read(); keepAmt(); f.type = el.dataset.leType; const c = catOf(f.categoryId); if (!catFits(c, f.type)) f.categoryId = (LV.cats.find(x => !x.archived && catFits(x, f.type)) || { id: 'other' }).id; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-cat]'))) { read(); keepAmt(); f.categoryId = el.dataset.leCat; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-method]'))) { read(); keepAmt(); f.method = el.dataset.leMethod; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le]'))) {
@@ -5231,7 +5294,7 @@
           } else if (isNew) LV.entries.push({ id: uid(), ...data, recurringId: '', createdAt: Date.now() });
           else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; }
           state.ui.ledgerDay = f.date; state.ui.ledgerMonth = f.date.slice(0, 7);
-          ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'income' ? 'money' : 'pop');
+          ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'expense' ? 'pop' : 'money');
         }
       }
     });
@@ -5243,7 +5306,7 @@
     const draw = () => {
       $('#lc', wref).innerHTML = `<div class="stack" style="gap:10px">${LV.cats.map(c => `<div class="row cat-row ${c.archived ? 'archived' : ''}"><input class="input" data-lc-icon="${c.id}" value="${esc(c.icon)}" maxlength="4" aria-label="${esc(t('ledgerCatIcon'))}" style="width:62px;text-align:center"><input class="input grow" data-lc-name="${c.id}" value="${esc(catName(c))}" maxlength="30" aria-label="${esc(t('ledgerCatName'))}"><span class="muted small cat-type">${esc(t('ctype_' + c.type))}</span><button class="icon-btn sm" data-lc-arch="${c.id}" aria-label="${esc(t(c.archived ? 'restore' : 'archive'))}" title="${esc(t(c.archived ? 'restore' : 'archive'))}">${ico(c.archived ? 'refresh' : 'archive')}</button></div>`).join('')}
         <h4 style="margin:14px 0 0">${esc(t('ledgerCatNew'))}</h4>
-        <div class="seg">${['expense', 'income', 'both'].map(v => `<button type="button" data-lc-type="${v}" class="${newType === v ? 'on' : ''}">${esc(t('ctype_' + v))}</button>`).join('')}</div>
+        <div class="seg">${['income', 'expense', 'both', 'invest'].map(v => `<button type="button" data-lc-type="${v}" class="${newType === v ? 'on' : ''}">${esc(t('ctype_' + v))}</button>`).join('')}</div>
         <div class="row"><input class="input" id="lc-icon" value="🏷️" maxlength="4" style="width:62px;text-align:center" aria-label="${esc(t('ledgerCatIcon'))}"><input class="input grow" id="lc-name" maxlength="30" placeholder="${esc(t('ledgerCatName'))}"><button class="btn" data-lc-add>${ico('plus')} ${esc(t('add'))}</button></div></div>`;
     };
     openModal({
@@ -5307,6 +5370,7 @@
   const rgKindName = g => g.kind === 'card' ? t('rgKind_card', { c: rgMcat(g.mcat) }) : g.kind === 'other' ? t('rgKind_other', { a: g.action }) : t('rgKind_' + g.kind);
   const rgMcat = m => { const s = String(m || '').replace(/_/g, ' ').toLowerCase().trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : t('rgNoMcat'); };
   const rgCanGroup = g => g.kind !== 'card' && g.kind !== 'cardCredit';
+  const RG_TYPES = [['expense', 'ledgerExpenseOne'], ['income', 'ledgerIncomeOne'], ['invest', 'ledgerInvestOne'], ['skip', 'rgSkip']], RG_MAX_ROWS = 300;
   function rgNote(e) {
     const n = e.count > 1 ? ` (${e.count})` : '';
     if (e.kind === 'card' || e.kind === 'cardCredit') return e.extGroup ? rgMcat(e.label) + n : e.label;
@@ -5314,12 +5378,19 @@
     return t('rgNote_' + e.kind) + (e.extGroup ? n : e.label ? ' · ' + e.label : '');
   }
   function openRegistrar() {
-    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {}, file: '' };
+    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {}, file: '', open: new Set() };
     let wref;
-    const cats = type => LV.cats.filter(c => !c.archived && (c.type === type || c.type === 'both'));
+    const cats = type => LV.cats.filter(c => !c.archived && catFits(c, type));
+    // v1.23: cada grupo se puede desglosar y decidir movimiento a movimiento (respuesta propia en S.ans['row:' + clave])
+    const rowsOf = g => BCSV.rowsOf(S.rows, g.id);
+    const rowOk = r => { const a = S.ans['row:' + r.key]; return !!(a && a.type && (a.type === 'skip' || a.categoryId)); };
     const missing = () => {
       let n = 0;
-      for (const g of S.q) { const a = S.ans[g.id] || {}; if (!a.type || (a.type !== 'skip' && (!a.categoryId || (rgCanGroup(g) && !a.group)))) n++; }
+      for (const g of S.q) {
+        const rs = rowsOf(g); n += rs.filter(r => S.ans['row:' + r.key] && !rowOk(r)).length;
+        if (rs.every(r => S.ans['row:' + r.key])) continue;
+        const a = S.ans[g.id] || {}; if (!a.type || (a.type !== 'skip' && (!a.categoryId || (rgCanGroup(g) && !a.group)))) n++;
+      }
       for (const c of Object.keys(S.cur)) if (!S.curMode[c] || (S.curMode[c] === 'rate' && !(S.rates[c] > 0))) n++;
       return n;
     };
@@ -5335,17 +5406,21 @@
         return;
       }
       const d = S.data, miss = missing();
+      const catSel = (id, a) => `<label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-rg-cat="${esc(id)}"><option value="">${esc(t('rgPickCat'))}</option>${cats(a.type).map(c => `<option value="${esc(c.id)}" ${a.categoryId === c.id ? 'selected' : ''}>${esc((c.icon ? c.icon + ' ' : '') + catName(c))}</option>`).join('')}</select></label>`;
       const seg = (gid, key, opts, val) => `<div class="seg seg-sm" role="group">${opts.map(([v, k]) => `<button type="button" data-rg-set="${esc(gid)}" data-k="${key}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>`;
       box.innerHTML = `<div class="stack" style="gap:14px">
         <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
         <p style="margin:0">${esc(t('rgAsk'))}</p>
-        ${S.q.map(g => { const a = S.ans[g.id] || {}; return `<section class="rg-q clay">
+        ${S.q.map(g => { const a = S.ans[g.id] || {}, rs = rowsOf(g), nOwn = rs.filter(r => S.ans['row:' + r.key]).length, open = S.open.has(g.id); return `<section class="rg-q clay">
           <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><b class="grow">${esc(rgKindName(g))}</b><span class="muted small" style="white-space:nowrap">${g.count} · ${money(g.cents / 100)}</span></div>
           ${g.sample.length ? `<p class="muted small" style="margin:0">${esc(t('rgSample', { s: g.sample.join(', ') }))}</p>` : ''}
           <p class="muted small" style="margin:0">${esc(t('rgHint_' + g.kind))}</p>
-          <span class="rg-l">${esc(t('rgWhat'))}</span>${seg(g.id, 'type', [['expense', 'ledgerExpenseOne'], ['income', 'ledgerIncomeOne'], ['skip', 'rgSkip']], a.type)}
-          ${a.type && a.type !== 'skip' ? `<label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-rg-cat="${esc(g.id)}"><option value="">${esc(t('rgPickCat'))}</option>${cats(a.type).map(c => `<option value="${esc(c.id)}" ${a.categoryId === c.id ? 'selected' : ''}>${esc((c.icon ? c.icon + ' ' : '') + catName(c))}</option>`).join('')}</select></label>
-            ${rgCanGroup(g) ? `<span class="rg-l">${esc(t('rgGroupQ'))}</span>${seg(g.id, 'group', [['none', 'rgGroupNo'], ['day', 'rgGroupDay'], ['month', 'rgGroupMonth']], a.group)}` : ''}` : ''}
+          ${rs.length > nOwn ? `<span class="rg-l">${esc(t(nOwn ? 'rgWhatRest' : 'rgWhat', { n: rs.length - nOwn }))}</span>${seg(g.id, 'type', RG_TYPES, a.type)}
+          ${a.type && a.type !== 'skip' ? `${catSel(g.id, a)}
+            ${rgCanGroup(g) ? `<span class="rg-l">${esc(t('rgGroupQ'))}</span>${seg(g.id, 'group', [['none', 'rgGroupNo'], ['day', 'rgGroupDay'], ['month', 'rgGroupMonth']], a.group)}` : ''}` : ''}` : `<p class="muted small" style="margin:0">${esc(t('rgAllOwn'))}</p>`}
+          ${rs.length > 1 || nOwn ? `<button type="button" class="chip sm rg-split ${open ? 'on' : ''}" data-rg-split="${esc(g.id)}" aria-expanded="${open}">${ico('list')} ${esc(t(open ? 'rgSplitHide' : 'rgSplit', { n: rs.length }))}${nOwn ? ` · ${esc(t('rgOwnN', { n: nOwn }))}` : ''}</button>` : ''}
+          ${open ? `<ul class="rg-rows">${rs.slice(0, RG_MAX_ROWS).map(r => { const ra = S.ans['row:' + r.key]; return `<li class="rg-row ${ra ? 'own' : ''}"><div class="row" style="gap:8px;align-items:baseline"><span class="grow small"><b>${esc(r.merchant || r.name || (r.kind === 'other' ? r.action : t('rgNote_' + r.kind)))}</b> <span class="muted">${esc(fmtShort(r.date))}</span></span><b class="small ${r.sign < 0 ? 'amt-out' : 'amt-in'}">${privacyOn() ? '•••' : (r.sign < 0 ? '−' : '+') + esc(fmtCur(r.cents / 100, r.currency))}</b></div>
+            ${seg('row:' + r.key, 'type', [['', 'rgAsGroup'], ...RG_TYPES], ra ? ra.type : '')}${ra && ra.type && ra.type !== 'skip' ? catSel('row:' + r.key, ra) : ''}</li>`; }).join('')}</ul>${rs.length > RG_MAX_ROWS ? `<p class="muted small" style="margin:0">${esc(t('rgMoreRows', { n: rs.length - RG_MAX_ROWS }))}</p>` : ''}` : ''}
         </section>`; }).join('')}
         ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay"><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
           ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgConvert']], S.curMode[c])}
@@ -5363,7 +5438,7 @@
       const known = new Set(); for (const e of LV.entries) for (const k of e.extIds || []) known.add(k);
       const fresh = d.rows.filter(r => !known.has(r.key));
       S.dupN = d.rows.length - fresh.length;
-      S.data = d; S.rows = fresh; S.file = String(f.name || '').slice(0, 120); S.q = BCSV.questions(fresh, ledgerMain()); S.cur = BCSV.currencies(fresh, ledgerMain()); S.ans = {};
+      S.data = d; S.rows = fresh; S.file = String(f.name || '').slice(0, 120); S.q = BCSV.questions(fresh, ledgerMain()); S.cur = BCSV.currencies(fresh, ledgerMain()); S.ans = {}; S.open = new Set();
       // v1.22: cambio estimado de cada moneda detectada (BCE de hoy o el fijado a mano); se puede corregir
       fxLatest().then(() => { for (const c of Object.keys(S.cur)) if (!S.rates[c]) { const r = fxRateNow(c); if (r > 0) S.rates[c] = FX.roundRate(r); } draw(); });
       // Lo único que se sabe seguro: un pago con tarjeta es un gasto (la categoría la elige el usuario)
@@ -5385,9 +5460,11 @@
         if ((el = e.target.closest('[data-rg-set]'))) {
           const id = el.dataset.rgSet, k = el.dataset.k, v = el.dataset.v;
           if (k === 'cur') S.curMode[id.slice(4)] = v;
+          else if (id.startsWith('row:') && k === 'type' && !v) delete S.ans[id]; // «Como el grupo»
           else { const a = S.ans[id] || (S.ans[id] = {}); if (k === 'type' && a.type !== v) { a.type = v; a.categoryId = ''; } else a[k] = v; }
           draw(); return;
         }
+        if ((el = e.target.closest('[data-rg-split]'))) { const id = el.dataset.rgSplit; if (S.open.has(id)) S.open.delete(id); else S.open.add(id); draw(); return; }
         if (!(el = e.target.closest('[data-rg]'))) return;
         if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
         if (missing()) return;
@@ -5780,7 +5857,7 @@
     openModal({
       title: `${ico('budget')} ${esc(t(isNew ? (global ? 'budCreate' : 'budNewCats') : 'budEdit'))}`, cls: 'calc-sheet',
       body: `<div class="stack" style="gap:16px">${global ? `<p class="muted small" style="margin:0">${esc(t('budGlobalHint'))}</p>` : `<label class="field"><span>${esc(t('budNameLbl'))}</span><input class="input" id="bud-name" maxlength="40" value="${esc(f.name)}" placeholder="${esc(t('budNamePh'))}"></label>
-        <div class="field"><span>${esc(t('budCatsLbl'))}</span><div class="row wrap" style="gap:8px">${LV.cats.filter(c => c.type !== 'income' && (!c.archived || f.catIds.includes(c.id))).map(c => `<label class="check-chip tgl"><input type="checkbox" data-bud-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon || '')} ${esc(catName(c))}</span></label>`).join('')}</div></div>`}
+        <div class="field"><span>${esc(t('budCatsLbl'))}</span><div class="row wrap" style="gap:8px">${LV.cats.filter(c => (c.type === 'expense' || c.type === 'both') && (!c.archived || f.catIds.includes(c.id))).map(c => `<label class="check-chip tgl"><input type="checkbox" data-bud-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon || '')} ${esc(catName(c))}</span></label>`).join('')}</div></div>`}
         <div class="calc-changes"><p class="calc-fine">${esc(t('budVersHint'))}</p><div class="calc-change-rows" id="bud-vers">${f.versions.map(vRow).join('')}</div></div></div>`,
       foot: `<button type="button" class="calc-plus" data-bv-add aria-label="${esc(t('budVerAdd'))}" title="${esc(t('budVerAdd'))}">${ico('plus')}</button>${isNew ? '' : `<button class="btn calc-danger" data-bud-del>${ico('trash')} ${esc(t('calcDelete'))}</button>`}<button class="btn calc-blue" data-bud-save>${esc(t('calcSave'))}</button>`,
       onClick: async (e, close, w) => {
@@ -7125,13 +7202,15 @@
   const myName = () => (firstName() || myTag() || 'Yo').slice(0, 40);
   const personName = p => (p && (p.display_name || (p.nametag ? '@' + p.nametag : ''))) || '—';
   const chatName = g => g.chat === 'dm' ? personName(g.peer) : g.name;
+  // v1.23: una imagen compartida solo se muestra si es de verdad un JPEG o PNG en base64
+  const CARD_IMG = /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/;
   // Foto del grupo (si la hay) o su icono
   const groupAv = (g, size = 'lg') => { const img = safeImg(g && g.avatar); return img ? `<span class="avatar ${size} photo g-av"><img src="${img}" alt=""></span>` : `<span class="avatar ${size} g-av">${esc((g && g.icon) || '👥')}</span>`; };
   const chatAvatar = g => g.chat === 'dm' ? avatarHtml(g.peer || {}, 'lg') : groupAv(g, 'lg');
   function chatPreview(g) {
     const l = g.last; if (!l) return t('chatNoMsgs');
     if (l.kind === 'system') return t('chatPrevSys');
-    const txt = l.kind === 'text' ? l.body : l.kind === 'invite' ? '🔗 ' + t('chatPrevInvite') : l.kind === 'photo' ? '📷 ' + t('chatPrevPhoto') : l.kind === 'audio' ? '🎤 ' + t('chatPrevAudio') : l.kind === 'sticker' ? '🙂 Sticker' : l.kind === 'file' ? t('chatPrevFile') : '📌 ' + t('chatPrevShare');
+    const txt = l.kind === 'text' ? l.body : l.kind === 'invite' ? '🔗 ' + t('chatPrevInvite') : l.kind === 'photo' ? '📷 ' + t('chatPrevPhoto') : l.kind === 'audio' ? '🎤 ' + t('chatPrevAudio') : l.kind === 'sticker' ? '🙂 Sticker' : l.kind === 'file' ? t('chatPrevFile') : l.kind === 'share' && (l.payload || {}).type === 'card' ? t('chatPrevCard') : '📌 ' + t('chatPrevShare');
     if (l.user_id === auth.uid) return t('chatYou') + ': ' + txt;
     if (g.chat === 'dm') return txt;
     const m = (g.members || []).find(x => x.user_id === l.user_id);
@@ -7447,7 +7526,7 @@
           ${live}
         </section>
         ${g.spec && Object.keys(g.spec).length ? `<section class="clay card g-spec"><h3 class="section-title">${ico('eye')} ${esc(t(g.kind === 'habit' ? 'gSpecHabit' : 'gSpecProject'))}</h3>${pvSpecHtml(g.kind === 'habit' ? 'habit' : 'project', g.spec)}</section>` : ''}
-        ${can('invite') && link ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p></section>` : ''}
+        ${can('invite') && link ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="btn" data-g="invite-chat">${ico('send')} ${esc(t('shareToChat'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('groupLeave'))}</button></div>
       </div>`;
     };
@@ -7481,6 +7560,10 @@
       else if (m.kind === 'invite') {
         const p = m.payload || {}, member = myGroupCodes().has(p.group_code);
         inner = `<div class="msg-card"><span class="g-icon">${esc(p.icon || '🎯')}</span><span class="grow"><b>${esc(t('chatInviteCard', { name: p.name || '' }))}</b><span class="muted small">${esc(t(p.kind === 'project' ? 'gProject' : 'gHabit'))}: ${esc(p.spec_name || p.name || '')}</span></span><span class="msg-acts"><button class="btn sm" data-gc-peek="${esc(p.code)}" data-gc-mem="${member ? 1 : 0}">${esc(t('chatView'))}</button>${member ? `<span class="muted small" style="align-self:center">${esc(t('chatAlready'))}</span>` : `<button class="btn primary sm" data-gc-join="${esc(p.code)}">${esc(t('chatJoin'))}</button>`}</span></div>`;
+      } else if (m.kind === 'share' && (m.payload || {}).type === 'card') {
+        // v1.23: imagen compartida (maestría, trofeo, contrato, carnet…)
+        const p = m.payload || {}, ok = CARD_IMG.test(String(p.img || ''));
+        inner = ok ? `<button class="msg-img" data-gc-img="${m.id}" aria-label="${esc(p.title || t('chatPrevCard'))}"><img src="${p.img}" alt="" draggable="false"></button>${p.title ? `<span class="msg-img-t small">${esc(p.title)}</span>` : ''}` : `<span class="msg-text muted">${esc(p.title || t('chatPrevCard'))}</span>`;
       } else if (m.kind === 'share' && (m.payload || {}).type === 'event') {
         const v = cleanSpec('event', (m.payload || {}).event);
         inner = `<div class="msg-card"><span class="g-icon">${esc(v.icon || '🗂️')}</span><span class="grow"><b>${esc(v.name || '')}</b><span class="muted small">${esc(t('evTitle'))} · ${v.from ? esc(fmtShort(v.from)) : ''} – ${v.to ? esc(fmtShort(v.to)) : ''}${(v.cats || []).length ? ' · ' + (v.cats || []).map(c => esc(`${c.icon || ''} ${c.name || ''}`)).join(', ') : ''}</span></span><span class="msg-acts"><button class="btn sm" data-gc-view="${m.id}">${esc(t('chatView'))}</button><button class="btn sm primary" data-gc-add="${m.id}">${ico('plus')} ${esc(t('evAddMine'))}</button></span></div>`;
@@ -7901,10 +7984,16 @@
         if (tabB) { G.tab = tabB.dataset.gt; draw(); if (G.tab === 'chat') { try { await loadMsgs(); } catch (err) { /* nada */ } draw(); $('#chat-in', body()) && $('#chat-in', body()).focus(); } return; }
         const fr = e.target.closest('[data-rk-freq]');
         if (fr) { body().querySelectorAll('[data-rk-freq]').forEach(b => { b.classList.toggle('on', b === fr); b.setAttribute('aria-checked', b === fr); }); return; }
-        const b = e.target.closest('[data-g],[data-g-kick],[data-gv],[data-gc-join],[data-gc-peek],[data-gc-add],[data-gc-view],[data-gc-del],[data-gc-photo],[data-gc-audio],[data-gc-file],[data-gc-stk],[data-rate],[data-jr-yes],[data-jr-no]'); if (!b || !G.info) return;
+        const b = e.target.closest('[data-g],[data-g-kick],[data-gv],[data-gc-join],[data-gc-peek],[data-gc-add],[data-gc-view],[data-gc-del],[data-gc-photo],[data-gc-audio],[data-gc-file],[data-gc-img],[data-gc-stk],[data-rate],[data-jr-yes],[data-jr-no]'); if (!b || !G.info) return;
         try {
           if (b.dataset.gKick) { if (await confirmDialog(t('groupKickQ'))) { await rpc('kg_leave_group', { p_group: gid, p_user: b.dataset.gKick }); await refresh(); } return; }
           if (b.dataset.gv) { b.disabled = true; await rpc('kg_vote', { p_challenge: G.info.active.id, p_vote: b.dataset.gv === '1' }); sfx('toggle'); vibrate(15); await refresh(); return; }
+          if (b.dataset.gcImg) {
+            const m = G.msgs.find(x => String(x.id) === b.dataset.gcImg), p = (m && m.payload) || {}; if (!CARD_IMG.test(String(p.img || ''))) return;
+            openModal({ title: esc(p.title || t('chatPrevCard')), cls: 'wide', body: `<img class="card-big" src="${p.img}" alt="">`, foot: `<button class="btn primary block" data-ci="dl">${ico('download')} ${esc(t('saveImageBtn'))}</button>`,
+              onClick: ev => { if (ev.target.closest('[data-ci]')) { const a = document.createElement('a'); a.href = p.img; a.download = 'keepgoing.jpg'; document.body.appendChild(a); a.click(); a.remove(); } } });
+            return;
+          }
           if (b.dataset.gcPeek) { openInvitePreview(b.dataset.gcPeek, b.dataset.gcMem === "1"); return; }
           if (b.dataset.gcJoin) { try { localStorage.setItem(JOIN_KEY, b.dataset.gcJoin); } catch (err) { /* nada */ } close(); processJoin(); return; }
           if (b.dataset.gcView) {
@@ -7937,6 +8026,7 @@
           if (b.dataset.gcDel) { if (await confirmDialog(t('chatDeleteQ'))) { await rpc('kg_delete_message', { p_id: +b.dataset.gcDel }); await loadMsgs(); draw(true); } return; }
           const a = b.dataset.g, link = `${APP_URL}?join=${G.code}`;
           if (a === 'share') { const text = t('gShareText', { name: G.info.group.name }); if (navigator.share) navigator.share({ title: 'KeepGoing', text, url: link }).catch(() => {}); else { await navigator.clipboard.writeText(`${text} ${link}`); toast(t('copied')); } }
+          if (a === 'invite-chat') pickChat(t('shareToChat'), id => rpc('kg_post_invite', { p_group: id, p_target: gid }));
           if (a === 'copy-id') { try { await navigator.clipboard.writeText(G.info.group.code); toast(t('copied')); } catch (err) { /* nada */ } }
           if (a === 'newcode') { G.code = await rpc('kg_new_invite', { p_group: gid }); draw(); }
           if (a === 'chat-more') chatShare();
@@ -8025,7 +8115,7 @@
   // Las celebraciones esperan su turno si ya hay una ventana abierta
   const modalQueue = [];
   const whenFree = fn => { if ($('#modal-root').children.length) modalQueue.push(fn); else fn(); };
-  function openModal({ title = '', body = '', foot = '', cls = '', onClick, onInput, onMount, onClose, dismissable = true }) {
+  function openModal({ title = '', body = '', foot = '', cls = '', onClick, onInput, onMount, onClose, beforeClose, dismissable = true }) {
     const root = $('#modal-root');
     const wrap = document.createElement('div'); wrap.className = 'backdrop';
     const isCard = cls.includes('card-view');
@@ -8033,7 +8123,10 @@
     if (isCard) { wrap.style.background = 'rgba(0,0,0,.9)'; wrap.style.backdropFilter = wrap.style.webkitBackdropFilter = 'blur(8px)'; }
     root.appendChild(wrap);
     document.body.style.overflow = 'hidden';
-    const onKey = e => { if (e.key === 'Escape' && dismissable && root.lastElementChild === wrap) close(); };
+    const onKey = e => { if (e.key === 'Escape' && dismissable && root.lastElementChild === wrap) tryClose(); };
+    // v1.23: beforeClose (si lo hay) decide si se puede cerrar con la X, Cancelar, el fondo o Escape (p. ej. cambios sin guardar)
+    let asking = false;
+    const tryClose = async () => { if (asking) return; if (beforeClose) { asking = true; let ok = false; try { ok = await beforeClose(wrap); } finally { asking = false; } if (!ok) return; } close(); };
     const close = () => {
       wrap.remove(); document.removeEventListener('keydown', onKey);
       if (!root.children.length) document.body.style.overflow = '';
@@ -8042,13 +8135,36 @@
     };
     document.addEventListener('keydown', onKey);
     wrap.addEventListener('click', e => {
-      if (e.target === wrap && dismissable) return close();
-      if (e.target.closest('[data-m="x"]')) return close();
+      if (e.target === wrap && dismissable) return tryClose();
+      if (e.target.closest('[data-m="x"]')) return tryClose();
       onClick && onClick(e, close, wrap);
     });
     if (onInput) wrap.addEventListener('input', e => onInput(e, wrap));
     onMount && onMount(wrap, close);
     return { close, el: wrap };
+  }
+  /* v1.23: aviso al cerrar un editor con cambios sin guardar. snap() devuelve el estado del formulario; si no ha cambiado
+     se cierra sin preguntar. «Guardar cambios y salir» pulsa el botón Guardar del editor (que valida y cierra). */
+  function unsavedGuard(snap) {
+    let first = null;
+    return {
+      start: () => { first = snap(); },
+      check: async w => {
+        if (first == null || snap() === first) return true;
+        const r = await new Promise(res => {
+          let done = false;
+          openModal({
+            body: `<div class="center"><span class="tool-ico" style="margin:4px auto 12px">${ico('alert')}</span><p style="font-size:17px;font-weight:var(--fw-subtitle);margin:0">${esc(t('unsavedTitle'))}</p><p class="muted small" style="margin:6px 0 0">${esc(t('unsavedSub'))}</p></div>`,
+            foot: `<button class="btn danger-text" data-u="close">${ico('x')} ${esc(t('unsavedClose'))}</button><button class="btn primary" data-u="save">${ico('check')} ${esc(t('unsavedSave'))}</button>`,
+            onClick: (e, close) => { const b = e.target.closest('[data-u]'); if (b) { done = true; close(); res(b.dataset.u); } },
+            onClose: () => { if (!done) res(null); }
+          });
+        });
+        if (r === 'close') return true;
+        if (r === 'save') { const b = $('[data-m="save"]', w); if (b) b.click(); }
+        return false;
+      }
+    };
   }
   function confirmDialog(msg) {
     return new Promise(res => {

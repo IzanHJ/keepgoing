@@ -57,7 +57,7 @@
   /* ---------- cálculos (mismos criterios que js/ledger.js) ---------- */
   function totals(entries) {
     let income = 0, expense = 0;
-    for (const e of entries) { if (e.type === 'income') income += e.amountCents; else expense += e.amountCents; }
+    for (const e of entries) { if (e.type === 'income') income += e.amountCents; else if (e.type !== 'invest') expense += e.amountCents; }
     return { income, expense, net: income - expense };
   }
   function byCategory(entries, type) {
@@ -72,7 +72,7 @@
     else if (unit === 'month') { let y = +from.slice(0, 4), m = +from.slice(5, 7); const end = to.slice(0, 7); while (keys.length < 2000) { const k = `${y}-${pad(m)}`; if (k > end) break; keys.push(k); if (++m > 12) { m = 1; y++; } } }
     else { const d = utc(from); for (let i = 0; i < 4000; i++) { const k = keyUTC(d); if (k > to) break; keys.push(k); d.setUTCDate(d.getUTCDate() + 1); } }
     const map = new Map(keys.map(k => [k, { key: k, income: 0, expense: 0 }]));
-    for (const e of entries) { const b = map.get(keyFor(e.date)); if (b) b[e.type === 'income' ? 'income' : 'expense'] += e.amountCents; }
+    for (const e of entries) { const b = map.get(keyFor(e.date)); if (b && e.type !== 'invest') b[e.type === 'income' ? 'income' : 'expense'] += e.amountCents; }
     return keys.map(k => map.get(k));
   }
 
@@ -234,7 +234,7 @@ svg.line.sm{display:none!important}svg.line.lg{display:block!important}
 
     // Movimientos saneados
     const entries = (Array.isArray(o.entries) ? o.entries : []).filter(e => e && isDate(e.date)).map(e => ({
-      id: e.id, date: e.date, type: e.type === 'income' ? 'income' : 'expense',
+      id: e.id, date: e.date, type: e.type === 'income' || e.type === 'invest' ? e.type : 'expense',
       amountCents: Math.max(0, cents(e.amountCents)), categoryId: e.categoryId == null ? 'other' : String(e.categoryId),
       note: typeof e.note === 'string' ? e.note : '', method: typeof e.method === 'string' ? e.method : ''
     }));
@@ -317,8 +317,8 @@ ${tot.expense ? `<div class="bar"><i style="width:${(share * 100).toFixed(1)}%">
         const dn = privacy ? MASK : (dt.net > 0 ? '+' : dt.net < 0 ? '−' : '') + F.money(Math.abs(dt.net));
         body += `<section class="clay day"><div class="day-h"><h3>${esc(F.date(day, { weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) }))}</h3><span class="${privacy ? 'muted' : dt.net > 0 ? 'in' : dt.net < 0 ? 'out' : 'muted'}">${esc(dn)}</span></div><ul class="list">`;
         for (const e of list) {
-          const c = catOf(e.categoryId), inc = e.type === 'income', m = methodName(e.method);
-          body += `<li class="item"><span class="ico" aria-hidden="true">${esc(c.icon)}</span><span class="t"><b>${esc(e.note || c.name)}</b><span class="muted">${esc(c.name)}${m ? ' · ' + esc(m) : ''}</span></span><span class="amt ${inc ? 'in' : 'out'}">${privacy ? '' : inc ? '+' : '−'}${esc(F.money(e.amountCents))}</span></li>`;
+          const c = catOf(e.categoryId), inc = e.type === 'income', inv = e.type === 'invest', m = methodName(e.method);
+          body += `<li class="item"><span class="ico" aria-hidden="true">${esc(c.icon)}</span><span class="t"><b>${esc(e.note || c.name)}</b><span class="muted">${esc(c.name)}${m ? ' · ' + esc(m) : ''}</span></span><span class="amt ${inv ? '' : inc ? 'in' : 'out'}">${privacy || inv ? '' : inc ? '+' : '−'}${esc(F.money(e.amountCents))}</span></li>`;
         }
         body += `</ul></section>`;
       }
