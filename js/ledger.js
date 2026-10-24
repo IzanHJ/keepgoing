@@ -47,7 +47,7 @@
      en la categoría y la fecha del más grande; los demás cuentan 0. Las inversiones no se vinculan.
      Devuelve copias de los movimientos de list (misma longitud y orden) con el importe y el tipo que cuentan; los grupos se
      miran en all (toda la Libreta), así un día que solo tiene la devolución no la cuenta. Cada copia vinculada lleva _rt y _rc
-     (tipo e importe reales, para los saldos) y _lk = 'main' | 'sub'. Sin vínculos devuelve list tal cual. */
+     (tipo e importe reales, para los saldos; _rfx = su fx real) y _lk = 'main' | 'sub'. Sin vínculos devuelve list tal cual. */
   const linkable = e => e && e.link && e.type !== 'invest';
   function linkGroups(all) {
     const g = new Map();
@@ -70,7 +70,7 @@
     return list.map(e => {
       const n = linkable(e) && nets.get(e.link);
       if (!n) return e;
-      const isMain = n.main.id === e.id, c = { ...e, _rt: e.type, _rc: e.amountCents || 0, _lk: isMain ? 'main' : 'sub' };
+      const isMain = n.main.id === e.id, c = { ...e, _rt: e.type, _rc: e.amountCents || 0, _rfx: e.fx || null, _lk: isMain ? 'main' : 'sub' };
       if (isMain) { c.type = n.type; c.amountCents = n.cents; if (n.fx) c.fx = n.fx; else delete c.fx; }
       else { c.amountCents = 0; delete c.fx; }
       return c;

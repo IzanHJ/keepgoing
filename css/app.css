@@ -1854,7 +1854,7 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .seg button.locked { opacity: .55; }
 .seg button.locked .ico { width: 14px; height: 14px; }
 /* v1.23.3: inversiones con valor actual y asistente del ritmo actual */
-.wo-inv, .pace-inv { padding: 12px 14px; border-radius: 16px; display: flex; flex-direction: column; gap: 6px; }
+.wo-inv, .wo-cur, .pace-inv { padding: 12px 14px; border-radius: 16px; display: flex; flex-direction: column; gap: 6px; }
 .pace-steps { display: flex; flex-wrap: wrap; gap: 6px; }
 .pace-step { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted, inherit); opacity: .7; }
 .pace-step.on { background: var(--accent); color: var(--accent-ink); opacity: 1; font-weight: 700; }

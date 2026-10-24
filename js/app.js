@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.23.3';
+  const VERSION = '1.23.4';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -3160,7 +3160,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -4403,11 +4403,17 @@
     return [...cats.values()].map(c => { const x = worthInv(c.id) || {}, st = WORTH.invStats(c.id, b, LV.entries, worthVals(), todayKey(), x.since); return { c, x, st, rate: x.rate != null ? x.rate : st.rate }; })
       .filter(r => r.st.deposited || r.st.last || cats.size === 1);
   }
+  // v1.23.4: monedas con saldo real propio (Punto de partida → Otras monedas), sin la principal
+  const worthCurs = () => Object.keys((worthBase() || {}).curs || {}).filter(c => c !== ledgerMain());
   function worthData() {
-    const key = JSON.stringify(LV.worth) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + LV.entries.filter(e => e.link).map(e => e.id + e.link).join() + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
+    const wc = worthCurs();
+    if (wc.length && !fxCache.latest) fxLatest().then(l => { if (l && state.ui.tab === 'ledger') render(); });
+    const rates = Object.fromEntries(wc.map(c => [c, fxRateNow(c)]));
+    const key = JSON.stringify(rates) + ledgerMain() + LV.entries.filter(e => e.fx).map(e => e.fx.cur + e.fx.cents).join() + JSON.stringify(LV.worth) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + LV.entries.filter(e => e.link).map(e => e.id + e.link).join() + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
     if (worthMemo.key !== key) {
-      const d = WORTH.series(worthBase(), NET(LV.entries), todayKey(), worthVals());
-      worthMemo = { key, ...d, now: d.rows[d.rows.length - 1], pace: WORTH.pace(NET(LV.entries), todayKey()) };
+      const b0 = worthBase(), sv = b0 && b0.curs ? { ...b0, curs: Object.fromEntries(wc.map(c => [c, b0.curs[c]])) } : b0;
+      const d = WORTH.series(sv, NET(LV.entries), todayKey(), worthVals(), rates);
+      worthMemo = { key, ...d, rates, now: d.rows[d.rows.length - 1], pace: WORTH.pace(NET(LV.entries), todayKey()) };
     }
     return worthMemo;
   }
@@ -4456,11 +4462,11 @@
   function worthDetails(d, u, cd = 'wo-det') {
     const per = WORTH.periods(d.rows, u.gran), b = d.base;
     const head = ['calcDate', 'calcPatrimony', 'calcDiff', 'calcIncAcc', 'calcExpAcc', 'woInvested'].map(k => t(k));
-    const body = per.map((r, i) => { const prev = i ? per[i - 1].patrimony : b.digital + b.cash + b.invested, df = (r.patrimony - prev) / 100; return `<tr><th scope="row">${esc(fmtDate(r.key, { day: 'numeric', month: 'short', year: 'numeric' }))}</th><td>${money(r.patrimony / 100)}</td><td class="${cls(df)}">${esc(csign(df))}</td><td>${money(r.income / 100)}</td><td>${money(r.expenses / 100)}</td><td>${money(r.investments / 100)}</td></tr>`; }).reverse().join('');
+    const body = per.map((r, i) => { const prev = i ? per[i - 1].patrimony : b.digital + b.cash + b.invested + (b.other || 0), df = (r.patrimony - prev) / 100; return `<tr><th scope="row">${esc(fmtDate(r.key, { day: 'numeric', month: 'short', year: 'numeric' }))}</th><td>${money(r.patrimony / 100)}</td><td class="${cls(df)}">${esc(csign(df))}</td><td>${money(r.income / 100)}</td><td>${money(r.expenses / 100)}</td><td>${money(r.investments / 100)}</td></tr>`; }).reverse().join('');
     return `<details class="calc-box inner" data-cd="${cd}" ${calcIsOpen(cd) ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><button type="button" class="chip sm calc-view-btn calc-gran" data-wo="gran">${ico('calendar')} ${esc(t(u.gran === 'month' ? 'calcGranMonth' : 'calcGranYear'))}</button><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="calc-table-wrap"><table class="calc-table"><thead><tr>${head.map(h => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div></details>`;
   }
   function worthHtml() {
-    const d = worthData(), u = worthUi(), n = d.now, b = d.base, start = (b.digital + b.cash + b.invested) / 100, delta = n.patrimony / 100 - start, pc = d.pace;
+    const d = worthData(), u = worthUi(), n = d.now, b = d.base, start = (b.digital + b.cash + b.invested + (b.other || 0)) / 100, delta = n.patrimony / 100 - start, pc = d.pace;
     const inv = u.mode === 'investments';
     let html = `<section class="calc-card clay wo-card" aria-labelledby="wo-total-l">
       <div class="calc-hero"><div class="calc-eyebrow" id="wo-total-l">${esc(t('woEyebrow'))}</div><strong class="calc-total">${money(n.patrimony / 100)}</strong>
@@ -4471,6 +4477,7 @@
         <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(n.digital / 100)}</strong></div><div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(n.value / 100)}</strong>${n.gains ? `<div class="calc-hl-st ${n.gains < 0 ? 'amt-out' : 'amt-in'}">${esc(t('woDepGain', { d: money(n.invested / 100), g: csign(n.gains / 100) }))}</div>` : ''}</div></div>
         <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('cmCash'))}</span><strong>${money(n.cash / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${money(n.income / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${money(n.expenses / 100)}</strong></div><div class="calc-metric"><span>${esc(t('woStart'))}</span><strong>${money(start)}</strong></div></div>
         <p class="calc-fine">${esc(t('woPace', { net: csign(pc.net / 100), inv: money(pc.invest / 100), y: money(n.patrimony / 100 + pc.net * 12 / 100) }))}</p>
+        ${worthCursHtml(d)}
       </details>`;
     { const L = worthInvList();
       html += `<details class="calc-box" data-cd="wo-inv" ${calcIsOpen('wo-inv') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woInvEyebrow'))}</span><strong>${esc(t('woInvTitle'))}</strong></span>${L.length ? `<span class="calc-pill">${L.length}</span>` : ''}<span class="calc-arrow" aria-hidden="true">›</span></summary>
@@ -4489,7 +4496,29 @@
     }
     return html + '</section>';
   }
+  /* v1.23.4: «Otras monedas» dentro de Proyección: un desplegable por moneda, como la Proyección pero en su moneda */
+  function worthCursHtml(d) {
+    const n = d.now, b = d.base, cs = Object.keys(n.cur || {});
+    if (!cs.length) return '';
+    const m = (v, c) => privacyOn() ? '•••••' : fmtCur(v / 100, c);
+    const one = c => {
+      const x = n.cur[c], b0 = b.curs[c], tot = x.digital + x.cash, r = d.rates[c], off = b0.off;
+      return `<details class="calc-box inner" data-cd="wo-cur:${esc(c)}" ${calcIsOpen('wo-cur:' + c) ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(c)}${off ? ' · ' + esc(t('woCurOffTag')) : ''}</span><strong>${m(tot, c)}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${m(x.digital, c)}</strong></div><div class="calc-hl"><span>${esc(t('cmCash'))}</span><strong>${m(x.cash, c)}</strong></div></div>
+        <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${m(x.income, c)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${m(x.expenses, c)}</strong></div><div class="calc-metric"><span>${esc(t('woStart'))}</span><strong>${m(b0.digital + b0.cash, c)}</strong></div><div class="calc-metric"><span>${esc(t('woCurInMain', { m: ledgerMain() }))}</span><strong>${r > 0 ? money(Math.round(tot * r) / 100) : '—'}</strong></div></div>
+        <label class="row" style="gap:14px;margin-top:10px"><span class="switch"><input type="checkbox" data-wo-cur-on="${esc(c)}" ${off ? '' : 'checked'}><span></span></span><span class="grow"><b>${esc(t('woCurSum'))}</b><br><span class="muted small">${esc(r > 0 ? t('woCurRate', { r: fxRateTxt(c, r) }) : t('woCurNoRate'))}</span></span></label>
+      </details>`;
+    };
+    return `<details class="calc-box inner" data-cd="wo-curs" ${calcIsOpen('wo-curs') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woCursEyebrow'))}</span><strong>${esc(t('woCursTitle'))}</strong></span><span class="calc-pill">${cs.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      <div class="stack" style="gap:8px">${cs.map(one).join('')}</div><p class="calc-fine">${esc(t('woCursHint', { m: ledgerMain() }))}</p></details>`;
+  }
   function worthClick(e) {
+    if (e.target.matches && e.target.matches('input[data-wo-cur-on]')) {
+      const c = e.target.dataset.woCurOn, b = worthBase();
+      if (b && b.curs && b.curs[c]) { b.curs[c] = { ...b.curs[c], off: !e.target.checked }; ledgerSave(); setTimeout(render, 180); }
+      return true;
+    }
+    if (e.target.closest && e.target.closest('label') && e.target.closest('label').querySelector('[data-wo-cur-on]')) return true;
     const el = e.target.closest('[data-wo]'); if (!el) return false;
     if (el.closest('summary')) e.preventDefault();
     const u = worthUi(), k = el.dataset.wo;
@@ -4512,6 +4541,13 @@
     const b = worthBase() || { id: 'worth', date: todayKey(), digital: 0, cash: 0, invested: 0 }, by = WORTH.baseOf(b, [], todayKey()).invBy, cats = investCats();
     for (const k of Object.keys(by)) if (!cats.some(c => c.id === k)) cats.push(catOf(k));
     const val = c => c ? esc(fmtPctIn(c / 100)) : '';
+    // v1.23.4: otras monedas con su propio saldo real (por defecto ninguna)
+    const main = ledgerMain(), cs = Object.entries(b.curs || {}).filter(([c]) => c !== main).map(([c, v]) => ({ c, d: v.digital ? fmtPctIn(v.digital / 100) : '', k: v.cash ? fmtPctIn(v.cash / 100) : '', on: !v.off }));
+    const keepCurs = w => { for (const x of cs) { const d = $(`[data-woc-d="${x.c}"]`, w), k = $(`[data-woc-k="${x.c}"]`, w), o = $(`[data-woc-on="${x.c}"]`, w); if (d) x.d = d.value; if (k) x.k = k.value; if (o) x.on = o.checked; } };
+    const cursHtml = () => `${cs.map(x => `<div class="wo-cur clay"><div class="row" style="justify-content:space-between;gap:8px"><b>${esc(x.c)}</b><button type="button" class="icon-btn sm danger-text" data-woc-del="${esc(x.c)}" aria-label="${esc(t('delete'))}" title="${esc(t('delete'))}">${ico('trash')}</button></div>
+        <div class="calc-grid"><label class="field"><span>${esc(t('cmDigital'))} (${esc(x.c)})</span><input class="input" inputmode="decimal" autocomplete="off" data-woc-d="${esc(x.c)}" value="${esc(x.d)}" placeholder="0,00"></label><label class="field"><span>${esc(t('cmCash'))} (${esc(x.c)})</span><input class="input" inputmode="decimal" autocomplete="off" data-woc-k="${esc(x.c)}" value="${esc(x.k)}" placeholder="0,00"></label></div>
+        <label class="row" style="gap:14px;margin-top:8px"><span class="switch"><input type="checkbox" data-woc-on="${esc(x.c)}" ${x.on ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('woCurSum'))}</b></span></label></div>`).join('')}
+      <div class="row" style="gap:8px"><select class="input grow" id="woc-new" aria-label="${esc(t('fxCurrency'))}">${FX.ALL.filter(c => c !== main && !cs.some(x => x.c === c)).map(c => `<option value="${c}">${c}</option>`).join('')}</select><button type="button" class="btn" data-woc-add>${ico('plus')} ${esc(t('woCurAdd'))}</button></div>`;
     openModal({
       title: calcHead(t('woEyebrow'), t('woBaseTitle')), cls: 'calc-sheet',
       body: `<p class="muted small" style="margin-top:0">${esc(t('woBaseHint', { m: ledgerMain() }))}</p><div class="calc-grid">
@@ -4519,9 +4555,14 @@
         ${[['digital', 'cmDigital'], ['cash', 'cmCash']].map(([k, l]) => `<label class="field"><span>${esc(t(l))}</span><input class="input" inputmode="decimal" autocomplete="off" id="wo-${k}" value="${val(b[k])}" placeholder="0,00"></label>`).join('')}</div>
         <h3 class="section-title" style="margin:14px 0 4px">${esc(t('woBaseInv'))}</h3><p class="muted small" style="margin:0 0 8px">${esc(t('woBaseInvHint'))}</p>
         <div class="calc-grid">${cats.map(c => `<label class="field"><span>${esc(c.icon || '')} ${esc(catName(c))}</span><input class="input" inputmode="decimal" autocomplete="off" data-wo-inv="${esc(c.id)}" value="${val(by[c.id])}" placeholder="0,00"></label>`).join('')}</div>
+        <h3 class="section-title" style="margin:14px 0 4px">${esc(t('woCursTitle'))}</h3><p class="muted small" style="margin:0 0 8px">${esc(t('woCurBaseHint', { m: main }))}</p>
+        <div class="stack" id="wo-curs" style="gap:10px">${cursHtml()}</div>
         <p class="calc-fine">${esc(t('woBaseFine'))}</p>`,
       foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-wb="save">${esc(t('save'))}</button>`,
       onClick: (e, close, w) => {
+        let el;
+        if (e.target.closest('[data-woc-add]')) { keepCurs(w); const c = $('#woc-new', w).value; if (c) cs.push({ c, d: '', k: '', on: true }); $('#wo-curs', w).innerHTML = cursHtml(); const i = $(`[data-woc-d="${c}"]`, w); if (i) i.focus(); return; }
+        if ((el = e.target.closest('[data-woc-del]'))) { keepCurs(w); const i = cs.findIndex(x => x.c === el.dataset.wocDel); if (i >= 0) cs.splice(i, 1); $('#wo-curs', w).innerHTML = cursHtml(); return; }
         if (!e.target.closest('[data-wb]')) return;
         const date = $('#wo-date', w).value, nb = { id: 'worth', date, invBy: {} };
         if (!CALC.parseDate(date) || date > todayKey()) { toast(t('woBadDate')); return; }
@@ -4529,6 +4570,15 @@
         for (const k of ['digital', 'cash']) { const c = read($('#wo-' + k, w)); if (c == null) return; nb[k] = c; }
         for (const el of $$('[data-wo-inv]', w)) { const c = read(el); if (c == null) return; if (c) nb.invBy[el.dataset.woInv] = c; }
         nb.invested = Object.values(nb.invBy).reduce((a, v) => a + v, 0);
+        keepCurs(w);
+        if (cs.length) {
+          nb.curs = {};
+          for (const x of cs) {
+            const d = x.d.trim() ? LED.parseCents(x.d) : 0, k = x.k.trim() ? LED.parseCents(x.k) : 0;
+            if (d == null || k == null) { toast(t('calcNonNeg')); return; }
+            nb.curs[x.c] = { digital: d, cash: k, ...(x.on ? {} : { off: true }) };
+          }
+        }
         LV.worth = [nb, ...LV.worth.filter(x => x.id !== 'worth')]; ledgerSave(); close(); render(); toast(t('saved'));
       }
     });
@@ -4808,6 +4858,25 @@
   }
   const calcLegacyRaw = () => { for (const k of LEGACY_KEYS) { try { const r = JSON.parse(localStorage.getItem(k) || 'null'); if (r && typeof r === 'object') return r; } catch (e) { /* nada */ } } return null; };
 
+  /* v1.23.4: «Otras monedas» en la Proyección de la calculadora: lo que hay puesto en cada moneda que no es la principal
+     (se calcula pasado a la principal con el cambio de hoy) */
+  function calcCursHtml() {
+    const main = ledgerMain(), by = new Map();
+    for (const x of LV.calc) if (x && x.cur && x.cur !== main) (by.get(x.cur) || by.set(x.cur, []).get(x.cur)).push(x);
+    if (!by.size) return '';
+    const m = (v, c) => privacyOn() ? '•••••' : fmtCur(v, c);
+    const one = ([c, xs]) => {
+      const st = xs.filter(x => x.kind === 'start'), sum = k => st.reduce((a, x) => a + (Number(x[k]) || 0), 0);
+      const dg = sum('digital'), ca = sum('cash'), sal = sum('salary'), ex = sum('expenses'), inv = xs.filter(x => x.kind === 'fund').reduce((a, x) => a + (Number(x.amount) || 0), 0);
+      const r = fxRateNow(c), mods = xs.filter(x => x.kind !== 'start' && x.kind !== 'fund').length;
+      return `<details class="calc-box inner" data-cd="calc-cur:${esc(c)}" ${calcIsOpen('calc-cur:' + c) ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(c)}</span><strong>${m(dg + ca + inv, c)}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+        <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${m(dg, c)}</strong></div><div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${m(inv, c)}</strong></div></div>
+        <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('cmCash'))}</span><strong>${m(ca, c)}</strong></div>${sal ? `<div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${m(sal, c)}</strong></div>` : ''}${ex ? `<div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${m(ex, c)}</strong></div>` : ''}<div class="calc-metric"><span>${esc(t('woCurInMain', { m: main }))}</span><strong>${r > 0 ? money(Math.round((dg + ca + inv) * r * 100) / 100) : '—'}</strong></div></div>
+        <p class="calc-fine">${esc(r > 0 ? t('woCurRate', { r: fxRateTxt(c, r) }) : t('woCurNoRate'))}${mods ? ' · ' + esc(t('calcCurMods', { n: mods })) : ''}</p></details>`;
+    };
+    return `<details class="calc-box inner" data-cd="calc-curs" ${calcIsOpen('calc-curs') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woCursEyebrow'))}</span><strong>${esc(t('woCursTitle'))}</strong></span><span class="calc-pill">${by.size}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
+      <div class="stack" style="gap:8px">${[...by].map(one).join('')}</div><p class="calc-fine">${esc(t('calcCursHint', { m: main }))}</p></details>`;
+  }
   function viewCalc() {
     const { model, res, rows } = calcData(), u = calcUi();
     let html = topBar(calcTopActions(true));
@@ -4827,6 +4896,7 @@
         ${['cash', 'returns', 'cashback', 'growth', 'cbInvest', 'roundup'].some(metric) ? `<div class="calc-metrics">${['cash', 'returns', 'cashback', 'growth', 'cbInvest', 'roundup'].filter(metric).map(k => `<div class="calc-metric"><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><strong>${calcMetricVal(res, k)}</strong></div>`).join('')}</div>` : ''}
         ${res.perInvestment.length ? `<div class="calc-breakdown">${res.perInvestment.map(i => `<button type="button" class="calc-inv" data-calc="fund-chart" data-id="${esc(i.id)}"><strong>${esc(i.name)}</strong><small>${esc(t('calcInvValue', { v: money(i.value), p: cpct(i.share) }))}</small><small>${esc(t('calcInvRate', { p: cpct(i.rate), acc: t(i.accumulative ? 'calcAccumulative' : 'calcNonAccumulative') }))}</small><small class="${cls(i.gain)}">${esc(t('calcInvVar', { v: csign(i.gain) }))}</small></button>`).join('')}</div>` : ''}
         <p class="calc-fine">${esc(t('calcHypothesis'))}</p>
+        ${calcCursHtml()}
         <details class="calc-box inner" data-cd="savings" ${calcIsOpen('savings') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcSavingsEyebrow'))}</span><strong>${esc(t('calcSavings'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
           <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${money(res.totalIncome)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${money(res.totalExpenses)}</strong></div><div class="calc-metric wide"><span>${esc(t('calcNetT'))}</span><strong>${money(res.net)}</strong></div></div>
           <p class="calc-fine">${esc(t('calcInPeriod', { n: cmonths(res.months) }))}</p></details>
