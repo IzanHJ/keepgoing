@@ -66,3 +66,30 @@ assert.strictEqual(T.sanitize({ jobs: [{ id: 'j', specials: Array(20).fill({ rat
 console.log('OK: todas las pruebas pasan');
 
 });
+
+test('v1.23: tipos sin paga y categorías sin paga suman horas pero no dinero', () => {
+  const T = require('../js/turns.js');
+  const d = T.defaults();
+  d.jobs.push({ id: 'ocio', name: 'Ocio', color: '#000000', rate: 50, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [], paid: false });
+  d.shifts.push({ id: 'cine', jobId: 'ocio', name: 'Cine', emoji: '', color: '#000000', kind: 'work', start: '18:00', end: '20:00', breakMin: 0, diffPct: 0, alarmMin: 0 });
+  d.shifts.push({ id: 'gym', jobId: 'job1', name: 'Gym', emoji: '', color: '#000000', kind: 'k_gym', start: '10:00', end: '11:00', breakMin: 0, diffPct: 0, alarmMin: 0 });
+  d.days['2026-10-05'] = [{ sid: 'cine', note: '', start: '', end: '' }, { sid: 'gym', note: '', start: '', end: '' }];
+  const r = T.report(d, '2026-10-05', '2026-10-05', 1, (k) => k === 'work');
+  assert.equal(r.hours, 3); assert.equal(r.pay, 0);
+  assert.equal(T.sanitize(d).shifts.find((s) => s.id === 'gym').kind, 'k_gym');
+  assert.equal(T.sanitize(d).jobs.find((j) => j.id === 'ocio').paid, false);
+});
+
+test('v1.23: rutinas de un día y semana tipo', () => {
+  const T = require('../js/turns.js');
+  const d = T.defaults();
+  const day = { kind: 'day', day: [{ sid: 's_man' }, { sid: 'nope' }, { sid: 's_for', start: '15:00', end: '16:00' }] };
+  assert.equal(T.applyRoutine(d, day, { from: '2026-10-05', to: '2026-10-11', weekdays: [0, 2] }), 2); // lunes y miércoles
+  assert.deepEqual(d.days['2026-10-07'].map((e) => e.sid), ['s_man', 's_for']);
+  assert.equal(d.days['2026-10-07'][1].start, '15:00');
+  const week = { kind: 'week', week: { 5: [{ sid: 's_lib' }] } };
+  assert.equal(T.applyRoutine(d, week, { from: '2026-10-05', to: '2026-10-18', overwrite: true }), 2); // dos sábados
+  assert.deepEqual(d.days['2026-10-10'].map((e) => e.sid), ['s_lib']);
+  T.applyRoutine(d, day, { from: '2026-10-05', to: '2026-10-05' });
+  assert.equal(d.days['2026-10-05'].length, 4); // se añade a lo que había
+});

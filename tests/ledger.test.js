@@ -19,14 +19,14 @@ test('importes escritos a mano → céntimos enteros', () => {
 
 test('totales sin errores de redondeo', () => {
   const es = [{ type: 'expense', amountCents: 10 }, { type: 'expense', amountCents: 20 }, { type: 'income', amountCents: 140000 }];
-  assert.deepEqual(L.totals(es), { income: 140000, expense: 30, net: 139970 });
-  assert.deepEqual(L.totals([]), { income: 0, expense: 0, net: 0 });
+  assert.deepEqual(L.totals(es), { income: 140000, expense: 30, invest: 0, net: 139970 });
+  assert.deepEqual(L.totals([]), { income: 0, expense: 0, invest: 0, net: 0 });
 });
 
 test('agrupado por día y filtro por mes', () => {
   const es = [{ date: '2026-10-16', type: 'expense', amountCents: 500 }, { date: '2026-10-16', type: 'income', amountCents: 2000 }, { date: '2026-11-01', type: 'expense', amountCents: 100 }];
   const d = L.byDay(es);
-  assert.deepEqual(d['2026-10-16'], { income: 2000, expense: 500, net: 1500, count: 2 });
+  assert.deepEqual(d['2026-10-16'], { income: 2000, expense: 500, invest: 0, net: 1500, count: 2 });
   assert.equal(L.inMonth(es, 2026, 10).length, 2);
   assert.equal(L.inMonth(es, 2026, 11).length, 1);
 });
@@ -73,7 +73,7 @@ test('gráficas: suma por categoría, franja de fechas y series por mes/año/dí
   assert.equal(L.inRange(E, '2026-01-01', '2026-01-31').length, 2);
   // comida entre enero y marzo
   const food = L.inRange(E, '2026-01-01', '2026-03-31').filter(e => e.categoryId === 'food');
-  assert.deepEqual(L.totals(food), { income: 0, expense: 3500, net: -3500 });
+  assert.deepEqual(L.totals(food), { income: 0, expense: 3500, invest: 0, net: -3500 });
   const m = L.series(E, '2025-12-01', '2026-03-31', 'month');
   assert.deepEqual(m.map(r => r.key), ['2025-12', '2026-01', '2026-02', '2026-03']);
   assert.deepEqual(m.map(r => [r.income, r.expense]), [[2000, 0], [0, 1500], [0, 0], [140000, 2500]]);
@@ -97,4 +97,12 @@ test('presupuestos: cada mes usa la versión vigente y la diferencia se acumula 
   const food = L.budgetRows({ catIds: ['home'], versions: [{ from: '2026-01', amountCents: 1000 }] }, [...entries, e('2026-01-09', 400, 'expense', 'home')], '2025-11', '2026-01');
   assert.deepEqual(food.map(r => [r.ym, r.spent, r.acc]), [['2026-01', 400, 600]]);
   assert.equal(L.budgetFirst(b), '2024-01');
+});
+
+test('v1.23: una inversión no suma ni resta', () => {
+  const es = [{ type: 'income', amountCents: 1000, date: '2026-10-01' }, { type: 'invest', amountCents: 400, date: '2026-10-01' }, { type: 'expense', amountCents: 100, date: '2026-10-02' }];
+  assert.deepEqual(L.totals(es), { income: 1000, expense: 100, invest: 400, net: 900 });
+  assert.equal(L.signed(es[1]), 0);
+  assert.deepEqual(L.byDay(es)['2026-10-01'], { income: 1000, expense: 0, invest: 400, net: 1000, count: 2 });
+  assert.deepEqual(L.series(es, '2026-10-01', '2026-10-31', 'month').map(r => [r.income, r.expense, r.invest]), [[1000, 100, 400]]);
 });

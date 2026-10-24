@@ -90,3 +90,23 @@ test('plan: un depósito se puede ignorar o apuntar como ingreso', () => {
   const p2 = B.plan(r.rows, { deposit: { type: 'income', categoryId: 'salary', group: 'none' } }, {}, []);
   assert.deepStrictEqual(p2.create.map(e => [e.type, e.amountCents, e.categoryId]), [['income', 5000, 'salary']]);
 });
+
+test('v1.23: desglosar un grupo; un movimiento suelto con su propia respuesta e inversión', () => {
+  const d = B.read(CSV);
+  assert.deepStrictEqual(B.rowsOf(d.rows, 'interest').map(r => r.key), ['i1', 'i2', 'i3']);
+  const ans = { interest: { type: 'income', categoryId: 'extra', group: 'month' }, 'row:i3': { type: 'skip' }, buy: { type: 'invest', categoryId: 'invest', group: 'none' }, 'row:i1': { type: 'invest', categoryId: 'invest' } };
+  const p = B.plan(d.rows, ans, {}, [], 'EUR');
+  const inv = p.create.filter(x => x.type === 'invest').map(x => x.extIds[0]).sort();
+  assert.deepStrictEqual(inv, ['b1', 'i1']);
+  // i2 va en GBP sin tasa → se ignora; i3 se ignora por su respuesta; no queda grupo de intereses
+  assert.ok(!p.create.some(x => x.extGroup && x.extGroup.includes('interest')));
+});
+
+test('v1.23: convertir una moneda la guarda solo en la principal', () => {
+  const d = B.read(CSV);
+  const ans = { interest: { type: 'income', categoryId: 'extra', group: 'none' } };
+  const keep = B.plan(d.rows, ans, { GBP: 1.2 }, [], 'EUR').create.find(x => x.extIds[0] === 'i2');
+  assert.deepStrictEqual(keep.fx, { cur: 'GBP', cents: 5, rate: 1.2 });
+  const conv = B.plan(d.rows, ans, { GBP: 1.2 }, [], 'EUR', { GBP: true }).create.find(x => x.extIds[0] === 'i2');
+  assert.strictEqual(conv.fx, undefined); assert.strictEqual(conv.amountCents, 6);
+});

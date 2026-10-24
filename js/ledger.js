@@ -18,8 +18,11 @@
     { id: 'other', key: 'catOther', icon: '📦', type: 'both' },
     { id: 'salary', key: 'catSalary', icon: '💼', type: 'income' },
     { id: 'extra', key: 'catExtra', icon: '✨', type: 'income' },
-    { id: 'gift', key: 'catGift', icon: '🎁', type: 'income' }
+    { id: 'gift', key: 'catGift', icon: '🎁', type: 'income' },
+    { id: 'invest', key: 'catInvest', icon: '📈', type: 'invest' }
   ];
+  /* v1.23: tipos de movimiento. Una inversión no suma ni resta: mueve dinero a lo invertido (no cuenta en ingresos, gastos ni saldo) */
+  const TYPES = ['expense', 'income', 'invest'];
   const METHODS = ['card', 'cash', 'transfer', 'other'];
   const REPEATS = ['weekly', 'monthly', 'yearly'];
 
@@ -36,20 +39,22 @@
     const v = Number(s);
     return Number.isFinite(v) ? Math.round(v * 100) : null;
   }
-  const signed = e => (e.type === 'income' ? 1 : -1) * (e.amountCents || 0);
+  const signed = e => (e.type === 'income' ? 1 : e.type === 'invest' ? 0 : -1) * (e.amountCents || 0);
+  // Clave de suma de un movimiento: 'income', 'invest' o 'expense' (lo antiguo sin tipo cuenta como gasto)
+  const kindKey = e => (e.type === 'income' || e.type === 'invest' ? e.type : 'expense');
 
-  // Totales (céntimos) de una lista de movimientos
+  // Totales (céntimos) de una lista de movimientos. invest va aparte y no entra en el saldo
   function totals(entries) {
-    let income = 0, expense = 0;
-    for (const e of entries || []) { if (e.type === 'income') income += e.amountCents || 0; else expense += e.amountCents || 0; }
-    return { income, expense, net: income - expense };
+    const t = { income: 0, expense: 0, invest: 0 };
+    for (const e of entries || []) t[kindKey(e)] += e.amountCents || 0;
+    return { ...t, net: t.income - t.expense };
   }
-  // Agrupa por día: { 'YYYY-MM-DD': { income, expense, net, count } }
+  // Agrupa por día: { 'YYYY-MM-DD': { income, expense, invest, net, count } }
   function byDay(entries) {
     const out = {};
     for (const e of entries || []) {
-      const d = out[e.date] || (out[e.date] = { income: 0, expense: 0, net: 0, count: 0 });
-      if (e.type === 'income') d.income += e.amountCents || 0; else d.expense += e.amountCents || 0;
+      const d = out[e.date] || (out[e.date] = { income: 0, expense: 0, invest: 0, net: 0, count: 0 });
+      d[kindKey(e)] += e.amountCents || 0;
       d.net = d.income - d.expense; d.count++;
     }
     return out;
@@ -115,8 +120,8 @@
     if (unit === 'year') for (let y = +from.slice(0, 4); y <= +to.slice(0, 4) && keys.length < 500; y++) keys.push(String(y));
     else if (unit === 'month') { let y = +from.slice(0, 4), m = +from.slice(5, 7); const end = to.slice(0, 7); while (keys.length < 2000) { const k = `${y}-${pad(m)}`; if (k > end) break; keys.push(k); if (++m > 12) { m = 1; y++; } } }
     else { const [y0, m0, d0] = from.split('-').map(Number); for (let i = 0; i < 4000; i++) { const d = new Date(y0, m0 - 1, d0 + i), k = keyOf(d.getFullYear(), d.getMonth() + 1, d.getDate()); if (k > to) break; keys.push(k); } }
-    const map = new Map(keys.map(k => [k, { key: k, income: 0, expense: 0 }]));
-    for (const e of inRange(entries, from, to)) { const b = map.get(keyFor(e.date)); if (b) b[e.type === 'income' ? 'income' : 'expense'] += e.amountCents || 0; }
+    const map = new Map(keys.map(k => [k, { key: k, income: 0, expense: 0, invest: 0 }]));
+    for (const e of inRange(entries, from, to)) { const b = map.get(keyFor(e.date)); if (b) b[kindKey(e)] += e.amountCents || 0; }
     return keys.map(k => map.get(k));
   }
 
@@ -146,5 +151,5 @@
     }
     return rows;
   }
-  return { MASK, DEFAULT_CATEGORIES, METHODS, REPEATS, parseCents, signed, totals, byDay, inMonth, monthGrid, daysIn, occurrences, recEntryId, mask, inRange, span, byCategory, series, ymOf, nextYm, budgetAt, budgetFirst, budgetRows };
+  return { MASK, DEFAULT_CATEGORIES, TYPES, kindKey, METHODS, REPEATS, parseCents, signed, totals, byDay, inMonth, monthGrid, daysIn, occurrences, recEntryId, mask, inRange, span, byCategory, series, ymOf, nextYm, budgetAt, budgetFirst, budgetRows };
 });

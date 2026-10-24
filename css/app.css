@@ -798,6 +798,8 @@ p { font-weight: var(--fw-body); }
 
 .amt-in { color: var(--amt-in); }
 .amt-out { color: var(--amt-out); }
+/* v1.23: una inversión no suma ni resta: en el color del texto (blanco en tema oscuro) */
+.amt-inv { color: var(--fg); }
 .cap-link { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: inherit; border-radius: var(--r-lg); margin-bottom: 16px; cursor: pointer; }
 .cap-link .cap-total { transition: transform .2s ease, box-shadow .2s ease; }
 @media (hover: hover) { .cap-link:hover .cap-total { transform: translateY(-2px); box-shadow: var(--sh-out); } }
@@ -821,6 +823,7 @@ p { font-weight: var(--fw-body); }
 .cal-dots i { width: 6px; height: 6px; border-radius: 50%; }
 .cal-dots .in { background: var(--amt-in); }
 .cal-dots .out { background: var(--amt-out); }
+.cal-dots .inv { background: var(--fg); }
 .cal-net { font-size: 10px; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-cell.on .cal-net { color: inherit; }
 .ledger-day { padding: 16px; margin-bottom: 16px; }
@@ -1805,3 +1808,45 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .ntf-at { width: 140px; margin-left: 66px; }
 .ntf-at:disabled { opacity: .45; }
 .ntf-sub { margin: 18px 0 6px; font-size: .9rem; }
+
+/* =========================================================
+   v1.23
+   ========================================================= */
+/* «Registrar»: desglosar un grupo y decidir cada movimiento */
+.rg-split { align-self: flex-start; }
+.rg-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow: auto; }
+.rg-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.rg-row.own { box-shadow: inset 3px 0 0 var(--accent); }
+.rg-row .seg button { font-size: 12px; padding-left: 6px; padding-right: 6px; }
+/* Libreta: «Gráficos» desplegable y opciones al final */
+.led-charts > summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.led-charts > summary::-webkit-details-marker { display: none; }
+.led-charts > summary .calc-arrow { transition: transform .2s ease; font-size: 22px; color: var(--muted); }
+.led-charts[open] > summary .calc-arrow { transform: rotate(90deg); }
+.led-charts + .led-opts { margin-top: 16px; }
+.led-inv-line { margin: -6px 0 10px; }
+/* Imagen compartida en el chat */
+.msg-img { display: block; padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: var(--r-md); overflow: hidden; max-width: min(240px, 60vw); }
+.msg-img img { display: block; width: 100%; height: auto; }
+.msg-img-t { display: block; margin-top: 6px; }
+.card-big { display: block; width: 100%; height: auto; border-radius: var(--r-md); }
+/* Hábitos con objetivos o maneras */
+.sub-edit { margin-top: 10px; }
+.sub-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; border-radius: var(--r-md); color: var(--fg); text-align: left; font: inherit; cursor: pointer; }
+.sub-ck { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--surface-3); }
+.sub-row.done .sub-ck { background: var(--accent); color: var(--accent-ink); }
+.sub-ck svg.i { width: 16px; height: 16px; }
+/* Patrimonio actual */
+.wo-card { margin-bottom: 16px; }
+.wo-card .calc-hero .chip { margin-top: 10px; }
+.wo-cmp { margin: 4px 0 10px; display: flex; flex-direction: column; gap: 6px; }
+.wo-split { display: grid; gap: 16px; }
+@media (min-width: 900px) { .wo-split { grid-template-columns: 1fr 1fr; } }
+.wo-split-col { min-width: 0; }
+.wo-split-h { font-size: 15px; margin: 6px 0 8px; }
+/* v1.23: Rutinas del Calendario */
+.tf-rt-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2, rgba(127,127,127,.12)); flex: none; }
+.tf-rt-ic svg { width: 18px; height: 18px; }
+.tf-rt-wd button { min-width: 40px; }
+.badge-n { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 10.5px; background: var(--accent); color: var(--accent-ink); margin-left: 2px; }
+.tf-rt-quick { display: flex; flex-wrap: wrap; gap: 6px; }
