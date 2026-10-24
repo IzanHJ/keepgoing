@@ -43,6 +43,45 @@
   // Clave de suma de un movimiento: 'income', 'invest' o 'expense' (lo antiguo sin tipo cuenta como gasto)
   const kindKey = e => (e.type === 'income' || e.type === 'invest' ? e.type : 'expense');
 
+  /* v1.23.4: movimientos vinculados (mismo e.link). Un gasto de 50 € y su devolución de 40 € cuentan como un solo gasto de 10 €
+     en la categoría y la fecha del más grande; los demás cuentan 0. Las inversiones no se vinculan.
+     Devuelve copias de los movimientos de list (misma longitud y orden) con el importe y el tipo que cuentan; los grupos se
+     miran en all (toda la Libreta), así un día que solo tiene la devolución no la cuenta. Cada copia vinculada lleva _rt y _rc
+     (tipo e importe reales, para los saldos; _rfx = su fx real) y _lk = 'main' | 'sub'. Sin vínculos devuelve list tal cual. */
+  const linkable = e => e && e.link && e.type !== 'invest';
+  function linkGroups(all) {
+    const g = new Map();
+    for (const e of all || []) if (linkable(e)) (g.get(e.link) || g.set(e.link, []).get(e.link)).push(e);
+    for (const [k, v] of g) if (v.length < 2) g.delete(k);
+    return g;
+  }
+  // El que manda en un grupo: el de mayor importe (empate: el más antiguo)
+  const linkMain = grp => grp.reduce((a, e) => ((e.amountCents || 0) > (a.amountCents || 0) || ((e.amountCents || 0) === (a.amountCents || 0) && (e.date < a.date || (e.date === a.date && (e.createdAt || 0) < (a.createdAt || 0))))) ? e : a);
+  function linkNet(grp) {
+    const net = grp.reduce((a, e) => a + signed(e), 0), main = linkMain(grp);
+    const cur = grp[0].fx && grp[0].fx.cur, sameFx = !!cur && grp.every(e => e.fx && e.fx.cur === cur);
+    const fxNet = sameFx ? Math.abs(grp.reduce((a, e) => a + (e.type === 'income' ? 1 : -1) * (e.fx.cents || 0), 0)) : 0;
+    return { main, net, type: net > 0 ? 'income' : net < 0 ? 'expense' : main.type, cents: Math.abs(net), fx: sameFx ? { ...main.fx, cents: fxNet } : null };
+  }
+  function netLinked(list, all = list) {
+    if (!(list || []).some(linkable)) return list || [];
+    const groups = linkGroups(all), nets = new Map();
+    for (const [k, grp] of groups) nets.set(k, linkNet(grp));
+    return list.map(e => {
+      const n = linkable(e) && nets.get(e.link);
+      if (!n) return e;
+      const isMain = n.main.id === e.id, c = { ...e, _rt: e.type, _rc: e.amountCents || 0, _rfx: e.fx || null, _lk: isMain ? 'main' : 'sub' };
+      if (isMain) { c.type = n.type; c.amountCents = n.cents; if (n.fx) c.fx = n.fx; else delete c.fx; }
+      else { c.amountCents = 0; delete c.fx; }
+      return c;
+    });
+  }
+  // Resumen de un grupo para enseñarlo en el editor: { members, net (con signo), main }
+  function linkInfo(all, link) {
+    const grp = linkGroups(all).get(link);
+    return grp ? { members: grp, net: grp.reduce((a, e) => a + signed(e), 0), main: linkMain(grp) } : null;
+  }
+
   // Totales (céntimos) de una lista de movimientos. invest va aparte y no entra en el saldo
   function totals(entries) {
     const t = { income: 0, expense: 0, invest: 0 };
@@ -111,7 +150,7 @@
   function byCategory(entries, type) {
     const m = {};
     for (const e of entries || []) if (e.type === type) { const c = e.categoryId || 'other'; m[c] = (m[c] || 0) + (e.amountCents || 0); }
-    return Object.entries(m).map(([id, cents]) => ({ id, cents })).sort((a, b) => b.cents - a.cents || (a.id < b.id ? -1 : 1));
+    return Object.entries(m).filter(([, cents]) => cents).map(([id, cents]) => ({ id, cents })).sort((a, b) => b.cents - a.cents || (a.id < b.id ? -1 : 1));
   }
   // Serie de ingresos y gastos por día, mes o año entre dos fechas (incluye los huecos a 0)
   function series(entries, from, to, unit = 'month') {
@@ -151,5 +190,5 @@
     }
     return rows;
   }
-  return { MASK, DEFAULT_CATEGORIES, TYPES, kindKey, METHODS, REPEATS, parseCents, signed, totals, byDay, inMonth, monthGrid, daysIn, occurrences, recEntryId, mask, inRange, span, byCategory, series, ymOf, nextYm, budgetAt, budgetFirst, budgetRows };
+  return { MASK, DEFAULT_CATEGORIES, TYPES, kindKey, METHODS, REPEATS, parseCents, signed, netLinked, linkInfo, totals, byDay, inMonth, monthGrid, daysIn, occurrences, recEntryId, mask, inRange, span, byCategory, series, ymOf, nextYm, budgetAt, budgetFirst, budgetRows };
 });

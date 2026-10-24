@@ -1854,7 +1854,7 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .seg button.locked { opacity: .55; }
 .seg button.locked .ico { width: 14px; height: 14px; }
 /* v1.23.3: inversiones con valor actual y asistente del ritmo actual */
-.wo-inv, .pace-inv { padding: 12px 14px; border-radius: 16px; display: flex; flex-direction: column; gap: 6px; }
+.wo-inv, .wo-cur, .pace-inv { padding: 12px 14px; border-radius: 16px; display: flex; flex-direction: column; gap: 6px; }
 .pace-steps { display: flex; flex-wrap: wrap; gap: 6px; }
 .pace-step { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted, inherit); opacity: .7; }
 .pace-step.on { background: var(--accent); color: var(--accent-ink); opacity: 1; font-weight: 700; }
@@ -1866,3 +1866,13 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .news-old summary::-webkit-details-marker { display: none; }
 .news-old[open] .acc-chev { transform: rotate(90deg); }
 .news-old .wn-list { margin-top: 8px; }
+
+/* v1.23.4: movimientos vinculados */
+.lk-list { display: flex; flex-direction: column; gap: 6px; }
+.lk-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lk-row .led-ico { width: 30px; height: 30px; font-size: 18px; border-radius: 10px; }
+.lk-opt { all: unset; box-sizing: border-box; cursor: pointer; display: block; width: 100%; padding: 6px 8px; border-radius: 12px; }
+.lk-opt:hover, .lk-opt:focus-visible { background: var(--surface-3); }
+.lk-pick { padding: 10px; border-radius: 16px; max-height: 320px; overflow: auto; }
+.lk-net { display: flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.led-link { display: inline-flex; vertical-align: -2px; color: var(--accent); }

@@ -32,7 +32,7 @@ test('lo apuntado el mismo día del punto de partida ya va incluido', () => {
 
 test('sin punto de partida: desde el primer movimiento y a 0', () => {
   const { base, rows } = W.series(null, E, '2026-10-01');
-  assert.deepEqual(base, { date: '2026-09-30', digital: 0, cash: 0, invested: 0, invBy: {}, set: false });
+  assert.deepEqual(base, { date: '2026-09-30', digital: 0, cash: 0, invested: 0, invBy: {}, curs: {}, other: 0, set: false });
   assert.equal(rows[1].patrimony, 99999 + 120000);
 });
 
@@ -73,4 +73,37 @@ test('una inversión: depositado, valor y rentabilidad', () => {
   assert.equal(s.rate, 20);
   const s2 = W.invStats('etf', base, [], [], '2026-10-24');
   assert.equal(s2.rate, null);
+});
+
+test('v1.23.4: vinculados — el saldo usa lo real y los gastos el neto', () => {
+  const L = require('../js/ledger.js');
+  const es = [
+    { id: 'a', date: '2026-10-02', type: 'expense', amountCents: 5000, link: 'g' },
+    { id: 'b', date: '2026-10-03', type: 'income', amountCents: 4000, link: 'g' }
+  ];
+  const { rows } = W.series({ date: '2026-10-01', digital: 100000 }, L.netLinked(es), '2026-10-03');
+  assert.equal(rows[1].digital, 95000);
+  assert.equal(rows[2].digital, 99000);
+  assert.equal(rows[2].expenses, 1000);
+  assert.equal(rows[2].income, 0);
+});
+
+test('v1.23.4: saldos reales en otras monedas', () => {
+  const saved = { date: '2026-10-01', digital: 100000, cash: 0, curs: { USD: { digital: 50000, cash: 2000 }, GBP: { digital: 10000, off: true } } };
+  const es = [
+    { date: '2026-10-02', type: 'expense', amountCents: 920, fx: { cur: 'USD', cents: 1000, rate: 0.92 } },
+    { date: '2026-10-02', type: 'income', amountCents: 1150, method: 'cash', fx: { cur: 'GBP', cents: 1000, rate: 1.15 } },
+    { date: '2026-10-03', type: 'expense', amountCents: 500, fx: { cur: 'JPY', cents: 80000, rate: 0.00625 } }
+  ];
+  const { base, rows } = W.series(saved, es, '2026-10-03', [], { USD: 0.9, GBP: 1.2 });
+  assert.equal(base.other, Math.round(52000 * 0.9));
+  const r = rows[2];
+  assert.deepEqual(r.cur.USD, { digital: 49000, cash: 2000, income: 0, expenses: 1000 });
+  assert.deepEqual(r.cur.GBP, { digital: 10000, cash: 1000, income: 1000, expenses: 0 });
+  // el JPY no está añadido: sigue restando en la principal; el GBP no se suma al total
+  assert.equal(r.digital, 99500);
+  assert.equal(r.other, Math.round(51000 * 0.9));
+  assert.equal(r.patrimony, 99500 + Math.round(51000 * 0.9));
+  // sin cambio conocido, la moneda no suma
+  assert.equal(W.series(saved, es, '2026-10-03', [], {}).rows[2].other, 0);
 });
