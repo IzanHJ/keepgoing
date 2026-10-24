@@ -1853,3 +1853,16 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 /* v1.23.1: mascotas bloqueadas hasta su nivel */
 .seg button.locked { opacity: .55; }
 .seg button.locked .ico { width: 14px; height: 14px; }
+/* v1.23.3: inversiones con valor actual y asistente del ritmo actual */
+.wo-inv, .pace-inv { padding: 12px 14px; border-radius: 16px; display: flex; flex-direction: column; gap: 6px; }
+.pace-steps { display: flex; flex-wrap: wrap; gap: 6px; }
+.pace-step { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted, inherit); opacity: .7; }
+.pace-step.on { background: var(--accent); color: var(--accent-ink); opacity: 1; font-weight: 700; }
+.pace-step.done { opacity: 1; }
+.pace-sum { font-size: 13.5px; font-weight: 600; }
+.news-sub { margin: 12px 0 6px; font-size: 13px; opacity: .8; }
+.news-old { padding: 10px 14px; border-radius: 16px; }
+.news-old summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.news-old summary::-webkit-details-marker { display: none; }
+.news-old[open] .acc-chev { transform: rotate(90deg); }
+.news-old .wn-list { margin-top: 8px; }
