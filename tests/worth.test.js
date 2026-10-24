@@ -11,14 +11,23 @@ const E = [
 ];
 
 test('patrimonio: punto de partida + movimientos; la inversión no cambia el total', () => {
-  const { base, rows } = W.series({ date: '2026-10-01', digital: 500000, cash: 10000, invested: 20000 }, E, '2026-10-04');
+  // Saldos al final del 30/09: el ingreso de ese día ya va incluido y no se vuelve a sumar
+  const { base, rows } = W.series({ date: '2026-09-30', digital: 500000, cash: 10000, invested: 20000 }, E, '2026-10-04');
   assert.equal(base.set, true);
-  assert.equal(rows.length, 4);
-  const last = rows[3];
+  assert.equal(rows.length, 5);
+  assert.equal(rows[0].patrimony, 530000);
+  const last = rows[4];
   assert.deepEqual([last.digital, last.cash, last.invested], [500000 + 120000 - 30000 - 5000, 10000 - 2000, 50000]);
   assert.equal(last.patrimony, 530000 + 120000 - 7000);
   assert.deepEqual([last.income, last.expenses, last.inv.etf], [120000, 7000, 30000]);
-  assert.equal(rows[1].patrimony, rows[2].patrimony + 5000); // el día 3 solo resta el gasto
+  assert.equal(rows[2].patrimony, rows[3].patrimony + 5000); // el día 3 solo resta el gasto
+});
+
+test('lo apuntado el mismo día del punto de partida ya va incluido', () => {
+  const { rows } = W.series({ date: '2026-10-03', digital: 100000 }, E, '2026-10-03');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].patrimony, 100000);
+  assert.equal(rows[0].income, 0);
 });
 
 test('sin punto de partida: desde el primer movimiento y a 0', () => {
