@@ -50,40 +50,61 @@
     const b = baseOf(saved, entries, today), byDay = new Map(), curs = Object.keys(b.curs);
     const rawFx = e => (e._rt ? e._rfx : e.fx);
     const conv = (c, v) => { const r = +((rates || {})[c]) || 0; return b.curs[c].off || !(r > 0) ? 0 : Math.round(v * r); };
-    const cs = {};
-    for (const c of curs) cs[c] = { digital: b.curs[c].digital, cash: b.curs[c].cash, income: 0, expenses: 0 };
-    b.other = curs.reduce((a, c) => a + conv(c, cs[c].digital + cs[c].cash), 0);
+    let first = b.date;
     for (const e of entries || []) {
-      // v1.23.1: los saldos reales son los del final de ese día, así que lo apuntado hasta ese día ya va incluido
-      if (!isKey(e.date) || (b.set ? e.date <= b.date : e.date < b.date) || e.date > today) continue;
+      if (!isKey(e.date) || e.date > today) continue;
+      if (e.date < first) first = e.date;
       (byDay.get(e.date) || byDay.set(e.date, []).get(e.date)).push(e);
     }
-    const rows = [], inv = { ...b.invBy }, gain = {};
-    const vq = (vals || []).filter(v => v && v.cat && isKey(v.date) && v.date <= today && +v.value >= 0).sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
-    let vi = 0;
-    let digital = b.digital, cash = b.cash, invested = b.invested, income = 0, expenses = 0;
-    for (let k = b.date, i = 0; k <= today && i < 40000; k = addDays(k, 1), i++) {
+    // Estado de un día: saldos (al final del día), invertido por categoría, otras monedas y lo acumulado de ingresos y gastos
+    const cs = {};
+    for (const c of curs) cs[c] = { digital: b.curs[c].digital, cash: b.curs[c].cash, income: 0, expenses: 0 };
+    const st0 = { digital: b.digital, cash: b.cash, invested: b.invested, inv: { ...b.invBy }, cs, income: 0, expenses: 0 };
+    const clone = s => ({ ...s, inv: { ...s.inv }, cs: Object.fromEntries(Object.entries(s.cs).map(([k, v]) => [k, { ...v }])) });
+    // Aplica (sg = 1) o deshace (sg = −1, para ir hacia atrás desde el punto de partida) los movimientos de un día
+    function step(s, k, sg) {
       for (const e of byDay.get(k) || []) {
         const fx = rawFx(e);
-        if (fx && cs[fx.cur]) {
-          const x = cs[fx.cur], c = int(fx.cents), rt = e._rt || e.type, w = e.method === 'cash' ? 'cash' : 'digital';
+        if (fx && s.cs[fx.cur]) {
+          const x = s.cs[fx.cur], c = sg * int(fx.cents), rt = e._rt || e.type, w = e.method === 'cash' ? 'cash' : 'digital';
           if (rt === 'income') { x[w] += c; x.income += c; } else { x[w] -= c; if (rt !== 'invest') x.expenses += c; }
           continue;
         }
         // v1.23.4: en los vinculados, los saldos usan el importe real (_rc/_rt) e ingresos/gastos el neto
-        const c = int(e.amountCents), cashM = e.method === 'cash', rt = e._rt || e.type, rc = e._rt ? int(e._rc) : c;
-        if (rt === 'income') { if (cashM) cash += rc; else digital += rc; }
-        else if (rt === 'invest') { invested += rc; const cat = e.categoryId || 'invest'; inv[cat] = (inv[cat] || 0) + rc; if (cashM) cash -= rc; else digital -= rc; }
-        else if (cashM) cash -= rc; else digital -= rc;
-        if (e.type === 'income') income += c; else if (e.type !== 'invest') expenses += c;
+        const c = sg * int(e.amountCents), cashM = e.method === 'cash', rt = e._rt || e.type, rc = sg * (e._rt ? int(e._rc) : int(e.amountCents));
+        if (rt === 'income') { if (cashM) s.cash += rc; else s.digital += rc; }
+        else if (rt === 'invest') { s.invested += rc; const cat = e.categoryId || 'invest'; s.inv[cat] = (s.inv[cat] || 0) + rc; if (cashM) s.cash -= rc; else s.digital -= rc; }
+        else if (cashM) s.cash -= rc; else s.digital -= rc;
+        if (e.type === 'income') s.income += c; else if (e.type !== 'invest') s.expenses += c;
       }
-      while (vi < vq.length && vq[vi].date <= k) { const v = vq[vi++]; gain[v.cat] = Math.round(+v.value) - (inv[v.cat] || 0); }
-      const g = Object.values(gain).reduce((a, x) => a + x, 0), invVal = {};
-      for (const c of new Set([...Object.keys(inv), ...Object.keys(gain)])) invVal[c] = (inv[c] || 0) + (gain[c] || 0);
-      const other = curs.reduce((a, c) => a + conv(c, cs[c].digital + cs[c].cash), 0), cur = {};
-      for (const c of curs) cur[c] = { ...cs[c] };
-      rows.push({ key: k, digital, cash, invested, value: invested + g, gains: g, patrimony: digital + cash + invested + g + other, other, income, expenses, investments: invested + g, inv: { ...inv }, invVal, cur });
     }
+    const days = [];
+    // Sin punto de partida, todo empieza a 0 al principio del primer día. Con él, los saldos son los del final de ese día
+    // (ya incluyen lo apuntado hasta entonces) y, v1.23.5, los días anteriores se calculan hacia atrás deshaciendo los movimientos (hasta el día antes del primero).
+    if (!b.set) step(st0, b.date, 1);
+    if (b.set && first < b.date) {
+      const back = [], s = clone(st0);
+      for (let k = b.date, i = 0; k >= first && i < 40000; i++) { step(s, k, -1); k = addDays(k, -1); back.push({ key: k, s: clone(s) }); }
+      days.push(...back.reverse());
+    }
+    days.push({ key: b.date, s: clone(st0) });
+    { const s = clone(st0); for (let k = addDays(b.date, 1), i = 0; k <= today && i < 40000; k = addDays(k, 1), i++) { step(s, k, 1); days.push({ key: k, s: clone(s) }); } }
+    // Lo acumulado de ingresos y gastos empieza en 0 el primer día del gráfico; base.at guarda lo que había el día del punto de partida
+    const z = days[0].s, zc = Object.fromEntries(curs.map(c => [c, { income: z.cs[c].income, expenses: z.cs[c].expenses }]));
+    const rows = [], gain = {};
+    const vq = (vals || []).filter(v => v && v.cat && isKey(v.date) && v.date <= today && +v.value >= 0).sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
+    let vi = 0;
+    for (const { key: k, s } of days) {
+      while (vi < vq.length && vq[vi].date <= k) { const v = vq[vi++]; gain[v.cat] = Math.round(+v.value) - (s.inv[v.cat] || 0); }
+      const g = Object.values(gain).reduce((a, x) => a + x, 0), invVal = {};
+      for (const c of new Set([...Object.keys(s.inv), ...Object.keys(gain)])) invVal[c] = (s.inv[c] || 0) + (gain[c] || 0);
+      const other = curs.reduce((a, c) => a + conv(c, s.cs[c].digital + s.cs[c].cash), 0), cur = {};
+      for (const c of curs) cur[c] = { digital: s.cs[c].digital, cash: s.cs[c].cash, income: s.cs[c].income - zc[c].income, expenses: s.cs[c].expenses - zc[c].expenses };
+      rows.push({ key: k, digital: s.digital, cash: s.cash, invested: s.invested, value: s.invested + g, gains: g, patrimony: s.digital + s.cash + s.invested + g + other, other, income: s.income - z.income, expenses: s.expenses - z.expenses, investments: s.invested + g, inv: { ...s.inv }, invVal, cur });
+    }
+    const br = rows.find(r => r.key === b.date) || rows[0];
+    b.other = br.other;
+    b.at = { income: br.income, expenses: br.expenses, cur: Object.fromEntries(curs.map(c => [c, { income: br.cur[c].income, expenses: br.cur[c].expenses }])) };
     return { base: b, rows };
   }
 
