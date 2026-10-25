@@ -24,15 +24,23 @@ test('patrimonio: punto de partida + movimientos; la inversión no cambia el tot
 });
 
 test('lo apuntado el mismo día del punto de partida ya va incluido', () => {
-  const { rows } = W.series({ date: '2026-10-03', digital: 100000 }, E, '2026-10-03');
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].patrimony, 100000);
+  const { base, rows } = W.series({ date: '2026-10-03', digital: 100000 }, E, '2026-10-03');
+  const last = rows[rows.length - 1];
+  assert.equal(last.key, '2026-10-03');
+  assert.equal(last.patrimony, 100000);
+  // v1.23.5: lo de antes del punto de partida se calcula hacia atrás (desde el día antes del primer movimiento)
+  assert.deepEqual(rows.map(r => r.key), ['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03']);
+  assert.deepEqual(rows.map(r => r.patrimony), [100000 + 5000 + 2000 - 120000 - 99999, 100000 + 5000 + 2000 - 120000, 107000, 105000, 100000]);
+  assert.equal(rows[3].digital, 100000 + 30000 + 5000);
+  assert.equal(rows[3].invested, -30000);
   assert.equal(rows[0].income, 0);
+  assert.equal(last.income, 219999);
+  assert.deepEqual([base.at.income, base.at.expenses], [219999, 7000]);
 });
 
 test('sin punto de partida: desde el primer movimiento y a 0', () => {
   const { base, rows } = W.series(null, E, '2026-10-01');
-  assert.deepEqual(base, { date: '2026-09-30', digital: 0, cash: 0, invested: 0, invBy: {}, curs: {}, other: 0, set: false });
+  assert.deepEqual(base, { date: '2026-09-30', digital: 0, cash: 0, invested: 0, invBy: {}, curs: {}, other: 0, at: { income: 0, expenses: 0, cur: {} }, set: false });
   assert.equal(rows[1].patrimony, 99999 + 120000);
 });
 

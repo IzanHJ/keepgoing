@@ -130,6 +130,8 @@
     woCursHint: 'Cada moneda en la suya. Las que suman al total se pasan a {m} con el cambio de hoy.',
     woCurBaseHint: 'Por defecto solo cuentas en {m}. Añade otra moneda si tienes dinero en ella. Lo apuntado «en su moneda» en esa moneda mueve su saldo, no el de {m}.',
     calcCursHint: 'Las piezas en otra moneda se calculan pasadas a {m} con el cambio de hoy.', calcCurMods: '{n} fórmulas en esta moneda',
+    woBackHint: 'Antes del {d} (tu punto de partida) se calcula hacia atrás: a tus saldos reales se les quitan los movimientos apuntados desde entonces.',
+    wn_1_23_5_1: 'Patrimonio antes del punto de partida|El gráfico de Patrimonio actual también enseña los días anteriores a tu punto de partida, calculados hacia atrás con lo que apuntaste.',
     wn_1_23_4_1: 'Vincular movimientos|En cualquier movimiento, «Vincular otro movimiento»: un gasto de 50 € y la devolución de 40 € cuentan como un solo gasto de 10 € en la categoría del más grande.',
     wn_1_23_4_2: 'Saldos reales en otras monedas|En el punto de partida, «Añadir otra moneda». En Proyección sale «Otras monedas», cada una en la suya y con la opción de no sumarla al total. La calculadora también lo enseña si tiene piezas en otra moneda.'
   };
@@ -249,6 +251,8 @@
     woCursHint: 'Each currency in its own. Those added to the total are converted to {m} at today’s rate.',
     woCurBaseHint: 'By default you only count in {m}. Add another currency if you hold money in it. Entries kept “in their currency” in that currency move its balance, not the {m} one.',
     calcCursHint: 'Pieces in another currency are calculated converted to {m} at today’s rate.', calcCurMods: '{n} formulas in this currency',
+    woBackHint: 'Before {d} (your starting point) it is worked out backwards: the entries logged since then are taken off your real balances.',
+    wn_1_23_5_1: 'Net worth before the starting point|The Current net worth chart also shows the days before your starting point, worked out backwards from what you logged.',
     wn_1_23_4_1: 'Link entries|On any entry, “Link another entry”: a 50 € expense and its 40 € refund count as a single 10 € expense in the larger one’s category.',
     wn_1_23_4_2: 'Real balances in other currencies|In the starting point, “Add another currency”. Projection shows “Other currencies”, each in its own, with the option to leave it out of the total. The calculator shows it too when it has pieces in another currency.'
   };
