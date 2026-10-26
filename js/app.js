@@ -937,9 +937,9 @@
     const z = $('.tf-zoom'); if (z) { z.classList.remove('zoom-in', 'zoom-out'); void z.offsetWidth; z.classList.add(TF_CV.indexOf(cv) > TF_CV.indexOf(TFS.lastCv || cv) ? 'zoom-out' : 'zoom-in'); }
     TFS.lastCv = cv;
   }
-  /* v1.24: pellizcar en el calendario. Hacia fuera: Día → Semana → Mes → Año; hacia dentro: Año → Mes → Semana → Día.
-     En el ordenador, Ctrl + rueda (o pellizcar en el trackpad) hace lo mismo. */
-  const TF_PINCH = { out: 1, in: -1 };
+  /* v1.24: pellizcar en el calendario, como en Google Calendar y Apple: abrir los dedos acerca (Año → Mes → Semana → Día)
+     y cerrarlos aleja (Día → Semana → Mes → Año). En el ordenador, Ctrl + rueda (o pellizcar en el trackpad) hace lo mismo. */
+  const TF_PINCH = { out: -1, in: 1 };
   let tfPinch = null;
   const tfDist = ts => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
   const tfZoomBy = dir => { const u = tfUi(), i = TF_CV.indexOf(u.cv) + dir; if (i >= 0 && i < TF_CV.length) { sfx('tap'); tfSetCv(TF_CV[i]); } };
