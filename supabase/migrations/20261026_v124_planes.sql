@@ -11,6 +11,7 @@ create table if not exists public.kg_plans (
   term text not null default 'forever' check (term in ('forever', 'month', 'year')),
   since timestamptz not null default now(),
   until timestamptz,                         -- null = indefinido
+  txn text,                                  -- transacción de Paddle (pago en la app), para poder anularlo si se reembolsa
   note text,
   updated_at timestamptz not null default now()
 );

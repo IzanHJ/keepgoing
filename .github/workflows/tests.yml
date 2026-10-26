@@ -1,0 +1,35 @@
+# Pruebas automáticas: se ejecutan en cada pull request y en cada cambio de main.
+# Si fallan, el PR lo enseña en rojo y no conviene fusionarlo.
+name: Pruebas
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sintaxis de la app
+        run: node -e "new Function(require('fs').readFileSync('js/app.js','utf8'))"
+      - name: Pruebas de la lógica
+        run: node --test tests/*.test.js
+  sql:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Migración de planes y sus pruebas
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f tests/sql/stub.sql -f supabase/migrations/20261026_v124_planes.sql -f tests/sql/planes.test.sql

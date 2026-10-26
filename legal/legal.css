@@ -1,0 +1,19 @@
+/* Páginas legales y de venta de KeepGoing (sencillas, legibles, claro y oscuro) */
+:root { --bg: #ffffff; --fg: #111114; --muted: #5d5d66; --line: #e6e6ea; --accent: #1f9d6b; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --bg: #000000; --fg: #f2f2f5; --muted: #a0a0aa; --line: #26262b; --accent: #3ddc97; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 24px; }
+header.top a.brand { font-weight: 800; font-size: 20px; color: var(--fg); text-decoration: none; }
+nav.legal-nav { display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+a { color: var(--accent); }
+h1 { font-size: 28px; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 20px; margin: 28px 0 8px; }
+.muted, .updated { color: var(--muted); font-size: 14px; }
+.todo { background: rgba(255, 196, 0, .18); padding: 0 4px; border-radius: 4px; }
+.lang-switch button { font: inherit; background: none; border: 1px solid var(--line); color: var(--fg); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+.lang-switch button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+[data-lang] { display: none; } html[lang="es"] [data-lang="es"], html[lang="en"] [data-lang="en"] { display: block; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; } td, th { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+footer { margin-top: 48px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 14px; color: var(--muted); }

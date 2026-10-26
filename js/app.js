@@ -3556,8 +3556,13 @@
       onClose: () => { if (o.end) planOverLimit(true); }
     });
   }
-  // Pago desde la app (Paddle). Hasta que esté configurado, avisa y ofrece canjear una key.
-  function startCheckout() { toast(t('plBuySoon')); }
+  // Pago desde la app: abre la tienda (Paddle) con tu cuenta, así el pago se aplica solo. Al volver se pregunta el plan.
+  let planAskAt = 0;
+  function startCheckout() {
+    const u = new URL('web/', location.href); u.searchParams.set('lang', state.lang); if (auth) u.searchParams.set('uid', auth.uid);
+    window.open(u.href, '_blank', 'noopener');
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && auth && Date.now() - planAskAt > 15000) { planAskAt = Date.now(); refreshPlan().then(p => { if (p.full) render(); }); } });
   function openTrialEnded() {
     if (state.planEndSeen === (planCache && planCache.ent && planCache.ent.trial_ends)) return;
     state.planEndSeen = planCache && planCache.ent && planCache.ent.trial_ends; save();
