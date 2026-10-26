@@ -2,6 +2,8 @@
 // POST (webhook de Paddle, firmado con Paddle-Signature):
 //   · transaction.completed con custom_data.user_id (compra desde la app) → esa cuenta pasa a Usuario KeepGoing.
 //   · transaction.completed sin user_id (compra en la web) → se crea una key XXXX-XXXX-XXXX-XXXX de un solo uso.
+//   · subscription.* (suscripción mensual o anual, solo desde la app) → plan hasta el final del periodo pagado + 3 días de margen;
+//     al cancelarse, el plan dura hasta que acaba ese periodo. Las transacciones de suscripción no crean keys.
 //   · adjustment.created / adjustment.updated con un reembolso aprobado → se quita el plan o se anula la key.
 // GET ?txn=<id> (página de la tienda tras pagar) → devuelve la key de esa compra. La key no se guarda en claro:
 //   se calcula con un HMAC del id de la transacción y un secreto (KG_KEY_SECRET); en la base solo está su hash.
@@ -48,9 +50,31 @@ function cors(req: Request): Record<string, string> {
 const json = (req: Request, o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...cors(req), "Content-Type": "application/json" } });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const uidOf = (o: any) => o && o.custom_data && typeof o.custom_data.user_id === "string" && UUID.test(o.custom_data.user_id) ? o.custom_data.user_id : null;
+const GRACE_MS = 3 * 864e5;   // margen para que Paddle cobre la renovación
+
+// Quien ya es Usuario KeepGoing para siempre (especial o pago único) no se toca con una suscripción
+async function isForever(uid: string) {
+  const { data } = await db.from("kg_plans").select("term, until").eq("user_id", uid).maybeSingle();
+  return !!(data && data.until === null && data.term === "forever");
+}
+
+async function subscription(type: string, sub: any) {
+  const uid = uidOf(sub), id = String(sub.id || "");
+  if (!uid || !id || await isForever(uid)) return;
+  const interval = sub.items && sub.items[0] && sub.items[0].price && sub.items[0].price.billing_cycle && sub.items[0].price.billing_cycle.interval;
+  const term = interval === "year" ? "year" : "month";
+  const end = sub.current_billing_period && sub.current_billing_period.ends_at ? Date.parse(sub.current_billing_period.ends_at) : NaN;
+  const live = ["active", "trialing", "past_due"].includes(sub.status) && type !== "subscription.canceled";
+  const until = live && !isNaN(end) ? new Date(end + GRACE_MS) : new Date(isNaN(end) ? Date.now() : Math.max(Date.now(), end));
+  const { error } = await db.from("kg_plans").upsert({ user_id: uid, source: "paddle", term, until: until.toISOString(), txn: id, note: "Paddle " + id, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 async function completed(t: any) {
+  if (t.subscription_id) return;   // los pagos de suscripción se gestionan con los avisos subscription.*
   const txn = String(t.id || "");
-  const uid = t.custom_data && typeof t.custom_data.user_id === "string" && UUID.test(t.custom_data.user_id) ? t.custom_data.user_id : null;
+  const uid = uidOf(t);
   if (uid) {
     const { error } = await db.from("kg_plans").upsert({ user_id: uid, source: "paddle", term: "forever", until: null, txn, note: "Paddle " + txn, updated_at: new Date().toISOString() });
     if (error) throw error;
@@ -63,6 +87,10 @@ async function completed(t: any) {
 async function refunded(a: any) {
   if (a.action !== "refund" || a.status !== "approved") return;
   const txn = String(a.transaction_id || "");
+  if (a.subscription_id) {   // reembolso de una suscripción: se acaba ya
+    await db.from("kg_plans").update({ until: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("txn", String(a.subscription_id)).eq("source", "paddle");
+    return;
+  }
   await db.from("kg_plans").delete().eq("txn", txn).eq("source", "paddle");
   await db.from("kg_keys").update({ revoked: true }).eq("txn", txn);
   // Si la key ya se canjeó, se quita también el plan que dio
@@ -86,6 +114,7 @@ Deno.serve(async (req) => {
   let ev: any; try { ev = JSON.parse(body); } catch { return json(req, { error: "json" }, 400); }
   try {
     if (ev.event_type === "transaction.completed") await completed(ev.data || {});
+    else if (/^subscription\.(created|activated|updated|resumed|paused|past_due|canceled)$/.test(ev.event_type)) await subscription(ev.event_type, ev.data || {});
     else if (ev.event_type === "adjustment.created" || ev.event_type === "adjustment.updated") await refunded(ev.data || {});
   } catch (e) {
     console.error(e);

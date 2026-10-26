@@ -13,3 +13,7 @@
 .done { border: 2px solid var(--accent); border-radius: 20px; padding: 20px; margin: 24px 0; }
 .key { font: 700 24px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 2px; user-select: all; word-break: break-all; }
 html[lang="es"] :is(span, small)[data-lang="es"], html[lang="en"] :is(span, small)[data-lang="en"] { display: inline; }
+.terms { display: flex; gap: 4px; padding: 4px; border-radius: 999px; border: 1px solid var(--line); }
+.terms button { flex: 1; min-height: 38px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
+.terms button.on { background: var(--fg); color: var(--bg); }
+[hidden] { display: none !important; }

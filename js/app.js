@@ -3532,14 +3532,19 @@
     openUpsell({ limit: kind }); return false;
   }
   const activeHabitCount = () => state.habits.filter(h => !h.archived).length;
-  const fmtPrice = () => { const p = KGPlan.priceFor('ES'); try { return new Intl.NumberFormat(state.lang, { style: 'currency', currency: p.cur }).format(p.amount); } catch (e) { return p.amount + ' ' + p.cur; } };
+  const fmtPrice = (term = 'forever') => { const p = KGPlan.priceFor('ES', term); try { return new Intl.NumberFormat(state.lang, { style: 'currency', currency: p.cur }).format(p.amount); } catch (e) { return p.amount + ' ' + p.cur; } };
+  const PL_PRICE_KEY = { forever: 'plPrice', month: 'plPriceMonth', year: 'plPriceYear' }, PL_TERM_KEY = { forever: 'plTermForever', month: 'plTermMonth', year: 'plTermYear' };
+  const planSave = () => { const m = KGPlan.priceFor('ES', 'month').amount, y = KGPlan.priceFor('ES', 'year').amount; return Math.round((1 - y / (m * 12)) * 100); };
   const planList = s => `<ul class="pl-list">${String(s).split('|').map(x => `<li>${ico('check')}<span>${esc(x)}</span></li>`).join('')}</ul>`;
   function openUpsell(o = {}) {
+    let term = 'year';
+    const priceBox = () => `<div class="pl-price" id="pl-price">${esc(t(PL_PRICE_KEY[term], { p: fmtPrice(term) }))}${term === 'year' ? `<div class="muted small">${esc(t('plPriceSave', { n: planSave() }))}</div>` : ''}</div>`;
     const why = o.feature ? t('plUpsellWhy', { f: t('plf_' + o.feature) }) : o.limit ? t('plUpsellLimit', { n: KGPlan.LIMITS[o.limit], what: t('plw_' + o.limit) }) : '';
     openModal({
       title: esc(t('plUpsellTitle')), cls: 'pl-sheet',
       body: `${why ? `<p class="pl-why">${ico('lock')} ${esc(why)}</p>` : ''}<p class="muted" style="margin-top:0">${esc(t('plUpsellLead'))}</p>
-        <div class="pl-price">${esc(t('plPrice', { p: fmtPrice() }))}</div>
+        <div class="seg" role="tablist" style="margin:4px 0 10px">${['month', 'year', 'forever'].map(k => `<button type="button" data-pl-term="${k}" class="${k === term ? 'on' : ''}" aria-pressed="${k === term}">${esc(t(PL_TERM_KEY[k]))}</button>`).join('')}</div>
+        ${priceBox()}<p class="muted small" style="margin:6px 0 0">${esc(t('plPriceLocal'))}</p>
         <div class="acc-label">${esc(t('plKgTitle'))}</div>${planList(t('plFeatList'))}
         <div class="acc-label" style="margin-top:14px">${esc(t('plFreeTitle'))}</div>${planList(t('plFreeList'))}
         ${!auth ? `<p class="pl-why" style="margin:16px 0 0">${ico('sparkle')} ${esc(t('plNeedAccount'))}</p>` : ''}`,
@@ -3547,8 +3552,10 @@
         ${!auth ? `<button class="btn block" data-pl="account">${esc(t('plCreateAccount'))}</button>` : ''}
         <button class="btn block" data-pl="key">${ico('lock')} ${esc(t('plRedeem'))}</button>${o.end ? `<button class="chip block" data-pl="free">${esc(t('plKeepFree'))}</button>` : ''}`,
       onClick: (e, close) => {
+        const tb = e.target.closest('[data-pl-term]');
+        if (tb) { term = tb.dataset.plTerm; tb.parentNode.querySelectorAll('[data-pl-term]').forEach(x => { x.classList.toggle('on', x === tb); x.setAttribute('aria-pressed', x === tb); }); const pb = document.getElementById('pl-price'); if (pb) pb.outerHTML = priceBox(); return; }
         const b = e.target.closest('[data-pl]'); if (!b) return;
-        if (b.dataset.pl === 'buy') { startCheckout(); return; }
+        if (b.dataset.pl === 'buy') { startCheckout(term); return; }
         if (b.dataset.pl === 'account') { close(); openLogin(); return; }
         if (b.dataset.pl === 'key') { close(); openRedeem(); return; }
         if (b.dataset.pl === 'free') { close(); planOverLimit(true); }
@@ -3558,8 +3565,8 @@
   }
   // Pago desde la app: abre la tienda (Paddle) con tu cuenta, así el pago se aplica solo. Al volver se pregunta el plan.
   let planAskAt = 0;
-  function startCheckout() {
-    const u = new URL('web/', location.href); u.searchParams.set('lang', state.lang); if (auth) u.searchParams.set('uid', auth.uid);
+  function startCheckout(term = 'forever') {
+    const u = new URL('web/', location.href); u.searchParams.set('lang', state.lang); u.searchParams.set('term', term); if (auth) u.searchParams.set('uid', auth.uid);
     window.open(u.href, '_blank', 'noopener');
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && auth && Date.now() - planAskAt > 15000) { planAskAt = Date.now(); refreshPlan().then(p => { if (p.full) render(); }); } });
@@ -3631,9 +3638,9 @@
   // Ajustes → Tu plan
   function planHtml() {
     const p = PL(), until = p.until ? fmtDate(p.until.slice(0, 10)) : '';
-    const sub = p.plan === 'trial' ? (p.daysLeft === 1 ? t('plTrialSub1') : t('plTrialSub', { n: p.daysLeft })) : p.plan === 'keepgoing' ? (p.source === 'special' ? t('plSpecialSub') : until ? t('plKgSubUntil', { date: until }) : t('plKgSub')) : t('plFreeSub');
+    const sub = p.plan === 'trial' ? (p.daysLeft === 1 ? t('plTrialSub1') : t('plTrialSub', { n: p.daysLeft })) : p.plan === 'keepgoing' ? (p.source === 'special' ? t('plSpecialSub') : p.source === 'paddle' && until && p.term !== 'forever' ? t(p.term === 'year' ? 'plSubYear' : 'plSubMonth', { date: until }) : until ? t('plKgSubUntil', { date: until }) : t('plKgSub')) : t('plFreeSub');
     return `<div class="stack" style="gap:10px"><div class="row"><span class="pl-chip ${p.plan}">${esc(t(p.plan === 'keepgoing' ? 'plKeepgoing' : p.plan === 'trial' ? 'plTrial' : 'plFree'))}</span><span class="muted small grow">${esc(sub)}</span></div>
-      <div class="row wrap">${p.plan !== 'keepgoing' ? `<button class="btn primary" data-s="plan-up">${ico('sparkle')} ${esc(t('plBuy'))}</button>` : ''}<button class="chip" data-s="plan-key">${ico('lock')} ${esc(t('plRedeem'))}</button>${isStaff() ? `<button class="chip" data-s="staff">${ico('gear')} ${esc(t('stTitle'))}</button>` : ''}</div></div>`;
+      <div class="row wrap">${p.plan !== 'keepgoing' ? `<button class="btn primary" data-s="plan-up">${ico('sparkle')} ${esc(t('plBuy'))}</button>` : ''}${p.source === 'paddle' && p.term !== 'forever' ? `<a class="chip" href="https://paddle.net" target="_blank" rel="noopener">${ico('gear')} ${esc(t('plSubManage'))}</a>` : ''}<button class="chip" data-s="plan-key">${ico('lock')} ${esc(t('plRedeem'))}</button>${isStaff() ? `<button class="chip" data-s="staff">${ico('gear')} ${esc(t('stTitle'))}</button>` : ''}</div></div>`;
   }
   const planHint = () => { const p = PL(); return t(p.plan === 'keepgoing' ? 'plKeepgoing' : p.plan === 'trial' ? 'plTrial' : 'plFree'); };
   // Insignia «KeepGoing» junto al @nametag (la tuya, y la de quien la tenga en tus chats)

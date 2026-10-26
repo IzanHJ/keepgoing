@@ -83,15 +83,23 @@
   }
   const keyValid = s => { const n = keyNorm(s); return n.length === 16 && [...n].every(c => KEY_ALPHA.includes(c)); };
 
-  /* Precio del pago único: 29,99 € en España = 2,105 % del salario mínimo mensual (17.094 € al año en 2026).
-     En el resto de países, el mismo porcentaje de su salario mínimo mensual (se aplica en Paddle; aquí solo se enseña). */
+  /* Precios: pago único 29,99 €, mensual 1,49 € y anual 14,99 € en España (29,99 € = 2,105 % del salario mínimo mensual,
+     17.094 € al año en 2026). En el resto de países, el mismo porcentaje de su salario mínimo, con un tope: si sale por encima
+     de 29,99 €, se cobra 29,99 / 1,49 / 14,99 en su propia moneda (GB, AU, NZ y CA). Se aplica en Paddle; aquí solo se enseña.
+     Cada fila: [pago único, mes, año, moneda]. */
   const PRICE_EUR = 29.99;
+  const TERMS = ['forever', 'month', 'year'];
   const PRICES = {
-    ES: [29.99, 'EUR'], GB: [46.38, 'GBP'], AU: [91.68, 'AUD'], NZ: [87.40, 'NZD'], CA: [66.23, 'CAD'], US: [26.46, 'USD'],
-    MX: [201.74, 'MXN'], CL: [11654, 'CLP'], CO: [36862, 'COP'], UY: [534, 'UYU'], CR: [7855, 'CRC'], PY: [64085, 'PYG'],
-    GT: [73.08, 'GTQ'], BO: [69.47, 'BOB'], PE: [23.79, 'PEN'], EC: [10.15, 'USD'], AR: [8080, 'ARS']
+    ES: [29.99, 1.49, 14.99, 'EUR'], GB: [29.99, 1.49, 14.99, 'GBP'], AU: [29.99, 1.49, 14.99, 'AUD'], NZ: [29.99, 1.49, 14.99, 'NZD'],
+    CA: [29.99, 1.49, 14.99, 'CAD'], US: [26.46, 1.31, 13.23, 'USD'], MX: [201.74, 10.02, 100.84, 'MXN'], CL: [11654, 579, 5825, 'CLP'],
+    CO: [36862, 1831, 18425, 'COP'], UY: [534, 27, 267, 'UYU'], CR: [7855, 390, 3926, 'CRC'], PY: [64085, 3184, 32032, 'PYG'],
+    GT: [73.08, 3.63, 36.53, 'GTQ'], BO: [69.47, 3.45, 34.72, 'BOB'], PE: [23.79, 1.18, 11.89, 'PEN'], EC: [10.15, 0.50, 5.07, 'USD'],
+    AR: [8080, 401, 4039, 'ARS']
   };
-  const priceFor = country => { const p = PRICES[String(country || '').toUpperCase()]; return p ? { amount: p[0], cur: p[1] } : { amount: PRICE_EUR, cur: 'EUR' }; };
+  const priceFor = (country, term = 'forever') => {
+    const p = PRICES[String(country || '').toUpperCase()] || PRICES.ES, i = Math.max(0, TERMS.indexOf(term));
+    return { amount: p[i], cur: p[3] };
+  };
 
-  return { TRIAL_DAYS, LIMITS, PAID, FLAGS, CACHE_MAX, resolve, allows, canAdd, flagOn, KEY_ALPHA, keyNorm, keyFormat, keyValid, PRICE_EUR, PRICES, priceFor };
+  return { TRIAL_DAYS, LIMITS, PAID, FLAGS, CACHE_MAX, resolve, allows, canAdd, flagOn, KEY_ALPHA, keyNorm, keyFormat, keyValid, PRICE_EUR, TERMS, PRICES, priceFor };
 });

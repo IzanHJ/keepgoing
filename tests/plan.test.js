@@ -62,9 +62,18 @@ test('keys XXXX-XXXX-XXXX-XXXX', () => {
   assert.strictEqual(P.keyValid('abcdefghjkmnpqrs'), true);
 });
 
-test('precio por país = mismo % del salario mínimo', () => {
+test('precio por país = mismo % del salario mínimo, con tope de 29,99 en su moneda', () => {
   assert.deepStrictEqual(P.priceFor('es'), { amount: 29.99, cur: 'EUR' });
   assert.deepStrictEqual(P.priceFor('FR'), { amount: 29.99, cur: 'EUR' });
+  assert.deepStrictEqual(P.priceFor('ES', 'month'), { amount: 1.49, cur: 'EUR' });
+  assert.deepStrictEqual(P.priceFor('ES', 'year'), { amount: 14.99, cur: 'EUR' });
+  assert.deepStrictEqual(P.priceFor('GB', 'year'), { amount: 14.99, cur: 'GBP' });
   const pct = 29.99 / (17094 / 12);
   assert.ok(Math.abs(P.priceFor('MX').amount - 9582.47 * pct) < 0.01);
+  // Las suscripciones guardan la misma proporción que en España
+  for (const [c, row] of Object.entries(P.PRICES)) {
+    const tol = row[0] >= 500 ? 1 : 0.01;
+    assert.ok(Math.abs(row[1] - row[0] * 1.49 / 29.99) <= tol, c + ' mes');
+    assert.ok(Math.abs(row[2] - row[0] * 14.99 / 29.99) <= tol, c + ' año');
+  }
 });

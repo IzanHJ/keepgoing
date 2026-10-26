@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>KeepGoing · Usuario KeepGoing</title>
-  <meta name="description" content="KeepGoing: hábitos, proyectos, calendario de turnos y libreta de gastos en una sola app. Pago único, sin suscripciones.">
+  <meta name="description" content="KeepGoing: hábitos, proyectos, calendario de turnos y libreta de gastos en una sola app. Al mes, al año o con un pago único.">
   <link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../legal/legal.css">
   <link rel="stylesheet" href="shop.css">
@@ -16,11 +16,11 @@
 
   <section data-lang="es">
     <h1>Tu día, tus hábitos y tu dinero, en una sola app</h1>
-    <p class="lead">KeepGoing junta hábitos y proyectos, un calendario de turnos y una libreta de gastos cifrada. Empieza gratis; cuando quieras todo, un solo pago y es tuyo para siempre.</p>
+    <p class="lead">KeepGoing junta hábitos y proyectos, un calendario de turnos y una libreta de gastos cifrada. Empieza gratis; cuando quieras todo, paga al mes, al año o una sola vez y es tuyo para siempre.</p>
   </section>
   <section data-lang="en">
     <h1>Your day, your habits and your money, in one app</h1>
-    <p class="lead">KeepGoing brings together habits and projects, a shift calendar and an encrypted expense ledger. Start for free; when you want everything, one payment and it is yours forever.</p>
+    <p class="lead">KeepGoing brings together habits and projects, a shift calendar and an encrypted expense ledger. Start for free; when you want everything, pay monthly, yearly or once and keep it forever.</p>
   </section>
 
   <div class="plans">
@@ -33,7 +33,14 @@
     </article>
     <article class="plan best">
       <h2>Usuario KeepGoing</h2>
-      <p class="price"><span id="price">29,99 €</span> <small data-lang="es">pago único</small><small data-lang="en">one-time</small></p>
+      <div class="terms" role="radiogroup">
+        <button type="button" data-term="month" aria-pressed="false"><span data-lang="es">Mensual</span><span data-lang="en">Monthly</span></button>
+        <button type="button" data-term="year" aria-pressed="true" class="on"><span data-lang="es">Anual</span><span data-lang="en">Yearly</span></button>
+        <button type="button" data-term="forever" aria-pressed="false"><span data-lang="es">Para siempre</span><span data-lang="en">Forever</span></button>
+      </div>
+      <p class="price"><span id="price">14,99 €</span> <span data-per="month" hidden><small data-lang="es">al mes</small><small data-lang="en">a month</small></span><span data-per="year"><small data-lang="es">al año</small><small data-lang="en">a year</small></span><span data-per="forever" hidden><small data-lang="es">pago único</small><small data-lang="en">one-time</small></span></p>
+      <p class="muted small" id="sub-note"><span data-lang="es">Se renueva sola. Cancélala cuando quieras en paddle.net: sigues teniendo todo hasta el final del periodo pagado.</span><span data-lang="en">Renews automatically. Cancel any time at paddle.net: you keep everything until the end of the paid period.</span></p>
+      <p class="muted small" id="sub-app" hidden><span data-lang="es">Las suscripciones se contratan desde la app, con tu cuenta (Ajustes → Tu plan). Aquí puedes comprar el pago único.</span><span data-lang="en">Subscriptions are bought from the app, with your account (Settings → Your plan). Here you can buy the one-time option.</span></p>
       <ul data-lang="es"><li>Hábitos y proyectos sin límite</li><li>Calculadora de Patrimonio y proyecciones</li><li>Registrar CSV del banco y Comparar</li><li>Varias monedas, presupuesto por categorías e Inversiones</li><li>Rutinas en el Calendario</li><li>Compartir libretas, proyecciones y calendario</li><li>Todos los temas, colores y mascotas</li><li>Gráficos con todo tu historial</li></ul>
       <ul data-lang="en"><li>Unlimited habits and projects</li><li>Net worth calculator and projections</li><li>Bank CSV import and Compare</li><li>Multiple currencies, budgets by category and Investments</li><li>Routines in the Calendar</li><li>Share ledgers, projections and calendar</li><li>Every theme, colour and pet</li><li>Charts with your whole history</li></ul>
       <label class="consent"><input type="checkbox" id="consent">

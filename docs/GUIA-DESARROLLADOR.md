@@ -118,11 +118,14 @@ Si algo sale mal tras publicar: en GitHub, «Revert» del PR fusionado y se vuel
 ## 7. Pagos (Paddle)
 
 - Paddle es el vendedor (Merchant of Record): cobra, factura y paga los impuestos de cada país. Tú recibes los pagos.
-- Tienda: `web/index.html` + `web/config.js` (`env`, `token`, `priceId`). Con `token` o `priceId` vacíos enseña «Muy pronto».
-- Precio por país: en el panel de Paddle, en el precio, «Localized prices» (los importes están en `PRICES` de `js/plan.js`).
+- Tres tarifas: pago único (29,99 €), mensual (1,49 €) y anual (14,99 €). En Paddle son tres precios del mismo producto; el mensual y el anual con «billing cycle» de 1 mes y 1 año.
+- Tienda: `web/index.html` + `web/config.js` (`env`, `token` y `prices: { forever, month, year }`). Sin `token` enseña «Muy pronto».
+- Las suscripciones solo se contratan desde la app (con `?uid=`), para que cada renovación sepa a qué cuenta va. En la web solo se vende el pago único (con key).
+- Precio por país: en Paddle, en cada precio, «Localized prices». Los importes están en `PRICES` de `js/plan.js`: mismo % del salario mínimo que en España, con tope de 29,99 / 1,49 / 14,99 en su moneda (Reino Unido, Australia, Nueva Zelanda y Canadá).
 - Avisos de Paddle → Edge Function `supabase/functions/kg-paddle` (secretos `PADDLE_WEBHOOK_SECRET` y `KG_KEY_SECRET`).
   - Compra desde la app: llega `custom_data.user_id` y esa cuenta pasa a Usuario KeepGoing.
   - Compra en la web: se crea una key y la tienda la enseña al terminar.
+  - Suscripción: los avisos `subscription.*` ponen el plan hasta el final del periodo pagado (+3 días de margen). Si se cancela, dura hasta que acaba ese periodo. A quien ya tiene Usuario KeepGoing para siempre no se le cambia.
   - Reembolso: se quita el plan o se anula la key.
 - Primero todo en **sandbox** (sin dinero real). Producción solo cuando el alta fiscal esté hecha.
 
