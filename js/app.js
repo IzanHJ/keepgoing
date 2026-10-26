@@ -767,9 +767,13 @@
      ========================================================= */
   const TF = window.KGTurns, TFPDF = window.KGTurnsPdf;
   const TFS = { quick: null, menu: false, rep: { mode: 'month', ref: new Date(), from: '', to: '' }, rot: { key: '4x4', custom: 'AAB--', map: {}, start: '', offset: 1, days: 90, overwrite: false }, list: null, busy: false, pubTimer: 0, fired: new Set() };
+  // v1.24: vistas Día, Semana, Mes y Año (pellizcar cambia de una a otra en este orden)
+  const TF_CV = ['day', 'week', 'month', 'year'];
   function tfUi() {
     const u = state.ui.cal && typeof state.ui.cal === 'object' ? state.ui.cal : {};
-    state.ui.cal = { view: ['cal', 'rep', 'shifts', 'routines', 'rot', 'more'].includes(u.view) ? u.view : 'cal', cv: u.cv === 'year' ? 'year' : 'month', ym: /^\d{4}-\d{2}$/.test(u.ym || '') ? u.ym : todayKey().slice(0, 7) };
+    const ym = /^\d{4}-\d{2}$/.test(u.ym || '') ? u.ym : todayKey().slice(0, 7);
+    state.ui.cal = { view: ['cal', 'rep', 'shifts', 'routines', 'rot', 'more'].includes(u.view) ? u.view : 'cal', cv: TF_CV.includes(u.cv) ? u.cv : 'month', ym,
+      d: /^\d{4}-\d{2}-\d{2}$/.test(u.d || '') && u.d.startsWith(ym) ? u.d : (todayKey().startsWith(ym) ? todayKey() : ym + '-01') };
     return state.ui.cal;
   }
   // La primera vez se crean los turnos de ejemplo (Mañana, Tarde, Noche, Libre, Vacaciones, Baja, Formación)
@@ -834,26 +838,164 @@
       case 'routines': return tfRoutinesView();
       case 'more': return tfMoreView();
     }
-    const y = +u.ym.slice(0, 4), mo = +u.ym.slice(5, 7) - 1, year = u.cv === 'year', ws = tfWs();
-    const cur = new Date(), isCurrent = cur.getFullYear() === y && (year || cur.getMonth() === mo);
+    const y = +u.ym.slice(0, 4), mo = +u.ym.slice(5, 7) - 1, cv = u.cv, year = cv === 'year', ws = tfWs();
+    const cur = new Date(), tk = todayKey();
+    const isCurrent = cv === 'day' ? u.d === tk : cv === 'week' ? tfWeekKeys(u.d)[0] === tfWeekKeys(tk)[0] : cur.getFullYear() === y && (year || cur.getMonth() === mo);
     const years = []; for (let v = Math.min(cur.getFullYear() - 20, y); v <= Math.max(cur.getFullYear() + 20, y); v++) years.push(v);
     const pick = (kind, opts, val, label) => `<span class="tf-pick"><select data-tf-pick="${kind}" aria-label="${esc(label)}">${opts.map(([v, l]) => `<option value="${v}" ${String(v) === String(val) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${ico('down')}</span>`;
     const MENU = [['rep', 'chart', 'tfReports'], ['shifts', 'clock', 'tfShifts'], ['routines', 'layers', 'tfRoutines'], ['rot', 'repeat', 'tfRotations'], ['more', 'gear', 'tfMore']];
+    const NAV = { day: ['tfPrevDay', 'tfNextDay'], week: ['tfPrevWeek', 'tfNextWeek'], month: ['tfPrevMonth', 'tfNextMonth'], year: ['tfPrevYear', 'tfNextYear'] }[cv];
     let html = topBar();
     html += `<div class="tf-top"><div class="tf-title grow">${year ? '' : pick('m', tfMonths().map((n, i) => [i, n]), mo, t('tfMonth'))}${pick('y', years.map(v => [v, v]), y, t('tfYear'))}</div>
       <button class="icon-btn" data-tf="menu" aria-expanded="${TFS.menu}" aria-label="${esc(t('tfMenuAria'))}" title="${esc(t('tfMenuAria'))}">${ico('grid')}</button>
       ${TFS.menu ? `<div class="tf-menu" role="menu">${MENU.map(([id, ic, k]) => `<button role="menuitem" data-tf-go="${id}">${ico(ic)} ${esc(t(k))}</button>`).join('')}</div>` : ''}</div>`;
-    html += `<div class="row tf-nav" style="justify-content:space-between;gap:8px"><div class="row" style="gap:8px"><div class="pill-group"><button class="icon-btn" data-tf="prev" aria-label="${esc(t(year ? 'tfPrevYear' : 'tfPrevMonth'))}">${ico('left')}</button><button class="icon-btn" data-tf="next" aria-label="${esc(t(year ? 'tfNextYear' : 'tfNextMonth'))}">${ico('right')}</button></div>${isCurrent ? '' : `<button class="chip" data-tf="today">${esc(t('tfToday'))}</button>`}</div>
-      <div class="seg seg-sm tf-cv" role="group">${[['month', 'tfMonth'], ['year', 'tfYear']].map(([v, k]) => `<button data-tf-cv="${v}" class="${u.cv === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div></div>`;
-    if (year) html += tfYearGrid(y);
-    else html += `<div class="tf-cal"><div class="tf-dow">${tfDow().map(n => `<span>${esc(n)}</span>`).join('')}</div>${tfMonthGrid(y, mo)}</div>`;
-    const range = year ? [y + '-01-01', y + '-12-31'] : [TF.iso(new Date(y, mo, 1)), TF.iso(new Date(y, mo + 1, 0))];
+    html += `<div class="row tf-nav" style="justify-content:space-between;gap:8px"><div class="row" style="gap:8px"><div class="pill-group"><button class="icon-btn" data-tf="prev" aria-label="${esc(t(NAV[0]))}">${ico('left')}</button><button class="icon-btn" data-tf="next" aria-label="${esc(t(NAV[1]))}">${ico('right')}</button></div>${isCurrent ? '' : `<button class="chip" data-tf="today">${esc(t('tfToday'))}</button>`}</div>
+      <div class="seg seg-sm tf-cv" role="group" title="${esc(t('tfPinchHint'))}">${[['day', 'tfDay'], ['week', 'tfWeek'], ['month', 'tfMonth'], ['year', 'tfYear']].map(([v, k]) => `<button data-tf-cv="${v}" class="${cv === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div></div>`;
+    let range;
+    html += `<div class="tf-zoom ${TFS.quick && !year ? 'painting' : ''}">`;
+    if (year) { html += tfYearGrid(y); range = [y + '-01-01', y + '-12-31']; }
+    else if (cv === 'month') { html += `<div class="tf-cal"><div class="tf-dow">${tfDow().map(n => `<span>${esc(n)}</span>`).join('')}</div>${tfMonthGrid(y, mo)}</div>`; range = [TF.iso(new Date(y, mo, 1)), TF.iso(new Date(y, mo + 1, 0))]; }
+    else if (cv === 'week') { const ks = tfWeekKeys(u.d); html += tfWeekView(ks); range = [ks[0], ks[6]]; }
+    else { html += tfDayView(u.d); range = [u.d, u.d]; }
+    html += '</div>';
     const r = TF.report(tfData(), range[0], range[1], ws, tfPaidKind);
     html += `<section class="tf-summary clay ${privacyOn() ? 'priv' : ''}"><div><span class="muted small">${esc(t('tfHours'))}</span><b>${tfH(r.hours)} h</b></div><div><span class="muted small">${esc(t('tfShiftsN'))}</span><b>${r.count}</b></div><div><span class="muted small">${esc(t('tfPayEst'))}</span><b>${money(r.pay)}</b></div></section>`;
     html += `<div class="row wrap tf-tools" style="gap:8px">${year ? '' : `<button class="chip ${TFS.quick ? 'on' : ''}" data-tf="quick">${ico('edit')} ${esc(t('tfQuick'))}</button>`}<button class="chip" data-tf="shared">${ico('users')} ${esc(t('tfShared'))}</button><button class="chip" data-tf="share">${ico('share')} ${esc(t('tfShare'))}</button></div>`;
     if (TFS.quick && !year) html += tfPalette();
     return html;
   }
+  /* ---------- v1.24: vistas Semana y Día ----------
+     Los turnos con hora van en una línea de tiempo; los que no tienen hora (Libre, Vacaciones…), arriba en «Todo el día».
+     Dos turnos seguidos (uno acaba cuando empieza el otro) se dibujan unidos, cada uno con su color. */
+  const tfWeekKeys = k => { const a = TF.startOfWeek(TF.parseISO(k), tfWs()); return Array.from({ length: 7 }, (_, i) => TF.iso(TF.addDays(a, i))); };
+  const tfDoy = k => { const d = TF.parseISO(k); return Math.round((d - new Date(d.getFullYear(), 0, 1)) / 864e5) + 1; };
+  // Semana n del año: la que contiene el 1 de enero es la 1 (según el día en que empieza tu semana)
+  const tfWeekNo = k => { const d = TF.parseISO(k), off = (new Date(d.getFullYear(), 0, 1).getDay() - tfWs() + 7) % 7; return Math.floor((tfDoy(k) - 1 + off) / 7) + 1; };
+  const tfMin = v => { const [h, m] = v.split(':').map(Number); return h * 60 + m; };
+  function tfDayItems(k) {
+    const timed = [], allDay = [];
+    for (const e of tfSorted(state.calDays[k] || [])) {
+      const s = tfShift(e.sid); if (!s) continue;
+      const tm = TF.entryTimes(s, e);
+      if (!tm.start || !tm.end) { allDay.push({ s, e }); continue; }
+      let a = tfMin(tm.start), b = tfMin(tm.end); if (b <= a) b += 1440;
+      timed.push({ s, e, a, b: Math.min(b, 1440), over: b > 1440, start: tm.start, end: tm.end });
+    }
+    // Lo que viene de la noche anterior (turno que pasa de las 00:00)
+    const prev = TF.iso(TF.addDays(TF.parseISO(k), -1));
+    for (const e of state.calDays[prev] || []) {
+      const s = tfShift(e.sid); if (!s) continue;
+      const tm = TF.entryTimes(s, e); if (!tm.start || !tm.end) continue;
+      const a = tfMin(tm.start), b = tfMin(tm.end); if (b < a && b > 0) timed.push({ s, e, a: 0, b, cont: true, start: tm.start, end: tm.end });
+    }
+    timed.sort((x, y) => x.a - y.a || x.b - y.b);
+    // Carriles para los que se solapan; unidos cuando uno acaba justo cuando empieza el siguiente
+    const lanes = [];
+    for (const it of timed) { let l = lanes.findIndex(end => end <= it.a); if (l < 0) { l = lanes.length; lanes.push(0); } lanes[l] = it.b; it.lane = l; }
+    for (const it of timed) { it.joinT = timed.some(o => o !== it && o.lane === it.lane && o.b === it.a); it.joinB = timed.some(o => o !== it && o.lane === it.lane && o.a === it.b); }
+    return { timed, allDay, lanes: Math.max(1, lanes.length) };
+  }
+  function tfHourRange(lists) {
+    let lo = 8 * 60, hi = 20 * 60;
+    for (const L of lists) for (const it of L.timed) { lo = Math.min(lo, it.a); hi = Math.max(hi, it.b); }
+    return [Math.floor(lo / 60), Math.min(24, Math.ceil(hi / 60))];
+  }
+  const tfBlock = (it, k, lanes, H0, ph, big) => {
+    const top = (it.a - H0 * 60) * ph / 60, h = Math.max(14, (it.b - it.a) * ph / 60), w = 100 / lanes, c = tfColor(it.s.color);
+    const label = `${it.s.emoji ? esc(it.s.emoji) + ' ' : ''}${esc(it.s.name)}`;
+    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" style="top:${top}px;height:${h}px;left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e)) + ' h' : ''}</small>` : ''}</span>`;
+  };
+  function tfTimeline(keys, big) {
+    const L = keys.map(tfDayItems), [H0, H1] = tfHourRange(L), ph = big ? 52 : 32, tk = todayKey();
+    const hours = Array.from({ length: H1 - H0 }, (_, i) => H0 + i);
+    const anyAll = L.some(x => x.allDay.length);
+    let html = `<div class="tf-tl ${big ? 'big' : ''}" style="--cols:${keys.length}">`;
+    if (anyAll) html += `<div class="tf-tl-all"><span class="tf-tl-h muted small">${esc(t('tfAllDay'))}</span>${keys.map((k, i) => `<button class="tf-tl-allc" data-tf-day="${k}" aria-label="${esc(tfLong(k))}">${L[i].allDay.map(({ s }) => tfTag(s)).join('')}</button>`).join('')}</div>`;
+    html += `<div class="tf-tl-body"><div class="tf-tl-hours">${hours.map(h => `<span style="height:${ph}px">${pad(h)}:00</span>`).join('')}</div>`;
+    html += keys.map((k, i) => `<button class="tf-tl-col ${k === tk ? 'today' : ''}" data-tf-day="${k}" style="height:${hours.length * ph}px;--ph:${ph}px" aria-label="${esc(tfLong(k) + (L[i].timed.length ? ': ' + L[i].timed.map(it => it.s.name + ' ' + it.start + '–' + it.end).join(', ') : ''))}">${L[i].timed.map(it => tfBlock(it, k, L[i].lanes, H0, ph, big)).join('')}</button>`).join('');
+    return html + '</div></div>';
+  }
+  function tfWeekView(keys) {
+    const tk = todayKey(), y = TF.parseISO(keys[6]).getFullYear(), tot = tfWeekNo(y + '-12-31');
+    const head = keys.map(k => { const d = TF.parseISO(k); return `<button class="tf-wk-d ${k === tk ? 'today' : ''}" data-tf-open="${k}"><span>${esc(new Intl.DateTimeFormat(state.lang, { weekday: 'short' }).format(d).replace('.', ''))}</span><b>${d.getDate()}</b></button>`; }).join('');
+    return `<div class="tf-count"><b>${esc(t('tfWeekCount', { n: tfWeekNo(keys[6].slice(0, 4) === keys[0].slice(0, 4) ? keys[0] : (keys.find(k => k.endsWith('-01-01')) || keys[0])), t: tot }))}</b><span class="muted small">${esc(fmtShort(keys[0]))} – ${esc(fmtShort(keys[6]))}</span></div>
+      <div class="tf-week clay"><div class="tf-wk-head" style="--cols:7"><span></span>${head}</div>${tfTimeline(keys, false)}</div>`;
+  }
+  function tfDayView(k) {
+    const y = +k.slice(0, 4), tot = tfDoy(y + '-12-31'), it = tfDayItems(k), shown = tfShown(), ext = tfData().ext.filter(e => e.date === k);
+    const mates = shown.map(f => ({ f, ids: f.days[k] || [] })).filter(c => c.ids.length);
+    return `<div class="tf-count"><b>${esc(t('tfDayCount', { n: tfDoy(k), t: tot }))}</b><span class="muted small">${esc(tfLong(k))}</span></div>
+      <div class="tf-week tf-day clay">${it.timed.length || it.allDay.length ? tfTimeline([k], true) : `<button class="tf-empty-day" data-tf-day="${k}">${ico('plus')} ${esc(t('tfNoDayShifts'))}</button>`}</div>
+      ${mates.length ? `<section class="clay card stack" style="gap:8px;margin-bottom:12px"><h3 class="section-title" style="margin:0">${esc(t('tfMates'))}</h3>${mates.map(({ f, ids }) => `<div class="tf-item"><b>${esc(f.name)}</b><div class="row wrap grow" style="gap:6px">${ids.map(id => { const s = f.shifts.find(x => x.id === id); return s ? tfTag(s) : ''; }).join('')}</div></div>`).join('')}</section>` : ''}
+      ${ext.length ? `<section class="clay card stack" style="gap:8px;margin-bottom:12px"><h3 class="section-title" style="margin:0">${esc(t('tfExtEvents'))}</h3>${ext.map(e => `<div class="tf-item">${ico('calendar')} ${esc(e.title)}</div>`).join('')}</section>` : ''}`;
+  }
+  function tfSetCv(cv) {
+    const u = tfUi(); if (!TF_CV.includes(cv) || cv === u.cv) return;
+    if (cv === 'month' || cv === 'year') u.ym = u.d.slice(0, 7);
+    u.cv = cv; if (cv === 'year') TFS.quick = null;
+    save(); render();
+    const z = $('.tf-zoom'); if (z) { z.classList.remove('zoom-in', 'zoom-out'); void z.offsetWidth; z.classList.add(TF_CV.indexOf(cv) > TF_CV.indexOf(TFS.lastCv || cv) ? 'zoom-out' : 'zoom-in'); }
+    TFS.lastCv = cv;
+  }
+  /* v1.24: pellizcar en el calendario. Hacia fuera: Día → Semana → Mes → Año; hacia dentro: Año → Mes → Semana → Día.
+     En el ordenador, Ctrl + rueda (o pellizcar en el trackpad) hace lo mismo. */
+  const TF_PINCH = { out: 1, in: -1 };
+  let tfPinch = null;
+  const tfDist = ts => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
+  const tfZoomBy = dir => { const u = tfUi(), i = TF_CV.indexOf(u.cv) + dir; if (i >= 0 && i < TF_CV.length) { sfx('tap'); tfSetCv(TF_CV[i]); } };
+  document.addEventListener('touchstart', e => {
+    if (state.ui.tab !== 'cal' || e.touches.length !== 2 || !e.target.closest('.tf-zoom')) return;
+    tfPinch = { d: tfDist(e.touches), done: false }; mSw = null; tfPaintEnd(false);
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!tfPinch || e.touches.length !== 2) return;
+    if (e.cancelable) e.preventDefault();
+    if (tfPinch.done) return;
+    const r = tfDist(e.touches) / (tfPinch.d || 1);
+    if (r > 1.3) { tfPinch.done = true; tfZoomBy(TF_PINCH.out); } else if (r < .77) { tfPinch.done = true; tfZoomBy(TF_PINCH.in); }
+  }, { passive: false });
+  document.addEventListener('touchend', e => { if (tfPinch && e.touches.length < 2) tfPinch = null; }, { passive: true });
+  let tfWheelAt = 0;
+  document.addEventListener('wheel', e => {
+    if (!e.ctrlKey || state.ui.tab !== 'cal' || !e.target.closest || !e.target.closest('.tf-zoom')) return;
+    e.preventDefault();
+    if (Date.now() - tfWheelAt < 450 || Math.abs(e.deltaY) < 4) return;
+    tfWheelAt = Date.now(); tfZoomBy(e.deltaY < 0 ? TF_PINCH.out : TF_PINCH.in);
+  }, { passive: false });
+  /* v1.24: con «Edición rápida», mantener pulsado y deslizar por los días pinta (o quita) en todos los que toques.
+     Lo que hace el primer día manda: si ya tenía ese turno, se va quitando; si no, se va poniendo. */
+  let tfPaintS = null;
+  function tfPaintCell(k) {
+    if (!tfPaintS || tfPaintS.seen.has(k)) return;
+    tfPaintS.seen.add(k);
+    const q = TFS.quick;
+    if (q === 'erase') delete state.calDays[k];
+    else {
+      const list = state.calDays[k] ? [...state.calDays[k]] : [], i = list.findIndex(e => e.sid === q);
+      if (tfPaintS.mode === null) tfPaintS.mode = i >= 0 ? 'rm' : 'add';
+      if (tfPaintS.mode === 'rm' && i >= 0) list.splice(i, 1);
+      else if (tfPaintS.mode === 'add' && i < 0 && list.length < TF.LIMITS.perDay) list.push({ sid: q, note: '', start: '', end: '' });
+      tfSetDay(k, list);
+    }
+    sfx('tap'); vibrate(8);
+    // Se redibuja solo la casilla (la pantalla entera se redibuja al soltar)
+    const tmp = document.createElement('div'); tmp.innerHTML = viewCal();
+    $$(`[data-tf-day="${k}"]`).forEach(el => { const n = tmp.querySelector(`.${el.classList[0]}[data-tf-day="${k}"]`); if (n) el.innerHTML = n.innerHTML; el.classList.add('painted'); });
+  }
+  function tfPaintEnd(commit = true) { const p = tfPaintS; tfPaintS = null; if (p && commit && p.seen.size) tfSave(); }
+  document.addEventListener('pointerdown', e => {
+    if (state.ui.tab !== 'cal' || !TFS.quick || e.button || tfUi().cv === 'year') return;
+    const c = e.target.closest('.tf-zoom [data-tf-day]'); if (!c) return;
+    tfPaintS = { seen: new Set(), mode: null, id: e.pointerId };
+    tfPaintCell(c.dataset.tfDay);
+  }, true);
+  document.addEventListener('pointermove', e => {
+    if (!tfPaintS || e.pointerId !== tfPaintS.id) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY), c = el && el.closest('.tf-zoom [data-tf-day]');
+    if (c) tfPaintCell(c.dataset.tfDay);
+  }, true);
+  document.addEventListener('pointerup', e => { if (tfPaintS && e.pointerId === tfPaintS.id) tfPaintEnd(); }, true);
+  document.addEventListener('pointercancel', e => { if (tfPaintS && e.pointerId === tfPaintS.id) tfPaintEnd(); }, true);
   function tfDow() {
     const ws = tfWs(), base = new Date(2024, 0, 7); // domingo
     return Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(state.lang, { weekday: 'short' }).format(TF.addDays(base, (ws + i) % 7)));
@@ -865,11 +1007,13 @@
     let html = '<div class="tf-grid">';
     for (let i = 0; i < cells; i++) {
       const date = TF.addDays(new Date(y, mo, 1), i - lead), k = TF.iso(date), inMonth = date.getMonth() === mo, items = [];
-      for (const e of tfSorted(state.calDays[k] || [])) { const s = tfShift(e.sid); if (s) items.push({ s }); }
+      for (const e of tfSorted(state.calDays[k] || [])) { const s = tfShift(e.sid); if (s) items.push({ s, tm: TF.entryTimes(s, e) }); }
+      // v1.24: un turno que empieza justo cuando acaba el anterior se dibuja pegado a él
+      items.forEach((it, j) => { const p = items[j - 1]; if (p && p.tm && it.tm && p.tm.end && p.tm.end === it.tm.start) { p.jb = true; it.jt = true; } });
       for (const f of shown) for (const id of f.days[k] || []) { const s = f.shifts.find(x => x.id === id); if (s) items.push({ s, who: f.name }); }
       const ext = extBy[k] || [];
       const aria = tfLong(k) + (items.length ? ': ' + items.map(it => (it.who ? it.who + ' · ' : '') + it.s.name).join(', ') : '');
-      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''}" data-tf-day="${k}" aria-label="${esc(aria)}"><span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}</span>${items.slice(0, 3).map(it => it.who ? tfGhost(it.s, it.who) : tfTag(it.s)).join('')}${items.length > 3 ? `<span class="more">+${items.length - 3}</span>` : ''}</button>`;
+      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''}" data-tf-day="${k}" aria-label="${esc(aria)}"><span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}</span>${items.slice(0, 3).map((it, j) => it.who ? tfGhost(it.s, it.who) : tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < 2 ? 'jb' : ''}`)).join('')}${items.length > 3 ? `<span class="more">+${items.length - 3}</span>` : ''}</button>`;
     }
     return html + '</div>';
   }
@@ -1387,13 +1531,14 @@
 
   // Clics del Calendario (data-tf*)
   function tfClick(e) {
-    const el = e.target.closest('[data-tf],[data-tf-go],[data-tf-cv],[data-tf-day],[data-tf-month],[data-tf-q],[data-tf-rm],[data-tf-ws],[data-tf-shift],[data-tf-job],[data-tf-kind],[data-tf-rt]');
+    const el = e.target.closest('[data-tf],[data-tf-go],[data-tf-cv],[data-tf-day],[data-tf-open],[data-tf-month],[data-tf-q],[data-tf-rm],[data-tf-ws],[data-tf-shift],[data-tf-job],[data-tf-kind],[data-tf-rt]');
     if (!el) { if (TFS.menu && !e.target.closest('.tf-menu')) { TFS.menu = false; render(); } return false; }
     const u = tfUi(), y = +u.ym.slice(0, 4), mo = +u.ym.slice(5, 7) - 1, ym = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
     if (el.dataset.tfGo) { u.view = el.dataset.tfGo; TFS.quick = null; TFS.menu = false; save(); render(); window.scrollTo(0, 0); return true; }
-    if (el.dataset.tfCv) { u.cv = el.dataset.tfCv; TFS.quick = null; save(); render(); return true; }
-    if (el.dataset.tfDay) { tfOnDay(el.dataset.tfDay); return true; }
-    if (el.dataset.tfMonth) { u.ym = `${y}-${pad(+el.dataset.tfMonth + 1)}`; u.cv = 'month'; save(); render(); return true; }
+    if (el.dataset.tfCv) { tfSetCv(el.dataset.tfCv); return true; }
+    if (el.dataset.tfDay) { if (TFS.quick && e.detail !== 0 && u.cv !== 'year') return true; /* con el dedo o el ratón pinta tfPaint */ tfOnDay(el.dataset.tfDay); return true; }
+    if (el.dataset.tfOpen) { u.d = el.dataset.tfOpen; u.ym = u.d.slice(0, 7); u.cv = 'day'; TFS.quick = null; save(); render(); return true; }
+    if (el.dataset.tfMonth) { u.ym = `${y}-${pad(+el.dataset.tfMonth + 1)}`; u.d = u.ym + '-01'; u.cv = 'month'; save(); render(); return true; }
     if (el.dataset.tfQ) { TFS.quick = el.dataset.tfQ; const sy = window.scrollY; render(); window.scrollTo(0, sy); return true; }
     if (el.dataset.tfRm) { const r = TFS.rep; if (el.dataset.tfRm === 'custom') { const [a, b] = tfRepRange(); r.from = a; r.to = b; } r.mode = el.dataset.tfRm; render(); return true; }
     if (el.dataset.tfWs) { state.calPrefs = { ...state.calPrefs, weekStart: +el.dataset.tfWs }; save(); render(); return true; }
@@ -1403,8 +1548,13 @@
     if (el.dataset.tfRt !== undefined) { tfRoutineAct(el.dataset.tfRt, el.dataset.id); return true; }
     switch (el.dataset.tf) {
       case 'menu': TFS.menu = !TFS.menu; render(); break;
-      case 'prev': case 'next': { const n = el.dataset.tf === 'next' ? 1 : -1; u.ym = ym(u.cv === 'year' ? new Date(y + n, mo, 1) : new Date(y, mo + n, 1)); save(); render(); break; }
-      case 'today': u.ym = todayKey().slice(0, 7); save(); render(); break;
+      case 'prev': case 'next': {
+        const n = el.dataset.tf === 'next' ? 1 : -1;
+        if (u.cv === 'day' || u.cv === 'week') { u.d = TF.iso(TF.addDays(TF.parseISO(u.d), n * (u.cv === 'week' ? 7 : 1))); u.ym = u.d.slice(0, 7); }
+        else { u.ym = ym(u.cv === 'year' ? new Date(y + n, mo, 1) : new Date(y, mo + n, 1)); u.d = todayKey().startsWith(u.ym) ? todayKey() : u.ym + '-01'; }
+        save(); render(); break;
+      }
+      case 'today': u.ym = todayKey().slice(0, 7); u.d = todayKey(); save(); render(); break;
       case 'quick': TFS.quick = TFS.quick ? null : (state.calShifts[0] || {}).id || null; render(); break;
       case 'shared': tfOpenShared(); break;
       case 'share': tfOpenShare(); break;
@@ -1422,7 +1572,7 @@
   document.addEventListener('change', async e => {
     if (state.ui.tab !== 'cal') return;
     const el = e.target, u = tfUi(), R = TFS.rot;
-    if (el.matches('[data-tf-pick]')) { const y = el.dataset.tfPick === 'y' ? +el.value : +u.ym.slice(0, 4), m = el.dataset.tfPick === 'm' ? +el.value + 1 : +u.ym.slice(5, 7); u.ym = `${y}-${pad(m)}`; save(); render(); }
+    if (el.matches('[data-tf-pick]')) { const y = el.dataset.tfPick === 'y' ? +el.value : +u.ym.slice(0, 4), m = el.dataset.tfPick === 'm' ? +el.value + 1 : +u.ym.slice(5, 7); u.ym = `${y}-${pad(m)}`; u.d = `${u.ym}-${pad(Math.min(+u.d.slice(8, 10), new Date(y, m, 0).getDate()))}`; save(); render(); }
     else if (el.matches('[data-tf-rf]')) { TFS.rep[el.dataset.tfRf] = el.value; render(); }
     else if (el.matches('[data-tf-r]')) {
       const k = el.dataset.tfR;
@@ -1811,12 +1961,13 @@
     $$(`.cal-box[data-hid="${hid}"]`).forEach(box => { const tmp = document.createElement('div'); tmp.innerHTML = calHtml(h).trim(); const n = tmp.firstElementChild; box.replaceWith(n); initCals(n.parentElement); });
   }
   /* v1.22: cambiar de mes deslizando con el dedo o arrastrando con el ratón (Calendario, Libreta y calendarios de los hábitos) */
-  const SWIPE_ZONES = [['.tf-grid, .tf-year', '[data-tf="prev"]', '[data-tf="next"]', '.tf-grid, .tf-year'], ['.ledger-cal .cal', '[data-act="ledger-month"][data-d="-1"]', '[data-act="ledger-month"][data-d="1"]', '.ledger-cal .cal']];
+  const SWIPE_ZONES = [['.tf-grid, .tf-year, .tf-week', '[data-tf="prev"]', '[data-tf="next"]', '.tf-grid, .tf-year, .tf-week'], ['.ledger-cal .cal', '[data-act="ledger-month"][data-d="-1"]', '[data-act="ledger-month"][data-d="1"]', '.ledger-cal .cal']];
   let mSw = null, mSwBlock = false;
   document.addEventListener('pointerdown', e => {
     if (e.button || e.target.closest('input, select, textarea')) return;
     const cs = e.pointerType === 'mouse' && e.target.closest('.cal-swipe');
     if (cs) { mSw = { kind: 'cs', el: cs, x: e.clientX, y: e.clientY, sl: cs.scrollLeft, moved: false }; return; }
+    if (TFS.quick && e.target.closest('.tf-zoom')) return; // v1.24: con la edición rápida, deslizar pinta
     const z = SWIPE_ZONES.find(([sel]) => e.target.closest(sel));
     if (z) mSw = { kind: 'zone', z, x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
   }, true);
