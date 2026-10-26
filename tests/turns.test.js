@@ -93,3 +93,17 @@ test('v1.23: rutinas de un día y semana tipo', () => {
   T.applyRoutine(d, day, { from: '2026-10-05', to: '2026-10-05' });
   assert.equal(d.days['2026-10-05'].length, 4); // se añade a lo que había
 });
+
+// v1.24: tarifa propia del tipo (+€/h o +%) sobre la de su categoría
+{
+  const d = T.sanitize({ jobs: [{ id: 'j1', name: 'J', rate: 10, otWeekHours: 0 }], shifts: [{ id: 'a', jobId: 'j1', name: 'A', kind: 'night', start: '22:00', end: '06:00' }, { id: 'b', jobId: 'j1', name: 'B', kind: 'work', start: '09:00', end: '13:00' }], days: { '2026-10-05': [{ sid: 'a' }, { sid: 'b' }] } });
+  const paid = () => true;
+  assert.strictEqual(T.report(d, '2026-10-05', '2026-10-05', 1, paid).pay, 120);
+  assert.strictEqual(T.report(d, '2026-10-05', '2026-10-05', 1, paid, (k) => k === 'night' ? { mode: 'fixed', v: 2 } : null).pay, 8 * 12 + 4 * 10);
+  assert.strictEqual(T.report(d, '2026-10-05', '2026-10-05', 1, paid, (k) => k === 'night' ? { mode: 'pct', v: 25 } : { mode: 'same', v: 0 }).pay, 8 * 12.5 + 4 * 10);
+  // Las rutinas marcan sus turnos con rt y sanitize lo conserva
+  const data = { shifts: d.shifts, days: {} };
+  T.applyRoutine(data, { id: 'r1', kind: 'day', day: [{ sid: 'b', start: '', end: '' }] }, { from: '2026-10-06', to: '2026-10-06' });
+  assert.strictEqual(data.days['2026-10-06'][0].rt, 'r1');
+  assert.strictEqual(T.sanitize({ ...d, days: data.days }).days['2026-10-06'][0].rt, 'r1');
+}

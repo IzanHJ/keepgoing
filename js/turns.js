@@ -120,8 +120,10 @@
   }
 
   /** Informe de horas/paga entre dos fechas ISO (inclusive). Extras semanales por trabajo.
-      v1.23: paidKind(kind) dice si un tipo cuenta para la paga (por defecto solo 'work'); una categoría con paid === false no cobra. */
-  function report(data, from, to, weekStart, paidKind) {
+      v1.23: paidKind(kind) dice si un tipo cuenta para la paga (por defecto solo 'work'); una categoría con paid === false no cobra.
+      v1.24: kindRate(kind) → { mode: 'same' | 'fixed' | 'pct', v } cambia la tarifa de la categoría para ese tipo (+v €/h o +v %). */
+  function report(data, from, to, weekStart, paidKind, kindRate) {
+    const adj = (kind, b) => { const r = kindRate ? kindRate(kind) : null; if (!r || !Number.isFinite(+r.v)) return b; return r.mode === 'fixed' ? Math.max(0, b + +r.v) : r.mode === 'pct' ? Math.max(0, b * (1 + +r.v / 100)) : b; };
     const isPaid = (s, job) => (paidKind ? paidKind(s.kind) : s.kind === 'work') && job.paid !== false;
     const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
     const jobBy = Object.fromEntries(data.jobs.map((j) => [j.id, j]));
@@ -147,7 +149,7 @@
           fr.forEach((f, i) => {
             if (!f) return;
             const sp = sps[i];
-            let base = sp ? (sp.rate > 0 ? sp.rate : job.rate) : job.rate;
+            let base = adj(s.kind, sp ? (sp.rate > 0 ? sp.rate : job.rate) : job.rate);
             if (sp) base = applyPlus(base, sp.mode, sp.plus);
             pay += (regular * f * base + ot * f * applyPlus(base, job.otMode, job.otPlus)) * (1 + s.diffPct / 100);
           });

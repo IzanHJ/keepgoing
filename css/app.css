@@ -1964,3 +1964,4 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .tf-preview { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--r-md); border: 1.5px dashed var(--line); transition: opacity .2s; }
 .tf-preview .tf-summary { margin: 0; }
 .tf-preview.off .tf-summary { opacity: .25; filter: grayscale(1); }
+.tf-dot.sm { width: 10px; height: 10px; display: inline-block; vertical-align: middle; }

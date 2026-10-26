@@ -799,6 +799,9 @@
   const tfKinds = () => { const p = state.calPrefs; if (!Array.isArray(p.kinds) || !p.kinds.length) p.kinds = TF.defaultKinds(); return p.kinds; };
   const tfKind = k => { const x = tfKinds().find(y => y.id === k); if (x && x.name) return x.name; const d = t('tfKind_' + k); return d !== 'tfKind_' + k ? d : t('tfKind_other'); };
   const tfPaidKind = k => { const x = tfKinds().find(y => y.id === k); return x ? !!x.paid : k === 'work'; };
+  // v1.24: cada tipo puede ir vinculado a una categoría (jobId) y cobrar su misma tarifa, +X €/h o +X %
+  const tfKindRate = k => { const x = tfKinds().find(y => y.id === k); return x && x.paid && ['fixed', 'pct'].includes(x.rateMode) ? { mode: x.rateMode, v: +x.rateV || 0 } : null; };
+  const tfKindJob = x => x && x.jobId ? state.calJobs.find(j => j.id === x.jobId) || null : null;
   const tfPlus = (mode, v) => mode === 'fixed' ? '+' + tfH(v) + ' €/h' : '×' + tfH(v);
   // Etiqueta de un turno (color del turno; emoji y nombre los pone el usuario)
   const tfTag = (s, cls = '', label) => `<span class="tf-tag ${cls}" style="--c:${tfColor(s.color)};--fg-c:${tfFg(tfColor(s.color))}">${label !== undefined ? esc(label) : `${s.emoji ? esc(s.emoji) + ' ' : `<span class="ini">${esc((String(s.name).trim().charAt(0) || '?').toUpperCase())}</span>`}<span class="tn">${esc(s.name)}</span>`}</span>`;
@@ -866,7 +869,7 @@
   }
   // Resumen de horas, turnos y paga del periodo a la vista (v1.24: se puede quitar en Ajustes)
   function tfSummary(range) {
-    const r = TF.report(tfData(), range[0], range[1], tfWs(), tfPaidKind);
+    const r = TF.report(tfData(), range[0], range[1], tfWs(), tfPaidKind, tfKindRate);
     return `<section class="tf-summary clay ${privacyOn() ? 'priv' : ''}"><div><span class="muted small">${esc(t('tfHours'))}</span><b>${tfH(r.hours)} h</b></div><div><span class="muted small">${esc(t('tfShiftsN'))}</span><b>${r.count}</b></div><div><span class="muted small">${esc(t('tfPayEst'))}</span><b>${money(r.pay)}</b></div></section>`;
   }
   /* ---------- v1.24: vistas Semana y Día ----------
@@ -1303,7 +1306,7 @@
     const a = r.from || TF.iso(ref), b = r.to || a; return a <= b ? [a, b] : [b, a];
   }
   function tfReports() {
-    const r = TFS.rep, [from, to] = tfRepRange(), res = TF.report(tfData(), from, to, tfWs(), tfPaidKind);
+    const r = TFS.rep, [from, to] = tfRepRange(), res = TF.report(tfData(), from, to, tfWs(), tfPaidKind, tfKindRate);
     const shortD = k => fmtDate(k, { day: 'numeric', month: 'short', year: 'numeric' });
     const byShift = Object.entries(res.byShift).map(([id, v]) => { const s = tfShift(id); return s ? `<tr><td>${tfTag(s)}</td><td>${v.count}</td><td>${tfH(v.hours)}</td><td>${money(v.pay)}</td></tr>` : ''; }).join('');
     const byKind = Object.entries(res.byKind).map(([k, v]) => `<tr><td>${esc(tfKind(k))}</td><td>${v.count}</td><td>${tfH(v.hours)}</td></tr>`).join('');
@@ -1325,28 +1328,51 @@
     return `${tfSub(t('tfShifts'))}
       <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${esc(t('tfTemplates'))}</h2><button class="icon-btn sm" data-tf-shift="" aria-label="${esc(t('tfNewShift'))}" title="${esc(t('tfNewShift'))}">${ico('plus')}</button></div><div class="stack" style="gap:8px">${list}</div></section>
       <section class="clay card stack ${privacyOn() ? 'priv' : ''}" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${esc(t('tfJobs'))}</h2><button class="icon-btn sm" data-tf-job="" aria-label="${esc(t('tfNewJob'))}" title="${esc(t('tfNewJob'))}">${ico('plus')}</button></div><div class="stack" style="gap:8px">${jobs}</div></section>
-      <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${esc(t('tfKinds'))}</h2><button class="icon-btn sm" data-tf-kind="" aria-label="${esc(t('tfNewKind'))}" title="${esc(t('tfNewKind'))}">${ico('plus')}</button></div><div class="stack" style="gap:8px">${tfKinds().map(k => `<div class="tf-item"><span class="grow"><b>${esc(tfKind(k.id))}</b><br><span class="muted small">${esc(t(k.paid ? 'tfKindPaid' : 'tfKindUnpaid'))} · ${esc((n => t(n === 1 ? 'tfKindUses1' : 'tfKindUses', { n }))(state.calShifts.filter(x => x.kind === k.id).length))}</span></span><button class="btn sm" data-tf-kind="${esc(k.id)}">${esc(t('edit'))}</button></div>`).join('')}</div></section>`;
+      <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${esc(t('tfKinds'))}</h2><button class="icon-btn sm" data-tf-kind="" aria-label="${esc(t('tfNewKind'))}" title="${esc(t('tfNewKind'))}">${ico('plus')}</button></div><div class="stack" style="gap:8px">${tfKinds().map(k => `<div class="tf-item"><span class="grow"><b>${esc(tfKind(k.id))}</b><br><span class="muted small">${tfKindJob(k) ? `<span class="tf-dot sm" style="--c:${tfColor(tfKindJob(k).color)}"></span> ${esc(tfKindJob(k).name)} · ` : ''}${esc(t(k.paid ? 'tfKindPaid' : 'tfKindUnpaid'))}${k.paid && tfKindRate(k.id) ? ' (' + esc(tfKindRate(k.id).mode === 'fixed' ? (tfKindRate(k.id).v >= 0 ? '+' : '') + tfH(tfKindRate(k.id).v) + ' €/h' : (tfKindRate(k.id).v >= 0 ? '+' : '') + tfH(tfKindRate(k.id).v) + ' %') + ')' : ''} · ${esc((n => t(n === 1 ? 'tfKindUses1' : 'tfKindUses', { n }))(state.calShifts.filter(x => x.kind === k.id).length))}</span></span><button class="btn sm" data-tf-kind="${esc(k.id)}">${esc(t('edit'))}</button></div>`).join('')}</div></section>`;
   }
-  // v1.23: añadir, editar o borrar un tipo. «Cuenta para la paga» = se cobra con la tarifa de su categoría (si la categoría cobra)
+  /* v1.23: añadir, editar o borrar un tipo. «Cuenta para la paga» = se cobra con la tarifa de su categoría (si la categoría cobra).
+     v1.24: el tipo va vinculado a una categoría (se puede abrir para editarla) y, si se cobra, con su misma tarifa,
+     una diferencia fija (+X €/h) o porcentual (+X %). Al elegir el tipo en un turno, la categoría se pone sola. */
   function tfEditKind(id) {
-    const ks = tfKinds(), k = ks.find(x => x.id === id), isNew = !k, d = k ? { ...k } : { id: 'k_' + TF.uid().slice(0, 10), name: '', paid: false };
+    const ks = tfKinds(), k = ks.find(x => x.id === id), isNew = !k;
+    const d = k ? { rateMode: 'same', rateV: 0, ...k } : { id: 'k_' + TF.uid().slice(0, 10), name: '', paid: false, jobId: (state.calJobs[0] || {}).id || '', rateMode: 'same', rateV: 0 };
+    if (!d.jobId || !state.calJobs.some(j => j.id === d.jobId)) d.jobId = (state.calJobs.find(j => state.calShifts.some(s => s.kind === d.id && s.jobId === j.id)) || state.calJobs[0] || {}).id || '';
+    if (!isNew && !d.name) d.name = tfKind(d.id);
+    let wref;
+    const read = () => { if (!wref) return; d.name = $('#tfk-name', wref).value; d.paid = $('#tfk-paid', wref).checked; d.jobId = $('#tfk-job', wref).value; const v = $('#tfk-rv', wref); if (v) d.rateV = v.value; };
+    const draw = () => {
+      const job = state.calJobs.find(j => j.id === d.jobId);
+      $('#tfk', wref).innerHTML = `<div class="stack" style="gap:14px">${tfField(t('tfName'), `<input class="input" id="tfk-name" maxlength="40" value="${esc(d.name)}" placeholder="${esc(t('tfKindPh'))}">`)}
+        <div class="field"><span>${esc(t('tfKindJob'))}</span><div class="row" style="gap:8px">${tfSel('id="tfk-job" style="flex:1"', state.calJobs.map(j => [j.id, j.name]), d.jobId)}<button class="btn sm" data-tfk="job" ${job ? '' : 'disabled'}>${ico('edit')} ${esc(t('tfKindEditJob'))}</button></div><p class="muted small" style="margin:0;text-transform:none;letter-spacing:0">${esc(t('tfKindJobHint'))}</p></div>
+        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="tfk-paid" ${d.paid ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('tfKindPaidQ'))}</b><br><span class="muted small">${esc(t('tfKindPaidHint'))}</span></span></label>
+        ${d.paid ? `<div class="tf-rect stack" style="gap:10px"><b class="small">${esc(t('tfKindRate'))}</b><div class="seg seg-sm" role="group">${[['same', 'tfKindSame'], ['fixed', 'tfKindFixed'], ['pct', 'tfKindPct']].map(([m, l]) => `<button type="button" data-tfk-m="${m}" class="${d.rateMode === m ? 'on' : ''}">${esc(t(l))}</button>`).join('')}</div>
+          ${d.rateMode === 'same' ? `<span class="muted small">${esc(job ? (job.paid === false ? t('tfKindJobUnpaid', { job: job.name }) : t('tfKindSameHint', { job: job.name, rate: money(job.rate) })) : '')}</span>`
+            : `${tfField(t(d.rateMode === 'fixed' ? 'tfKindFixedU' : 'tfKindPctU'), `<input class="input" type="number" id="tfk-rv" step="${d.rateMode === 'fixed' ? '0.1' : '1'}" min="${d.rateMode === 'fixed' ? -1000 : -100}" max="${d.rateMode === 'fixed' ? 1000 : 1000}" value="${esc(d.rateV)}">`)}
+              ${job ? `<span class="muted small" id="tfk-res">${esc(t('tfKindResult', { job: job.name, rate: money(job.rate), res: money(d.rateMode === 'fixed' ? Math.max(0, job.rate + (+d.rateV || 0)) : Math.max(0, job.rate * (1 + (+d.rateV || 0) / 100))) }))}</span>` : ''}`}</div>` : ''}</div>`;
+    };
     openModal({
-      title: esc(t(isNew ? 'tfNewKind' : 'tfEditKind')), cls: 'tf-sheet',
-      body: `<div class="stack" style="gap:14px">${tfField(t('tfName'), `<input class="input" id="tfk-name" maxlength="40" value="${esc(d.name || (isNew ? '' : tfKind(d.id)))}" placeholder="${esc(t('tfKindPh'))}">`)}
-        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="tfk-paid" ${d.paid ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('tfKindPaidQ'))}</b><br><span class="muted small">${esc(t('tfKindPaidHint'))}</span></span></label></div>`,
+      title: esc(t(isNew ? 'tfNewKind' : 'tfEditKind')), cls: 'tf-sheet', body: '<div id="tfk"></div>',
       foot: `${isNew || ks.length < 2 ? '' : `<button class="btn danger" data-tfk="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-tfk="save">${esc(t('save'))}</button>`,
-      onClick: async (e, close, w) => {
+      onMount: w => { wref = w; draw(); w.addEventListener('change', e => { if (['tfk-paid', 'tfk-job'].includes(e.target.id)) { read(); draw(); } }); w.addEventListener('input', e => { if (e.target.id !== 'tfk-rv') return; read(); const job = state.calJobs.find(j => j.id === d.jobId), r = $('#tfk-res', w); if (job && r) r.textContent = t('tfKindResult', { job: job.name, rate: money(job.rate), res: money(d.rateMode === 'fixed' ? Math.max(0, job.rate + (+d.rateV || 0)) : Math.max(0, job.rate * (1 + (+d.rateV || 0) / 100))) }); }); },
+      onClick: async (e, close) => {
+        let el;
+        if ((el = e.target.closest('[data-tfk-m]'))) { read(); if (d.rateMode !== el.dataset.tfkM) { d.rateMode = el.dataset.tfkM; d.rateV = 0; } draw(); return; }
         const b = e.target.closest('[data-tfk]'); if (!b) return;
+        if (b.dataset.tfk === 'job') { read(); const j = state.calJobs.find(x => x.id === d.jobId); if (j) tfEditJob(j, () => draw()); return; }
         if (b.dataset.tfk === 'del') {
           const rest = ks.filter(x => x.id !== d.id), to = rest.find(x => x.id === 'other') || rest[0], n = state.calShifts.filter(x => x.kind === d.id).length;
           if (!(await confirmDialog(n ? t('tfDelKindQn', { n, to: tfKind(to.id) }) : t('tfDelKindQ')))) return;
           state.calPrefs.kinds = rest; state.calShifts = state.calShifts.map(x => x.kind === d.id ? { ...x, kind: to.id } : x); close(); tfSave(); return;
         }
-        const name = $('#tfk-name', w).value.trim().slice(0, 40);
+        read();
+        const name = String(d.name).trim().slice(0, 40);
         if (!name) { toast(t('tfNeedName')); return; }
         if (isNew && ks.length >= 30) return;
-        const out = { id: d.id, name: !isNew && name === t('tfKind_' + d.id) ? '' : name, paid: $('#tfk-paid', w).checked };
+        const rv = d.rateMode === 'fixed' ? clamp(+d.rateV || 0, -1000, 1000) : d.rateMode === 'pct' ? clamp(+d.rateV || 0, -100, 1000) : 0;
+        const out = { id: d.id, name: !isNew && name === t('tfKind_' + d.id) ? '' : name, paid: d.paid, jobId: d.jobId, rateMode: d.paid ? d.rateMode : 'same', rateV: d.paid ? rv : 0 };
         const i = ks.findIndex(x => x.id === d.id); if (i >= 0) ks[i] = out; else ks.push(out);
+        // Los turnos de este tipo pasan a su categoría vinculada
+        if (out.jobId) state.calShifts = state.calShifts.map(x => x.kind === out.id && x.jobId !== out.jobId ? { ...x, jobId: out.jobId } : x);
         state.calPrefs.kinds = [...ks]; close(); tfSave(); toast(t('saved'));
       }
     });
@@ -1510,6 +1536,8 @@
         ${tfField(t('tfBreak'), `<input class="input" type="number" id="tfe-brk" min="0" max="720" value="${d.breakMin}">`)}${tfField(t('tfDiff'), `<input class="input" type="number" id="tfe-diff" min="-100" max="1000" step="1" value="${d.diffPct}">`)}
         ${tfField(t('tfAlarm'), `<input class="input" type="number" id="tfe-alarm" min="0" max="1440" value="${d.alarmMin}">`, true)}</div>`,
       foot: `${isNew ? '' : `<button class="btn danger" data-tfe="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-tfe="save">${esc(t('save'))}</button>`,
+      // v1.24: al elegir el tipo, la categoría vinculada se pone sola
+      onMount: w => w.addEventListener('change', e => { if (e.target.id !== 'tfe-kind') return; const j = tfKindJob(tfKinds().find(x => x.id === e.target.value)); if (j) $('#tfe-job', w).value = j.id; }),
       onClick: async (e, close, w) => {
         const b = e.target.closest('[data-tfe]'); if (!b) return;
         if (b.dataset.tfe === 'del') {
@@ -1530,7 +1558,7 @@
     });
   }
   const tfClampPlus = (mode, v, def) => { v = +v; if (!Number.isFinite(v)) v = def; return mode === 'fixed' ? clamp(v, 0, 1000) : clamp(v, 1, 10); };
-  function tfEditJob(j) {
+  function tfEditJob(j, after) {
     const isNew = !j, d = j ? JSON.parse(JSON.stringify(j)) : { id: TF.uid(), name: '', color: '#4f6bed', rate: 0, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [] };
     let wref;
     // «Plus»: multiplicador o cantidad fija en €/hora
@@ -1544,7 +1572,8 @@
       $$('[data-tfj-sp]', wref).forEach(x => { const [i, f] = x.dataset.tfjSp.split(':'); d.specials[+i][f] = x.value; });
     };
     const draw = () => {
-      $('#tfj', wref).innerHTML = `<div class="stack" style="gap:12px"><div class="tf-form">${tfField(t('tfName'), `<input class="input" id="tfj-name" maxlength="100" value="${esc(d.name)}">`)}${tfField(t('tfColor'), `<input class="tf-swatch" type="color" id="tfj-color" value="${tfColor(d.color)}" aria-label="${esc(t('tfColor'))}">`)}
+      const linked = tfKinds().filter(k => k.jobId === d.id);
+      $('#tfj', wref).innerHTML = `<div class="stack" style="gap:12px">${linked.length ? `<p class="muted small" style="margin:0">${esc(t('tfJobKinds', { list: linked.map(k => tfKind(k.id)).join(', ') }))}</p>` : ''}<div class="tf-form">${tfField(t('tfName'), `<input class="input" id="tfj-name" maxlength="100" value="${esc(d.name)}">`)}${tfField(t('tfColor'), `<input class="tf-swatch" type="color" id="tfj-color" value="${tfColor(d.color)}" aria-label="${esc(t('tfColor'))}">`)}
           </div><label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="tfj-paid" ${d.paid !== false ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('tfCatPaidQ'))}</b><br><span class="muted small">${esc(t('tfCatPaidHint'))}</span></span></label>
         ${d.paid === false ? '' : `<div class="tf-form">${tfField(t('tfRate'), `<input class="input" type="number" id="tfj-rate" min="0" step="0.01" value="${esc(d.rate)}">`)}${tfField(t('tfOtAfter'), `<input class="input" type="number" id="tfj-ot" min="0" max="168" value="${esc(d.otWeekHours)}">`)}</div>
         ${plusHtml('ot', d.otMode, d.otPlus, t('tfOtPlus'))}
@@ -1574,7 +1603,7 @@
         const out = { id: d.id, name: String(d.name).trim().slice(0, 100), color: tfColor(d.color), paid: d.paid !== false, rate: Math.max(0, +d.rate || 0), otWeekHours: clamp(+d.otWeekHours || 0, 0, 168), otMode: d.otMode, otPlus: tfClampPlus(d.otMode, d.otPlus, 1.5),
           specials: d.specials.map(sp => ({ rate: Math.max(0, +sp.rate || 0), from: sp.from || '22:00', to: sp.to || '06:00', mode: sp.mode === 'fixed' ? 'fixed' : 'mult', plus: tfClampPlus(sp.mode, sp.plus, 1) })) };
         const i = state.calJobs.findIndex(x => x.id === d.id); if (i >= 0) state.calJobs[i] = out; else state.calJobs.push(out);
-        close(); tfSave(); toast(t('saved'));
+        close(); tfSave(); toast(t('saved')); if (after) after();
       }
     });
   }
