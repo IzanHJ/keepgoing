@@ -22,6 +22,14 @@
     prShift: 'Al menos un turno en el Calendario', prShiftHint: 'Ese día tiene que tener algo puesto en el Calendario.',
     prLedger: 'Al menos un movimiento en la Libreta', prLedgerHint: 'Ese día tiene que tener algún gasto, ingreso o inversión apuntado.',
     prFrom: 'Se aplica desde hoy. Los días anteriores no cambian.', prNeedOne: 'Elige al menos un hábito, un proyecto o un requisito.',
+    wn_1_24_0_1: 'Vistas Día y Semana en el Calendario|Además de Mes y Año tienes Día y Semana, con el contador «Semana 44 de 53» o «Día 299 de 365». Pellizca para cambiar de vista: abrir los dedos acerca (Año → Mes → Semana → Día) y cerrarlos aleja.',
+    wn_1_24_0_2: 'Un solo botón para editar rápido|El botón redondo de abajo a la derecha abre Turnos, Rutinas y Días, y también Compartir y Compartidos. Elige algo y toca o desliza el dedo por los días para ponerlo o quitarlo.',
+    wn_1_24_0_3: 'Colorea tus días|Marca días enteros como Laboral, Libre, Festivo o Vacaciones (o crea los tuyos). Es aparte de los turnos y se ve en Día, Semana, Mes y Año.',
+    wn_1_24_0_4: 'Rutinas de un vistazo y turnos seguidos unidos|Una rutina se ve como una sola etiqueta con los colores de sus turnos; al abrir el día ves de qué turnos se compone. Los turnos que van uno detrás de otro se dibujan pegados, cada uno con su color.',
+    wn_1_24_0_5: 'Tipos con su categoría y su tarifa|Cada tipo dice a qué categoría va vinculado (y la puedes editar desde ahí) y, si se cobra, si es la misma tarifa, una diferencia fija en €/h o un porcentaje. En Ajustes del Calendario puedes quitar el resumen de horas y paga.',
+    wn_1_24_0_6: 'Dinero Caprichable con tu Presupuesto|Ahora está al final de la Libreta, con la Diferencia acumulada de tu Presupuesto global al lado y un interruptor para sumar los dos en un total.',
+    wn_1_24_0_7: 'Eventos que colorean días|Al crear o editar un evento, «Colorear días» tiñe sus días en el calendario de la Libreta, en el del Calendario o en los dos.',
+    wn_1_24_0_8: 'Día perfecto a tu medida|En Maestrías, «Requisitos del día perfecto»: todos los hábitos o solo los que elijas (y los de tus proyectos), y si quieres, al menos un turno o un movimiento ese día. También se arregla enviar maestrías y cartas por el chat.',
     tfMore: 'Ajustes', tfMenuAria: 'Menú: informes, turnos, rutinas, rotaciones y ajustes',
   };
   const en = {
@@ -43,8 +51,16 @@
     prTitle: 'Perfect day requirements', prCustom: 'custom', prHint: 'Choose what a day needs to be perfect. Everything you choose must be met.',
     prAll: 'All habits', prPick: 'Choose', prProjects: 'Projects (all their habits)', prHabits: 'Habits',
     prShift: 'At least one shift in the Calendar', prShiftHint: 'That day must have something in the Calendar.',
-    prLedger: 'At least one movement in the Notebook', prLedgerHint: 'That day must have an expense, income or investment logged.',
+    prLedger: 'At least one entry in the Ledger', prLedgerHint: 'That day must have an expense, income or investment logged.',
     prFrom: 'It applies from today. Earlier days do not change.', prNeedOne: 'Choose at least one habit, project or requirement.',
+    wn_1_24_0_1: 'Day and Week views in the Calendar|Besides Month and Year you get Day and Week, with a “Week 44 of 53” or “Day 299 of 365” counter. Pinch to switch views: spread to zoom in (Year → Month → Week → Day), pinch to zoom out.',
+    wn_1_24_0_2: 'One button for quick edits|The round button at the bottom right opens Shifts, Routines and Days, plus Share and Shared. Pick something and tap or slide across the days to add or remove it.',
+    wn_1_24_0_3: 'Colour your days|Mark whole days as Work day, Day off, Holiday or Vacation (or create your own). It is separate from shifts and shows in Day, Week, Month and Year.',
+    wn_1_24_0_4: 'Routines at a glance and back-to-back shifts joined|A routine shows as a single label with its shifts’ colours; open the day to see what it is made of. Shifts that follow each other are drawn joined, each with its own colour.',
+    wn_1_24_0_5: 'Types with their category and rate|Each type shows its linked category (editable from there) and, if paid, whether it is the same rate, a fixed €/h difference or a percentage. In Calendar Settings you can hide the hours and pay summary.',
+    wn_1_24_0_6: 'Treat Money with your Budget|It now sits at the end of the Ledger, next to your global Budget’s accumulated difference, with a switch to add both into a total.',
+    wn_1_24_0_7: 'Events that colour days|When creating or editing an event, “Colour days” tints its days in the Ledger calendar, the Calendar or both.',
+    wn_1_24_0_8: 'Perfect day your way|In Masteries, “Perfect day requirements”: all habits or just the ones you choose (and your projects’), and optionally at least one shift or entry that day. Sending masteries and cards through the chat is fixed too.',
     tfMore: 'Settings', tfMenuAria: 'Menu: reports, shifts, routines, rotations and settings',
   };
   Object.assign(window.I18N.es, es);
