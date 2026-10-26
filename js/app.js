@@ -3712,7 +3712,7 @@
   const PLAN_GATES = [
     ['[data-act="calc-open"]', 'calc'], ['[data-act="ledger-import"], [data-act="ledger-imports"]', 'csv'],
     ['[data-act="ledger-share"]', 'ledgerShare'], ['[data-wo="cmp"]', 'compare'], ['[data-wo]', 'worth'],
-    ['[data-tf-go="routines"], [data-tf-tab="routines"]', 'routines'], ['[data-tf="share"]', 'calShare'], ['[data-th-color], [data-th-bg="gradient"]', 'themes'],
+    ['[data-tf-go="routines"], [data-tf-tab="routines"], [data-tf-qtab="routines"], [data-tf-q^="rt:"]', 'routines'], ['[data-tf="share"]', 'calShare'], ['[data-th-color], [data-th-bg="gradient"]', 'themes'],
     ['[data-more-range="365"], [data-more-range="all"], [data-act="led-range"][data-v="12"], [data-act="led-range"][data-v="all"]', 'history']
   ];
   document.addEventListener('click', e => {
