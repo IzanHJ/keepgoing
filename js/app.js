@@ -1486,6 +1486,7 @@
     const ent = l => (l || []).map(([k, a, b]) => { const sid = tfShiftFor(k), s = sid && tfShift(sid); return s ? { sid, start: a && a !== s.start ? a : '', end: b && b !== s.end ? b : '' } : null; }).filter(Boolean);
     const r = { id: TF.uid(), name: t('tfRtTpl_' + key), kind: T.kind, day: T.kind === 'day' ? ent(T.day) : [], week: {} };
     if (T.kind === 'week') for (let i = 0; i < 7; i++) r.week[i] = ent(T.week[i]);
+    if (!gate('routines')) return;
     state.calRoutines.push(r); tfSave(); toast(t('tfRtAdded'));
     tfEditRoutine(r);
   }
@@ -1513,6 +1514,7 @@
       if (!name) { toast(t('tfNeedName')); return false; }
       if (!tfRtCount(d)) { toast(t('tfRtNeedShift')); return false; }
       if (isNew && state.calRoutines.length >= 40) { toast(t('tfRtMax', { n: 40 })); return false; }
+      if (!gate('routines')) return false;
       const out = { id: d.id, name, kind: d.kind, day: d.kind === 'day' ? d.day : [], week: d.kind === 'week' ? d.week : {} };
       const i = state.calRoutines.findIndex(x => x.id === d.id); if (i >= 0) state.calRoutines[i] = out; else state.calRoutines.push(out);
       close(); tfSave(); toast(t('saved')); return true;
@@ -1850,6 +1852,8 @@
     const app = $('#app');
     if (!state.onboarded) { app.innerHTML = renderOnboarding(); mountOnboarding(); return; }
     const cc = awardContract();
+    // Contrato indefinido: al acabar cada periodo se entrega la carta y se renueva solo
+    if (cc && contractForever()) { const c = state.contract, s = todayKey(); c.signedAt = s; c.endsAt = contractEnd(s, false); c.renewals = (c.renewals || 0) + 1; c.level = state.commitment; delete c.trial; save(); }
     const ti = TABS.findIndex(x => x[0] === state.ui.tab), pos = viewPos();
     // Animación de entrada solo si cambia la vista: se desliza hacia la derecha o la izquierda según el orden
     const anim = lastView === null ? 'anim-in' : lastView.key === pos.key ? 'no-anim' : (pos.n > lastView.n ? 'anim-fwd' : 'anim-back');
@@ -2242,6 +2246,7 @@
 
   /* ---------- editor de hábito ---------- */
   function openHabitEditor(h = null) {
+    if (!h && !gateAdd('habits', activeHabitCount())) return;
     const isNew = !h;
     const f = h ? { kind: 'build', days: [0, 1, 2, 3, 4, 5, 6], ...h } : { kind: 'build', name: '', icon: '#', color: null, freq: 'daily', target: 1, multi: false, note: '', days: [0, 1, 2, 3, 4, 5, 6] };
     f.days = [...(f.days || [0, 1, 2, 3, 4, 5, 6])];
@@ -2377,7 +2382,7 @@
           const act = el.dataset.hm, i = state.habits.indexOf(h);
           if (act === 'up' && i > 0) { [state.habits[i - 1], state.habits[i]] = [state.habits[i], state.habits[i - 1]]; save(); render(); }
           if (act === 'down' && i < state.habits.length - 1) { [state.habits[i + 1], state.habits[i]] = [state.habits[i], state.habits[i + 1]]; save(); render(); }
-          if (act === 'archive') { h.archived = !h.archived; save(); close(); render(); }
+          if (act === 'archive') { if (h.archived && !gateAdd('habits', activeHabitCount())) return; h.archived = !h.archived; delete h.planArch; save(); close(); render(); }
           if (act === 'group') { close(); openGroup(h.groupId); return; }
           if (act === 'link') {
             const url = `${APP_URL}?check=${h.id}`;
@@ -2411,6 +2416,7 @@
           if (f.chDays > 0) props.challenge = oldCh && !oldCh.done ? { ...oldCh, days: f.chDays } : { tid: 'custom', days: f.chDays, start: todayKey() };
           else props.challenge = oldCh && oldCh.done ? oldCh : undefined;
           let target = h;
+          if (isNew && !gateAdd('habits', activeHabitCount())) return;
           if (isNew) {
             target = { id: uid(), ...props, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], createdAt: todayKey(), archived: false };
             state.habits.push(target);
@@ -2650,6 +2656,7 @@
   }
 
   function openProjectEditor(p = null, preset = null) {
+    if (!p && !gateAdd('projects', state.projects.length)) return;
     const isNew = !p;
     const f = p ? JSON.parse(JSON.stringify(p)) : { name: '', icon: '🎯', color: null, desc: '', habitIds: [], goal: { type: 'numeric', start: 0, target: 0, unit: '', entries: [], items: [], achieved: false }, deadline: null, milestones: [], photos: {}, ...(preset || {}) };
     f.milestones = f.milestones || []; f.photos = f.photos || {};
@@ -2721,6 +2728,7 @@
           readInputs(w);
           if (!f.name) { toast(t('projectNeedName')); $('#pf-name', w).focus(); return; }
           const share = f.share; delete f.share;
+          if (isNew && !gateAdd('projects', state.projects.length)) return;
           if (isNew) { f.id = uid(); f.createdAt = todayKey(); state.projects.push(f); }
           else { Object.assign(p, f); if (!f.hideCal) delete p.hideCal; }
           save(); close(); state.ui.tab = 'habits'; render();
@@ -2917,6 +2925,7 @@
   // Gráficos de un hábito o de los hábitos de un proyecto («Ver más» bajo su calendario; antes, vista Gráficos)
   function chartsFor(H, range, o = {}) {
     let html = '';
+    if (!KGPlan.allows(PL(), 'history') && (range === 'all' || range > KGPlan.LIMITS.chartDays)) range = KGPlan.LIMITS.chartDays;
     const single = H.length === 1 ? H[0] : null;
     const today = todayKey();
     const minFirst = H.reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, today);
@@ -3411,15 +3420,20 @@
     if (clearBtn) clearBtn.addEventListener('click', () => { ctx.clearRect(0, 0, cv.width, cv.height); dirty = false; });
     return { get: () => dirty ? cv.toDataURL('image/png') : null };
   }
+  /* v1.24: el primer contrato dura 14 días (la prueba). Los siguientes, lo que diga tu plan: un año con la tarifa anual,
+     un mes en el resto. Con Usuario KeepGoing para siempre (pago único, especiales, sorteos) el contrato es indefinido:
+     se renueva solo cada mes y sigue dando su carta. */
+  const contractEnd = (s, first) => first ? addDays(s, KGPlan.TRIAL_DAYS) : PL().term === 'year' ? addMonths(s, 12) : addMonths(s, 1);
+  const contractForever = () => { const p = PL(); return p.plan === 'keepgoing' && !p.until; };
   function signContract(name, sig, witness = null, g = 'm') {
-    const s = todayKey();
-    state.contract = { name, signedAt: s, endsAt: addMonths(s, 1), sig, renewals: 0, level: state.commitment, g, ...(witness ? { witness } : {}) };
+    const s = todayKey(), first = !state.contractCards.length;
+    state.contract = { name, signedAt: s, endsAt: contractEnd(s, first), sig, ...(first ? { trial: true } : {}), renewals: 0, level: state.commitment, g, ...(witness ? { witness } : {}) };
     save();
     if (witness) setTimeout(() => witnessMail(state.contract, 'sign'), 300);
   }
   function renewContract() {
     const c = state.contract; if (!c) return;
-    const s = todayKey(); c.signedAt = s; c.endsAt = addMonths(s, 1); c.renewals = (c.renewals || 0) + 1; c.level = state.commitment;
+    const s = todayKey(); c.signedAt = s; c.endsAt = contractEnd(s, false); c.renewals = (c.renewals || 0) + 1; c.level = state.commitment; delete c.trial;
     save(); render(); toast(t('contractRenewed', { date: fmtDate(c.endsAt) }));
   }
   function openContract() {
@@ -3491,6 +3505,7 @@
       if ((el = q('[data-th-preset]'))) {
         const p = PRESETS.find(x => x.id === el.dataset.thPreset);
         if (p.lvl && p.lvl > (state.onboarded ? levelInfo().level : 0)) { toast(t('themeLocked', { n: p.lvl })); return; }
+        if (p.lvl && !gate('themes')) return;
         Object.assign(state.theme, { preset: p.id, bg: p.bg, fg: p.fg, accent: p.accent, style: p.style || 'clay', bgMode: p.bgMode || 'solid', bg2: p.bg2 || state.theme.bg2 });
       } else if ((el = q('[data-th-font]'))) state.theme.font = el.dataset.thFont;
       else if ((el = q('[data-th-style]'))) state.theme.style = el.dataset.thStyle;
@@ -3713,7 +3728,7 @@
         const prev = state.contract;
         const w = obForm.witness(); if (w === 'bad') { toast(t('witnessBadEmail')); return true; }
         if (!prev || prev.name !== obForm.name() || obForm.sig() || prev.g !== obForm.g() || prev.level !== state.commitment || (w && (!prev.witness || prev.witness.email !== w.email))) signContract(obForm.name(), obForm.sig() || (prev && prev.sig) || null, w, obForm.g());
-        obCreateAll(); seenVersion(VERSION); state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); return true;
+        obCreateAll(); seenVersion(VERSION); state.onboarded = true; state.ui.tab = 'habits'; save(); render(); setTimeout(processJoin, 600); setTimeout(() => planOverLimit(true), 900); return true;
       }
       state.obStep++; save(); render(); return true;
     }
@@ -3758,7 +3773,7 @@
   }
   async function signOut() {
     try { if (auth) await sbFetch('/auth/v1/logout', { method: 'POST' }); } catch (e) { /* sin conexión: basta con olvidar la sesión */ }
-    saveAuth(null);
+    saveAuth(null); savePlanCache(null); state.ui.devView = '';
   }
   function scheduleSync(delay = 1500) {
     if (!auth) return;
@@ -3831,10 +3846,246 @@
       else if ((await signUp(email, pass)) === 'confirm') { toast(t('accConfirm')); return; }
       toast(t('syncing'));
       await syncNow(true);
+      await refreshPlan(true);
       onDone && onDone(); render(); toast(t('syncDone'));
       setTimeout(processJoin, 600);
     } catch (e) { toast(t('accError', { e: e.message })); }
   }
+
+  /* =========================================================
+     PLANES (v1.24): Free, prueba de 14 días y Usuario KeepGoing. Quien decide es el servidor (kg_entitlement);
+     aquí se guarda lo último que dijo para funcionar sin conexión, y se bloquea en la interfaz lo que no entra en Free.
+     ========================================================= */
+  const PLAN_KEY = 'keepgoing.plan';
+  let planCache = (() => { try { return JSON.parse(localStorage.getItem(PLAN_KEY)) || null; } catch (e) { return null; } })();
+  const savePlanCache = c => { planCache = c; try { if (c) localStorage.setItem(PLAN_KEY, JSON.stringify(c)); else localStorage.removeItem(PLAN_KEY); } catch (e) { /* nada */ } };
+  // Plan efectivo ahora mismo. Ver como otro plan (state.ui.devView) solo funciona si el servidor dice que eres del equipo
+  const PL = () => KGPlan.resolve(planCache && auth && planCache.uid === auth.uid ? planCache.ent : null, { signedIn: !!auth, view: state.ui && state.ui.devView });
+  const isStaff = () => !!PL().role;
+  const flag = key => KGPlan.flagOn(planCache && planCache.ent, key, PL().role);
+  async function refreshPlan(startTrial = false) {
+    if (!auth) { if (planCache) savePlanCache(null); return PL(); }
+    const before = PL().plan;
+    try {
+      let ent = await rpc('kg_entitlement');
+      // Una cuenta nueva empieza sus 14 días de prueba (una sola vez por cuenta: lo controla el servidor)
+      if (startTrial && ent && ent.plan === 'free' && !ent.trial_started) { ent = await rpc('kg_trial_start'); if (ent && ent.plan === 'trial') toast(t('plTrialStarted')); }
+      savePlanCache({ uid: auth.uid, ent: { ...ent, at: Date.now() } });
+    } catch (e) {
+      // Servidor sin planes todavía (función inexistente): nadie pierde nada
+      if (e && e.status === 404) savePlanCache({ uid: auth.uid, ent: { plan: 'keepgoing', at: Date.now(), legacy: true } });
+      return PL();
+    }
+    const now = PL();
+    if (before === 'trial' && now.plan === 'free') whenFree(() => openTrialEnded());
+    if (now.full) restorePlanArchived();
+    planOverLimit();
+    return now;
+  }
+  // Aviso de «esto es de Usuario KeepGoing». feature = una de KGPlan.PAID o un límite (habits, projects…)
+  function gate(feature) {
+    if (KGPlan.allows(PL(), feature)) return true;
+    openUpsell({ feature }); return false;
+  }
+  function gateAdd(kind, count) {
+    if (KGPlan.canAdd(PL(), kind, count)) return true;
+    openUpsell({ limit: kind }); return false;
+  }
+  const activeHabitCount = () => state.habits.filter(h => !h.archived).length;
+  const fmtPrice = (term = 'forever') => { const p = KGPlan.priceFor('ES', term); try { return new Intl.NumberFormat(state.lang, { style: 'currency', currency: p.cur }).format(p.amount); } catch (e) { return p.amount + ' ' + p.cur; } };
+  const PL_PRICE_KEY = { forever: 'plPrice', month: 'plPriceMonth', year: 'plPriceYear' }, PL_TERM_KEY = { forever: 'plTermForever', month: 'plTermMonth', year: 'plTermYear' };
+  const planSave = () => { const m = KGPlan.priceFor('ES', 'month').amount, y = KGPlan.priceFor('ES', 'year').amount; return Math.round((1 - y / (m * 12)) * 100); };
+  const planList = s => `<ul class="pl-list">${String(s).split('|').map(x => `<li>${ico('check')}<span>${esc(x)}</span></li>`).join('')}</ul>`;
+  function openUpsell(o = {}) {
+    let term = 'year';
+    const priceBox = () => `<div class="pl-price" id="pl-price">${esc(t(PL_PRICE_KEY[term], { p: fmtPrice(term) }))}${term === 'year' ? `<div class="muted small">${esc(t('plPriceSave', { n: planSave() }))}</div>` : ''}</div>`;
+    const why = o.feature ? t('plUpsellWhy', { f: t('plf_' + o.feature) }) : o.limit ? t('plUpsellLimit', { n: KGPlan.LIMITS[o.limit], what: t('plw_' + o.limit) }) : '';
+    openModal({
+      title: esc(t('plUpsellTitle')), cls: 'pl-sheet',
+      body: `${why ? `<p class="pl-why">${ico('lock')} ${esc(why)}</p>` : ''}<p class="muted" style="margin-top:0">${esc(t('plUpsellLead'))}</p>
+        <div class="seg" role="tablist" style="margin:4px 0 10px">${['month', 'year', 'forever'].map(k => `<button type="button" data-pl-term="${k}" class="${k === term ? 'on' : ''}" aria-pressed="${k === term}">${esc(t(PL_TERM_KEY[k]))}</button>`).join('')}</div>
+        ${priceBox()}<p class="muted small" style="margin:6px 0 0">${esc(t('plPriceLocal'))}</p>
+        <div class="acc-label">${esc(t('plKgTitle'))}</div>${planList(t('plFeatList'))}
+        <div class="acc-label" style="margin-top:14px">${esc(t('plFreeTitle'))}</div>${planList(t('plFreeList'))}
+        ${!auth ? `<p class="pl-why" style="margin:16px 0 0">${ico('sparkle')} ${esc(t('plNeedAccount'))}</p>` : ''}`,
+      foot: `<button class="btn primary block" data-pl="buy">${ico('sparkle')} ${esc(t('plBuy'))}</button>
+        ${!auth ? `<button class="btn block" data-pl="account">${esc(t('plCreateAccount'))}</button>` : ''}
+        <button class="btn block" data-pl="key">${ico('lock')} ${esc(t('plRedeem'))}</button>${o.end ? `<button class="chip block" data-pl="free">${esc(t('plKeepFree'))}</button>` : ''}`,
+      onClick: (e, close) => {
+        const tb = e.target.closest('[data-pl-term]');
+        if (tb) { term = tb.dataset.plTerm; tb.parentNode.querySelectorAll('[data-pl-term]').forEach(x => { x.classList.toggle('on', x === tb); x.setAttribute('aria-pressed', x === tb); }); const pb = document.getElementById('pl-price'); if (pb) pb.outerHTML = priceBox(); return; }
+        const b = e.target.closest('[data-pl]'); if (!b) return;
+        if (b.dataset.pl === 'buy') { startCheckout(term); return; }
+        if (b.dataset.pl === 'account') { close(); openLogin(); return; }
+        if (b.dataset.pl === 'key') { close(); openRedeem(); return; }
+        if (b.dataset.pl === 'free') { close(); planOverLimit(true); }
+      },
+      onClose: () => { if (o.end) planOverLimit(true); }
+    });
+  }
+  // Pago desde la app: abre la tienda (Paddle) con tu cuenta, así el pago se aplica solo. Al volver se pregunta el plan.
+  let planAskAt = 0;
+  function startCheckout(term = 'forever') {
+    const u = new URL('web/', location.href); u.searchParams.set('lang', state.lang); u.searchParams.set('term', term); if (auth) u.searchParams.set('uid', auth.uid);
+    window.open(u.href, '_blank', 'noopener');
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && auth && Date.now() - planAskAt > 15000) { planAskAt = Date.now(); refreshPlan().then(p => { if (p.full) render(); }); } });
+  function openTrialEnded() {
+    if (state.planEndSeen === (planCache && planCache.ent && planCache.ent.trial_ends)) return;
+    state.planEndSeen = planCache && planCache.ent && planCache.ent.trial_ends; save();
+    openModal({
+      title: esc(t('plEndTitle')),
+      body: `<p class="muted" style="margin-top:0">${esc(t('plEndLead'))}</p>`,
+      foot: `<button class="btn primary block" data-pl="more">${ico('sparkle')} ${esc(t('plBuy'))}</button><button class="btn block" data-pl="free">${esc(t('plKeepFree'))}</button>`,
+      onClick: (e, close) => { const b = e.target.closest('[data-pl]'); if (!b) return; close(); if (b.dataset.pl === 'more') openUpsell({ end: true }); else planOverLimit(true); }
+    });
+  }
+  // Con Free y más de 5 hábitos activos: elegir cuáles siguen. Los demás se archivan marcados (planArch) y vuelven al pagar.
+  let planPickAsked = false;
+  function planOverLimit(force = false) {
+    const p = PL(); if (p.full || p.viewing) return;
+    const act = state.habits.filter(h => !h.archived), lim = KGPlan.LIMITS.habits;
+    if (act.length <= lim || (planPickAsked && !force)) return;
+    planPickAsked = true;
+    const sel = new Set(act.slice(0, lim).map(h => h.id));
+    const draw = w => {
+      $('#pl-pick', w).innerHTML = act.map(h => `<button type="button" class="calc-toggle ${sel.has(h.id) ? 'on' : ''}" data-plh="${esc(h.id)}" aria-pressed="${sel.has(h.id)}">${esc(h.icon || '')} ${esc(h.name)}</button>`).join('');
+      $('#pl-n', w).textContent = t('plPickN', { n: sel.size });
+    };
+    whenFree(() => openModal({
+      title: esc(t('plPickTitle')), dismissable: false,
+      body: `<p class="muted" style="margin-top:0">${esc(t('plPickLead'))}</p><div class="row wrap" id="pl-pick" style="gap:6px"></div><p class="muted small" id="pl-n"></p>`,
+      foot: `<button class="btn primary block" data-pl="ok">${ico('check')} ${esc(t('plPickOk'))}</button>`,
+      onMount: w => draw(w),
+      onClick: (e, close, w) => {
+        const b = e.target.closest('[data-plh]');
+        if (b) { const id = b.dataset.plh; if (sel.has(id)) sel.delete(id); else if (sel.size < lim) sel.add(id); else toast(t('plPickNeed')); draw(w); return; }
+        if (!e.target.closest('[data-pl="ok"]')) return;
+        act.forEach(h => { if (!sel.has(h.id)) { h.archived = true; h.planArch = true; } });
+        save(); close(); render();
+      }
+    }));
+  }
+  function restorePlanArchived() {
+    const back = state.habits.filter(h => h.planArch);
+    if (!back.length) return;
+    back.forEach(h => { h.archived = false; delete h.planArch; });
+    save(); render(); toast(t('plRestored'));
+  }
+  function openRedeem() {
+    if (!auth) { toast(t('plKeyNeedAccount')); openLogin(); return; }
+    openModal({
+      title: esc(t('plKeyTitle')),
+      body: `<p class="muted" style="margin-top:0">${esc(t('plKeyLead'))}</p>
+        <div class="row" style="gap:8px"><input class="input grow pl-key" id="pl-key" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="19" placeholder="${esc(t('plKeyPh'))}"><button class="btn" data-pl="paste">${esc(t('plKeyPaste'))}</button></div>`,
+      foot: `<button class="btn primary block" data-pl="go">${ico('check')} ${esc(t('plKeyGo'))}</button>`,
+      onInput: (e, w) => { if (e.target.id === 'pl-key') { const v = KGPlan.keyFormat(e.target.value); if (v !== e.target.value) e.target.value = v; } },
+      onClick: async (e, close, w) => {
+        const b = e.target.closest('[data-pl]'); if (!b) return;
+        const inp = $('#pl-key', w);
+        if (b.dataset.pl === 'paste') { try { inp.value = KGPlan.keyFormat(await navigator.clipboard.readText()); } catch (err) { inp.focus(); } return; }
+        if (!KGPlan.keyValid(inp.value)) { toast(t('plKeyBadFormat')); return; }
+        b.disabled = true;
+        try {
+          const r = await rpc('kg_redeem_key', { p_code: inp.value });
+          if (r && r.error) { toast(r.error === 'locked' ? t('plKeyLocked') : r.error === 'used' ? t('plKeyUsed') : r.error === 'mine' ? t('plKeyMine') : t('plKeyBad', { n: Math.max(0, r.left == null ? 0 : r.left) })); return; }
+          savePlanCache({ uid: auth.uid, ent: { ...r, at: Date.now() } });
+          restorePlanArchived(); close(); sfx('unlock'); toast(t('plKeyOk')); render();
+        } catch (err) { toast(t('plErr', { e: err.message })); } finally { b.disabled = false; }
+      }
+    });
+  }
+  // Ajustes → Tu plan
+  function planHtml() {
+    const p = PL(), until = p.until ? fmtDate(p.until.slice(0, 10)) : '';
+    const sub = p.plan === 'trial' ? (p.daysLeft === 1 ? t('plTrialSub1') : t('plTrialSub', { n: p.daysLeft })) : p.plan === 'keepgoing' ? (p.source === 'special' ? t('plSpecialSub') : p.source === 'paddle' && until && p.term !== 'forever' ? t(p.term === 'year' ? 'plSubYear' : 'plSubMonth', { date: until }) : until ? t('plKgSubUntil', { date: until }) : t('plKgSub')) : t('plFreeSub');
+    return `<div class="stack" style="gap:10px"><div class="row"><span class="pl-chip ${p.plan}">${esc(t(p.plan === 'keepgoing' ? 'plKeepgoing' : p.plan === 'trial' ? 'plTrial' : 'plFree'))}</span><span class="muted small grow">${esc(sub)}</span></div>
+      <div class="row wrap">${p.plan !== 'keepgoing' ? `<button class="btn primary" data-s="plan-up">${ico('sparkle')} ${esc(t('plBuy'))}</button>` : ''}${p.source === 'paddle' && p.term !== 'forever' ? `<a class="chip" href="https://paddle.net" target="_blank" rel="noopener">${ico('gear')} ${esc(t('plSubManage'))}</a>` : ''}<button class="chip" data-s="plan-key">${ico('lock')} ${esc(t('plRedeem'))}</button>${isStaff() ? `<button class="chip" data-s="staff">${ico('gear')} ${esc(t('stTitle'))}</button>` : ''}</div></div>`;
+  }
+  const planHint = () => { const p = PL(); return t(p.plan === 'keepgoing' ? 'plKeepgoing' : p.plan === 'trial' ? 'plTrial' : 'plFree'); };
+  // Insignia «KeepGoing» junto al @nametag (la tuya, y la de quien la tenga en tus chats)
+  const planBadge = () => PL().plan === 'keepgoing' ? ` <span class="pl-badge">${esc(t('plBadge'))}</span>` : '';
+
+  /* Panel del equipo: solo aparece si el servidor dice que eres dueño o desarrollador (kg_entitlement.role).
+     Todo lo que hace pasa por funciones del servidor que vuelven a comprobarlo; no se anuncia en Novedades ni en Ayuda. */
+  function openStaff() {
+    if (!isStaff()) return;
+    let wref, data = null, err = '', fresh = null;
+    const owner = () => (data && data.role || PL().role) === 'owner';
+    const chip = pl => `<span class="pl-chip ${pl}">${esc(t(pl === 'keepgoing' ? 'plKeepgoing' : pl === 'trial' ? 'plTrial' : 'plFree'))}</span>`;
+    const load = async () => { try { data = await rpc('kg_staff_overview'); err = ''; } catch (e) { err = e.message; } if (wref && wref.isConnected) draw(); };
+    const draw = () => {
+      const v = state.ui.devView || '', U = (data && data.users) || [], K = (data && data.keys) || [], F = (data && data.flags) || [];
+      const n = pl => U.filter(u => u.plan === pl).length;
+      const seg = (attr, opts, cur) => `<div class="seg seg-sm">${opts.map(([val, k]) => `<button data-${attr}="${val}" class="${cur === val ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>`;
+      $('#stf', wref).innerHTML = `<div class="stack" style="gap:18px">
+        <section><div class="acc-label">${esc(t('stViewAs'))}</div>${seg('stv', [['', 'stViewReal'], ['free', 'plFree'], ['trial', 'plTrial'], ['keepgoing', 'plKeepgoing']], v)}<p class="muted small">${esc(t('stViewHint'))}</p></section>
+        ${err ? `<p class="muted small">${esc(t('stLoadErr', { e: err }))}</p>` : !data ? `<p class="muted small">${esc(t('loading'))}</p>` : `
+        <p class="muted small" style="margin:0">${esc(t('stStats', { u: U.length, k: n('keepgoing'), t: n('trial'), f: n('free') }))}</p>
+        <section><div class="acc-label">${esc(t('stGrant'))}</div><div class="stack" style="gap:8px">
+          <input class="input" id="stg-tag" placeholder="${esc(t('stGrantTag'))}" autocomplete="off" autocapitalize="off">
+          <div class="row wrap" style="gap:8px"><input class="input grow" id="stg-days" inputmode="numeric" placeholder="${esc(t('stGrantDays'))}"><input class="input grow" id="stg-note" placeholder="${esc(t('stGrantNote'))}"></div>
+          <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="stg-sp" checked><span></span></span><span class="small">${esc(t('stGrantSpecial'))}</span></label>
+          <button class="btn" data-st="grant">${ico('sparkle')} ${esc(t('stGrant'))}</button></div></section>
+        <section><div class="acc-label">${esc(t('stUsers'))}</div><div class="stack" style="gap:6px">${U.map(u => `<div class="st-row clay"><div class="grow"><b>${u.nametag ? '@' + esc(u.nametag) : '—'}</b> ${chip(u.plan)}${u.staff ? ` <span class="pl-chip staff">${esc(t(u.staff === 'owner' ? 'stOwner' : 'stDev'))}</span>` : ''}<div class="muted small">${esc(u.name || '')}${u.source ? ' · ' + esc(u.source) : ''}${u.until ? ' · ' + esc(fmtDate(String(u.until).slice(0, 10))) : ''}</div></div>
+          <div class="row wrap" style="gap:6px">${u.plan === 'keepgoing' && !u.staff ? `<button class="chip sm" data-st="revoke" data-id="${esc(u.user_id)}" data-tag="${esc(u.nametag || '')}">${esc(t('stRevoke'))}</button>` : ''}${u.plan !== 'keepgoing' ? `<button class="chip sm" data-st="trial" data-id="${esc(u.user_id)}">${esc(t('stTrialReset'))}</button>` : ''}${owner() && u.nametag && u.staff !== 'owner' ? `<button class="chip sm" data-st="dev" data-tag="${esc(u.nametag)}" data-on="${u.staff ? '' : '1'}">${esc(t(u.staff ? 'stDevRemove' : 'stDevAdd'))}</button>` : ''}</div></div>`).join('')}</div></section>
+        <section><div class="acc-label">${esc(t('stKeys'))}</div><div class="row wrap" style="gap:8px"><input class="input" id="stk-n" inputmode="numeric" value="1" style="width:70px" aria-label="${esc(t('stKeysN'))}">
+          <select class="input" id="stk-term" aria-label="${esc(t('stKeysTerm'))}"><option value="forever">${esc(t('stTermForever'))}</option><option value="year">${esc(t('stTermYear'))}</option><option value="month">${esc(t('stTermMonth'))}</option></select>
+          <input class="input grow" id="stk-note" placeholder="${esc(t('stGrantNote'))}"><button class="btn" data-st="keys">${ico('plus')} ${esc(t('stKeysNew'))}</button></div>
+          ${fresh ? `<div class="st-fresh clay"><p class="small" style="margin-top:0"><b>${esc(t('stKeysDone'))}</b></p><pre class="pl-key">${esc(fresh.join('\n'))}</pre><button class="chip" data-st="copy">${esc(t('stKeysCopy'))}</button></div>` : ''}
+          <div class="stack" style="gap:6px;margin-top:8px">${K.slice(0, 50).map(k => `<div class="st-row clay"><div class="grow"><b>…${esc(k.hint)}</b> <span class="muted small">${esc(t(k.term === 'year' ? 'stTermYear' : k.term === 'month' ? 'stTermMonth' : 'stTermForever'))}${k.note ? ' · ' + esc(k.note) : ''}</span><div class="muted small">${esc(k.revoked ? t('stKeyRevoked') : k.redeemed_at ? t('stKeyUsedBy', { tag: k.redeemed_tag || '—' }) : t('stKeyFree'))}</div></div>${!k.revoked && !k.redeemed_at ? `<button class="chip sm" data-st="kvoid" data-id="${esc(k.id)}">${esc(t('stKeyRevoke'))}</button>` : ''}</div>`).join('')}</div></section>
+        <section><div class="acc-label">${esc(t('stFlags'))}</div><p class="muted small" style="margin-top:0">${esc(t('stFlagsHint'))}</p><div class="stack" style="gap:6px">${[...new Set([...Object.keys(KGPlan.FLAGS), ...F.map(f => f.key)])].map(k => { const f = F.find(x => x.key === k), m = f ? f.mode : ''; return `<div class="st-row clay"><div class="grow"><b>${esc(k)}</b>${f && f.note ? `<div class="muted small">${esc(f.note)}</div>` : ''}</div>${owner() ? `<div class="seg seg-sm">${[['off', 'stFlagModeOff'], ['staff', 'stFlagModeStaff'], ['all', 'stFlagModeAll']].map(([val, l]) => `<button data-stf="${esc(k)}" data-m2="${val}" class="${m === val ? 'on' : ''}">${esc(t(l))}</button>`).join('')}</div>` : `<span class="muted small">${esc(m || '—')}</span>`}</div>`; }).join('')}</div>
+          ${owner() ? `<div class="row" style="gap:8px;margin-top:8px"><input class="input grow" id="stf-key" placeholder="${esc(t('stFlagKey'))}" autocapitalize="off"><button class="btn" data-st="flag">${ico('plus')} ${esc(t('stFlagAdd'))}</button></div>` : ''}</section>
+        <section><div class="acc-label">${esc(t('stPreview'))}</div><p class="muted small" style="margin:0">KeepGoing ${esc(VERSION)} · ${esc(t('stPreviewHint'))}</p></section>`}
+      </div>`;
+    };
+    const act = async (fn, args) => { try { await rpc(fn, args); toast(t('stSaved')); await load(); await refreshPlan(); } catch (e) { toast(e.message === 'owner only' ? t('stOwnerOnly') : t('plErr', { e: e.message })); } };
+    openModal({
+      title: `${ico('gear')} ${esc(t('stTitle'))}`, cls: 'wide', body: '<div id="stf"></div>',
+      onMount: w => { wref = w; draw(); load(); },
+      onClick: async (e, close, w) => {
+        let el;
+        if ((el = e.target.closest('[data-stv]'))) { state.ui.devView = el.dataset.stv; save(); planPickAsked = false; render(); draw(); return; }
+        if ((el = e.target.closest('[data-stf]'))) { await act('kg_staff_flag', { p_key: el.dataset.stf, p_mode: el.dataset.m2, p_note: null }); return; }
+        if (!(el = e.target.closest('[data-st]'))) return;
+        const v = id => ($('#' + id, w) || {}).value || '';
+        switch (el.dataset.st) {
+          case 'grant': { const tag = v('stg-tag').trim(); if (!tag) return; const d = parseInt(v('stg-days'), 10); await act('kg_staff_grant', { p_tag: tag, p_source: $('#stg-sp', w).checked ? 'special' : 'grant', p_days: d > 0 ? d : null, p_note: v('stg-note') }); break; }
+          case 'revoke': if (await confirmDialog(t('stRevokeQ', { tag: el.dataset.tag || '—' }))) await act('kg_staff_revoke', { p_user: el.dataset.id }); break;
+          case 'trial': await act('kg_staff_trial_reset', { p_user: el.dataset.id }); break;
+          case 'dev': await act('kg_staff_set_dev', { p_tag: el.dataset.tag, p_on: !!el.dataset.on }); break;
+          case 'kvoid': await act('kg_staff_key_revoke', { p_id: el.dataset.id }); break;
+          case 'flag': { const k = v('stf-key').trim(); if (!/^[a-zA-Z0-9_]{2,40}$/.test(k)) return; await act('kg_staff_flag', { p_key: k, p_mode: 'staff', p_note: null }); break; }
+          case 'keys': {
+            const nn = Math.min(50, Math.max(1, parseInt(v('stk-n'), 10) || 1));
+            try { fresh = await rpc('kg_staff_keys_create', { p_n: nn, p_term: v('stk-term') || 'forever', p_note: v('stk-note') }); await load(); } catch (err2) { toast(t('plErr', { e: err2.message })); }
+            break;
+          }
+          case 'copy': try { await navigator.clipboard.writeText((fresh || []).join('\n')); toast(t('copied')); } catch (err2) { /* nada */ } break;
+        }
+      }
+    });
+  }
+  // Tarjeta en lugar de una función de pago (con Free)
+  const planLockedCard = f => `<button class="pl-locked clay" data-pl-up="${esc(f)}">${ico('lock')}<span class="grow"><b>${esc(t('plf_' + f))}</b><small>${esc(t('plUpsellShort'))}</small></span>${ico('right')}</button>`;
+  // Puertas: botones que abren funciones de pago. Se comprueban antes que cualquier otro manejador (fase de captura)
+  const PLAN_GATES = [
+    ['[data-act="calc-open"]', 'calc'], ['[data-act="ledger-import"], [data-act="ledger-imports"]', 'csv'],
+    ['[data-act="ledger-share"]', 'ledgerShare'], ['[data-wo="cmp"]', 'compare'], ['[data-wo]', 'worth'],
+    ['[data-tf-go="routines"], [data-tf-tab="routines"], [data-tf-qtab="routines"], [data-tf-q^="rt:"]', 'routines'], ['[data-tf="share"]', 'calShare'], ['[data-th-color], [data-th-bg="gradient"]', 'themes'],
+    ['[data-more-range="365"], [data-more-range="all"], [data-act="led-range"][data-v="12"], [data-act="led-range"][data-v="all"]', 'history']
+  ];
+  document.addEventListener('click', e => {
+    if (!e.target.closest) return;
+    const up = e.target.closest('[data-pl-up]');
+    if (up) { e.preventDefault(); e.stopImmediatePropagation(); openUpsell(up.dataset.plUp ? { feature: up.dataset.plUp } : {}); return; }
+    // «Este año» solo entra en Free mientras el 1 de enero esté dentro de los últimos 90 días
+    const yr = e.target.closest('[data-act="led-range"][data-v="y"]');
+    if (yr && diffDays(todayKey().slice(0, 4) + '-01-01', todayKey()) >= KGPlan.LIMITS.chartDays && !KGPlan.allows(PL(), 'history')) { e.preventDefault(); e.stopImmediatePropagation(); openUpsell({ feature: 'history' }); return; }
+    for (const [sel, f] of PLAN_GATES) {
+      if (e.target.closest(sel) && !KGPlan.allows(PL(), f)) { e.preventDefault(); e.stopImmediatePropagation(); openUpsell({ feature: f }); return; }
+    }
+  }, true);
   function openLogin() {
     let wref;
     openModal({
@@ -3866,6 +4117,7 @@
           acc('news', ico('sparkle'), t('whatsNew'), t('version', { v: VERSION }), `<button class="btn block" data-s="news">${ico('sparkle')} ${esc(t('whatsNewAll'))}</button>`)
         ])}
         ${group(t('setGroupGeneral'), [
+          acc('plan', ico('sparkle'), t('plTitle'), planHint(), planHtml()),
           acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
           acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
           acc('sound', '🔊', t('soundTitle'), state.soundOn !== false ? t('soundOn') : t('soundOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-sound ${state.soundOn !== false ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('soundLabel'))}</b><br><span class="muted small">${esc(t('soundHint'))}</span></span></label><div class="row wrap" style="margin-top:12px"><button class="chip" data-s-sound-test>▶ ${esc(t('soundTest'))}</button></div>`),
@@ -3943,6 +4195,9 @@
             break;
           case 'contract': openContract(); break;
           case 'renew': renewContract(); draw(); break;
+          case 'plan-up': openUpsell(); break;
+          case 'plan-key': close(); openRedeem(); break;
+          case 'staff': close(); openStaff(); break;
           case 'export': exportData(); break;
           case 'report': close(); openReport(); break;
           case 'import': $('#st-file', w).click(); break;
@@ -4730,7 +4985,7 @@
     html += `<h1 class="page-title">${esc(t('tabLedger'))}</h1>`;
     if (!ledgerOpen()) return html + ledgerLockedHtml();
     if (LV.bad) html += `<div class="banner clay">${ico('alert')}<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
-    html += worthHtml();
+    html += KGPlan.allows(PL(), 'worth') ? worthHtml() : planLockedCard('worth');
     const years = new Set([y, +todayKey().slice(0, 4)]); LV.entries.forEach(e => years.add(+String(e.date).slice(0, 4)));
     const yMin = Math.min(...years) - 1, yMax = Math.max(...years) + 1;
     const monthNames = Array.from({ length: 12 }, (_, i) => fmtDate(`2026-${pad(i + 1)}-01`, { month: 'long' }));
@@ -5914,6 +6169,7 @@
       }
       for (const x of dests) if (!used.has(x.id) && !out.includes(x)) out.push({ ...x, ord: ord++ });
       const name = W.name || t('paceProjName', { d: todayKey() });
+      if (!gateAdd('projSaved', LV.projs.length)) return;
       LV.projs.push({ id: uid(), name, items: out, at: Date.now() }); save(); ledgerSave(); sfx('pop');
       close(); toast(t('paceSaved', { name })); openProjections();
     };
@@ -6006,6 +6262,7 @@
         const b = e.target.closest('[data-pa]'); if (!b) return;
         const a = b.dataset.pa, p = LV.projs.find(x => x.id === (b.closest('[data-pj]') || {}).dataset?.pj);
         if (a === 'new') {
+          if (!gateAdd('projSaved', LV.projs.length)) return;
           projNameDialog(t('projSaveCurrent'), '', name => {
             const np = { id: uid(), name, items: projSnap(), at: Date.now() };
             LV.projs.push(np); u.proj = np.id; save(); ledgerSave(); sfx('pop'); toast(t('projSaved', { name })); draw();
@@ -6179,6 +6436,7 @@
     html += '</div>';
     // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
     const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
+    if (!KGPlan.allows(PL(), 'history') && lf.from < addDays(today, -(KGPlan.LIMITS.chartDays - 1))) lf.from = addDays(today, -(KGPlan.LIMITS.chartDays - 1));
     const fev = String(lf.cat).startsWith('ev:') ? LV.events.find(x => 'ev:' + x.id === lf.cat) : null;
     const fl = LED.inRange(NET(fev ? eventEntries(fev) : LV.entries), lf.from, lf.to).filter(e => fev || lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
     const days = lf.from && lf.to ? diffDays(lf.from, lf.to) + 1 : 0, fu = days <= 62 ? 'day' : days <= 3 * 366 ? 'month' : 'year';
@@ -6320,7 +6578,7 @@
       }
       box.innerHTML = html + '</div>';
     };
-    const curOpts = () => [main, ...FX.ALL.filter(c => c !== main)].map(c => `<option value="${c}" ${f.cur === c ? 'selected' : ''}>${c}</option>`).join('');
+    const curOpts = () => [main, ...(KGPlan.allows(PL(), 'fx') ? FX.ALL.filter(c => c !== main) : f.cur && f.cur !== main ? [f.cur] : [])].map(c => `<option value="${c}" ${f.cur === c ? 'selected' : ''}>${c}</option>`).join('');
     const fxPrev = () => {
       const p = $('#le-fx-p', wref); if (!p) return;
       const amt = LED.parseCents(($('#le-amt', wref) || {}).value || '') || 0, r = Number(f.rate) || 0;
@@ -6688,7 +6946,7 @@
         wref = w; draw(); refresh(false);
         w.addEventListener('change', async e => {
           const el = e.target;
-          if (el.id === 'fx-add') { pick = el.value; draw(); return; }
+          if (el.id === 'fx-add') { if (el.value && !gate('fx')) { el.value = ''; return; } pick = el.value; draw(); return; }
           if (el.dataset.fxMan) {
             const v = Number(String(el.value).replace(/\s/g, '').replace(',', '.')), man = { ...fxManual() };
             if (v > 0) man[el.dataset.fxMan] = v; else delete man[el.dataset.fxMan];
@@ -7010,6 +7268,7 @@
           if (!f.catIds.length) { toast(t('budNeedCat')); return; }
         }
         f.versions = versions.sort((a, b) => a.from < b.from ? -1 : 1);
+        if (f.id !== BUD_GLOBAL && !gate('budgetCats')) return;
         const i = LV.budgets.findIndex(x => x.id === f.id); if (i >= 0) LV.budgets[i] = f; else LV.budgets.push(f);
         budUi().sel = f.id; ledgerSave(); close(); done && done(); toast(t('budSaved')); sfx('money');
       }
@@ -7285,7 +7544,9 @@
       title: esc(t('createTitle')),
       body: `<div class="stack" style="gap:12px">${opt('habit', '➕', t('newHabit'), t('createHabitSub'))}${opt('pack', '📦', t('fromTemplate'), t('createPackSub'))}${opt('challenge', '🏁', t('newChallenge'), t('createChallengeSub'))}${opt('project', '🎯', t('newProject'), t('createProjectSub'))}${opt('routine', '🔁', t('newRoutine'), t('createRoutineSub'))}${opt('vacation', '🏖️', t('vacTitle'), t('vacHintShort'))}</div>`,
       onClick: (e, close) => {
-        const b = e.target.closest('[data-create]'); if (!b) return; close();
+        const b = e.target.closest('[data-create]'); if (!b) return;
+        if (['pack', 'challenge'].includes(b.dataset.create) && !gateAdd('habits', activeHabitCount())) { close(); return; }
+        close();
         ({ habit: () => openHabitEditor(), project: () => openProjectEditor(), pack: openPacks, challenge: openChallenges, routine: () => openRoutineEditor(), vacation: openVacations })[b.dataset.create]();
       }
     });
@@ -7314,6 +7575,7 @@
         if (e.target.closest('[data-pk-proj]')) { close(); openProjectTemplates(); return; }
         if (e.target.closest('[data-pk-add]')) {
           if (!sel.size) { toast(t('selectSomething')); return; }
+          if (!gateAdd('habits', activeHabitCount() + sel.size - 1)) return;
           for (const id of sel) { const [p, i] = id.split(':'); const [es, en, icon, x] = PACKS[p][+i]; state.habits.push(newHabitFrom(L2(es, en), icon, x)); }
           save(); close(); state.ui.tab = 'habits'; render(); toast(t('addedN', { n: sel.size }));
         }
@@ -7339,6 +7601,7 @@
       onClick: (e, close) => {
         const b = e.target.closest('[data-chal]'); if (!b) return;
         const [id, es, en, icon, days, x] = CHALLENGES.find(c => c[0] === b.dataset.chal);
+        if (!gateAdd('habits', activeHabitCount())) return;
         state.habits.push(newHabitFrom(L2(es, en), icon, { ...x, challenge: { tid: id, days, start: todayKey() } }));
         save(); close(); state.ui.tab = 'habits'; render(); toast(t('challengeStarted'));
       }
@@ -7871,6 +8134,7 @@
     if ((el = e.target.closest('[data-pet-kind]'))) {
       const k = el.dataset.petKind;
       if (!petUnlocked(k)) { toast(t('petLockedAt', { n: PET_LEVEL[k] })); return true; }
+      if (k !== 'cat' && k !== pet.kind && !gate('themes')) return true;
       if (pet.kind !== k) { pet.looks[pet.kind] = { fur: pet.fur, colors: pet.colors }; Object.assign(pet, { kind: k, fur: true, colors: PETS.defaults(k) }, pet.looks[k] || {}); pet.name = pet.names[k] || ''; }
     }
     else if ((el = e.target.closest('[data-pet-fur]'))) pet.fur = el.dataset.petFur === '1';
@@ -7977,7 +8241,7 @@
   }
   function profileCardHtml() {
     const lv = levelInfo(), bio = profileOf().bio;
-    return `<button class="prof-card clay" data-act="profile"><span class="prof-pet">${meAvatar(74)}</span><span class="grow"><b class="prof-card-name">${esc(profileName())}</b><span class="muted small">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</span>${bio ? `<span class="prof-bio">${esc(bio)}</span>` : `<span class="muted small">${esc(t('profileTapHint'))}</span>`}</span>${ico('right')}</button>`;
+    return `<button class="prof-card clay" data-act="profile"><span class="prof-pet">${meAvatar(74)}</span><span class="grow"><b class="prof-card-name">${esc(profileName())}${planBadge()}</b><span class="muted small">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</span>${bio ? `<span class="prof-bio">${esc(bio)}</span>` : `<span class="muted small">${esc(t('profileTapHint'))}</span>`}</span>${ico('right')}</button>`;
   }
   // Insignias: lo que has ganado de un vistazo (maestrías de racha, cartas secretas, contratos, retos y reputación)
   function badgesHtml() {
@@ -8240,6 +8504,7 @@
     for (const x of miss) {
       const same = state.habits.find(h => !h.archived && h.name.trim().toLowerCase() === String(x.name).trim().toLowerCase());
       const h = same || objFromSpec('habit', x, x.name, x.icon || '#');
+      if (!same && !KGPlan.canAdd(PL(), 'habits', activeHabitCount())) { openUpsell({ limit: 'habits' }); break; }
       if (!same) state.habits.push(h);
       if (!p.habitIds.includes(h.id)) p.habitIds.push(h.id);
     }
@@ -8466,7 +8731,7 @@
   }
   const chatErr = e => {
     const m = String(e && e.message || e);
-    for (const [re, k] of [[/no such user/, 'friendNoUser'], [/self/, 'friendSelf'], [/slow down/, 'chatSlow'], [/not a friend/, 'friendNotFriend'], [/group full/, 'chatFull'], [/not allowed/, 'chatNoPerm']]) if (re.test(m)) return t(k);
+    for (const [re, k] of [[/^plan$/, 'plUpsellShort'], [/no such user/, 'friendNoUser'], [/self/, 'friendSelf'], [/slow down/, 'chatSlow'], [/not a friend/, 'friendNotFriend'], [/group full/, 'chatFull'], [/not allowed/, 'chatNoPerm']]) if (re.test(m)) return t(k);
     return t('groupError', { e: m });
   };
   async function sendFriendRequest(raw) {
@@ -9173,7 +9438,9 @@
             const m = G.msgs.find(x => String(x.id) === b.dataset.gcAdd), p = m && m.payload;
             if (p && p.type === 'event') { addSharedEvent(p.event || {}); return; }
             if (!p || !p.spec) return;
-            const o = addFromSpec(p.type === 'project' ? 'project' : 'habit', p.spec, p.spec.name || '', p.spec.icon);
+            const kd = p.type === 'project' ? 'project' : 'habit';
+            if (kd === 'habit' ? !gateAdd('habits', activeHabitCount()) : !gateAdd('projects', state.projects.length)) return;
+            const o = addFromSpec(kd, p.spec, p.spec.name || '', p.spec.icon);
             sfx('unlock'); toast(t('chatAdded', { name: o.name })); render(); return;
           }
           if (b.dataset.gcPhoto) { b.disabled = true; await openPhoto(b.dataset.gcPhoto); return; }
@@ -9205,6 +9472,7 @@
           if (a === 'link-local' || a === 'link-habits') {
             const g = G.info.group, kind = g.kind === 'habit' ? 'habit' : 'project';
             let o = findByGroup(gid);
+            if (!o && (kind === 'habit' ? !gateAdd('habits', activeHabitCount()) : !gateAdd('projects', state.projects.length))) return;
             if (!o) { o = objFromSpec(kind, g.spec || {}, g.name, g.icon); o.groupId = gid; (kind === 'habit' ? state.habits : state.projects).push(o); }
             const n = kind === 'project' ? addSpecHabits(o, g.spec) : 0;
             save(); sfx('unlock'); toast(a === 'link-habits' ? t('gHabitsAdded', { n }) : t('chatAdded', { name: o.name })); render();
@@ -9470,6 +9738,7 @@
   // Soltar un hábito encima de otro: nueva carpeta (proyecto) con los dos; luego se le pone nombre
   function createFolder(aId, bId) {
     const a = getHabit(aId), b = getHabit(bId); if (!a || !b) return;
+    if (!gateAdd('projects', state.projects.length)) return;
     const p = { id: uid(), name: t('folderNewName'), icon: '📁', color: null, desc: '', habitIds: [aId, bId], goal: { type: 'simple', start: 0, target: 0, unit: '', entries: [], items: [], achieved: false }, deadline: null, milestones: [], photos: {}, createdAt: todayKey() };
     state.projects.push(p); save(); render(); sfx('complete'); vibrate([10, 30, 10]); toast(t('folderCreated'));
     setTimeout(() => openProjectEditor(p), 260);
@@ -9807,6 +10076,7 @@
   }, true);
   document.addEventListener('change', e => {
     if (e.target.id === 'chart-habit') { state.ui.chartHabit = e.target.value; save(); render(); }
+    if (e.target.matches('[data-led-f="from"]') && e.target.value && diffDays(e.target.value, todayKey()) >= KGPlan.LIMITS.chartDays && !KGPlan.allows(PL(), 'history')) { e.target.value = addDays(todayKey(), -(KGPlan.LIMITS.chartDays - 1)); openUpsell({ feature: 'history' }); }
     if (e.target.matches('[data-led-f]')) { state.ui.ledFilter = { cat: 'all', from: todayKey().slice(0, 4) + '-01-01', to: todayKey(), ...(state.ui.ledFilter || {}), [e.target.dataset.ledF]: e.target.value }; save(); render(); }
     if (e.target.matches('[data-led-opt]')) {
       const o = e.target.dataset.ledOpt, on = e.target.checked;
@@ -9860,6 +10130,9 @@
   checkSecrets(true);
   render();
   if (auth) scheduleSync(400);
+  // Plan: lo último guardado vale para arrancar; luego se pregunta al servidor
+  if (auth) setTimeout(() => refreshPlan().then(() => { if (state.onboarded && !$('#modal-root').children.length) render(); }), 800);
+  else setTimeout(() => planOverLimit(), 1500);
   if (auth && !profileOf().tag) loadRep().then(() => { if (profileOf().tag) render(); });
   // Acción desde Atajos de iOS: ?check=<id del hábito> marca el hábito de hoy
   (() => {

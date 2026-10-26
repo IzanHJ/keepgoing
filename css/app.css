@@ -1876,6 +1876,27 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .lk-pick { padding: 10px; border-radius: 16px; max-height: 320px; overflow: auto; }
 .lk-net { display: flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
 .led-link { display: inline-flex; vertical-align: -2px; color: var(--accent); }
+
+/* v1.24: planes (Free, prueba, Usuario KeepGoing) y panel del equipo */
+.pl-why { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-weight: var(--fw-subtitle); }
+.pl-why svg { width: 18px; height: 18px; color: var(--accent); flex: none; }
+.pl-price { font-size: 20px; font-weight: var(--fw-num); margin: 4px 0 16px; }
+.pl-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.pl-list li { display: flex; gap: 10px; align-items: flex-start; }
+.pl-list svg { width: 18px; height: 18px; color: var(--accent); flex: none; margin-top: 2px; }
+.pl-chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: var(--fw-ui); background: var(--surface-3); color: var(--fg); white-space: nowrap; }
+.pl-chip.keepgoing { background: var(--accent); color: var(--accent-ink); }
+.pl-chip.trial { box-shadow: inset 0 0 0 2px var(--accent); }
+.pl-chip.staff { background: var(--surface-2); color: var(--muted); }
+.pl-badge { display: inline-block; vertical-align: 2px; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: var(--fw-ui); background: var(--accent); color: var(--accent-ink); }
+.pl-locked { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px; margin: 0 0 16px; border-radius: var(--r-lg); }
+.pl-locked > svg:first-child { width: 22px; height: 22px; color: var(--accent); flex: none; }
+.pl-locked b { display: block; }
+.pl-locked small { color: var(--muted); }
+.pl-key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 1px; }
+.st-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--r-md); }
+.st-fresh { padding: 12px; border-radius: var(--r-md); margin-top: 10px; }
+.st-fresh pre { margin: 0 0 10px; white-space: pre-wrap; user-select: all; }
 /* v1.24: vistas Día y Semana, pellizcar, pintar deslizando y turnos seguidos unidos */
 .tf-zoom { touch-action: pan-y; }
 .tf-zoom.painting, .tf-zoom.painting * { touch-action: none; }
