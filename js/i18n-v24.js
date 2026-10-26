@@ -14,6 +14,9 @@
     tfKindRate: 'Tarifa', tfKindSame: 'Igual', tfKindFixed: '+ € por hora', tfKindPct: '+ %', tfKindFixedU: 'Diferencia (€/h, puede ser negativa)', tfKindPctU: 'Diferencia (%, puede ser negativa)',
     tfKindSameHint: 'Cobra lo mismo que «{job}»: {rate}/h.', tfKindJobUnpaid: '«{job}» no se cobra: activa la paga en la categoría.', tfKindResult: '«{job}» cobra {rate}/h → este tipo cobra {res}/h.',
     tfJobKinds: 'Tipos vinculados: {list}',
+    capAccTitle: 'Diferencia acumulada', capSumQ: 'Sumar ambos', capSumHint: 'Dinero Caprichable + Diferencia acumulada del Presupuesto global.', capSumTitle: 'Total caprichable',
+    capAccNone: 'Crea un Presupuesto global para ver aquí su Diferencia acumulada.',
+    evPaint: 'Colorear días', evPaintHint: 'Los días del evento se colorean en el calendario.', evPaintWhere: 'Color y dónde se ve:',
     tfMore: 'Ajustes', tfMenuAria: 'Menú: informes, turnos, rutinas, rotaciones y ajustes',
   };
   const en = {
@@ -29,6 +32,9 @@
     tfKindRate: 'Rate', tfKindSame: 'Same', tfKindFixed: '+ € per hour', tfKindPct: '+ %', tfKindFixedU: 'Difference (€/h, can be negative)', tfKindPctU: 'Difference (%, can be negative)',
     tfKindSameHint: 'Paid the same as “{job}”: {rate}/h.', tfKindJobUnpaid: '“{job}” is not paid: turn pay on in the category.', tfKindResult: '“{job}” pays {rate}/h → this type pays {res}/h.',
     tfJobKinds: 'Linked types: {list}',
+    capAccTitle: 'Accumulated difference', capSumQ: 'Add both', capSumHint: 'Treat money + accumulated difference of the global Budget.', capSumTitle: 'Total treat money',
+    capAccNone: 'Create a global Budget to see its accumulated difference here.',
+    evPaint: 'Colour days', evPaintHint: 'The event days are coloured in the calendar.', evPaintWhere: 'Colour and where it shows:',
     tfMore: 'Settings', tfMenuAria: 'Menu: reports, shifts, routines, rotations and settings',
   };
   Object.assign(window.I18N.es, es);

@@ -1965,3 +1965,11 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .tf-preview .tf-summary { margin: 0; }
 .tf-preview.off .tf-summary { opacity: .25; filter: grayscale(1); }
 .tf-dot.sm { width: 10px; height: 10px; display: inline-block; vertical-align: middle; }
+/* v1.24: Dinero Caprichable al final de la Libreta, con la Diferencia acumulada */
+.cap-wrap { display: flex; flex-direction: column; gap: 12px; margin: 18px 0 16px; }
+.cap-wrap .cap-link { margin: 0; }
+.cap-total-head svg.i { width: 18px; height: 18px; vertical-align: -3px; }
+.cap-acc .cap-total { border-style: solid; border-color: var(--line); }
+.cap-sum { padding: 4px 4px; }
+.cap-sum-total { border-style: solid; background: color-mix(in srgb, var(--cap-gold) 12%, var(--surface)); }
+.ledger-cal .cal-cell.evp { background: color-mix(in srgb, var(--evc) 32%, var(--surface)); }

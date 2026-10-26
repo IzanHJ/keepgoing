@@ -1042,7 +1042,9 @@
       const ext = extBy[k] || [];
       const aria = tfLong(k) + (items.length ? ': ' + items.map(it => it.r ? it.r.name : (it.who ? it.who + ' · ' : '') + it.s.name).join(', ') : '');
       const dk = tfDkOf(k), evs = evd[k] || []; if (dk && inMonth) usedDk.add(dk);
-      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''} ${dk ? 'dk' : ''}" data-tf-day="${k}" ${dk ? `style="--dk:${tfColor(dk.color)}"` : ''} aria-label="${esc((dk ? tfDkName(dk) + ' · ' : '') + aria + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}">${evs.length ? `<span class="tf-evbar" style="--c:${tfColor(evs[0].paint.color)}" title="${esc(evs.map(v => v.name).join(', '))}"></span>` : ''}<span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}</span>${items.slice(0, 3).map((it, j) => it.r ? tfRtTag(it.r) : it.who ? tfGhost(it.s, it.who) : tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < 2 ? 'jb' : ''}`)).join('')}${items.length > 3 ? `<span class="more">+${items.length - 3}</span>` : ''}</button>`;
+      // Sin tipo de día, el evento tiñe la casilla entera; con tipo de día, va como una franja abajo
+      const tint = dk ? dk.color : evs.length ? evs[0].paint.color : '';
+      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''} ${tint ? 'dk' : ''}" data-tf-day="${k}" ${tint ? `style="--dk:${tfColor(tint)}"` : ''} aria-label="${esc((dk ? tfDkName(dk) + ' · ' : '') + aria + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}">${evs.length && dk ? `<span class="tf-evbar" style="--c:${tfColor(evs[0].paint.color)}" title="${esc(evs.map(v => v.name).join(', '))}"></span>` : ''}<span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}</span>${items.slice(0, 3).map((it, j) => it.r ? tfRtTag(it.r) : it.who ? tfGhost(it.s, it.who) : tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < 2 ? 'jb' : ''}`)).join('')}${items.length > 3 ? `<span class="more">+${items.length - 3}</span>` : ''}</button>`;
     }
     html += '</div>';
     if (usedDk.size) html += `<div class="tf-dk-legend">${[...usedDk].map(d => `<span><i style="--c:${tfColor(d.color)}"></i>${esc(tfDkName(d))}</span>`).join('')}</div>`;
@@ -4159,13 +4161,35 @@
   function capTotalHtml() {
     const pi = pointsInfo(), d = dayInfo(todayKey());
     return `<div class="cap-total" role="group" aria-label="${esc(t('capTitle'))}">
-      <div class="cap-total-head"><span>💶 ${esc(t('capTitle'))}</span><span class="cap-badge">${esc(t('capBadge'))}</span></div>
+      <div class="cap-total-head"><span>${ico('wallet')} ${esc(t('capTitle'))}</span><span class="cap-badge">${esc(t('capBadge'))}</span></div>
       <div class="cap-total-amount">${esc(money(pi.money))}</div>
       <div class="small">${esc(t('capToday', { p: fmtPts(d.cpts), m: money(d.money) }))}</div>
       <p class="muted small" style="margin:6px 0 0">${esc(t('capNotReal'))}</p>
     </div>`;
   }
 
+  /* v1.24: widget de la Libreta con dos partes independientes: Dinero Caprichable (puntos) y la Diferencia acumulada del
+     Presupuesto global desde su fecha «Desde» (la misma que se ve en Presupuesto). Con el interruptor se suman en un total. */
+  function capBudgetAcc() {
+    const b = (LV.budgets || []).find(x => x.id === BUD_GLOBAL); if (!b) return null;
+    const nowYm = todayKey().slice(0, 7), u = budUi(), first = LED.budgetFirst(b) || nowYm;
+    const from = /^\d{4}-\d{2}$/.test(u.from[b.id] || '') ? u.from[b.id] : first;
+    const rows = from <= nowYm ? LED.budgetRows(b, NET(LV.entries), from, nowYm) : [];
+    return { acc: rows.length ? rows[rows.length - 1].acc : 0, from };
+  }
+  function capWidgetHtml() {
+    const pi = pointsInfo(), d = dayInfo(todayKey()), ba = capBudgetAcc(), on = !!state.ledgerPrefs.capSum && ba, priv = privacyOn();
+    const accE = ba ? ba.acc / 100 : 0, sign = v => (v > 0 ? '+' : v < 0 ? '−' : '') + money(Math.abs(v));
+    return `<section class="cap-wrap" aria-label="${esc(t('capTitle'))}">
+      <button class="cap-link" data-act="caprice" aria-label="${esc(t('capOpen'))}"><div class="cap-total"><div class="cap-total-head"><span>${ico('wallet')} ${esc(t('capTitle'))}</span><span class="cap-badge">${esc(t('capBadge'))}</span></div>
+        <div class="cap-total-amount">${esc(money(pi.money))}</div><div class="small">${esc(t('capToday', { p: fmtPts(d.cpts), m: money(d.money) }))}</div></div></button>
+      ${ba ? `<button class="cap-link cap-acc" data-act="ledger-budget"><div class="cap-total"><div class="cap-total-head"><span>${ico('budget')} ${esc(t('capAccTitle'))}</span></div>
+        <div class="cap-total-amount ${accE < 0 ? 'amt-out' : 'amt-in'} ${priv ? 'priv' : ''}">${esc(sign(accE))}</div><div class="small muted">${esc(t('budAccLabel', { m: budYmLabel(ba.from) }))}</div></div></button>
+        <label class="row cap-sum" style="gap:14px"><span class="switch"><input type="checkbox" data-led-opt="capsum" ${on ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('capSumQ'))}</b><br><span class="muted small">${esc(t('capSumHint'))}</span></span></label>
+        ${on ? `<div class="cap-total cap-sum-total"><div class="cap-total-head"><span>${ico('coins')} ${esc(t('capSumTitle'))}</span></div><div class="cap-total-amount ${priv ? 'priv' : ''}">${esc(money(pi.money + accE))}</div></div>` : ''}`
+        : `<p class="muted small center" style="margin:0">${esc(t('capAccNone'))}</p>`}
+      <p class="muted small center" style="margin:0">${esc(t('capNotReal'))}</p></section>`;
+  }
   /* Conversor: 10 puntos = ingreso neto total × (porcentaje / 100). Cada nivel tiene su porcentaje (modificable).
      Los cambios se guardan desde hoy en un historial: no recalculan el Dinero Caprichable de días pasados. */
   function setCaprice(patch) {
@@ -4646,13 +4670,13 @@
     let html = topBar(ledgerOpen() ? calcTopActions(false) : '');
     html += `<h1 class="page-title">${esc(t('tabLedger'))}</h1>`;
     if (!ledgerOpen()) return html + ledgerLockedHtml();
-    if (!capHidden()) html += `<button class="cap-link" data-act="caprice" aria-label="${esc(t('capOpen'))}">${capTotalHtml()}</button>`;
     if (LV.bad) html += `<div class="banner clay">${ico('alert')}<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
     html += worthHtml();
     const years = new Set([y, +todayKey().slice(0, 4)]); LV.entries.forEach(e => years.add(+String(e.date).slice(0, 4)));
     const yMin = Math.min(...years) - 1, yMax = Math.max(...years) + 1;
     const monthNames = Array.from({ length: 12 }, (_, i) => fmtDate(`2026-${pad(i + 1)}-01`, { month: 'long' }));
     const wd = Array.from({ length: 7 }, (_, i) => fmtDate(addDays('2026-10-12', i), { weekday: 'short' }));
+    const evd = tfEvDays('led');
     html += `<section class="ledger-cal clay" aria-label="${esc(t('ledgerCalendar'))}">
       <div class="cal-head"><button class="icon-btn sm" data-act="ledger-month" data-d="-1" aria-label="${esc(t('ledgerPrev'))}">${ico('left')}</button>
         <select class="input sel" data-ledger-m aria-label="${esc(t('ledgerMonthSel'))}">${monthNames.map((n, i) => `<option value="${i + 1}" ${i + 1 === m ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
@@ -4665,7 +4689,8 @@
       ${LED.monthGrid(y, m).map(w => `<div class="cal-row" role="row">${w.map(k => {
         if (!k) return '<span class="cal-cell empty" role="gridcell"></span>';
         const d = days[k], lbl = `${fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' })}${d ? ` · ${t('ledgerIncome')} ${cents(d.income)} · ${t('ledgerExpense')} ${cents(d.expense)}` : ''}`;
-        return `<button class="cal-cell ${k === sel ? 'on' : ''} ${k === todayKey() ? 'today' : ''}" role="gridcell" data-ledger-day="${k}" aria-label="${esc(lbl)}" aria-pressed="${k === sel}"><span class="cal-n">${+k.slice(8)}</span>${d ? `<span class="cal-dots">${d.income ? '<i class="in"></i>' : ''}${d.expense ? '<i class="out"></i>' : ''}${d.invest ? '<i class="inv"></i>' : ''}</span><span class="cal-net ${d.net < 0 ? 'amt-out' : 'amt-in'}">${priv ? '•••' : esc(compactMoney(d.net / 100))}</span>` : ''}</button>`;
+        const evs = evd[k] || [];
+        return `<button class="cal-cell ${k === sel ? 'on' : ''} ${k === todayKey() ? 'today' : ''} ${evs.length ? 'evp' : ''}" ${evs.length ? `style="--evc:${tfColor(evs[0].paint.color)}"` : ''} role="gridcell" data-ledger-day="${k}" aria-label="${esc(lbl + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}" aria-pressed="${k === sel}"><span class="cal-n">${+k.slice(8)}</span>${d ? `<span class="cal-dots">${d.income ? '<i class="in"></i>' : ''}${d.expense ? '<i class="out"></i>' : ''}${d.invest ? '<i class="inv"></i>' : ''}</span><span class="cal-net ${d.net < 0 ? 'amt-out' : 'amt-in'}">${priv ? '•••' : esc(compactMoney(d.net / 100))}</span>` : ''}</button>`;
       }).join('')}</div>`).join('')}</div>
     </section>`;
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
@@ -4675,6 +4700,8 @@
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
+    // v1.24: el Dinero Caprichable va al final de la Libreta, con la Diferencia acumulada del Presupuesto global
+    if (!capHidden()) html += capWidgetHtml();
     // v1.23: opciones de la pestaña al final, debajo de «Gráficos»: privacidad y mostrar el Dinero Caprichable
     html += `<div class="led-opts clay" role="group" aria-label="${esc(t('ledOptions'))}">
       <label class="check tgl"><input type="checkbox" data-led-opt="privacy" ${priv ? 'checked' : ''}> ${ico(priv ? 'eyeOff' : 'eye')} ${esc(t('privacyModeLabel'))}</label>
@@ -6932,6 +6959,8 @@
   function openEventEditor(ev = null) {
     const isNew = !ev, k = todayKey();
     const f = ev ? JSON.parse(JSON.stringify(ev)) : { name: '', icon: '🏖️', from: addDays(k, -7), to: k, catIds: [] };
+    // v1.24: «Colorear días»: el rango del evento se tiñe en el calendario de Organización, en el de la Libreta o en los dos
+    f.paint = { on: false, color: '#7c5cff', org: true, led: true, ...(f.paint || {}) };
     const icons = ['🏖️', '✈️', '🎄', '🎂', '💍', '🏠', '🚗', '🎓', '🩺', '🎉', '🛠️', '🗂️'];
     const draw = w => {
       $('#eve', w).innerHTML = `<div class="stack" style="gap:16px">
@@ -6939,13 +6968,20 @@
         <div class="field"><span>${esc(t('habitIcon'))}</span><div class="emoji-grid" style="max-height:110px">${icons.map(i => `<button type="button" data-ev-icon="${i}" class="${f.icon === i ? 'on' : ''}">${i}</button>`).join('')}</div></div>
         <div class="row" style="gap:12px"><label class="field grow"><span>${esc(t('ledFrom'))}</span><input class="input" id="ev-from" type="date" value="${f.from}"></label><label class="field grow"><span>${esc(t('ledTo'))}</span><input class="input" id="ev-to" type="date" value="${f.to}"></label></div>
         <div class="field"><span>${esc(t('evCats'))}</span><div class="muted small">${esc(t('evCatsHint'))}</div>
-          <div class="row wrap" style="gap:8px;margin-top:6px">${LV.cats.filter(c => !c.archived || f.catIds.includes(c.id)).map(c => `<label class="check-chip tgl"><input type="checkbox" data-ev-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon)} ${esc(catName(c))}</span></label>`).join('')}</div></div></div>`;
+          <div class="row wrap" style="gap:8px;margin-top:6px">${LV.cats.filter(c => !c.archived || f.catIds.includes(c.id)).map(c => `<label class="check-chip tgl"><input type="checkbox" data-ev-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon)} ${esc(catName(c))}</span></label>`).join('')}</div></div>
+        <div class="stack" style="gap:10px"><label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="ev-paint" ${f.paint.on ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('evPaint'))}</b><br><span class="muted small">${esc(t('evPaintHint'))}</span></span></label>
+          ${f.paint.on ? `<div class="tf-rect stack" style="gap:10px"><div class="row" style="gap:12px"><input class="tf-swatch sm" type="color" id="ev-pcolor" value="${tfColor(f.paint.color)}" aria-label="${esc(t('tfColor'))}"><span class="grow small">${esc(t('evPaintWhere'))}</span></div>
+            <div class="row wrap" style="gap:8px"><label class="check-chip tgl"><input type="checkbox" id="ev-porg" ${f.paint.org ? 'checked' : ''}><span>${ico('calendar')} ${esc(t('tabCalendar'))}</span></label><label class="check-chip tgl"><input type="checkbox" id="ev-pled" ${f.paint.led ? 'checked' : ''}><span>${ico('wallet')} ${esc(t('tabLedger'))}</span></label></div></div>` : ''}</div></div>`;
     };
-    const read = w => { f.name = $('#ev-name', w).value.trim(); f.from = $('#ev-from', w).value || f.from; f.to = $('#ev-to', w).value || f.to; f.catIds = [...w.querySelectorAll('[data-ev-cat]')].filter(i => i.checked).map(i => i.dataset.evCat); };
+    const read = w => {
+      f.name = $('#ev-name', w).value.trim(); f.from = $('#ev-from', w).value || f.from; f.to = $('#ev-to', w).value || f.to; f.catIds = [...w.querySelectorAll('[data-ev-cat]')].filter(i => i.checked).map(i => i.dataset.evCat);
+      f.paint.on = $('#ev-paint', w).checked;
+      if ($('#ev-pcolor', w)) { f.paint.color = tfColor($('#ev-pcolor', w).value); f.paint.org = $('#ev-porg', w).checked; f.paint.led = $('#ev-pled', w).checked; }
+    };
     openModal({
       title: esc(t(isNew ? 'evNew' : 'evEdit')), body: '<div id="eve"></div>',
       foot: `${isNew ? '' : `<button class="btn" data-ev="del">${ico('trash')}</button>`}<button class="btn primary" data-ev="save">${esc(t(isNew ? 'create' : 'save'))}</button>`,
-      onMount: draw,
+      onMount: w => { draw(w); w.addEventListener('change', e => { if (e.target.id === 'ev-paint') { read(w); draw(w); } }); },
       onClick: async (e, close, w) => {
         let el;
         if ((el = e.target.closest('[data-ev-icon]'))) { read(w); f.icon = el.dataset.evIcon; draw(w); return; }
@@ -9717,6 +9753,7 @@
       if (o === 'privacy') { setPrivacy(on); render(); sfx('toggle'); toast(t(on ? 'privacyOnToast' : 'privacyOffToast')); }
       if (o === 'flip') setFlip(on);
       if (o === 'cap') { state.ledgerPrefs = { ...state.ledgerPrefs, capHidden: !on }; save(); render(); }
+      if (o === 'capsum') { state.ledgerPrefs = { ...state.ledgerPrefs, capSum: on }; save(); render(); }
     }
     if (e.target.matches('[data-ledger-m], [data-ledger-y]')) {
       const y = $('[data-ledger-y]').value, m = $('[data-ledger-m]').value;
