@@ -209,7 +209,8 @@
       ledgerBudgets: [],
       ledgerProjs: [],
       ledgerWorth: [],
-      calDayK: {}, cdkmt: {}, // v1.24: tipo de día de cada fecha (Laboral, Libre, Festivo…) → id de calPrefs.dayKinds
+      calDayK: {}, cdkmt: {}, perfectRules: [], ledDays: {}, ldmt: {}, // v1.24: requisitos del día perfecto (historial por fecha) y días con movimientos
+      // v1.24: tipo de día de cada fecha (Laboral, Libre, Festivo…) → id de calPrefs.dayKinds
       calRoutines: [], // v1.23: rutinas del Calendario (grupos de turnos de un día o semana tipo) // v1.23: punto de partida real de la Libreta (saldos a una fecha) para «Patrimonio actual», cifrado
       ledgerImports: [], // v1.22: registros de lo importado con «Registrar» (cifrados como el resto de la Libreta)
       // v1.20: Calendario de turnos (trabajos, plantillas, días, calendario externo y ajustes)
@@ -227,7 +228,7 @@
   const ORDER_LISTS = ['projects', 'routines'];
   const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'calJobs', 'calShifts', 'calRoutines'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt'], ['sublogs', 'slmt']]; // hábito → día → valor (v1.23: sublogs = objetivos o maneras hechos ese día)
-  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt']];             // clave → valor
+  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt']];             // clave → valor
   function normalize(s) {
     const d = defaultState();
     const out = { ...d, ...s };
@@ -248,9 +249,9 @@
     out.perfectMastery = s.perfectMastery && typeof s.perfectMastery === 'object' && !Array.isArray(s.perfectMastery) ? s.perfectMastery : {};
     out.rest = s.rest && typeof s.rest === 'object' ? s.rest : {};
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
-    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
+    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'calJobs', 'calShifts', 'calRoutines']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'calJobs', 'calShifts', 'calRoutines', 'perfectRules']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.calDays = s.calDays && typeof s.calDays === 'object' && !Array.isArray(s.calDays) ? s.calDays : {};
     out.calExt = s.calExt && Array.isArray(s.calExt.list) ? s.calExt : { list: [] };
     const cp0 = s.calPrefs && typeof s.calPrefs === 'object' ? s.calPrefs : {};
@@ -291,7 +292,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif, s.perfectRules];
   // La caja fuerte de la Libreta y el par de claves para compartir van aparte, con su propia marca (vmt)
   const vaultOf = s => [s.ledgerVault, s.kx];
   function stampChanges(prev, cur) {
@@ -375,7 +376,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif, out.perfectRules] = settingsOf(R); out.smt = R.smt; }
     // Caja fuerte: gana la más reciente, pero una vacía (o sin marca) nunca borra a otra salvo que venga de «Borrar la Libreta»
     {
       const lv = L.ledgerVault, rv = R.ledgerVault, wipe = Math.max(L.vaultWipe || 0, R.vaultWipe || 0);
@@ -708,8 +709,64 @@
     }
     const ratio = weight > 0 ? got / weight : 0, cpts = CAP.dayPointsV2(ratio, n), c = capOn(k);
     const pct = c.p != null ? c.p : CAP.DEFAULT_P;
-    const perfect = !slip && (due > 0 ? done === due : quitClean > 0 || (weight > 0 && ratio >= 1 - 1e-9));
+    let perfect = !slip && (due > 0 ? done === due : quitClean > 0 || (weight > 0 && ratio >= 1 - 1e-9));
+    const rule = perfectRuleOn(k); if (rule) perfect = perfectByRule(rule, k, perfect);
     return { pts: cpts * 10, cpts, max: CAP.maxDayPoints(n), money: CAP.moneyFor(cpts, c.income, pct), perfect, level: lvKey, units, need: n, due, done, slip, ratio };
+  }
+  /* v1.24: requisitos mínimos del día perfecto. state.perfectRules = [{ from, mode: 'all'|'pick', habits: [ids], projects: [ids],
+     shift, ledger }]; cada regla vale desde su fecha (los días anteriores no cambian). Hay que cumplir todo lo elegido:
+     los hábitos (todos o los elegidos y los de los proyectos elegidos), y si se pide, al menos un turno en el Calendario
+     y/o un movimiento en la Libreta ese día. Los puntos no cambian: solo cuándo un día es perfecto. */
+  const perfectRuleOn = k => { let r = null; for (const x of state.perfectRules || []) if (x && x.from <= k && (!r || x.from >= r.from)) r = x; return r && (r.mode === 'pick' || r.shift || r.ledger) ? r : null; };
+  const hasLedgerOn = k => (ledgerOpen() ? LV.entries.some(e => e.date === k) : !!state.ledDays[k]);
+  function perfectByRule(r, k, allPerfect) {
+    let ok;
+    if (r.mode === 'pick') {
+      const ids = new Set(r.habits || []);
+      for (const pid of r.projects || []) { const p = state.projects.find(x => x.id === pid); if (p) projHabits(p).forEach(h => ids.add(h.id)); }
+      const v = projDayPerfect([...ids].map(getHabit).filter(Boolean), k);
+      ok = v === null ? (r.shift || r.ledger ? true : false) : v;
+    } else ok = allPerfect || ((r.shift || r.ledger) && !state.habits.some(h => !h.archived && k >= firstKey(h) && !isQuit(h) && (h.freq || 'daily') === 'daily' && !isOffDay(h, k)));
+    if (ok && r.shift) ok = (state.calDays[k] || []).length > 0;
+    if (ok && r.ledger) ok = hasLedgerOn(k);
+    return !!ok;
+  }
+  function openPerfectRules() {
+    const cur = perfectRuleOn(todayKey()) || { mode: 'all', habits: [], projects: [], shift: false, ledger: false };
+    const f = { mode: cur.mode === 'pick' ? 'pick' : 'all', habits: [...(cur.habits || [])], projects: [...(cur.projects || [])], shift: !!cur.shift, ledger: !!cur.ledger };
+    let wref;
+    const read = () => { if (!wref) return; f.habits = $$('[data-pr-h]', wref).filter(i => i.checked).map(i => i.dataset.prH); f.projects = $$('[data-pr-p]', wref).filter(i => i.checked).map(i => i.dataset.prP); f.shift = $('#pr-shift', wref).checked; f.ledger = $('#pr-led', wref).checked; };
+    const draw = () => {
+      const hs = state.habits.filter(h => !h.archived), ps = state.projects.filter(p => !p.archived);
+      $('#prr', wref).innerHTML = `<div class="stack" style="gap:14px"><p class="muted small" style="margin:0">${esc(t('prHint'))}</p>
+        <div class="seg" role="group" style="display:flex">${[['all', 'prAll'], ['pick', 'prPick']].map(([v, k]) => `<button type="button" data-pr-mode="${v}" class="${f.mode === v ? 'on' : ''}" style="flex:1">${esc(t(k))}</button>`).join('')}</div>
+        ${f.mode === 'pick' ? `${ps.length ? `<div class="field"><span>${esc(t('prProjects'))}</span><div class="row wrap" style="gap:8px">${ps.map(p => `<label class="check-chip tgl"><input type="checkbox" data-pr-p="${esc(p.id)}" ${f.projects.includes(p.id) ? 'checked' : ''}><span>${ico('folder', 'xs')} ${esc(p.name)}</span></label>`).join('')}</div></div>` : ''}
+          <div class="field"><span>${esc(t('prHabits'))}</span><div class="row wrap" style="gap:8px">${hs.map(h => `<label class="check-chip tgl"><input type="checkbox" data-pr-h="${esc(h.id)}" ${f.habits.includes(h.id) ? 'checked' : ''}><span>${esc(h.name)}</span></label>`).join('')}</div></div>` : ''}
+        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pr-shift" ${f.shift ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('prShift'))}</b><br><span class="muted small">${esc(t('prShiftHint'))}</span></span></label>
+        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pr-led" ${f.ledger ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('prLedger'))}</b><br><span class="muted small">${esc(t('prLedgerHint'))}</span></span></label>
+        <p class="muted small" style="margin:0">${esc(t('prFrom'))}</p></div>`;
+    };
+    openModal({
+      title: `${ico('crown')} ${esc(t('prTitle'))}`, cls: 'tf-sheet', body: '<div id="prr"></div>',
+      foot: `<button class="btn primary block" data-pr="save">${esc(t('save'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onClick: (e, close) => {
+        const m = e.target.closest('[data-pr-mode]'); if (m) { read(); f.mode = m.dataset.prMode; draw(); return; }
+        if (!e.target.closest('[data-pr="save"]')) return;
+        read();
+        if (f.mode === 'pick' && !f.habits.length && !f.projects.length && !f.shift && !f.ledger) { toast(t('prNeedOne')); return; }
+        const k = todayKey(), rule = { from: k, mode: f.mode, habits: f.mode === 'pick' ? f.habits : [], projects: f.mode === 'pick' ? f.projects : [], shift: f.shift, ledger: f.ledger };
+        state.perfectRules = [...(state.perfectRules || []).filter(x => x && x.from < k), rule];
+        markLedgerDays(); save(); close(); render(); toast(t('saved'));
+      }
+    });
+  }
+  // Fechas con algún movimiento (sin importes ni nada más), solo si un requisito lo usa: así se sabe aunque la Libreta esté cerrada
+  function markLedgerDays() {
+    if (!ledgerOpen()) return;
+    const need = (state.perfectRules || []).some(r => r && r.ledger), next = {};
+    if (need) for (const e of LV.entries) if (e && e.date) next[e.date] = 1;
+    if (JSON.stringify(next) !== JSON.stringify(state.ledDays || {})) state.ledDays = next;
   }
   function firstDay() { return cached('first', () => state.habits.reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, todayKey())); }
   function eachDay(fn) { const today = todayKey(); for (let k = firstDay(); k <= today; k = addDays(k, 1)) fn(k); }
@@ -3035,6 +3092,7 @@
       <span class="muted small">${esc(t('perfectStreakNow'))}</span><b class="streak-n">${esc(t(pr.cur === 1 ? 'perfectStreakDay1' : 'perfectStreakDays', { n: pr.cur }))}</b>
       <span class="muted small">${esc(t('perfectStreakBest', { n: pr.best }))}</span>
       ${next ? `<div class="bar ${pct ? '' : 'zero'}" style="height:10px;margin-top:10px"><i style="width:${pct}%"></i></div><span class="small streak-next">${esc(t('perfectNext', { n: Math.max(0, next[1] - pr.cur), rank: t('rank_' + next[0]) }))}</span>` : `<span class="small">${esc(t('masteryMax'))}</span>`}
+      <button class="chip" data-act="perfect-rules" style="margin-top:10px;align-self:flex-start">${ico('gear')} ${esc(t('prTitle'))}${perfectRuleOn(todayKey()) ? ` · ${esc(t('prCustom'))}` : ''}</button>
       </div></section>`;
     html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">👑</div><div class="grow"><h3>${esc(t('perfectSeries'))}</h3><div class="muted small">${esc(t('perfectHow2'))}</div></div><b style="font-size:20px">${got}/${RANKS.length}</b></div>
       <div class="cards-row">${RANKS.map(([r, th], i) => { const m = state.perfectMastery[r]; return `<button class="kcard-btn" data-act="pcard-open" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${m ? cardFace(PSUBJ(), i, 'front') : cardLocked(i)}<span class="cap">${esc(t('rank_' + r))}<small>${m ? esc(fmtShort(m.date)) : esc(t('perfectReq', { n: th }))}</small></span></button>`; }).join('')}</div></section>`;
@@ -4358,6 +4416,7 @@
   // Cifra lo que haya cambiado en memoria y lo guarda (los que no se pudieron descifrar se conservan intactos)
   async function ledgerCommit() {
     if (!ledgerOpen()) return;
+    markLedgerDays();
     for (const [k, sk] of LKINDS) {
       const ids = new Set(LV[k].map(x => x.id));
       const next = state[sk].filter(x => ids.has(x.id) || (x.enc && !LV.known.has(x.id)));
@@ -9676,6 +9735,7 @@
       case 'proj-edit': { const p = state.projects.find(x => x.id === id); if (p) openProjectEditor(p); break; }
       case 'vacations': openVacations(); break;
       case 'level': openLevel(); break;
+      case 'perfect-rules': openPerfectRules(); break;
       case 'privacy': setPrivacy(!privacyOn()); render(); sfx('toggle'); toast(t(privacyOn() ? 'privacyOnToast' : 'privacyOffToast')); break;
       case 'caprice': openCaprice(); break;
       case 'vault-sec': openVaultSecurity(); break;

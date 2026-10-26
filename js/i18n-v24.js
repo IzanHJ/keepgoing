@@ -17,6 +17,11 @@
     capAccTitle: 'Diferencia acumulada', capSumQ: 'Sumar ambos', capSumHint: 'Dinero Caprichable + Diferencia acumulada del Presupuesto global.', capSumTitle: 'Total caprichable',
     capAccNone: 'Crea un Presupuesto global para ver aquí su Diferencia acumulada.',
     evPaint: 'Colorear días', evPaintHint: 'Los días del evento se colorean en el calendario.', evPaintWhere: 'Color y dónde se ve:',
+    prTitle: 'Requisitos del día perfecto', prCustom: 'a tu medida', prHint: 'Elige qué hace falta para que un día sea perfecto. Hay que cumplir todo lo que elijas.',
+    prAll: 'Todos los hábitos', prPick: 'Elegir', prProjects: 'Proyectos (todos sus hábitos)', prHabits: 'Hábitos',
+    prShift: 'Al menos un turno en el Calendario', prShiftHint: 'Ese día tiene que tener algo puesto en el Calendario.',
+    prLedger: 'Al menos un movimiento en la Libreta', prLedgerHint: 'Ese día tiene que tener algún gasto, ingreso o inversión apuntado.',
+    prFrom: 'Se aplica desde hoy. Los días anteriores no cambian.', prNeedOne: 'Elige al menos un hábito, un proyecto o un requisito.',
     tfMore: 'Ajustes', tfMenuAria: 'Menú: informes, turnos, rutinas, rotaciones y ajustes',
   };
   const en = {
@@ -35,6 +40,11 @@
     capAccTitle: 'Accumulated difference', capSumQ: 'Add both', capSumHint: 'Treat money + accumulated difference of the global Budget.', capSumTitle: 'Total treat money',
     capAccNone: 'Create a global Budget to see its accumulated difference here.',
     evPaint: 'Colour days', evPaintHint: 'The event days are coloured in the calendar.', evPaintWhere: 'Colour and where it shows:',
+    prTitle: 'Perfect day requirements', prCustom: 'custom', prHint: 'Choose what a day needs to be perfect. Everything you choose must be met.',
+    prAll: 'All habits', prPick: 'Choose', prProjects: 'Projects (all their habits)', prHabits: 'Habits',
+    prShift: 'At least one shift in the Calendar', prShiftHint: 'That day must have something in the Calendar.',
+    prLedger: 'At least one movement in the Notebook', prLedgerHint: 'That day must have an expense, income or investment logged.',
+    prFrom: 'It applies from today. Earlier days do not change.', prNeedOne: 'Choose at least one habit, project or requirement.',
     tfMore: 'Settings', tfMenuAria: 'Menu: reports, shifts, routines, rotations and settings',
   };
   Object.assign(window.I18N.es, es);
