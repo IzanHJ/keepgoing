@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.24.0';
+  const VERSION = '1.25.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -3756,7 +3756,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);

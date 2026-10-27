@@ -35,6 +35,17 @@
     subReqTarget: 'Veces', subReqTargetW: 'Veces', subReqMin: 'Mínimo', subReqAmt: 'Cada vez', subReqUnit: 'Unidad', subReqUnitPh: 'min, ml, km…',
     subReqMinN: 'cuenta con {n}', subReqEach: 'cada vez {a} {u}', subReqTotal: 'total {a} {u}', subReqAsk: '¿Cuánto esta vez? ({u})', subReqNeedAmt: 'Escribe la cantidad de esta vez',
     subReqShort: 'No llega a {a} {u}: esta vez no cuenta', projExtract: 'Extraer hábitos', projExtractQ: '¿Sacar los {n} hábitos de «{name}»? Los hábitos no se borran: solo salen de la carpeta.', projExtracted: 'Hábitos fuera del proyecto',
+    wn_1_25_0_1: 'Hasta 3 colores por día|En Organización un día puede tener dos colores (en diagonal) o tres (como una tarta). Los colores de los eventos también cuentan, igual que se ven en el calendario.',
+    wn_1_25_0_2: 'Turnos puntuales|Para cosas de un solo día, como el médico, una quedada o un taxi. No se guardan en tu lista de turnos y, si les pones una categoría, suman horas y paga.',
+    wn_1_25_0_3: 'Notas en los turnos y en el día|Escribe una nota en cada turno y otra para el día entero, que se ve debajo de la casilla. Si algo no cabe, toca «Ver más» para verlo todo.',
+    wn_1_25_0_4: 'Valora tu día del 0 al 10|Arriba en «Hoy» puedes poner nota a tu día (o a ayer) y se ve también en el calendario de Organización.',
+    wn_1_25_0_5: 'PDF del calendario a tu medida|Elige de qué fecha a qué fecha y qué se ve: turnos, rutinas, texto, días de color, notas y valoraciones. Con «Detalle», solo la semana que lo necesita se hace más alta para que no se corte nada. También lo puedes enviar por el chat.',
+    wn_1_25_0_6: 'Pendiente de Aportación y Pendiente de devolver|En un gasto, apunta lo que otras personas te tienen que dar (una cantidad o un %). Un ingreso puede pagarlo: si falta, queda como Deuda; si sobra, son Comisiones. Lo que debes tú no cuenta en gastos ni en tu patrimonio hasta que lo devuelves.',
+    wn_1_25_0_7: 'Contactos y Deudas|Nueva herramienta en la Libreta con las personas de tus deudas (escritas a mano o tus amigos por @nametag) y lo que te deben o les debes, a tu favor, en tu contra y resueltas.',
+    wn_1_25_0_8: 'Eventos con días elegidos|Elige los días de un evento en el calendario de Organización, viendo sus colores, o píntalos ahí mismo. Los movimientos de esos días entran solos. Y el calendario de la Libreta puede mostrar los colores de tus días.',
+    wn_1_25_0_9: 'Más cómodo en la Libreta|Pasa de un día a otro en el resumen deslizando o con las flechas, y crea o borra categorías sin salir de la clasificación del CSV.',
+    wn_1_25_0_10: 'Hábitos y proyectos|Los requisitos de Varios objetivos y Varias maneras tienen mínimo de veces y una cantidad con unidad para cada vez. Un hábito creado dentro de un proyecto se queda en él, lo puedes mover a otro o sacarlo, y «Extraer hábitos» vacía la carpeta.',
+    wn_1_25_0_11: 'Arreglos|El chat se abre a pantalla completa con su flecha para volver (o desliza desde el borde) y la tienda ya tiene botón para volver a la app y enseña cuánto ahorras con el plan anual y el pago único.',
     dbBadgeDue: 'Pendiente de devolver · {who}', dbBadgeDuePaid: 'Devuelto · {who}', dbBadgeOwed: 'Te deben {a}'
   };
   const en = {
@@ -72,6 +83,17 @@
     subReqTarget: 'Times', subReqTargetW: 'Times', subReqMin: 'Minimum', subReqAmt: 'Each time', subReqUnit: 'Unit', subReqUnitPh: 'min, ml, km…',
     subReqMinN: 'counts at {n}', subReqEach: 'each time {a} {u}', subReqTotal: 'total {a} {u}', subReqAsk: 'How much this time? ({u})', subReqNeedAmt: 'Type the amount for this time',
     subReqShort: 'It does not reach {a} {u}: this time does not count', projExtract: 'Extract habits', projExtractQ: 'Take the {n} habits out of “{name}”? The habits are not deleted: they just leave the folder.', projExtracted: 'Habits taken out of the project',
+    wn_1_25_0_1: 'Up to 3 colours per day|In Organisation a day can have two colours (diagonal) or three (like a pie). Event colours count too, just as they show on the calendar.',
+    wn_1_25_0_2: 'One-off shifts|For one-day things like the doctor, a meet-up or a taxi. They are not saved in your shift list and, if you give them a category, they add hours and pay.',
+    wn_1_25_0_3: 'Notes on shifts and on the day|Write a note on each shift and another for the whole day, shown under the cell. If something does not fit, tap “See more” to see it all.',
+    wn_1_25_0_4: 'Rate your day from 0 to 10|At the top of “Today” you can rate your day (or yesterday) and it also shows on the Organisation calendar.',
+    wn_1_25_0_5: 'Calendar PDF your way|Choose from which date to which date and what shows: shifts, routines, text, coloured days, notes and ratings. With “Detail”, only the week that needs it grows so nothing is cut. You can also send it in the chat.',
+    wn_1_25_0_6: 'Pending contribution and Pending repayment|On an expense, note what other people have to give you (an amount or a %). An income can pay it: if it falls short, the rest is a Debt; if it is more, the extra is Fees. What you owe does not count in expenses or net worth until you pay it back.',
+    wn_1_25_0_7: 'Contacts and Debts|A new Ledger tool with the people in your debts (typed names or friends by @nametag) and what they owe you or you owe them, in your favour, against you and settled.',
+    wn_1_25_0_8: "Events with picked days|Pick an event's days on the Organisation calendar, seeing its colours, or paint them right there. The movements of those days are added on their own. And the Ledger calendar can show your day colours.",
+    wn_1_25_0_9: 'Easier in the Ledger|Move from one day to the next in the summary by swiping or with the arrows, and create or delete categories without leaving the CSV classification.',
+    wn_1_25_0_10: 'Habits and projects|Requirements in Several goals and Several ways have a minimum number of times and an amount with a unit for each time. A habit created inside a project stays in it, you can move it or take it out, and “Extract habits” empties the folder.',
+    wn_1_25_0_11: 'Fixes|The chat opens full screen with a back arrow (or swipe from the edge) and the shop now has a button back to the app and shows how much you save with the yearly plan and the one-time payment.',
     dbBadgeDue: 'Pending repayment · {who}', dbBadgeDuePaid: 'Repaid · {who}', dbBadgeOwed: 'Owed {a}'
   };
   Object.assign(window.I18N.es, es);
