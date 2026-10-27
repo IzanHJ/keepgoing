@@ -22,6 +22,10 @@
     dbBase: 'El % se calcula sobre {a} (el gasto después de sus movimientos vinculados).',
     dbDueTitle: 'Pendiente de devolver', dbDueHint: 'Se lo debes a otra persona (por ejemplo, te lo pagó ella). No cuenta en gastos ni en el patrimonio hasta que lo marques como devuelto.',
     dbDuePaid: 'Ya lo he devuelto', dbNeedWho: 'Elige a quién corresponde cada deuda.', dbWhoPick: 'Elige una persona', dbWhoNew: 'Otra persona (escribir nombre)', dbWhoName: 'Nombre',
+    ctTitle: 'Contactos', ctHint: 'Las personas de tus deudas. Se crean solas al elegirlas en un movimiento, o añádelas aquí.', ctAdd: 'Añadir contacto', ctEmpty: 'Aún no tienes contactos.',
+    ctFromFriend: 'O elige un amigo por @nametag', ctOwesYou: 'Te deben', ctYouOwe: 'Debes', ctFees: 'Comisiones', ctDebts: 'Deudas', ctEven: 'Sin deudas pendientes',
+    ctRowFavor: 'Te debe {a}', ctRowContra: 'Le debes {a}', ctTabFavor: 'A tu favor', ctTabContra: 'En tu contra', ctTabDone: 'Resueltas', ctNoDebts: 'No hay deudas aquí.',
+    ctTagHint: 'solo sirve para saber quién es', ctDelete: 'Borrar contacto', ctHasDebts: 'Tiene deudas: quítalas de sus movimientos antes de borrarlo.',
     dbBadgeDue: 'Pendiente de devolver · {who}', dbBadgeDuePaid: 'Devuelto · {who}', dbBadgeOwed: 'Te deben {a}'
   };
   const en = {
@@ -46,6 +50,10 @@
     dbBase: 'The % is worked out on {a} (the expense after its linked movements).',
     dbDueTitle: 'Pending repayment', dbDueHint: 'You owe it to someone else (for example, they paid it for you). It does not count in expenses or net worth until you mark it as repaid.',
     dbDuePaid: 'I have paid it back', dbNeedWho: 'Choose who each debt belongs to.', dbWhoPick: 'Choose a person', dbWhoNew: 'Someone else (type a name)', dbWhoName: 'Name',
+    ctTitle: 'Contacts', ctHint: 'The people in your debts. They are created when you pick them in a movement, or add them here.', ctAdd: 'Add contact', ctEmpty: 'You have no contacts yet.',
+    ctFromFriend: 'Or pick a friend by @nametag', ctOwesYou: 'Owed to you', ctYouOwe: 'You owe', ctFees: 'Fees', ctDebts: 'Debts', ctEven: 'No pending debts',
+    ctRowFavor: 'Owes you {a}', ctRowContra: 'You owe {a}', ctTabFavor: 'In your favour', ctTabContra: 'Against you', ctTabDone: 'Settled', ctNoDebts: 'No debts here.',
+    ctTagHint: 'only used to know who it is', ctDelete: 'Delete contact', ctHasDebts: 'They have debts: remove them from their movements before deleting.',
     dbBadgeDue: 'Pending repayment · {who}', dbBadgeDuePaid: 'Repaid · {who}', dbBadgeOwed: 'Owed {a}'
   };
   Object.assign(window.I18N.es, es);

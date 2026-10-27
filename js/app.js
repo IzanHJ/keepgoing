@@ -5218,7 +5218,7 @@
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
     // Herramientas de la Libreta: icono de línea con su nombre debajo (mismo estilo que la calculadora)
     const nRec = LV.recurring.filter(r => !r.archived).length;
-    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-imports', 'doc', 'rgsTitle', LV.imports.length], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['ledger-fx', 'globe', 'fxTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
+    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-imports', 'doc', 'rgsTitle', LV.imports.length], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-contacts', 'users', 'ctTitle', DEBT.list(LV.entries).filter(d => d.status === 'open').length], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['ledger-fx', 'globe', 'fxTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
@@ -7511,6 +7511,70 @@
         let el;
         if (e.target.closest('[data-ev-new]')) { close(); openEventEditor(); return; }
         if ((el = e.target.closest('[data-ev-open]'))) { close(); openEvent(el.dataset.evOpen); }
+      }
+    });
+  }
+  /* ---------- Contactos y Deudas (v1.25): personas de las deudas, lo que te debe o le debes a cada una ---------- */
+  function openContacts(view = 'list') {
+    let wref, adding = false;
+    const priv = () => privacyOn(), money = c => (priv() ? '•••' : cents(c));
+    const draw = () => {
+      const box = $('#ct', wref); if (!box) return;
+      const debts = DEBT.list(LV.entries), per = new Map(DEBT.byPerson(debts).map(r => [r.key, r])), tot = DEBT.totals(debts);
+      const sumHtml = `<div class="bud-nums ct-sum"><div><span>${esc(t('ctOwesYou'))}</span><b class="amt-in">${money(tot.favor)}</b></div><div><span>${esc(t('ctYouOwe'))}</span><b class="amt-out">${money(tot.contra)}</b></div><div><span>${esc(t('ctFees'))}</span><b>${money(tot.extra)}</b></div></div>`;
+      const debtRow = d => { const x = LV.entries.find(y => y.id === d.eid) || {}, c = catOf(x.categoryId);
+        const st = d.status === 'done' ? (d.extra ? t('dbDoneExtra', { a: money(d.extra) }) : t('dbDone')) : t(d.side === 'favor' ? 'ctRowFavor' : 'ctRowContra', { a: money(d.left) });
+        return `<button type="button" class="lk-opt" data-ct-entry="${esc(d.eid)}"><div class="lk-row"><span class="led-ico" aria-hidden="true">${esc(c.icon || '')}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(whoLabel(d.who))} · ${esc(x.note || catName(c))}</b><span class="muted small">${esc(fmtShort(d.date))} · ${esc(st)}</span></span><b class="${d.status === 'done' ? '' : d.side === 'favor' ? 'amt-in' : 'amt-out'}">${money(d.status === 'done' ? d.expected : d.left)}</b></div></button>`; };
+      if (view === 'debts') {
+        const tab = state.ui.ctTab || 'favor', L = debts.filter(d => tab === 'done' ? d.status === 'done' : d.status === 'open' && d.side === tab);
+        box.innerHTML = `<div class="row" style="gap:8px;margin-bottom:10px"><button class="icon-btn sm" data-ct-back aria-label="${esc(t('back'))}">${ico('left')}</button><h3 class="grow" style="margin:0">${esc(t('ctDebts'))}</h3></div>${sumHtml}
+          <div class="seg" role="tablist" style="margin:12px 0">${[['favor', 'ctTabFavor'], ['contra', 'ctTabContra'], ['done', 'ctTabDone']].map(([v, k]) => `<button type="button" role="tab" data-ct-tab="${v}" class="${tab === v ? 'on' : ''}" aria-selected="${tab === v}">${esc(t(k))}</button>`).join('')}</div>
+          ${L.length ? `<div class="lk-list">${L.map(debtRow).join('')}</div>` : `<p class="muted center">${esc(t('ctNoDebts'))}</p>`}`;
+        return;
+      }
+      if (view !== 'list') {
+        const c = contactById(view); if (!c) { view = 'list'; draw(); return; }
+        const r = per.get('c:' + c.id), L = debts.filter(d => d.key === 'c:' + c.id);
+        box.innerHTML = `<div class="row" style="gap:8px;margin-bottom:10px"><button class="icon-btn sm" data-ct-back aria-label="${esc(t('back'))}">${ico('left')}</button><h3 class="grow ellipsis" style="margin:0">${esc(c.name || '@' + c.tag)}</h3></div>
+          <label class="field"><span>${esc(t('dbWhoName'))}</span><input class="input" id="ct-name" maxlength="40" value="${esc(c.name || '')}"></label>
+          ${c.tag ? `<p class="muted small">${ico('user', 'xs')} @${esc(c.tag)} · ${esc(t('ctTagHint'))}</p>` : ''}
+          <div class="bud-nums ct-sum"><div><span>${esc(t('ctOwesYou'))}</span><b class="amt-in">${money(r ? r.favor : 0)}</b></div><div><span>${esc(t('ctYouOwe'))}</span><b class="amt-out">${money(r ? r.contra : 0)}</b></div><div><span>${esc(t('ctFees'))}</span><b>${money(r ? r.extra : 0)}</b></div></div>
+          <h4 style="margin:14px 0 8px">${esc(t('ctDebts'))}</h4>${L.length ? `<div class="lk-list">${L.map(debtRow).join('')}</div>` : `<p class="muted small">${esc(t('ctNoDebts'))}</p>`}
+          <button class="btn danger sm" data-ct-del="${esc(c.id)}" style="margin-top:14px">${ico('trash')} ${esc(t('ctDelete'))}</button>`;
+        return;
+      }
+      const list = [...LV.contacts].sort((a, b) => String(a.name || a.tag).localeCompare(String(b.name || b.tag)));
+      const friends = (chatData.friends || []).filter(f => f.status === 'accepted' && f.nametag && !LV.contacts.some(c => c.tag === String(f.nametag).toLowerCase()));
+      box.innerHTML = `<p class="muted small" style="margin-top:0">${esc(t('ctHint'))}</p>${sumHtml}
+        <button class="btn block" data-ct-debts style="margin:12px 0">${ico('users')} ${esc(t('ctDebts'))}</button>
+        ${list.length ? `<div class="lk-list">${list.map(c => { const r = per.get('c:' + c.id), net = r ? r.favor - r.contra : 0;
+          return `<button type="button" class="lk-opt" data-ct-open="${esc(c.id)}"><div class="lk-row"><span class="led-ico" aria-hidden="true">${ico('user')}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(c.name || '@' + c.tag)}</b><span class="muted small">${c.tag ? '@' + esc(c.tag) + ' · ' : ''}${esc(net > 0 ? t('ctRowFavor', { a: money(net) }) : net < 0 ? t('ctRowContra', { a: money(-net) }) : t('ctEven'))}</span></span><b class="${net > 0 ? 'amt-in' : net < 0 ? 'amt-out' : ''}">${net ? money(Math.abs(net)) : ''}</b></div></button>`; }).join('')}</div>` : `<p class="muted center">${esc(t('ctEmpty'))}</p>`}
+        ${adding ? `<div class="db-part clay stack" style="gap:8px;margin-top:12px"><input class="input" id="ct-new" maxlength="40" placeholder="${esc(t('dbWhoName'))}">${friends.length ? `<select class="input" id="ct-friend"><option value="">${esc(t('ctFromFriend'))}</option>${friends.map(f => `<option value="${esc(String(f.nametag).toLowerCase())}">@${esc(f.nametag)} · ${esc(personName(f))}</option>`).join('')}</select>` : ''}<button class="btn primary" data-ct-save>${esc(t('save'))}</button></div>` : ''}`;
+    };
+    openModal({
+      title: `${ico('users')} ${esc(t('ctTitle'))}`, body: '<div id="ct"></div>',
+      foot: `<button class="btn primary block" data-ct-add>${ico('plus')} ${esc(t('ctAdd'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onInput: e => { if (e.target.id === 'ct-name') { const c = contactById(view); if (c) { c.name = e.target.value.trim().slice(0, 40); ledgerSave(); } } },
+      onClick: (e, close) => {
+        let el;
+        if (e.target.closest('[data-ct-add]')) { view = 'list'; adding = true; draw(); setTimeout(() => { const i = $('#ct-new', wref); if (i) i.focus(); }, 30); return; }
+        if (e.target.closest('[data-ct-save]')) {
+          const tag = ($('#ct-friend', wref) || {}).value || '', name = $('#ct-new', wref).value.trim();
+          if (!tag && !name) { toast(t('dbNeedWho')); return; }
+          contactFor(tag ? { tag } : { name }); if (tag && name) { const c = LV.contacts.find(x => x.tag === tag); if (c) c.name = name; }
+          adding = false; ledgerSave(); draw(); render(); return;
+        }
+        if (e.target.closest('[data-ct-debts]')) { view = 'debts'; draw(); return; }
+        if (e.target.closest('[data-ct-back]')) { view = 'list'; draw(); render(); return; }
+        if ((el = e.target.closest('[data-ct-tab]'))) { state.ui.ctTab = el.dataset.ctTab; save(); draw(); return; }
+        if ((el = e.target.closest('[data-ct-open]'))) { view = el.dataset.ctOpen; adding = false; draw(); return; }
+        if ((el = e.target.closest('[data-ct-entry]'))) { const x = LV.entries.find(y => y.id === el.dataset.ctEntry); if (x) { close(); openEntry(x); } return; }
+        if ((el = e.target.closest('[data-ct-del]'))) {
+          const id = el.dataset.ctDel;
+          if (DEBT.list(LV.entries).some(d => d.key === 'c:' + id)) { toast(t('ctHasDebts')); return; }
+          LV.contacts = LV.contacts.filter(c => c.id !== id); ledgerSave(); view = 'list'; draw(); render();
+        }
       }
     });
   }
@@ -10396,6 +10460,7 @@
       case 'ledger-recs': openLedgerRecs(); break;
       case 'ledger-events': openLedgerEvents(); break;
       case 'ledger-budget': openBudgets(); break;
+      case 'ledger-contacts': openContacts(); break;
       case 'ledger-import': if (ledgerOpen()) openRegistrar(); break;
       case 'ledger-imports': if (ledgerOpen()) openRegistros(); break;
       case 'ledger-fx': if (ledgerOpen()) openFxSettings(); break;
