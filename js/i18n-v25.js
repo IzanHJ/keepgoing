@@ -30,6 +30,8 @@
     evpHint: 'Toca los días del evento. Se ven los colores de Organización.', evpPaintHint: 'Elige un tipo de día y toca las casillas para colorearlas: se quedan en Organización y se eligen para el evento.',
     evpSelect: 'Elegir', evpPaint: 'Pintar', evpAllOf: 'Todos los de {k}', evpNoneOf: 'Este mes no hay días de ese tipo.', evpNoColor: 'este mes no hay días de color', evpClear: 'Quitar todos',
     ledOrgDays: 'Ver los colores de los días de Organización',
+    rgCatNew: 'Nueva categoría', rgCatDel: 'Borrar esta categoría', rgCatDelQ: '¿Borrar «{c}»?', rgCatUsed: 'Tiene {n} movimientos o repeticiones. Elige a qué categoría se mueven antes de borrarla:',
+    rgCatUnused: 'No tiene movimientos: se borra sin más.', rgCatNoOther: 'No hay otra categoría del mismo tipo a la que moverlos. Crea una primero.', rgCatMoveDel: 'Mover y borrar', rgCatDeleted: 'Categoría borrada',
     dbBadgeDue: 'Pendiente de devolver · {who}', dbBadgeDuePaid: 'Devuelto · {who}', dbBadgeOwed: 'Te deben {a}'
   };
   const en = {
@@ -62,6 +64,8 @@
     evpHint: 'Tap the days of the event. Organisation colours are shown.', evpPaintHint: 'Choose a day type and tap the cells to colour them: they stay in Organisation and are picked for the event.',
     evpSelect: 'Pick', evpPaint: 'Paint', evpAllOf: 'All {k}', evpNoneOf: 'There are no days of that type this month.', evpNoColor: 'no coloured days this month', evpClear: 'Clear all',
     ledOrgDays: 'Show the Organisation day colours',
+    rgCatNew: 'New category', rgCatDel: 'Delete this category', rgCatDelQ: 'Delete “{c}”?', rgCatUsed: 'It has {n} movements or repeats. Choose which category they move to before deleting it:',
+    rgCatUnused: 'It has no movements: it is simply deleted.', rgCatNoOther: 'There is no other category of the same type to move them to. Create one first.', rgCatMoveDel: 'Move and delete', rgCatDeleted: 'Category deleted',
     dbBadgeDue: 'Pending repayment · {who}', dbBadgeDuePaid: 'Repaid · {who}', dbBadgeOwed: 'Owed {a}'
   };
   Object.assign(window.I18N.es, es);

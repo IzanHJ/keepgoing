@@ -7019,6 +7019,25 @@
     if (rest.length < 2) rest.forEach(x => delete x.link);
   }
 
+  /* v1.25: borrar una categoría. Sin movimientos se borra sin más; con movimientos (o repeticiones), antes hay que elegir a qué
+     categoría del mismo tipo se mueven. También se quita de presupuestos y eventos. */
+  function deleteLedgerCat(cid, after) {
+    const c = LV.cats.find(x => x.id === cid); if (!c) return;
+    const used = LV.entries.filter(e => e.categoryId === cid).length + LV.recurring.filter(r => r.categoryId === cid).length;
+    const others = LV.cats.filter(x => x.id !== cid && !x.archived && (x.type === c.type || x.type === 'both' || c.type === 'both'));
+    const finish = to => {
+      if (to) { for (const e of LV.entries) if (e.categoryId === cid) e.categoryId = to; for (const r of LV.recurring) if (r.categoryId === cid) r.categoryId = to; }
+      for (const b of LV.budgets) if (Array.isArray(b.catIds)) b.catIds = b.catIds.filter(x => x !== cid);
+      for (const ev of LV.events) if (Array.isArray(ev.catIds)) ev.catIds = ev.catIds.filter(x => x !== cid);
+      LV.cats = LV.cats.filter(x => x.id !== cid); ledgerSave(); render(); toast(t('rgCatDeleted')); if (after) after();
+    };
+    openModal({
+      title: `${ico('trash')} ${esc(t('rgCatDelQ', { c: catName(c) }))}`,
+      body: used ? `<p style="margin-top:0">${esc(t('rgCatUsed', { n: used }))}</p>${others.length ? `<select class="input" id="lcd-to">${others.map(x => `<option value="${esc(x.id)}">${esc((x.icon ? x.icon + ' ' : '') + catName(x))}</option>`).join('')}</select>` : `<p class="muted">${esc(t('rgCatNoOther'))}</p>`}` : `<p class="muted" style="margin-top:0">${esc(t('rgCatUnused'))}</p>`,
+      foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button>${!used || others.length ? `<button class="btn danger" data-lcd>${esc(t(used ? 'rgCatMoveDel' : 'delete'))}</button>` : ''}`,
+      onClick: (e, close) => { if (!e.target.closest('[data-lcd]')) return; const to = used ? $('#lcd-to').value : ''; close(); finish(to); }
+    });
+  }
   // Categorías: crear, renombrar (icono y nombre) y archivar. Archivar nunca borra movimientos.
   function openLedgerCats() {
     let wref, newType = 'expense';
@@ -7125,7 +7144,9 @@
         return;
       }
       const d = S.data, miss = missing();
-      const catSel = (id, a) => `<label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-rg-cat="${esc(id)}"><option value="">${esc(t('rgPickCat'))}</option>${cats(a.type).map(c => `<option value="${esc(c.id)}" ${a.categoryId === c.id ? 'selected' : ''}>${esc((c.icon ? c.icon + ' ' : '') + catName(c))}</option>`).join('')}</select></label>`;
+      // v1.25: crear una categoría ahí mismo o borrar la elegida (si tiene movimientos, se mueven antes a otra)
+      const catSel = (id, a) => `<div class="field"><span>${esc(t('ledgerCategory'))}</span><div class="row" style="gap:8px"><select class="input grow" data-rg-cat="${esc(id)}"><option value="">${esc(t('rgPickCat'))}</option>${cats(a.type).map(c => `<option value="${esc(c.id)}" ${a.categoryId === c.id ? 'selected' : ''}>${esc((c.icon ? c.icon + ' ' : '') + catName(c))}</option>`).join('')}<option value="__new" ${S.newCat === id ? 'selected' : ''}>+ ${esc(t('rgCatNew'))}</option></select>${a.categoryId && a.categoryId !== 'other' ? `<button type="button" class="icon-btn sm" data-rg-catdel="${esc(a.categoryId)}" aria-label="${esc(t('rgCatDel'))}" title="${esc(t('rgCatDel'))}">${ico('trash')}</button>` : ''}</div>
+        ${S.newCat === id ? `<div class="row" style="gap:8px;margin-top:8px"><input class="input" data-rg-nc-icon value="🏷️" maxlength="4" style="width:58px;text-align:center" aria-label="${esc(t('ledgerCatIcon'))}"><input class="input grow" data-rg-nc-name maxlength="30" placeholder="${esc(t('ledgerCatName'))}"><button type="button" class="btn sm" data-rg-nc="${esc(id)}">${esc(t('create'))}</button></div>` : ''}</div>`;
       const seg = (gid, key, opts, val) => `<div class="seg seg-sm" role="group">${opts.map(([v, k]) => `<button type="button" data-rg-set="${esc(gid)}" data-k="${key}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>`;
       box.innerHTML = `<div class="stack" style="gap:14px">
         <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
@@ -7170,12 +7191,23 @@
         wref = w; draw();
         w.addEventListener('change', e => {
           if (e.target.matches('[data-rg-file]')) { load(e.target); return; }
-          if (e.target.matches('[data-rg-cat]')) { const a = S.ans[e.target.dataset.rgCat] || (S.ans[e.target.dataset.rgCat] = {}); a.categoryId = e.target.value; draw(); }
+          if (e.target.matches('[data-rg-cat]')) {
+            const id = e.target.dataset.rgCat, a = S.ans[id] || (S.ans[id] = {});
+            if (e.target.value === '__new') { S.newCat = id; draw(); const n = $('[data-rg-nc-name]', wref); if (n) n.focus(); return; }
+            S.newCat = ''; a.categoryId = e.target.value; draw();
+          }
           if (e.target.matches('[data-rg-rate]')) { const v = Number(String(e.target.value).replace(/\s/g, '').replace(',', '.')); S.rates[e.target.dataset.rgRate] = v > 0 && v < 1e7 ? v : 0; draw(); }
         });
       },
       onClick: (e, close) => {
         let el;
+        if ((el = e.target.closest('[data-rg-nc]'))) {
+          const id = el.dataset.rgNc, a = S.ans[id] || (S.ans[id] = {}), box = el.parentElement, name = $('[data-rg-nc-name]', box).value.trim();
+          if (!name) { toast(t('ledgerCatNeedName')); return; }
+          const c = { id: uid(), name, icon: $('[data-rg-nc-icon]', box).value.trim() || '🏷️', type: a.type === 'income' ? 'income' : a.type === 'invest' ? 'invest' : 'expense', archived: false };
+          LV.cats.push(c); a.categoryId = c.id; S.newCat = ''; ledgerSave(); draw(); return;
+        }
+        if ((el = e.target.closest('[data-rg-catdel]'))) { const cid = el.dataset.rgCatdel; deleteLedgerCat(cid, () => { for (const a of Object.values(S.ans)) if (a && a.categoryId === cid) a.categoryId = ''; draw(); }); return; }
         if ((el = e.target.closest('[data-rg-set]'))) {
           const id = el.dataset.rgSet, k = el.dataset.k, v = el.dataset.v;
           if (k === 'cur') S.curMode[id.slice(4)] = v;
