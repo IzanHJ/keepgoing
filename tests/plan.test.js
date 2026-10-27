@@ -77,3 +77,9 @@ test('precio por país = mismo % del salario mínimo, con tope de 29,99 en su mo
     assert.ok(Math.abs(row[2] - row[0] * 14.99 / 29.99) <= tol, c + ' año');
   }
 });
+
+test('ahorro del anual y del pago único (v1.25)', () => {
+  assert.deepEqual(P.saving('ES', 'year'), { amount: 2.89, pct: 16, cur: 'EUR' });
+  assert.deepEqual(P.saving('ES', 'forever'), { amount: 14.98, pct: 33, cur: 'EUR' });
+  assert.equal(P.saving('ES', 'month'), null);
+});

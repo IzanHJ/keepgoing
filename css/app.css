@@ -1247,6 +1247,14 @@ p { font-weight: var(--fw-body); }
 .avatar img, .me-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .friend-add { padding: 16px; margin-bottom: 18px; }
 .chat-full.sheet { max-width: 760px; }
+.g-back { display: none; }
+@media (max-width: 699px) {
+  /* v1.25: en pantalla completa la cabecera baja de la barra de estado (iPhone) y lleva «Volver» a la izquierda */
+  .chat-full.sheet { padding-top: calc(10px + var(--safe-t)); }
+  .chat-full .sheet-grab { display: none; }
+  .chat-full .g-back { display: inline-grid; }
+  .chat-full .sheet-head { margin-bottom: 10px; }
+}
 @media (max-width: 699px) { .chat-full.sheet { max-height: 100vh; max-height: 100dvh; height: 100dvh; border-radius: 0; display: flex; flex-direction: column; } .chat-full .sheet-body { flex: 1; min-height: 0; display: flex; flex-direction: column; } .chat-full #grp { flex: 1; display: flex; flex-direction: column; min-height: 0; } .chat-full .g-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; } .chat-full .chat { flex: 1; min-height: 0; } .chat-full .chat-list { flex: 1; max-height: none; } }
 @media (min-width: 700px) { .chat-full .chat-list { max-height: min(64vh, 620px); } }
 .sheet-head h2 .avatar.sm { width: 34px; height: 34px; }
@@ -1994,3 +2002,21 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .cap-sum { padding: 4px 4px; }
 .cap-sum-total { border-style: solid; background: color-mix(in srgb, var(--cap-gold) 12%, var(--surface)); }
 .ledger-cal .cal-cell.evp { background: color-mix(in srgb, var(--evc) 32%, var(--surface)); }
+
+/* v1.25: «Viendo la app como…» (solo el equipo) */
+.dev-pill { position: fixed; z-index: 45; top: calc(8px + var(--safe-t)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px);
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 0; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.35); cursor: pointer; }
+.dev-pill svg.i { width: 16px; height: 16px; flex: none; }
+.dev-pill span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-pill b { white-space: nowrap; text-decoration: underline; }
+
+/* v1.25: tienda dentro de la app, a pantalla completa, con «Volver» */
+.shop-full.sheet { max-width: 920px; height: 92dvh; display: flex; flex-direction: column; padding-bottom: 10px; }
+.shop-full .sheet-body { flex: 1; min-height: 0; display: flex; }
+.shop-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: 20px; background: var(--bg); }
+@media (max-width: 699px) { .shop-full.sheet { height: 100dvh; max-height: 100dvh; border-radius: 0; padding-top: calc(10px + var(--safe-t)); } .shop-full .sheet-grab { display: none; } }
+
+/* v1.25: ahorro de los planes, en blanco y llamativo */
+.pl-save { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.1); color: #fff; font-weight: 800; font-size: 15px; box-shadow: 0 0 0 2px var(--accent); }
+:root[data-light="1"] .pl-save { background: #111114; }

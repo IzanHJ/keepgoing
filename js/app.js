@@ -1858,7 +1858,7 @@
     // Animación de entrada solo si cambia la vista: se desliza hacia la derecha o la izquierda según el orden
     const anim = lastView === null ? 'anim-in' : lastView.key === pos.key ? 'no-anim' : (pos.n > lastView.n ? 'anim-fwd' : 'anim-back');
     const prevTab = lastTabIdx; lastView = pos; lastTabIdx = ti;
-    app.innerHTML = `<div class="app">${renderNav()}<main class="main ${anim}" id="main" data-tab="${esc(state.ui.tab)}">${renderView()}</main></div>`;
+    app.innerHTML = `<div class="app">${renderNav()}${devViewPill()}<main class="main ${anim}" id="main" data-tab="${esc(state.ui.tab)}">${renderView()}</main></div>`;
     placeNavInd(prevTab);
     afterRender();
     if (ledgerOpen() && pendingShare) { const id = pendingShare; pendingShare = null; setTimeout(() => showLedgerShare(id), 150); }
@@ -1866,6 +1866,11 @@
     if (cc) setTimeout(() => whenFree(() => openContractCard(cc, true)), 400);
   }
 
+  // v1.25: mientras el equipo ve la app como otro plan, una píldora fija arriba lo recuerda y deja volver al plan real
+  function devViewPill() {
+    const p = PL(); if (!p.viewing) return '';
+    return `<button class="dev-pill" data-act="dev-view-real">${ico('eye')}<span>${esc(t('stViewBanner', { plan: planHint() }))}</span><b>${esc(t('stViewBack'))}</b></button>`;
+  }
   function renderNav() {
     return `<nav class="nav" aria-label="KeepGoing"><span class="nav-ind" aria-hidden="true"></span>${TABS.map(([id, ic, key]) =>
       `<button data-act="go" data-tab="${id}" class="${state.ui.tab === id ? 'on' : ''}" ${state.ui.tab === id ? 'aria-current="page"' : ''} title="${esc(t(key))}">${ico(ic)}<span>${esc(t(key))}</span></button>`).join('')}</nav>`;
@@ -3894,11 +3899,16 @@
   const activeHabitCount = () => state.habits.filter(h => !h.archived).length;
   const fmtPrice = (term = 'forever') => { const p = KGPlan.priceFor('ES', term); try { return new Intl.NumberFormat(state.lang, { style: 'currency', currency: p.cur }).format(p.amount); } catch (e) { return p.amount + ' ' + p.cur; } };
   const PL_PRICE_KEY = { forever: 'plPrice', month: 'plPriceMonth', year: 'plPriceYear' }, PL_TERM_KEY = { forever: 'plTermForever', month: 'plTermMonth', year: 'plTermYear' };
-  const planSave = () => { const m = KGPlan.priceFor('ES', 'month').amount, y = KGPlan.priceFor('ES', 'year').amount; return Math.round((1 - y / (m * 12)) * 100); };
+  // v1.25: ahorro del anual (frente a 12 meses) y del pago único (frente a KGPlan.FOREVER_VS_YEARS años del anual), en dinero y en %
+  const planSaveHtml = term => {
+    const s = KGPlan.saving('ES', term); if (!s) return '';
+    let a; try { a = new Intl.NumberFormat(state.lang, { style: 'currency', currency: s.cur }).format(s.amount); } catch (e) { a = s.amount + ' ' + s.cur; }
+    return `<div class="pl-save">${esc(t(term === 'year' ? 'plSaveYear' : 'plSaveForever', { a, n: s.pct, y: KGPlan.FOREVER_VS_YEARS }))}</div>`;
+  };
   const planList = s => `<ul class="pl-list">${String(s).split('|').map(x => `<li>${ico('check')}<span>${esc(x)}</span></li>`).join('')}</ul>`;
   function openUpsell(o = {}) {
     let term = 'year';
-    const priceBox = () => `<div class="pl-price" id="pl-price">${esc(t(PL_PRICE_KEY[term], { p: fmtPrice(term) }))}${term === 'year' ? `<div class="muted small">${esc(t('plPriceSave', { n: planSave() }))}</div>` : ''}</div>`;
+    const priceBox = () => `<div class="pl-price" id="pl-price">${esc(t(PL_PRICE_KEY[term], { p: fmtPrice(term) }))}${planSaveHtml(term)}</div>`;
     const why = o.feature ? t('plUpsellWhy', { f: t('plf_' + o.feature) }) : o.limit ? t('plUpsellLimit', { n: KGPlan.LIMITS[o.limit], what: t('plw_' + o.limit) }) : '';
     openModal({
       title: esc(t('plUpsellTitle')), cls: 'pl-sheet',
@@ -3927,7 +3937,20 @@
   let planAskAt = 0;
   function startCheckout(term = 'forever') {
     const u = new URL('web/', location.href); u.searchParams.set('lang', state.lang); u.searchParams.set('term', term); if (auth) u.searchParams.set('uid', auth.uid);
-    window.open(u.href, '_blank', 'noopener');
+    // v1.25: la tienda se abre dentro de la app (antes, en la app instalada del iPhone sustituía a la app y no había forma de volver)
+    u.searchParams.set('embed', '1');
+    const onMsg = e => {
+      if (e.origin !== location.origin || !e.data || typeof e.data !== 'object') return;
+      if (e.data.kg === 'shop-close' && shop) shop.close();
+      if (e.data.kg === 'shop-paid') refreshPlan().then(p => { if (p.full) render(); });
+    };
+    window.addEventListener('message', onMsg);
+    const shop = openModal({
+      title: `<span class="row" style="gap:8px">${ico('sparkle')} ${esc(t('shopTitle'))}</span>`, cls: 'shop-full',
+      body: `<iframe class="shop-frame" src="${esc(u.href)}" title="${esc(t('shopTitle'))}"></iframe>`,
+      onMount: w => { const head = $('.sheet-head', w); if (head) head.insertAdjacentHTML('afterbegin', `<button class="icon-btn sm" data-m="x" aria-label="${esc(t('shopBack'))}">${ico('left')}</button>`); },
+      onClose: () => { window.removeEventListener('message', onMsg); refreshPlan().then(p => { if (p.full) render(); }); }
+    });
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && auth && Date.now() - planAskAt > 15000) { planAskAt = Date.now(); refreshPlan().then(p => { if (p.full) render(); }); } });
   function openTrialEnded() {
@@ -9377,6 +9400,12 @@
       title: `👥 ${esc(t('groupTitle'))}`, cls: `wide g-modal${tab === 'chat' ? ' chat-full' : ''}`, body: `<div id="grp"><p class="muted">${esc(t('loading'))}</p></div>`,
       onMount: async w => {
         wref = w;
+        // v1.25: en pantalla completa (móvil), flecha «Volver» a la izquierda y deslizar desde el borde izquierdo para salir
+        const head = $('.sheet-head', w);
+        if (head) head.insertAdjacentHTML('afterbegin', `<button class="icon-btn sm g-back" data-m="x" aria-label="${esc(t('back'))}">${ico('left')}</button>`);
+        let sx = null, sy = 0;
+        w.addEventListener('touchstart', e => { const p = e.touches[0]; sx = p.clientX < 28 ? p.clientX : null; sy = p.clientY; }, { passive: true });
+        w.addEventListener('touchend', e => { if (sx == null) return; const p = e.changedTouches[0]; if (p.clientX - sx > 80 && Math.abs(p.clientY - sy) < 60) $('[data-m="x"]', w)?.click(); sx = null; }, { passive: true });
         try { await pushGroupProgress(); await refresh(); } catch (e) { G.gone = true; draw(); }
         poll();
         w.addEventListener('change', async e => {
@@ -9993,6 +10022,7 @@
     const a = e.target.closest('[data-act]'); if (!a) return;
     const id = a.dataset.id;
     switch (a.dataset.act) {
+      case 'dev-view-real': state.ui.devView = ''; save(); planPickAsked = false; render(); refreshPlan().then(() => render()); toast(t('stSaved')); break;
       case 'go': pendingShare = null; if (state.ui.tab === a.dataset.tab && state.ui.folder) state.ui.folder = null; if (state.ui.tab !== a.dataset.tab) state.ui.ledgerView = ''; state.ui.tab = a.dataset.tab; save(); render(); window.scrollTo(0, 0); break;
       case 'calc-open': state.ui.ledgerView = 'calc'; save(); render(); window.scrollTo(0, 0); break;
       case 'calc-close': state.ui.ledgerView = ''; save(); render(); window.scrollTo(0, 0); break;

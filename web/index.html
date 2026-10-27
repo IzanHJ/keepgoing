@@ -11,7 +11,8 @@
 </head>
 <body>
 <main>
-  <header class="top"><a class="brand" href="../">KeepGoing</a>
+  <header class="top"><a class="brand" href="../" data-app>KeepGoing</a>
+    <a class="back-app" href="../" data-app hidden><span data-lang="es">‹ Volver a KeepGoing</span><span data-lang="en">‹ Back to KeepGoing</span></a>
     <span class="lang-switch"><button data-l="es">ES</button> <button data-l="en">EN</button></span></header>
 
   <section data-lang="es">
@@ -29,7 +30,7 @@
       <p class="price">0 €</p>
       <ul data-lang="es"><li>Hasta 5 hábitos y 1 proyecto</li><li>Libreta, presupuesto global y PDF</li><li>Turnos sin límite en el Calendario</li><li>Chat, maestrías y 1 grupo propio</li><li>Gráficos de los últimos 90 días</li></ul>
       <ul data-lang="en"><li>Up to 5 habits and 1 project</li><li>Ledger, overall budget and PDF</li><li>Unlimited shifts in the Calendar</li><li>Chat, masteries and 1 group of your own</li><li>Charts for the last 90 days</li></ul>
-      <a class="btn" href="../"><span data-lang="es">Abrir la app</span><span data-lang="en">Open the app</span></a>
+      <a class="btn" href="../" data-app><span data-lang="es">Abrir la app</span><span data-lang="en">Open the app</span></a>
     </article>
     <article class="plan best">
       <h2>Usuario KeepGoing</h2>
@@ -39,6 +40,7 @@
         <button type="button" data-term="forever" aria-pressed="false"><span data-lang="es">Para siempre</span><span data-lang="en">Forever</span></button>
       </div>
       <p class="price"><span id="price">14,99 €</span> <span data-per="month" hidden><small data-lang="es">al mes</small><small data-lang="en">a month</small></span><span data-per="year"><small data-lang="es">al año</small><small data-lang="en">a year</small></span><span data-per="forever" hidden><small data-lang="es">pago único</small><small data-lang="en">one-time</small></span></p>
+      <p class="save" id="save" hidden></p>
       <p class="muted small" id="sub-note"><span data-lang="es">Se renueva sola. Cancélala cuando quieras en paddle.net: sigues teniendo todo hasta el final del periodo pagado.</span><span data-lang="en">Renews automatically. Cancel any time at paddle.net: you keep everything until the end of the paid period.</span></p>
       <p class="muted small" id="sub-app" hidden><span data-lang="es">Las suscripciones se contratan desde la app, con tu cuenta (Ajustes → Tu plan). Aquí puedes comprar el pago único.</span><span data-lang="en">Subscriptions are bought from the app, with your account (Settings → Your plan). Here you can buy the one-time option.</span></p>
       <ul data-lang="es"><li>Hábitos y proyectos sin límite</li><li>Calculadora de Patrimonio y proyecciones</li><li>Registrar CSV del banco y Comparar</li><li>Varias monedas, presupuesto por categorías e Inversiones</li><li>Rutinas en el Calendario</li><li>Compartir libretas, proyecciones y calendario</li><li>Todos los temas, colores y mascotas</li><li>Gráficos con todo tu historial</li></ul>
@@ -61,7 +63,7 @@
       <p class="key" id="key">…</p>
       <button class="btn" id="copy"><span data-lang="es">Copiar</span><span data-lang="en">Copy</span></button>
     </div>
-    <a class="btn primary" href="../"><span data-lang="es">Abrir KeepGoing</span><span data-lang="en">Open KeepGoing</span></a>
+    <a class="btn primary" href="../" data-app><span data-lang="es">Abrir KeepGoing</span><span data-lang="en">Open KeepGoing</span></a>
   </section>
 
   <footer><a href="../legal/aviso-legal.html">Aviso legal</a> · <a href="../legal/privacidad.html">Privacidad</a> · <a href="../legal/terminos.html">Términos</a> · <a href="../legal/reembolsos.html">Reembolsos</a></footer>
