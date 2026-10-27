@@ -1397,38 +1397,68 @@
   const tfPdfLabels = () => ({ months: tfMonths(), dow: Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(state.lang, { weekday: 'short' }).format(new Date(2024, 0, 7 + i)).replace('.', '').toUpperCase()),
     shifts: t('tfPdfShifts'), more: t('tfPdfMore'), generated: t('tfPdfGenerated'), detail: t('tfPdfDetail'), heads: ['tfPdfDate', 'tfPdfShift', 'tfPdfTime', 'tfPdfBreak', 'tfHours', 'tfNote'].map(x => t(x)), total: t('tfPdfTotal'), locale: state.lang, file: t('tfPdfFile') });
   const tfFriendBy = tag => { const n = String(tag || '').trim().replace(/^@/, '').toLowerCase(); return (chatData.friends || []).find(f => f.status === 'accepted' && String(f.nametag || '').toLowerCase() === n); };
-  function tfOpenShare() {
+  /* v1.25: PDF del Calendario de fecha a fecha, con interruptores de lo que se ve (Turnos, Rutinas, Mostrar texto, Días,
+     Notas, Valoraciones) y Detalle (una semana que no cabe se hace más alta, solo esa). La última elección se recuerda. */
+  const TF_PDF_KEYS = ['shifts', 'routines', 'text', 'days', 'notes', 'rates', 'detail'];
+  const tfPdfOpts = () => { const o = state.ui.calPdf && typeof state.ui.calPdf === 'object' ? state.ui.calPdf : {}; return Object.fromEntries(TF_PDF_KEYS.map(k => [k, o[k] !== false])); };
+  function tfPdfMake(from, to, o) {
+    const base = tfData(), days = {};
+    for (const [k, list] of Object.entries(base.days)) {
+      if (k < from || k > to) continue;
+      const l = list.filter(e => e.rt ? o.routines : o.shifts);
+      if (l.length) days[k] = l;
+    }
+    const notes = {}, rates = {};
+    for (const [k, v] of Object.entries(state.calNotes)) if (k >= from && k <= to && typeof v === 'string' && v.trim()) notes[k] = v;
+    for (const k of Object.keys(state.dayRate)) if (k >= from && k <= to) { const r = dayRateOf(k); if (r != null) rates[k] = r; }
+    const used = new Map();
+    const colors = k => { const ds = tfDksOf(k); ds.forEach(d => used.set(d.id, d)); return tfDayColors(k); };
+    for (let k = from, i = 0; k <= to && i < 800; k = addDays(k, 1), i++) colors(k);
+    const routines = Object.fromEntries(state.calRoutines.map(r => [r.id, r.name]));
+    const X = { layers: { shifts: o.shifts || o.routines, text: o.text, days: o.days, notes: o.notes, rates: o.rates }, detail: o.detail, colors, notes, rates, routines, legend: [...used.values()].map(d => ({ name: tfDkName(d), color: tfColor(d.color) })) };
+    return TFPDF.rangePdf({ ...base, days }, from, to, tfWs(), new Date(), tfPdfLabels(), X);
+  }
+  const tfPdfFormHtml = (from, to, o) => `<div class="stack" style="gap:10px"><div class="row" style="gap:8px"><label class="field grow"><span>${esc(t('tfPdfFrom'))}</span><input class="input" type="date" id="tfp-from" value="${esc(from)}"></label><label class="field grow"><span>${esc(t('tfPdfTo'))}</span><input class="input" type="date" id="tfp-to" value="${esc(to)}"></label></div>
+    <div class="stack" style="gap:10px">${TF_PDF_KEYS.map(k => `<label class="row ${k === 'text' ? 'tf-ly-sub' : ''}" style="gap:12px"><span class="switch"><input type="checkbox" data-tfp="${k}" ${o[k] ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('tfPdfL_' + k))}</b>${k === 'detail' ? `<br><span class="muted small">${esc(t('tfPdfDetailHint'))}</span>` : ''}</span></label>`).join('')}</div></div>`;
+  const tfPdfRead = w => { const o = {}; $$('[data-tfp]', w).forEach(i => { o[i.dataset.tfp] = i.checked; }); state.ui.calPdf = o; save(); let from = $('#tfp-from', w).value, to = $('#tfp-to', w).value; if (!from || !to) return null; if (to < from) [from, to] = [to, from]; if (diffDays(from, to) > 366) { toast(t('tfPdfTooLong')); return null; } return { from, to, o }; };
+  // sendTo: id de un chat (desde el chat se envía ahí); sin él, descargar o enviar a un amigo por @nametag
+  function tfOpenShare(sendTo = null, after = null) {
     const u = tfUi(), y = +u.ym.slice(0, 4), mo = +u.ym.slice(5, 7) - 1;
-    const make = () => TFPDF.monthPdf(tfData(), y, mo, tfWs(), new Date(), tfPdfLabels());
+    const from0 = TF.iso(new Date(y, mo, 1)), to0 = TF.iso(new Date(y, mo + 1, 0));
     let wref;
     const draw = () => {
       const friends = (chatData.friends || []).filter(f => f.status === 'accepted');
       $('#tfs', wref).innerHTML = `<div class="stack" style="gap:12px">
-        <h3 class="section-title" style="margin:0">${esc(t('tfPdfTitle', { m: tfMonths()[mo] + ' ' + y }))}</h3>
-        <button class="btn calc-blue block" data-tfs="dl">${ico('download')} ${esc(t('tfPdfDownload'))}</button>
+        <h3 class="section-title" style="margin:0">${esc(t('tfPdfRange'))}</h3>
+        ${tfPdfFormHtml(from0, to0, tfPdfOpts())}
+        ${sendTo ? `<button class="btn primary block" data-tfs="here">${ico('send')} ${esc(t('tfPdfSendHere'))}</button>` : `<button class="btn calc-blue block" data-tfs="dl">${ico('download')} ${esc(t('tfPdfDownload'))}</button>
         <p class="muted small" style="margin:0">${esc(t('tfPdfPrint'))}</p>
         <h3 class="section-title" style="margin:6px 0 0">${esc(t('tfPdfSendTitle'))}</h3>
         ${!auth ? `<p class="muted small" style="margin:0">${esc(t('groupNeedLogin'))}</p>` : `<form class="row" id="tfs-f" style="gap:8px" autocomplete="off"><input class="input grow" id="tfs-tag" maxlength="33" placeholder="@nametag" aria-label="@nametag"><button class="btn" data-tfs="send">${ico('send')} ${esc(t('tfSend'))}</button></form>
           ${friends.length ? `<div class="row wrap" style="gap:6px">${friends.map(f => `<button class="chip" data-tfs-pick="${esc(f.nametag || '')}">${avatarHtml(f, 'xs')} @${esc(f.nametag || '')}</button>`).join('')}</div>` : chatData.friends ? `<p class="muted small" style="margin:0">${esc(t('chatNoFriends'))}</p>` : `<p class="muted small" style="margin:0">${esc(t('groupsLoading'))}</p>`}
-          <p class="muted small" style="margin:0">${esc(t('tfPdfSendHint'))}</p>`}</div>`;
+          <p class="muted small" style="margin:0">${esc(t('tfPdfSendHint'))}</p>`}`}</div>`;
     };
     openModal({
-      title: `${ico('share')} ${esc(t('tfShare'))}`, cls: 'tf-sheet', body: '<div id="tfs"></div>',
-      onMount: w => { wref = w; draw(); if (auth) refreshChat(true).then(() => { if (wref.isConnected) draw(); }); w.addEventListener('submit', e => { e.preventDefault(); $('[data-tfs="send"]', w)?.click(); }); },
+      title: `${ico('share')} ${esc(t(sendTo ? 'chatShareCal' : 'tfShare'))}`, cls: 'tf-sheet', body: '<div id="tfs"></div>',
+      onMount: w => { wref = w; draw(); if (auth && !sendTo) refreshChat(true).then(() => { if (wref.isConnected) { const keep = tfPdfRead(w); draw(); if (keep) { $('#tfp-from', w).value = keep.from; $('#tfp-to', w).value = keep.to; } } }); w.addEventListener('submit', e => { e.preventDefault(); $('[data-tfs="send"]', w)?.click(); }); },
       onClick: async (e, close, w) => {
         const p = e.target.closest('[data-tfs-pick]'); if (p) { $('#tfs-tag', w).value = '@' + p.dataset.tfsPick; return; }
         const b = e.target.closest('[data-tfs]'); if (!b) return;
-        let r; try { r = make(); } catch (err) { toast(t('tfPdfError')); return; }
-        if (b.dataset.tfs === 'dl') { downloadBlob(r.filename, new Blob([r.bytes], { type: 'application/pdf' })); sfx('pop'); toast(t('calcPdfSaved')); return; }
         e.preventDefault();
-        const tag = $('#tfs-tag', w).value.trim();
-        if (!/^@?[A-Za-z0-9_.-]{2,32}$/.test(tag)) { toast(t('tfBadTag')); return; }
-        const f = tfFriendBy(tag); if (!f) { toast(t('tfNotFriend', { tag: '@' + tag.replace(/^@/, '') })); return; }
+        const sel = tfPdfRead(w); if (!sel) return;
+        let r; try { r = tfPdfMake(sel.from, sel.to, sel.o); } catch (err) { toast(t('tfPdfError')); return; }
+        if (b.dataset.tfs === 'dl') { downloadBlob(r.filename, new Blob([r.bytes], { type: 'application/pdf' })); sfx('pop'); toast(t('calcPdfSaved')); return; }
+        let gid = sendTo, f = null;
+        if (!gid) {
+          const tag = $('#tfs-tag', w).value.trim();
+          if (!/^@?[A-Za-z0-9_.-]{2,32}$/.test(tag)) { toast(t('tfBadTag')); return; }
+          f = tfFriendBy(tag); if (!f) { toast(t('tfNotFriend', { tag: '@' + tag.replace(/^@/, '') })); return; }
+        }
         b.disabled = true;
         try {
-          const gid = f.dm || await rpc('kg_dm_open', { p_user: f.user_id, p_display_name: myName() });
+          if (!gid) gid = f.dm || await rpc('kg_dm_open', { p_user: f.user_id, p_display_name: myName() });
           await rpc('kg_post_media', { p_group: gid, p_kind: 'file', p_mime: 'application/pdf', p_data: bytesB64(r.bytes), p_meta: { name: r.filename } });
-          sfx('pop'); toast(t('tfPdfSent', { tag: '@' + (f.nametag || '') })); close();
+          sfx('pop'); toast(f ? t('tfPdfSent', { tag: '@' + (f.nametag || '') }) : t('calcPdfSent')); close(); after && after();
         } catch (err) { b.disabled = false; toast(chatErr(err)); }
       }
     });
@@ -9365,13 +9395,14 @@
       G.timers.push(setInterval(async () => { if (document.hidden) return; try { const before = JSON.stringify(G.info && G.info.active); await loadInfo(); if (G.tab !== 'chat' && JSON.stringify(G.info.active) !== before) draw(); } catch (e) { /* sin conexión */ } }, 20000));
     };
     async function chatShare() {
-      const opts = [['invite', '🔗', 'chatShareInvite'], ['habit', '📋', 'chatShareHabit'], ['project', '🎯', 'chatShareProject']].filter(o => !(isDm() && o[0] === 'invite'));
+      const opts = [['invite', '🔗', 'chatShareInvite'], ['habit', '📋', 'chatShareHabit'], ['project', '🎯', 'chatShareProject'], ['calendar', '📅', 'chatShareCal']].filter(o => !(isDm() && o[0] === 'invite'));
       openModal({
         title: esc(t('chatMore')),
         body: `<div class="stack" style="gap:10px">${opts.map(([k, e, l]) => `<button class="btn block" data-cs="${k}">${e} ${esc(t(l))}</button>`).join('')}</div>`,
         onClick: async (e, close) => {
           const b = e.target.closest('[data-cs]'); if (!b) return; close();
           const k = b.dataset.cs;
+          if (k === 'calendar') { if (!gate('calShare')) return; tfOpenShare(gid, async () => { await loadMsgs(); draw(); }); return; }
           if (k === 'invite') {
             await refreshMyGroups(true);
             const list = (myGroups.list || []).filter(g => g.id !== gid && GG.can({ role: g.my_role, perms: (g.members.find(m => m.user_id === auth.uid) || {}).perms }, 'invite'));
