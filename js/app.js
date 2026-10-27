@@ -2187,7 +2187,7 @@
     html += `<div class="folder-summary">${projCard(p)}${hs.length && !p.hideCal ? `<div class="clay card folder-cal">${calHtml({ id: 'p:' + p.id, proj: p })}<button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button></div>` : ''}</div>`;
     html += hs.length ? `<div class="habit-grid" id="habit-grid" data-folder="${p.id}">${hs.map(habitCard).join('')}</div><p class="grid-hint">${esc(t('folderOutHint'))}</p>`
       : `<p class="muted center">${esc(t('folderEmptyHint'))}</p>`;
-    html += `<div class="row wrap" style="margin-top:14px;justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('folderNewHabit'))}</button><button class="btn" data-act="proj-edit" data-id="${p.id}">${ico('link')} ${esc(t('folderAddHabits'))}</button></div>`;
+    html += `<div class="row wrap" style="margin-top:14px;justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('folderNewHabit'))}</button><button class="btn" data-act="proj-edit" data-id="${p.id}">${ico('link')} ${esc(t('folderAddHabits'))}</button>${hs.length ? `<button class="btn" data-act="proj-extract" data-id="${p.id}">${ico('upload')} ${esc(t('projExtract'))}</button>` : ''}</div>`;
     return html;
   }
 
@@ -2464,8 +2464,8 @@
         ${f.measure !== 'amount' ? `<div class="field"><span>${esc(t('subModeLbl'))}</span>
           <div class="seg">${[['simple', 'subSimple'], ['goals', 'subGoals'], ['ways', 'subWays']].map(([v, k]) => `<button type="button" data-hmode="${v}" class="${f.mode === v ? 'on' : ''}" aria-pressed="${f.mode === v}">${esc(t(k))}</button>`).join('')}</div>
           <div class="muted small">${esc(t('subHint_' + f.mode))}</div>
-          ${f.mode === 'goals' ? `<div class="stack sub-edit" style="gap:8px">${f.goals.map(g => `<div class="row" style="gap:8px" data-gid="${esc(g.id)}"><input class="input grow" data-g-name maxlength="40" value="${esc(g.name)}" placeholder="${esc(t('subGoalPh'))}" aria-label="${esc(t('subGoalName'))}"><input class="input" data-g-tg type="number" min="1" max="99" inputmode="numeric" value="${+g.target || 1}" style="width:76px" aria-label="${esc(t('subGoalTimes'))}" title="${esc(t('subGoalTimes'))}"><button type="button" class="icon-btn sm" data-g-del="${esc(g.id)}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('')}<button type="button" class="chip" data-g-add style="align-self:flex-start">${ico('plus')} ${esc(t('subAddGoal'))}</button></div>` : ''}
-          ${f.mode === 'ways' ? `<div class="stack sub-edit" style="gap:8px">${f.ways.map(g => `<div class="row" style="gap:8px" data-wid="${esc(g.id)}"><input class="input grow" data-w-name maxlength="40" value="${esc(g.name)}" placeholder="${esc(t('subWayPh'))}" aria-label="${esc(t('subWayName'))}"><button type="button" class="icon-btn sm" data-w-del="${esc(g.id)}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('')}<button type="button" class="chip" data-w-add style="align-self:flex-start">${ico('plus')} ${esc(t('subAddWay'))}</button></div>` : ''}
+          ${f.mode === 'goals' ? `<div class="stack sub-edit" style="gap:8px">${f.goals.map(g => `<div class="sub-req-item" data-gid="${esc(g.id)}"><div class="row" style="gap:8px"><input class="input grow" data-g-name maxlength="40" value="${esc(g.name)}" placeholder="${esc(t('subGoalPh'))}" aria-label="${esc(t('subGoalName'))}"><button type="button" class="icon-btn sm" data-g-del="${esc(g.id)}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>${reqEdit(g, true)}</div>`).join('')}<button type="button" class="chip" data-g-add style="align-self:flex-start">${ico('plus')} ${esc(t('subAddGoal'))}</button></div>` : ''}
+          ${f.mode === 'ways' ? `<div class="stack sub-edit" style="gap:8px">${f.ways.map(g => `<div class="sub-req-item" data-wid="${esc(g.id)}"><div class="row" style="gap:8px"><input class="input grow" data-w-name maxlength="40" value="${esc(g.name)}" placeholder="${esc(t('subWayPh'))}" aria-label="${esc(t('subWayName'))}"><button type="button" class="icon-btn sm" data-w-del="${esc(g.id)}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>${reqEdit(g, false)}</div>`).join('')}<button type="button" class="chip" data-w-add style="align-self:flex-start">${ico('plus')} ${esc(t('subAddWay'))}</button></div>` : ''}
         </div>` : ''}
         <div class="field ${f.mode === 'goals' && f.measure !== 'amount' ? 'hidden' : ''}"><span>${esc(t('habitFreq'))}</span>
           <div class="seg">${['daily', 'weekly', 'monthly'].map(q => `<button type="button" data-freq="${q}" class="${f.freq === q ? 'on' : ''}">${esc(t(q === 'daily' ? 'freqDaily' : q === 'weekly' ? 'freqWeekly' : 'freqMonthly'))}</button>`).join('')}</div>
@@ -2518,8 +2518,9 @@
       if ($('#hf-rem', w)) { f.remOn = $('#hf-rem', w).checked; f.remTime = $('#hf-rem-time', w).value; }
       if ($('#hf-share', w)) f.share = $('#hf-share', w).checked;
       f.hideCal = $('#hf-hidecal', w).checked;
-      $$('[data-gid]', w).forEach(r => { const g = f.goals.find(x => x.id === r.dataset.gid); if (g) { g.name = $('[data-g-name]', r).value.trim(); g.target = clamp(parseInt($('[data-g-tg]', r).value, 10) || 1, 1, 99); } });
-      $$('[data-wid]', w).forEach(r => { const g = f.ways.find(x => x.id === r.dataset.wid); if (g) g.name = $('[data-w-name]', r).value.trim(); });
+      const readReq = (g, r) => { const n = sel => { const i = $(sel, r); return i ? Number(String(i.value).replace(',', '.')) || 0 : 0; }; g.target = clamp(Math.round(n('[data-r-tg]')) || 1, 1, 99); g.min = clamp(Math.round(n('[data-r-min]')) || 0, 0, g.target); g.amt = Math.max(0, Math.min(1e6, n('[data-r-amt]'))); g.unit = (($('[data-r-unit]', r) || {}).value || '').trim().slice(0, 12); };
+      $$('[data-gid]', w).forEach(r => { const g = f.goals.find(x => x.id === r.dataset.gid); if (g) { g.name = $('[data-g-name]', r).value.trim(); readReq(g, r); } });
+      $$('[data-wid]', w).forEach(r => { const g = f.ways.find(x => x.id === r.dataset.wid); if (g) { g.name = $('[data-w-name]', r).value.trim(); readReq(g, r); } });
       if ($('#hf-cont', w)) f.cont = $('#hf-cont', w).checked;
     };
     let hw = null;
@@ -2584,7 +2585,8 @@
           if (f.remOn && !f.remTime) { toast(t('remindNeedTime')); return; }
           // v1.23: objetivos y maneras (sin nombre no cuentan). Con objetivos el hábito es diario y su meta = nº de objetivos
           let mode = f.kind === 'quit' || f.measure === 'amount' ? 'simple' : f.mode;
-          const goals = f.goals.filter(g => g.name).map(g => ({ id: g.id, name: g.name.slice(0, 40), target: clamp(+g.target || 1, 1, 99) })), ways = f.ways.filter(g => g.name).map(g => ({ id: g.id, name: g.name.slice(0, 40) }));
+          const reqX = g => ({ ...(+g.min > 0 ? { min: +g.min } : {}), ...(+g.amt > 0 ? { amt: +g.amt, unit: g.unit || '' } : {}) });
+          const goals = f.goals.filter(g => g.name).map(g => ({ id: g.id, name: g.name.slice(0, 40), target: clamp(+g.target || 1, 1, 99), ...reqX(g) })), ways = f.ways.filter(g => g.name).map(g => ({ id: g.id, name: g.name.slice(0, 40), ...(+g.target > 1 ? { target: +g.target } : {}), ...reqX(g) }));
           if (mode === 'goals' && !goals.length) { toast(t('subNeedGoal')); return; }
           if (mode === 'ways' && ways.length < 2) { toast(t('subNeedWays')); return; }
           if (mode === 'goals') Object.assign(f, { freq: 'daily', target: goals.length, multi: false });
@@ -2639,7 +2641,15 @@
      Objetivos: cada uno con sus veces (sublogs = { id: veces }); el registro del día = nº de objetivos cumplidos y el hábito
      se cumple con todos. Maneras: se marca cuál hiciste (sublogs = { id: 1 }); el registro = nº de maneras hechas. */
   const subOf = (h, k) => ((state.sublogs || {})[h.id] || {})[k] || {};
-  const subCount = (h, k, S = subOf(h, k), r = ruleAt(h, k)) => r.mode === 'goals' ? (r.goals || []).filter(g => (+S[g.id] || 0) >= (+g.target || 1)).length : (r.ways || []).filter(w => S[w.id]).length;
+  /* v1.25: cada requisito (objetivo o manera) puede tener un mínimo de veces (cuenta al llegar a él), un objetivo de veces (lo ideal)
+     y una cantidad con unidad que hay que alcanzar en CADA vez (amt + unit); la suma de lo apuntado va en S[id + '~a'].
+     Sin mínimo: en objetivos es su objetivo de veces y en maneras, 1. */
+  const reqTg = (g, goals) => clamp(+g.target || 1, 1, 99);
+  const reqMin = (g, goals) => clamp(+g.min || (goals ? reqTg(g, goals) : 1), 1, 99);
+  const reqRich = (g, goals) => +g.amt > 0 || reqMin(g, goals) > 1 || reqTg(g, goals) > 1;
+  // Editor: segunda línea de cada requisito (mínimo, objetivo de veces, cantidad por vez y unidad)
+  const reqEdit = (g, goals) => `<div class="row wrap sub-req" style="gap:6px;margin-top:6px">${[['tg', goals ? 'subReqTarget' : 'subReqTargetW', +g.target || 1, 1], ['min', 'subReqMin', +g.min || '', 0]].map(([k, l, v, mn]) => `<label class="mini-f"><span>${esc(t(l))}</span><input class="input" data-r-${k} type="number" min="${mn}" max="99" inputmode="numeric" value="${v}" placeholder="${k === 'min' ? (goals ? +g.target || 1 : 1) : ''}"></label>`).join('')}<label class="mini-f"><span>${esc(t('subReqAmt'))}</span><input class="input" data-r-amt inputmode="decimal" value="${+g.amt > 0 ? esc(String(g.amt).replace('.', ',')) : ''}" placeholder="—"></label><label class="mini-f grow"><span>${esc(t('subReqUnit'))}</span><input class="input" data-r-unit maxlength="12" value="${esc(g.unit || '')}" placeholder="${esc(t('subReqUnitPh'))}"></label></div>`;
+  const subCount = (h, k, S = subOf(h, k), r = ruleAt(h, k)) => r.mode === 'goals' ? (r.goals || []).filter(g => (+S[g.id] || 0) >= reqMin(g, true)).length : (r.ways || []).filter(w => (+S[w.id] || 0) >= reqMin(w, false)).length;
   function setSub(h, k, S) {
     const all = state.sublogs || (state.sublogs = {}), H = all[h.id] || (all[h.id] = {});
     const clean = {}; for (const [id, v] of Object.entries(S)) if (+v > 0) clean[id] = +v;
@@ -2651,18 +2661,24 @@
   function subMeta(h, k = todayKey()) {
     const r = ruleAt(h, k), S = subOf(h, k);
     if (r.mode === 'goals') return t('subGoalsN', { a: subCount(h, k), b: (r.goals || []).length });
-    const done = (r.ways || []).filter(w => S[w.id]).map(w => w.name);
+    const done = (r.ways || []).filter(w => (+S[w.id] || 0) >= reqMin(w, false)).map(w => w.name);
     return done.length ? done.join(', ') : t('subWaysPick');
   }
   function openSubDay(h, k) {
     if (k > todayKey()) return;
     const r = ruleAt(h, k), goals = r.mode === 'goals';
-    let wref;
+    let wref, ask = '';
+    const num = v => String(Math.round(v * 100) / 100).replace('.', ',');
     const draw = () => {
       const S = subOf(h, k), list = goals ? r.goals : r.ways;
       $('#sd', wref).innerHTML = `<p class="muted small" style="margin-top:0">${esc(t(goals ? 'subGoalsHint' : 'subWaysHint', { n: r.target || 1 }))}</p><div class="stack" style="gap:10px">${list.map(g => {
         const v = +S[g.id] || 0;
-        if (goals) { const tg = +g.target || 1, ok = v >= tg; return `<div class="sub-row clay ${ok ? 'done' : ''}"><span class="sub-ck" aria-hidden="true">${ok ? ico('check') : ''}</span><span class="grow"><b>${esc(g.name)}</b><span class="muted small"> · ${v}/${tg}</span></span><div class="stepper"><button type="button" class="icon-btn sm" data-sd="-1" data-id="${esc(g.id)}" aria-label="−1">${ico('minus')}</button><button type="button" class="icon-btn sm" data-sd="1" data-id="${esc(g.id)}" aria-label="+1">${ico('plus')}</button></div></div>`; }
+        if (goals || reqRich(g, goals)) {
+          const tg = reqTg(g, goals), mn = reqMin(g, goals), ok = v >= mn, amt = +g.amt || 0, tot = +S[g.id + '~a'] || 0;
+          const info = [`${v}/${tg}`, mn < tg ? t('subReqMinN', { n: mn }) : '', amt ? t('subReqEach', { a: num(amt), u: g.unit || '' }) : '', amt && tot ? t('subReqTotal', { a: num(tot), u: g.unit || '' }) : ''].filter(Boolean).join(' · ');
+          return `<div class="sub-row clay ${ok ? 'done' : ''}" style="flex-wrap:wrap"><span class="sub-ck" aria-hidden="true">${ok ? ico('check') : ''}</span><span class="grow"><b>${esc(g.name)}</b><br><span class="muted small">${esc(info)}</span></span><div class="stepper"><button type="button" class="icon-btn sm" data-sd="-1" data-id="${esc(g.id)}" aria-label="−1">${ico('minus')}</button><button type="button" class="icon-btn sm" data-sd="1" data-id="${esc(g.id)}" aria-label="+1">${ico('plus')}</button></div>
+            ${ask === g.id ? `<div class="row" style="gap:8px;width:100%;margin-top:8px"><input class="input grow" data-sd-amt inputmode="decimal" placeholder="${esc(t('subReqAsk', { u: g.unit || '' }))}"><button type="button" class="btn sm primary" data-sd-ok="${esc(g.id)}">${esc(t('add'))}</button></div>` : ''}</div>`;
+        }
         return `<button type="button" class="sub-row clay ${v ? 'done' : ''}" data-sw="${esc(g.id)}" aria-pressed="${!!v}"><span class="sub-ck" aria-hidden="true">${v ? ico('check') : ''}</span><span class="grow"><b>${esc(g.name)}</b></span></button>`;
       }).join('')}</div>
       <p class="center" style="margin:14px 0 0"><b class="${periodDone(h, k) ? 'amt-in' : 'muted'}">${esc(periodDone(h, k) ? t('subDone') : t('subNotYet'))}</b></p>`;
@@ -2674,7 +2690,22 @@
       onClose: () => { refreshHabit(h.id); render(); },
       onClick: e => {
         let el; const S = { ...subOf(h, k) };
-        if ((el = e.target.closest('[data-sd]'))) { const g = r.goals.find(x => x.id === el.dataset.id); if (!g) return; S[g.id] = clamp((+S[g.id] || 0) + +el.dataset.sd, 0, 99); setSub(h, k, S); vibrate(8); draw(); return; }
+        if ((el = e.target.closest('[data-sd]'))) {
+          const g = (goals ? r.goals : r.ways).find(x => x.id === el.dataset.id); if (!g) return;
+          const v = +S[g.id] || 0, d = +el.dataset.sd;
+          // Con cantidad por vez, sumar una vez pide cuánto fue; quitar una vez resta la media apuntada
+          if (d > 0 && +g.amt > 0) { ask = ask === g.id ? '' : g.id; draw(); const i = $('[data-sd-amt]', wref); if (i) i.focus(); return; }
+          if (d < 0 && v && S[g.id + '~a']) S[g.id + '~a'] = Math.max(0, S[g.id + '~a'] - S[g.id + '~a'] / v);
+          S[g.id] = clamp(v + d, 0, 99); setSub(h, k, S); vibrate(8); draw(); return;
+        }
+        if ((el = e.target.closest('[data-sd-ok]'))) {
+          const g = (goals ? r.goals : r.ways).find(x => x.id === el.dataset.sdOk); if (!g) return;
+          const a = Number(String(($('[data-sd-amt]', wref) || {}).value || '').replace(',', '.')) || 0;
+          if (!(a > 0)) { toast(t('subReqNeedAmt')); return; }
+          if (a < +g.amt) { toast(t('subReqShort', { a: num(+g.amt), u: g.unit || '' })); return; }
+          S[g.id] = clamp((+S[g.id] || 0) + 1, 0, 99); S[g.id + '~a'] = Math.round(((+S[g.id + '~a'] || 0) + a) * 100) / 100; ask = '';
+          setSub(h, k, S); vibrate(8); sfx('tap'); draw(); return;
+        }
         if ((el = e.target.closest('[data-sw]'))) { const id = el.dataset.sw; if (S[id]) delete S[id]; else S[id] = 1; setSub(h, k, S); vibrate(8); draw(); }
       }
     });
@@ -8966,7 +8997,7 @@
   const ROLES = GG.ROLES;
   const ROLE_ICON = { lider: '👑', colider: '⭐', experto: '🎓', veterano: '🛡️', novato: '🌱' };
   const rpc = async (fn, args = {}) => { await ensureToken(); return sbFetch(`/rest/v1/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) }); };
-  const habitSpec = h => ({ name: h.name, icon: h.icon, kind: h.kind || 'build', freq: h.freq, target: h.target, multi: h.multi, measure: h.measure, unit: h.unit, step: h.step, days: h.days, duration: h.duration, timeOfDay: h.timeOfDay, note: (h.note || '').slice(0, 300), ...(subMode(h) ? { mode: h.mode, goals: h.mode === 'goals' ? h.goals.map(g => ({ name: g.name, target: g.target })) : undefined, ways: h.mode === 'ways' ? h.ways.map(g => ({ name: g.name })) : undefined } : {}) });
+  const habitSpec = h => ({ name: h.name, icon: h.icon, kind: h.kind || 'build', freq: h.freq, target: h.target, multi: h.multi, measure: h.measure, unit: h.unit, step: h.step, days: h.days, duration: h.duration, timeOfDay: h.timeOfDay, note: (h.note || '').slice(0, 300), ...(subMode(h) ? { mode: h.mode, goals: h.mode === 'goals' ? h.goals.map(g => ({ name: g.name, target: g.target, min: g.min, amt: g.amt, unit: g.unit })) : undefined, ways: h.mode === 'ways' ? h.ways.map(g => ({ name: g.name, target: g.target, min: g.min, amt: g.amt, unit: g.unit })) : undefined } : {}) });
   // El proyecto viaja con sus hábitos vinculados (sin registros: cada persona lleva los suyos)
   const projectSpec = p => ({ name: p.name, icon: p.icon, desc: p.desc, deadline: p.deadline, goal: { type: p.goal.type, start: p.goal.start, target: p.goal.target, unit: p.goal.unit, items: (p.goal.items || []).map(i => i.text) }, milestones: (p.milestones || []).map(m => ({ text: m.text, date: m.date })),
     habits: p.habitIds.map(getHabit).filter(h => h && !h.archived).slice(0, 30).map(habitSpec) });
@@ -8977,6 +9008,8 @@
   const sDate = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
   const sArr = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
   const pickOf = (v, list, d) => (list.includes(v) ? v : d);
+  // v1.25: mínimo y cantidad por vez de un requisito que llega por el chat
+  const reqSpec = g => ({ ...(+g.min > 0 ? { min: sNum(g.min, 1, 1, 99) } : {}), ...(+g.amt > 0 ? { amt: sNum(g.amt, 0, 0, 1e6), unit: sStr(g.unit, 12) } : {}) });
   function cleanSpec(kind, s) {
     s = s && typeof s === 'object' ? s : {};
     if (kind === 'event') return { name: sStr(s.name), icon: sStr(s.icon, 8), from: sDate(s.from), to: sDate(s.to), catIds: sArr(s.catIds, 40).map(x => sStr(x, 40)), days: sArr(s.days, 400).map(x => sDate(x)).filter(Boolean),
@@ -8992,8 +9025,8 @@
       target: sNum(s.target, 1, 1, 1000), multi: !!s.multi, measure: pickOf(s.measure, ['count', 'amount'], 'count'), unit: sStr(s.unit, 20), step: sNum(s.step, 1, 0, 1e6),
       days: [...new Set(sArr(s.days, 7).map(d => +d).filter(d => Number.isInteger(d) && d >= 0 && d <= 6))], duration: sNum(s.duration, 0, 0, 1440),
       timeOfDay: pickOf(s.timeOfDay, TOD, 'any'), note: sStr(s.note, 300), mode: pickOf(s.mode, ['simple', 'goals', 'ways'], 'simple'),
-      goals: sArr(s.goals, 12).filter(g => g && typeof g === 'object').map(g => ({ name: sStr(g.name, 40), target: sNum(g.target, 1, 1, 99) })).filter(g => g.name),
-      ways: sArr(s.ways, 12).filter(g => g && typeof g === 'object').map(g => ({ name: sStr(g.name, 40) })).filter(g => g.name) };
+      goals: sArr(s.goals, 12).filter(g => g && typeof g === 'object').map(g => ({ name: sStr(g.name, 40), target: sNum(g.target, 1, 1, 99), ...reqSpec(g) })).filter(g => g.name),
+      ways: sArr(s.ways, 12).filter(g => g && typeof g === 'object').map(g => ({ name: sStr(g.name, 40), ...(+g.target > 1 ? { target: sNum(g.target, 1, 1, 99) } : {}), ...reqSpec(g) })).filter(g => g.name) };
   }
   // Hábitos de la ficha que aún no están en el proyecto local (por nombre)
   const missingSpecHabits = (p, s) => { s = cleanSpec('project', s); const have = new Set(p.habitIds.map(getHabit).filter(Boolean).map(h => h.name.trim().toLowerCase())); return ((s && s.habits) || []).filter(x => x && x.name && !have.has(String(x.name).trim().toLowerCase())); };
@@ -10532,6 +10565,8 @@
       case 'folder-open': state.ui.folder = id; save(); render(); window.scrollTo(0, 0); break;
       case 'folder-close': state.ui.folder = null; save(); render(); break;
       case 'proj-edit': { const p = state.projects.find(x => x.id === id); if (p) openProjectEditor(p); break; }
+      // v1.25: «Extraer»: todos los hábitos salen de la carpeta del proyecto (no se borran ni cambia nada más)
+      case 'proj-extract': { const p = state.projects.find(x => x.id === id); if (!p || !p.habitIds.length) break; confirmDialog(t('projExtractQ', { n: p.habitIds.length, name: p.name })).then(ok => { if (!ok) return; p.habitIds = []; save(); render(); sfx('tap'); toast(t('projExtracted')); }); break; }
       case 'vacations': openVacations(); break;
       case 'level': openLevel(); break;
       case 'perfect-rules': openPerfectRules(); break;

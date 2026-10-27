@@ -32,6 +32,9 @@
     ledOrgDays: 'Ver los colores de los días de Organización',
     rgCatNew: 'Nueva categoría', rgCatDel: 'Borrar esta categoría', rgCatDelQ: '¿Borrar «{c}»?', rgCatUsed: 'Tiene {n} movimientos o repeticiones. Elige a qué categoría se mueven antes de borrarla:',
     rgCatUnused: 'No tiene movimientos: se borra sin más.', rgCatNoOther: 'No hay otra categoría del mismo tipo a la que moverlos. Crea una primero.', rgCatMoveDel: 'Mover y borrar', rgCatDeleted: 'Categoría borrada',
+    subReqTarget: 'Veces', subReqTargetW: 'Veces', subReqMin: 'Mínimo', subReqAmt: 'Cada vez', subReqUnit: 'Unidad', subReqUnitPh: 'min, ml, km…',
+    subReqMinN: 'cuenta con {n}', subReqEach: 'cada vez {a} {u}', subReqTotal: 'total {a} {u}', subReqAsk: '¿Cuánto esta vez? ({u})', subReqNeedAmt: 'Escribe la cantidad de esta vez',
+    subReqShort: 'No llega a {a} {u}: esta vez no cuenta', projExtract: 'Extraer hábitos', projExtractQ: '¿Sacar los {n} hábitos de «{name}»? Los hábitos no se borran: solo salen de la carpeta.', projExtracted: 'Hábitos fuera del proyecto',
     dbBadgeDue: 'Pendiente de devolver · {who}', dbBadgeDuePaid: 'Devuelto · {who}', dbBadgeOwed: 'Te deben {a}'
   };
   const en = {
@@ -66,6 +69,9 @@
     ledOrgDays: 'Show the Organisation day colours',
     rgCatNew: 'New category', rgCatDel: 'Delete this category', rgCatDelQ: 'Delete “{c}”?', rgCatUsed: 'It has {n} movements or repeats. Choose which category they move to before deleting it:',
     rgCatUnused: 'It has no movements: it is simply deleted.', rgCatNoOther: 'There is no other category of the same type to move them to. Create one first.', rgCatMoveDel: 'Move and delete', rgCatDeleted: 'Category deleted',
+    subReqTarget: 'Times', subReqTargetW: 'Times', subReqMin: 'Minimum', subReqAmt: 'Each time', subReqUnit: 'Unit', subReqUnitPh: 'min, ml, km…',
+    subReqMinN: 'counts at {n}', subReqEach: 'each time {a} {u}', subReqTotal: 'total {a} {u}', subReqAsk: 'How much this time? ({u})', subReqNeedAmt: 'Type the amount for this time',
+    subReqShort: 'It does not reach {a} {u}: this time does not count', projExtract: 'Extract habits', projExtractQ: 'Take the {n} habits out of “{name}”? The habits are not deleted: they just leave the folder.', projExtracted: 'Habits taken out of the project',
     dbBadgeDue: 'Pending repayment · {who}', dbBadgeDuePaid: 'Repaid · {who}', dbBadgeOwed: 'Owed {a}'
   };
   Object.assign(window.I18N.es, es);
