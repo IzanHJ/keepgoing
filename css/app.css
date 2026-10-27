@@ -2033,3 +2033,20 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .tf-all .tf-tag { font-size: 14px; padding: 4px 10px; }
 .dk-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
 .tf-cell .tf-items > * { flex: none; }
+
+/* v1.25: valoración del día (0-10) */
+.rate-row { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; margin-top: 10px; }
+.rate-b { min-width: 0; height: 36px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--fg); font: inherit; font-weight: var(--fw-num); font-size: 14px; cursor: pointer; padding: 0; box-shadow: var(--sh-in); }
+.rate-b.on { background: var(--rc); color: #fff; box-shadow: 0 0 0 2px var(--rc); }
+.rate-big { font-weight: var(--fw-num); font-size: 22px; color: var(--rc); } .rate-big small { font-size: 12px; color: var(--muted); }
+.rate-card .link-btn { margin-top: 8px; }
+
+/* v1.25: notas, valoración y capas en las casillas del Mes */
+.tf-cell .tf-rate { margin-left: auto; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: var(--rc); color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-weight: var(--fw-num); }
+.tf-cell .tf-dnote { font-size: 10px; line-height: 1.25; color: var(--fg); opacity: .85; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tf-tag.has-note { position: relative; }
+.tf-tag.has-note::after { content: ''; position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--fg-c, #fff); opacity: .9; }
+.ly-notext .tf-tag .tn, .ly-notext .tf-tag .ini, .ly-notext .tf-tag .who { visibility: hidden; }
+.ly-notext .tf-cell .tf-tag { min-height: 8px; height: 8px; padding: 0; font-size: 0; }
+.tf-ly-sub { padding-left: 24px; }
+.tf-all-note { display: flex; gap: 8px; align-items: flex-start; white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }

@@ -96,8 +96,10 @@
     let n = 0;
     for (const k of Object.keys(rd)) {
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
-      const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && shiftIds.has(e.sid))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}) }));
+      const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
+      const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}),
+          ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '' } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
     const ext = (Array.isArray(raw.ext) ? raw.ext : []).slice(0, LIMITS.ext)
@@ -133,6 +135,7 @@
       const k = iso(d), inRange = k >= from, wk = iso(startOfWeek(d, weekStart));
       for (const e of data.days[k] || []) {
         const s = shiftBy[e.sid]; if (!s) continue;
+        if (s.once && !jobBy[s.jobId]) continue; // v1.25: un turno puntual solo cuenta si tiene categoría
         const job = jobBy[s.jobId] || data.jobs[0];
         const h = entryHours(s, e);
         let regular = h, ot = 0;
