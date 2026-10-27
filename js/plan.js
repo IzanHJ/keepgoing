@@ -101,5 +101,14 @@
     return { amount: p[i], cur: p[3] };
   };
 
-  return { TRIAL_DAYS, LIMITS, PAID, FLAGS, CACHE_MAX, resolve, allows, canAdd, flagOn, KEY_ALPHA, keyNorm, keyFormat, keyValid, PRICE_EUR, TERMS, PRICES, priceFor };
+  // Ahorro: el anual frente a 12 meses y el pago único frente a FOREVER_VS_YEARS años del anual → { amount, pct, cur } o null
+  const FOREVER_VS_YEARS = 3;
+  function saving(country, term) {
+    const m = priceFor(country, 'month'), y = priceFor(country, 'year'), f = priceFor(country, 'forever');
+    const base = term === 'year' ? m.amount * 12 : term === 'forever' ? y.amount * FOREVER_VS_YEARS : 0, pay = term === 'year' ? y.amount : f.amount;
+    if (!(base > pay)) return null;
+    return { amount: Math.round((base - pay) * 100) / 100, pct: Math.round((1 - pay / base) * 100), cur: m.cur };
+  }
+
+  return { FOREVER_VS_YEARS, saving, TRIAL_DAYS, LIMITS, PAID, FLAGS, CACHE_MAX, resolve, allows, canAdd, flagOn, KEY_ALPHA, keyNorm, keyFormat, keyValid, PRICE_EUR, TERMS, PRICES, priceFor };
 });

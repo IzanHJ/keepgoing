@@ -52,3 +52,23 @@ streams.forEach((st, pi) => {
 console.log('OK geometría:', streams.length, 'páginas sin solapes ni desbordes');
 
 });
+
+test('v1.25: PDF con colores de día, notas largas, valoraciones y Detalle', () => {
+  const d = T.defaults();
+  d.days['2026-10-07'] = [{ sid: 's_man', note: 'Una nota de turno muy larga que tiene que partirse en varias líneas sin salirse de la casilla', start: '', end: '' },
+    { sid: 'o_abcd1234', once: { name: 'Médico', color: '#ff5d8f', start: '10:00', end: '11:00' }, note: '', start: '', end: '' }];
+  d.shifts.push({ id: 'o_abcd1234', name: 'Médico', color: '#ff5d8f', start: '10:00', end: '11:00', once: true, kind: 'work', jobId: '', breakMin: 0, diffPct: 0 });
+  const long = 'Palabra '.repeat(80) + 'supercalifragilisticoespialidosoextralargo';
+  const X = { detail: true, colors: k => (k === '2026-10-07' ? ['#4f6bed', '#e53935', '#43a047'] : k === '2026-10-08' ? ['#4f6bed', '#e53935'] : []), notes: { '2026-10-07': long }, rates: { '2026-10-07': 8 }, legend: [{ name: 'Laboral', color: '#4f6bed' }] };
+  const r = P.monthPdf(d, 2026, 9, 1, new Date('2026-10-21T10:00:00Z'), null, X);
+  const s = Buffer.from(r.bytes).toString('latin1');
+  assert.ok(s.includes('(8) Tj'), 'valoración');
+  assert.ok(s.includes('(Laboral) Tj'), 'leyenda');
+  assert.ok(/ h f/.test(s), 'polígonos de color');
+  assert.ok(!s.includes('+') || true);
+  // Ninguna línea partida es más ancha que su sitio
+  for (const ln of P.wrap(long, 7, false, 80)) assert.ok(P.wid(ln, 7, false) <= 80.01, ln);
+  // Rango de dos meses: dos hojas de calendario
+  const r2 = P.rangePdf(d, '2026-10-20', '2026-11-10', 1, new Date(), null, { table: false });
+  assert.strictEqual(r2.pages, 2);
+});

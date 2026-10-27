@@ -1247,6 +1247,14 @@ p { font-weight: var(--fw-body); }
 .avatar img, .me-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .friend-add { padding: 16px; margin-bottom: 18px; }
 .chat-full.sheet { max-width: 760px; }
+.g-back { display: none; }
+@media (max-width: 699px) {
+  /* v1.25: en pantalla completa la cabecera baja de la barra de estado (iPhone) y lleva «Volver» a la izquierda */
+  .chat-full.sheet { padding-top: calc(10px + var(--safe-t)); }
+  .chat-full .sheet-grab { display: none; }
+  .chat-full .g-back { display: inline-grid; }
+  .chat-full .sheet-head { margin-bottom: 10px; }
+}
 @media (max-width: 699px) { .chat-full.sheet { max-height: 100vh; max-height: 100dvh; height: 100dvh; border-radius: 0; display: flex; flex-direction: column; } .chat-full .sheet-body { flex: 1; min-height: 0; display: flex; flex-direction: column; } .chat-full #grp { flex: 1; display: flex; flex-direction: column; min-height: 0; } .chat-full .g-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; } .chat-full .chat { flex: 1; min-height: 0; } .chat-full .chat-list { flex: 1; max-height: none; } }
 @media (min-width: 700px) { .chat-full .chat-list { max-height: min(64vh, 620px); } }
 .sheet-head h2 .avatar.sm { width: 34px; height: 34px; }
@@ -1312,6 +1320,8 @@ p { font-weight: var(--fw-body); }
 .jig.chat-sw .chat-end { padding-right: 26px; }
 @keyframes jig { from { transform: rotate(-1.3deg); } to { transform: rotate(1.3deg); } }
 @keyframes jig-sm { from { transform: rotate(-.5deg) translateX(-1px); } to { transform: rotate(.5deg) translateX(1px); } }
+.w-move { position: absolute; top: -8px; left: -8px; z-index: 5; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); border: 2px solid var(--surface); animation: wdel-in .2s ease-out; }
+.w-move svg.i { width: 15px; height: 15px; }
 .w-del { position: absolute; top: -8px; right: -8px; z-index: 5; width: 28px; height: 28px; border-radius: 50%; background: #e5484d; color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 700; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); border: 2px solid var(--surface); animation: wdel-in .2s ease-out; }
 .chat-rows .w-del { top: 6px; right: 6px; }
 @keyframes wdel-in { from { transform: scale(0); } to { transform: scale(1); } }
@@ -1994,3 +2004,72 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .cap-sum { padding: 4px 4px; }
 .cap-sum-total { border-style: solid; background: color-mix(in srgb, var(--cap-gold) 12%, var(--surface)); }
 .ledger-cal .cal-cell.evp { background: color-mix(in srgb, var(--evc) 32%, var(--surface)); }
+
+/* v1.25: «Viendo la app como…» (solo el equipo) */
+.dev-pill { position: fixed; z-index: 45; top: calc(8px + var(--safe-t)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px);
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 0; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.35); cursor: pointer; }
+.dev-pill svg.i { width: 16px; height: 16px; flex: none; }
+.dev-pill span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-pill b { white-space: nowrap; text-decoration: underline; }
+
+/* v1.25: tienda dentro de la app, a pantalla completa, con «Volver» */
+.shop-full.sheet { max-width: 920px; height: 92dvh; display: flex; flex-direction: column; padding-bottom: 10px; }
+.shop-full .sheet-body { flex: 1; min-height: 0; display: flex; }
+.shop-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: 20px; background: var(--bg); }
+@media (max-width: 699px) { .shop-full.sheet { height: 100dvh; max-height: 100dvh; border-radius: 0; padding-top: calc(10px + var(--safe-t)); } .shop-full .sheet-grab { display: none; } }
+
+/* v1.25: ahorro de los planes, en blanco y llamativo */
+.pl-save { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.1); color: #fff; font-weight: 800; font-size: 15px; box-shadow: 0 0 0 2px var(--accent); }
+:root[data-light="1"] .pl-save { background: #111114; }
+
+/* v1.25: «Ver más» cuando el contenido de un día no cabe en su casilla del Mes */
+.tf-grid .tf-cell { height: 76px; overflow: hidden; }
+.tf-cell .tf-items { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+.tf-cell.over .tf-items { margin-bottom: 4px; }
+.tf-more { position: absolute; left: 3px; right: 3px; bottom: 3px; font-size: 10px; line-height: 12px; font-weight: var(--fw-label); text-align: center; color: var(--fg); background: color-mix(in srgb, var(--surface) 80%, transparent); border-radius: 6px; cursor: pointer; }
+@media (max-width: 420px) { .tf-grid .tf-cell { height: 66px; } }
+.tf-all-row { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.tf-all .tf-tag { font-size: 14px; padding: 4px 10px; }
+.dk-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
+.tf-cell .tf-items > * { flex: none; }
+
+/* v1.25: valoración del día (0-10) */
+.rate-row { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; margin-top: 10px; }
+.rate-b { min-width: 0; height: 36px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--fg); font: inherit; font-weight: var(--fw-num); font-size: 14px; cursor: pointer; padding: 0; box-shadow: var(--sh-in); }
+.rate-b.on { background: var(--rc); color: #fff; box-shadow: 0 0 0 2px var(--rc); }
+.rate-big { font-weight: var(--fw-num); font-size: 22px; color: var(--rc); } .rate-big small { font-size: 12px; color: var(--muted); }
+.rate-card .link-btn { margin-top: 8px; }
+
+/* v1.25: notas, valoración y capas en las casillas del Mes */
+.tf-cell .tf-rate { margin-left: auto; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: var(--rc); color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-weight: var(--fw-num); }
+.tf-cell .tf-dnote { font-size: 10px; line-height: 1.25; color: var(--fg); opacity: .85; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tf-tag.has-note { position: relative; }
+.tf-tag.has-note::after { content: ''; position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--fg-c, #fff); opacity: .9; }
+.ly-notext .tf-tag .tn, .ly-notext .tf-tag .ini, .ly-notext .tf-tag .who { visibility: hidden; }
+.ly-notext .tf-cell .tf-tag { min-height: 8px; height: 8px; padding: 0; font-size: 0; }
+.tf-ly-sub { padding-left: 24px; }
+.tf-all-note { display: flex; gap: 8px; align-items: flex-start; white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+/* v1.25: deudas de la Libreta */
+.db-part { padding: 10px 12px; border-radius: 14px; }
+.db-part select.input { min-width: 0; }
+.led-debt { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; }
+.led-debt.done { color: var(--muted, inherit); font-weight: 500; opacity: .85; }
+/* v1.25: días de un evento elegidos en el calendario */
+.evp-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.evp-wd { text-align: center; font-size: 11px; color: var(--muted); padding-bottom: 2px; }
+.evp-cell { aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--fg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font: inherit; font-size: 13px; cursor: pointer; position: relative; }
+.evp-cell.empty { background: transparent; cursor: default; }
+.evp-cell.dk:not([style*="background"]) { background: color-mix(in srgb, var(--dk) 55%, var(--surface)); }
+.evp-cell.today span { color: var(--accent); font-weight: 700; }
+.evp-cell.on { outline: 2px solid var(--accent); outline-offset: -2px; font-weight: 700; }
+.evp-cell.on svg { color: var(--accent); }
+.switch.sm { width: 44px; height: 26px; }
+.switch.sm span::after { top: 3px; left: 3px; width: 20px; height: 20px; }
+.switch.sm input:checked + span::after { transform: translateX(18px); }
+/* v1.25: requisitos de objetivos y maneras */
+.sub-req-item { display: flex; flex-direction: column; padding: 8px; border-radius: 14px; background: var(--surface-2); }
+.mini-f { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 70px; }
+.mini-f > span { font-size: 11px; color: var(--muted); }
+.mini-f .input { min-height: 36px; padding: 6px 10px; font-size: 14px; }
+.mini-f > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -17,3 +17,8 @@ html[lang="es"] :is(span, small)[data-lang="es"], html[lang="en"] :is(span, smal
 .terms button { flex: 1; min-height: 38px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
 .terms button.on { background: var(--fg); color: var(--bg); }
 [hidden] { display: none !important; }
+/* v1.25: ahorro en blanco y llamativo; «Volver a KeepGoing» cuando se llega desde la app */
+.save { margin: 0; display: inline-block; align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: #111114; color: #fff; font-weight: 800; font-size: 15px; box-shadow: 0 0 0 2px var(--accent); }
+@media (prefers-color-scheme: dark) { .save { background: rgba(255,255,255,.08); } }
+.back-app { font-weight: 700; text-decoration: none; }
+html.embed main { padding-top: 16px; }
