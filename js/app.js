@@ -1064,7 +1064,7 @@
   function tfPaintEnd(commit = true) { const p = tfPaintS; tfPaintS = null; if (p && commit && p.seen.size) tfSave(); }
   document.addEventListener('pointerdown', e => {
     if (state.ui.tab !== 'cal' || !TFS.quick || e.button || tfUi().cv === 'year') return;
-    const c = e.target.closest('.tf-zoom [data-tf-day]'); if (!c) return;
+    const c = e.target.closest('.tf-zoom [data-tf-day]'); if (!c || e.target.closest('[data-tf-more]')) return;
     tfPaintS = { seen: new Set(), mode: null, id: e.pointerId };
     tfPaintCell(c.dataset.tfDay);
   }, true);
@@ -1101,11 +1101,41 @@
       const dk = tfDkOf(k), evs = evd[k] || []; if (dk && inMonth) usedDk.add(dk);
       // Sin tipo de día, el evento tiñe la casilla entera; con tipo de día, va como una franja abajo
       const tint = dk ? dk.color : evs.length ? evs[0].paint.color : '';
-      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''} ${tint ? 'dk' : ''}" data-tf-day="${k}" ${tint ? `style="--dk:${tfColor(tint)}"` : ''} aria-label="${esc((dk ? tfDkName(dk) + ' · ' : '') + aria + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}">${evs.length && dk ? `<span class="tf-evbar" style="--c:${tfColor(evs[0].paint.color)}" title="${esc(evs.map(v => v.name).join(', '))}"></span>` : ''}<span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}</span>${items.slice(0, 3).map((it, j) => it.r ? tfRtTag(it.r) : it.who ? tfGhost(it.s, it.who) : tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < 2 ? 'jb' : ''}`)).join('')}${items.length > 3 ? `<span class="more">+${items.length - 3}</span>` : ''}</button>`;
+      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''} ${tint ? 'dk' : ''}" data-tf-day="${k}" ${tint ? `style="--dk:${tfColor(tint)}"` : ''} aria-label="${esc((dk ? tfDkName(dk) + ' · ' : '') + aria + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}">${evs.length && dk ? `<span class="tf-evbar" style="--c:${tfColor(evs[0].paint.color)}" title="${esc(evs.map(v => v.name).join(', '))}"></span>` : ''}<span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}</span><span class="tf-items">${items.map((it, j) => it.r ? tfRtTag(it.r) : it.who ? tfGhost(it.s, it.who) : tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < items.length - 1 ? 'jb' : ''}`)).join('')}</span></button>`;
     }
     html += '</div>';
     if (usedDk.size) html += `<div class="tf-dk-legend">${[...usedDk].map(d => `<span><i style="--c:${tfColor(d.color)}"></i>${esc(tfDkName(d))}</span>`).join('')}</div>`;
     return html;
+  }
+  /* v1.25: en el Mes, si el contenido de un día no cabe en su casilla (que mide lo mismo que las demás), se corta y sale
+     «Ver más»; al tocarlo se ve todo lo del día sin abrir el editor */
+  function tfFitCells(root) {
+    if (!root) return;
+    $$('.tf-grid .tf-cell', root).forEach(c => {
+      const box = $('.tf-items', c); if (!box) return;
+      c.classList.remove('over'); $('.tf-more', c)?.remove();
+      if (box.scrollHeight > box.clientHeight + 2) { c.classList.add('over'); c.insertAdjacentHTML('beforeend', `<span class="tf-more" role="button" tabindex="0" data-tf-more="${esc(c.dataset.tfDay)}">${esc(t('tfSeeMore'))}</span>`); }
+    });
+  }
+  function tfSeeAll(k) {
+    const list = tfSorted(state.calDays[k] || []), shown = tfShown(), ext = tfData().ext.filter(e => e.date === k), dk = tfDkOf(k), evs = tfEvDays('org')[k] || [];
+    const row = (tag, sub) => `<div class="tf-all-row">${tag}${sub ? `<span class="muted small">${esc(sub)}</span>` : ''}</div>`;
+    const times = (s, e) => { const tm = TF.entryTimes(s, e); return tm.start ? `${tm.start}${tm.end ? '–' + tm.end : ''}` : ''; };
+    const rts = new Set();
+    const rows = [];
+    for (const e of list) {
+      const r = e.rt && state.calRoutines.find(x => x.id === e.rt && x.kind === 'day');
+      if (r) { if (!rts.has(r.id)) { rts.add(r.id); rows.push(row(tfRtTag(r), (r.day || []).map(x => tfShift(x.sid)).filter(Boolean).map(x => x.name).join(' · '))); } continue; }
+      const s = tfShift(e.sid); if (s) rows.push(row(tfTag(s), [times(s, e), e.note].filter(Boolean).join(' · ')));
+    }
+    for (const f of shown) for (const id of f.days[k] || []) { const s = f.shifts.find(x => x.id === id); if (s) rows.push(row(tfGhost(s, f.name), f.name)); }
+    for (const e of ext) rows.push(row(`<span class="tf-tag" style="--c:#888">${ico('calendar', 'xs')} <span class="tn">${esc(e.title)}</span></span>`, ''));
+    openModal({
+      title: esc(tfLong(k)),
+      body: `${dk || evs.length ? `<div class="row wrap" style="gap:6px;margin-bottom:10px">${dk ? `<span class="chip sm" style="--c:${tfColor(dk.color)}"><i class="dk-dot" style="background:${tfColor(dk.color)}"></i> ${esc(tfDkName(dk))}</span>` : ''}${evs.map(v => `<span class="chip sm"><i class="dk-dot" style="background:${tfColor(v.paint.color)}"></i> ${esc(v.name)}</span>`).join('')}</div>` : ''}<div class="stack tf-all" style="gap:8px">${rows.join('') || `<p class="muted">${esc(t('tfNoDayShifts'))}</p>`}</div>`,
+      foot: `<button class="btn primary block" data-tfa="edit">${ico('edit')} ${esc(t('tfEditDay'))}</button>`,
+      onClick: (e, close) => { if (e.target.closest('[data-tfa="edit"]')) { close(); tfOpenDay(k); } }
+    });
   }
   // Los 12 meses en miniatura: cada día con el color de su primer turno
   function tfYearGrid(y) {
@@ -1736,6 +1766,8 @@
 
   // Clics del Calendario (data-tf*)
   function tfClick(e) {
+    const more = e.target.closest('[data-tf-more]');
+    if (more) { e.preventDefault(); tfSeeAll(more.dataset.tfMore); return true; }
     const el = e.target.closest('[data-tf],[data-tf-qtab],[data-tf-go],[data-tf-cv],[data-tf-day],[data-tf-open],[data-tf-month],[data-tf-q],[data-tf-rm],[data-tf-ws],[data-tf-shift],[data-tf-job],[data-tf-kind],[data-tf-rt]');
     if (!el) { if (TFS.menu && !e.target.closest('.tf-menu')) { TFS.menu = false; render(); } return false; }
     const u = tfUi(), y = +u.ym.slice(0, 4), mo = +u.ym.slice(5, 7) - 1, ym = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
@@ -1907,6 +1939,7 @@
 
   function afterRender() {
     initCals($('#main'));
+    tfFitCells($('#main'));
     if (state.ui.tab === 'habits') loadPhotos($('#main'));
     applyWOrder($('#main'));
     decorateJiggle();
@@ -2178,13 +2211,14 @@
     $$(`.cal-box[data-hid="${hid}"]`).forEach(box => { const tmp = document.createElement('div'); tmp.innerHTML = calHtml(h).trim(); const n = tmp.firstElementChild; box.replaceWith(n); initCals(n.parentElement); });
   }
   /* v1.22: cambiar de mes deslizando con el dedo o arrastrando con el ratón (Calendario, Libreta y calendarios de los hábitos) */
-  const SWIPE_ZONES = [['.tf-grid, .tf-year, .tf-week', '[data-tf="prev"]', '[data-tf="next"]', '.tf-grid, .tf-year, .tf-week'], ['.ledger-cal .cal', '[data-act="ledger-month"][data-d="-1"]', '[data-act="ledger-month"][data-d="1"]', '.ledger-cal .cal']];
+  const SWIPE_ZONES = [['.tf-grid, .tf-year, .tf-week', '[data-tf="prev"]', '[data-tf="next"]', '.tf-grid, .tf-year, .tf-week'], ['.ledger-cal .cal', '[data-act="ledger-month"][data-d="-1"]', '[data-act="ledger-month"][data-d="1"]', '.ledger-cal .cal'], ['.ledger-day', '[data-act="ledger-dayshift"][data-d="-1"]', '[data-act="ledger-dayshift"][data-d="1"]', '.ledger-day']];
   let mSw = null, mSwBlock = false;
   document.addEventListener('pointerdown', e => {
     if (e.button || e.target.closest('input, select, textarea')) return;
     const cs = e.pointerType === 'mouse' && e.target.closest('.cal-swipe');
     if (cs) { mSw = { kind: 'cs', el: cs, x: e.clientX, y: e.clientY, sl: cs.scrollLeft, moved: false }; return; }
     if (TFS.quick && e.target.closest('.tf-zoom')) return; // v1.24: con la edición rápida, deslizar pinta
+    if (e.target.closest('.swipe')) return; // las filas que se deslizan (borrar un movimiento) mandan sobre la zona
     const z = SWIPE_ZONES.find(([sel]) => e.target.closest(sel));
     if (z) mSw = { kind: 'zone', z, x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
   }, true);
@@ -6509,7 +6543,8 @@
   const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: FX.AUTO.includes(ledgerMain()) ? ledgerMain() : 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
   function ledgerDayHtml(k) {
     const list = LV.entries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(NET(list));
-    return `<section class="ledger-day clay" aria-live="polite"><div class="row"><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>
+    // v1.25: flechas y deslizar a los lados para pasar de día sin volver al calendario
+    return `<section class="ledger-day clay" aria-live="polite"><div class="row"><button class="icon-btn sm" data-act="ledger-dayshift" data-d="-1" aria-label="${esc(t('tfPrevDay'))}">${ico('left')}</button><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="icon-btn sm" data-act="ledger-dayshift" data-d="1" aria-label="${esc(t('tfNextDay'))}">${ico('right')}</button><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>
       ${list.length ? `<ul class="ledger-list">${list.map(e => `<li>${entryRow(e)}</li>`).join('')}</ul>
         <div class="entry"><span class="muted">${esc(t('ledgerDayNet'))}</span><b>${cents(tot.net)}</b></div>` : `<p class="muted small" style="margin:10px 0 0">${esc(t('ledgerDayEmpty'))}</p>`}
     </section>`;
@@ -10092,6 +10127,7 @@
       case 'vault-lock': lockByHand(); render(); sfx('toggle'); toast(t('vaultLocked')); break;
       case 'vault-wipe': confirmVaultWipe(); break;
       case 'ledger-add': if (!ledgerOpen()) { state.ui.tab = 'ledger'; render(); break; } openEntry(null, a.dataset.d || state.ui.ledgerDay || todayKey()); break;
+      case 'ledger-dayshift': { const k = addDays(state.ui.ledgerDay && state.ui.ledgerDay.startsWith(ledgerMonth()) ? state.ui.ledgerDay : todayKey(), +a.dataset.d); state.ui.ledgerDay = k; state.ui.ledgerMonth = k.slice(0, 7); save(); render(); break; }
       case 'ledger-month': { const [yy, mm] = ledgerMonth().split('-').map(Number), d = new Date(yy, mm - 1 + +a.dataset.d, 1); state.ui.ledgerMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; save(); render(); break; }
       case 'ledger-cats': openLedgerCats(); break;
       case 'ledger-recs': openLedgerRecs(); break;

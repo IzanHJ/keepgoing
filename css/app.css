@@ -2022,3 +2022,14 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 /* v1.25: ahorro de los planes, en blanco y llamativo */
 .pl-save { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.1); color: #fff; font-weight: 800; font-size: 15px; box-shadow: 0 0 0 2px var(--accent); }
 :root[data-light="1"] .pl-save { background: #111114; }
+
+/* v1.25: «Ver más» cuando el contenido de un día no cabe en su casilla del Mes */
+.tf-grid .tf-cell { height: 76px; overflow: hidden; }
+.tf-cell .tf-items { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+.tf-cell.over .tf-items { margin-bottom: 4px; }
+.tf-more { position: absolute; left: 3px; right: 3px; bottom: 3px; font-size: 10px; line-height: 12px; font-weight: var(--fw-label); text-align: center; color: var(--fg); background: color-mix(in srgb, var(--surface) 80%, transparent); border-radius: 6px; cursor: pointer; }
+@media (max-width: 420px) { .tf-grid .tf-cell { height: 66px; } }
+.tf-all-row { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.tf-all .tf-tag { font-size: 14px; padding: 4px 10px; }
+.dk-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
+.tf-cell .tf-items > * { flex: none; }
