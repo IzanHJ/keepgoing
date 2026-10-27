@@ -1320,6 +1320,8 @@ p { font-weight: var(--fw-body); }
 .jig.chat-sw .chat-end { padding-right: 26px; }
 @keyframes jig { from { transform: rotate(-1.3deg); } to { transform: rotate(1.3deg); } }
 @keyframes jig-sm { from { transform: rotate(-.5deg) translateX(-1px); } to { transform: rotate(.5deg) translateX(1px); } }
+.w-move { position: absolute; top: -8px; left: -8px; z-index: 5; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); border: 2px solid var(--surface); animation: wdel-in .2s ease-out; }
+.w-move svg.i { width: 15px; height: 15px; }
 .w-del { position: absolute; top: -8px; right: -8px; z-index: 5; width: 28px; height: 28px; border-radius: 50%; background: #e5484d; color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 700; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); border: 2px solid var(--surface); animation: wdel-in .2s ease-out; }
 .chat-rows .w-del { top: 6px; right: 6px; }
 @keyframes wdel-in { from { transform: scale(0); } to { transform: scale(1); } }

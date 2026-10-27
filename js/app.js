@@ -2020,7 +2020,7 @@
     html += `<div class="folder-summary">${projCard(p)}${hs.length && !p.hideCal ? `<div class="clay card folder-cal">${calHtml({ id: 'p:' + p.id, proj: p })}<button class="more-btn" data-act="more" data-kind="project" data-id="${p.id}">${esc(t('seeMore'))} ${ico('down')}</button></div>` : ''}</div>`;
     html += hs.length ? `<div class="habit-grid" id="habit-grid" data-folder="${p.id}">${hs.map(habitCard).join('')}</div><p class="grid-hint">${esc(t('folderOutHint'))}</p>`
       : `<p class="muted center">${esc(t('folderEmptyHint'))}</p>`;
-    html += `<div class="center" style="margin-top:14px"><button class="btn" data-act="proj-edit" data-id="${p.id}">${ico('plus')} ${esc(t('folderAddHabits'))}</button></div>`;
+    html += `<div class="row wrap" style="margin-top:14px;justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('folderNewHabit'))}</button><button class="btn" data-act="proj-edit" data-id="${p.id}">${ico('link')} ${esc(t('folderAddHabits'))}</button></div>`;
     return html;
   }
 
@@ -2260,6 +2260,10 @@
     f.remOn = !!(h && h.reminder && h.reminder.on); f.remTime = (h && h.reminder && h.reminder.time) || ''; f.share = false;
     // v1.23: cómo se cumple (simple, varios objetivos o varias maneras) y Continuidad al cambiar la regla
     f.mode = ['goals', 'ways'].includes(f.mode) ? f.mode : 'simple'; f.goals = (f.goals || []).map(g => ({ ...g })); f.ways = (f.ways || []).map(w => ({ ...w })); f.cont = true;
+    // v1.25: proyectos del hábito (moverlo o sacarlo). Uno nuevo creado dentro de un proyecto abierto va a ese proyecto
+    const projList = () => state.projects.filter(p => !p.archived || (h && p.habitIds.includes(h.id)));
+    const fo = isNew && openFolder();
+    f.projs = h ? state.projects.filter(p => p.habitIds.includes(h.id)).map(p => p.id) : fo ? [fo.id] : [];
     if (f.mode === 'goals' && !f.goals.length) f.goals = [{ id: uid(), name: '', target: 1 }];
     if (f.mode === 'ways' && !f.ways.length) f.ways = [{ id: uid(), name: '' }];
     const draw = w => {
@@ -2321,6 +2325,7 @@
           <input class="input ${f.remOn ? '' : 'hidden'}" id="hf-rem-time" type="time" value="${esc(f.remTime)}" style="max-width:160px"></div>` : ''}
         ${h && h.groupId ? `<button type="button" class="chip" data-hm="group">👥 ${esc(t('groupOpen'))}</button>`
           : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareWithFriendsHint' : 'groupNeedLogin'))}</span></span></label>`}
+        ${projList().length ? `<div class="field"><span>${ico('folder', 'xs')} ${esc(t('hProjects'))}</span><div class="row wrap" style="gap:6px">${projList().map(p => `<button type="button" class="calc-toggle ${f.projs.includes(p.id) ? 'on' : ''}" data-hproj="${esc(p.id)}" aria-pressed="${f.projs.includes(p.id)}">${esc(p.icon || '')} ${esc(p.name)}</button>`).join('')}</div><div class="muted small">${esc(t('hProjectsHint'))}</div></div>` : ''}
         <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-hidecal" ${f.hideCal ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('hideCal'))}</b><br><span class="muted small">${esc(t('hideCalHint'))}</span></span></label>
         ${!isNew && !quit ? `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-cont" ${f.cont ? 'checked' : ''}><span></span></span><span class="grow"><b>${ico('branch', 'xs')} ${esc(t('contTitle'))}</b><br><span class="muted small">${esc(t('contHint'))}</span></span></label>` : ''}
         <label class="field"><span>${esc(t('habitDesc'))}</span><textarea class="input" id="hf-note" maxlength="300" placeholder="${esc(t('habitDescPh'))}">${esc(f.note || '')}</textarea></label>
@@ -2365,6 +2370,7 @@
       onClick: async (e, close, w) => {
         const q = s => e.target.closest(s);
         let el;
+        if ((el = q('[data-hproj]'))) { readInputs(w); const id = el.dataset.hproj; f.projs = f.projs.includes(id) ? f.projs.filter(x => x !== id) : [...f.projs, id]; draw(w); return; }
         if ((el = q('[data-emoji]'))) { readInputs(w); f.icon = el.dataset.emoji; draw(w); return; }
         if ((el = q('[data-color]'))) { readInputs(w); f.color = el.dataset.color || null; draw(w); return; }
         if ((el = q('[data-freq]'))) { readInputs(w); f.freq = el.dataset.freq; draw(w); return; }
@@ -2440,6 +2446,7 @@
             if (!props.hideCal) delete h.hideCal;
             checkPerfectMastery(true); checkChallenge(h);
           }
+          setHabitProjects(target, f.projs);
           save(); close();
           if (state.ui.tab !== 'habits') state.ui.tab = 'habits';
           render(); toast(t('saved'));
@@ -2449,6 +2456,15 @@
         }
       }
     });
+  }
+
+  // v1.25: deja el hábito exactamente en estos proyectos (lo saca de los demás)
+  function setHabitProjects(h, ids) {
+    for (const p of state.projects) {
+      const has = p.habitIds.includes(h.id), want = ids.includes(p.id);
+      if (want && !has) p.habitIds.push(h.id);
+      else if (!want && has) p.habitIds = p.habitIds.filter(x => x !== h.id);
+    }
   }
 
   /* ---------- v1.23: objetivos o maneras de un día ----------
@@ -2720,6 +2736,7 @@
       onMount: w => { draw(w); pw = w; guard.start(); w.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pf-item') { e.preventDefault(); addItem(w); } }); },
       onClick: (e, close, w) => {
         const q = s => e.target.closest(s); let el;
+        if ((el = q('[data-hproj]'))) { readInputs(w); const id = el.dataset.hproj; f.projs = f.projs.includes(id) ? f.projs.filter(x => x !== id) : [...f.projs, id]; draw(w); return; }
         if ((el = q('[data-emoji]'))) { readInputs(w); f.icon = el.dataset.emoji; draw(w); return; }
         if ((el = q('[data-gtype]'))) { readInputs(w); f.goal.type = el.dataset.gtype; draw(w); return; }
         if ((el = q('[data-dl]'))) { readInputs(w); if (el.checked) { f.retoFrom = todayKey(); f.deadline = addDays(todayKey(), 30); } else { f.deadline = null; f.retoFrom = null; } draw(w); return; }
@@ -9794,7 +9811,7 @@
   function exitJiggle() {
     if (!jiggle) return;
     jiggle = false; document.body.classList.remove('jiggle');
-    $$('.w-del').forEach(x => x.remove()); $$('.jig').forEach(x => x.classList.remove('jig'));
+    $$('.w-del, .w-move').forEach(x => x.remove()); $$('.jig').forEach(x => x.classList.remove('jig'));
     const d = $('.jiggle-done'); if (d) d.remove();
   }
   function decorateJiggle() {
@@ -9804,6 +9821,8 @@
       if (el.querySelector(':scope > .w-del')) return;
       el.classList.add('jig'); el.style.setProperty('--jd', `${-(i % 4) * .09}s`);
       el.insertAdjacentHTML('beforeend', `<span class="w-del" role="button" tabindex="0" data-w-del aria-label="${esc(t('jigRemove'))}" title="${esc(t('jigRemove'))}">−</span>`);
+      // v1.25: los hábitos llevan también «Mover a un proyecto» (si hay proyectos)
+      if (el.matches('.habit-grid > .habit') && state.projects.some(p => !p.archived)) el.insertAdjacentHTML('beforeend', `<span class="w-move" role="button" tabindex="0" data-w-move aria-label="${esc(t('hMove'))}" title="${esc(t('hMove'))}">${ico('folder')}</span>`);
     });
     if (!$('.jiggle-done')) document.body.insertAdjacentHTML('beforeend', `<button class="btn primary jiggle-done" data-jig-done>${ico('check')} ${esc(t('jigDone'))}</button>`);
   }
@@ -9824,9 +9843,10 @@
   window.addEventListener('click', e => {
     if (jigBlockClick) { jigBlockClick = false; e.preventDefault(); e.stopPropagation(); return; }
     if (!jiggle || e.target.closest('#modal-root')) return;
-    const del = e.target.closest('[data-w-del]');
-    if (del || e.target.closest('[data-jig-done]') || e.target.closest('.jig')) { e.preventDefault(); e.stopPropagation(); }
+    const del = e.target.closest('[data-w-del]'), mvb = e.target.closest('[data-w-move]');
+    if (del || mvb || e.target.closest('[data-jig-done]') || e.target.closest('.jig')) { e.preventDefault(); e.stopPropagation(); }
     if (del) { jigRemove(del.parentElement); return; }
+    if (mvb) { const h = getHabit(mvb.parentElement.dataset.id); if (h) openHabitMove(h); return; }
     if (!e.target.closest('.jig')) exitJiggle(); // fuera de los widgets (o en «Listo») se sale del modo
   }, true);
   document.addEventListener('keydown', e => {
@@ -9916,6 +9936,25 @@
     kind.save([...parent.children].filter(x => x.matches(kind.sel)).map(kind.id));
     save(); render(); toast(t('reordered'));
   }));
+  /* v1.25: mover un hábito a otro proyecto o sacarlo del suyo. Dentro de un proyecto abierto, «mover» lo saca de ese y lo
+     pone en el elegido; fuera, lo añade al elegido. «Sacar» lo quita del proyecto abierto (o de todos, si no hay ninguno abierto). */
+  function openHabitMove(h) {
+    const fo = openFolder(), inP = state.projects.filter(p => p.habitIds.includes(h.id));
+    const list = state.projects.filter(p => !p.archived && !(fo && p.id === fo.id));
+    openModal({
+      title: `${ico('folder')} ${esc(t('hMoveTitle', { name: h.name }))}`,
+      body: `<div class="stack" style="gap:8px">${list.map(p => `<button class="btn block ${p.habitIds.includes(h.id) ? 'on' : ''}" data-hmv="${esc(p.id)}" style="justify-content:flex-start">${esc(p.icon || '')} ${esc(p.name)}${p.habitIds.includes(h.id) ? ` <span class="muted small">· ${esc(t('hMoveHere'))}</span>` : ''}</button>`).join('') || `<p class="muted">${esc(t('hMoveNone'))}</p>`}
+        ${fo || inP.length ? `<button class="btn block danger-text" data-hmv="">${ico('x')} ${esc(t(fo ? 'hMoveOut' : 'hMoveOutAll'))}</button>` : ''}</div>`,
+      onClick: (e, close) => {
+        const b = e.target.closest('[data-hmv]'); if (!b) return;
+        const to = b.dataset.hmv;
+        let ids = inP.map(p => p.id);
+        if (fo) ids = ids.filter(x => x !== fo.id);
+        if (to) { if (!ids.includes(to)) ids.push(to); } else if (!fo) ids = [];
+        setHabitProjects(h, ids); save(); close(); exitJiggle(); render(); sfx('tap'); toast(t('saved'));
+      }
+    });
+  }
   async function jigRemove(el) {
     if (el && el.matches('.chat-sw')) el = el.querySelector('.chat-row');
     if (!el) return;
