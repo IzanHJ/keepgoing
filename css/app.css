@@ -2050,3 +2050,8 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .ly-notext .tf-cell .tf-tag { min-height: 8px; height: 8px; padding: 0; font-size: 0; }
 .tf-ly-sub { padding-left: 24px; }
 .tf-all-note { display: flex; gap: 8px; align-items: flex-start; white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+/* v1.25: deudas de la Libreta */
+.db-part { padding: 10px 12px; border-radius: 14px; }
+.db-part select.input { min-width: 0; }
+.led-debt { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; }
+.led-debt.done { color: var(--muted, inherit); font-weight: 500; opacity: .85; }

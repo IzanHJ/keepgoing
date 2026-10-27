@@ -208,7 +208,7 @@
       // v1.19: presupuestos mensuales (cifrados con la Libreta, un elemento por presupuesto)
       ledgerBudgets: [],
       ledgerProjs: [],
-      ledgerWorth: [],
+      ledgerWorth: [], ledgerContacts: [], // v1.25: contactos de la Libreta (cifrados)
       calDayK: {}, cdkmt: {}, perfectRules: [], ledDays: {}, ldmt: {},
       calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, // v1.25: nota de cada día del Calendario y valoración del día ({ r: 0..10 }) // v1.24: requisitos del día perfecto (historial por fecha) y días con movimientos
       // v1.24: tipo de día de cada fecha (Laboral, Libre, Festivo…) → id de calPrefs.dayKinds
@@ -227,7 +227,7 @@
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
   const ORDER_LISTS = ['projects', 'routines'];
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'calJobs', 'calShifts', 'calRoutines'];
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt'], ['sublogs', 'slmt']]; // hábito → día → valor (v1.23: sublogs = objetivos o maneras hechos ese día)
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt']];             // clave → valor
   function normalize(s) {
@@ -252,7 +252,7 @@
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'calJobs', 'calShifts', 'calRoutines', 'perfectRules']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'perfectRules']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.calDays = s.calDays && typeof s.calDays === 'object' && !Array.isArray(s.calDays) ? s.calDays : {};
     out.calExt = s.calExt && Array.isArray(s.calExt.list) ? s.calExt : { list: [] };
     const cp0 = s.calPrefs && typeof s.calPrefs === 'object' ? s.calPrefs : {};
@@ -4838,7 +4838,9 @@
      ========================================================= */
   const LED = window.KGLedger;
   // v1.23.4: lista con los vinculados ya netos (para sumar, nunca para guardar ni para pintar filas)
-  const NET = list => LED.netLinked(list, LV.entries);
+  // v1.25: un gasto «Pendiente de devolver» no cuenta (ni en gastos ni en el patrimonio) hasta que se marca como devuelto
+  const NET = list => DEBT.zeroDue(LED.netLinked(list, LV.entries));
+  const DEBT = window.KGDebts;
   const privacyOn = () => !!(state.ledgerPrefs && state.ledgerPrefs.privacy);
   // Importe visible respetando el modo privacidad («•••••»)
   const money = v => LED.mask(fmtMoney(v), privacyOn());
@@ -4851,8 +4853,8 @@
      En el estado (y en la nube) cada movimiento, categoría y repetición se guarda como { id, enc: { iv, ct } }.
      Descifrados solo viven en memoria (LV) mientras la Libreta está abierta. Sin la contraseña no se pueden leer. */
   const VAULT = window.KGVault, DEV = window.KGVaultDevice;
-  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs'], ['imports', 'ledgerImports'], ['worth', 'ledgerWorth']];
-  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], worth: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
+  const LKINDS = [['entries', 'ledgerEntries'], ['cats', 'ledgerCats'], ['recurring', 'ledgerRecurring'], ['events', 'ledgerEvents'], ['calc', 'ledgerCalc'], ['budgets', 'ledgerBudgets'], ['projs', 'ledgerProjs'], ['imports', 'ledgerImports'], ['worth', 'ledgerWorth'], ['contacts', 'ledgerContacts']];
+  const LV = { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], worth: [], contacts: [], plain: new Map(), known: new Set(), bad: 0, sig: '', busy: false };
   const vaultSame = () => !!state.ledgerVault && LV.vid === VAULT.vidOf(state.ledgerVault);
   const ledgerOpen = () => !!LV.key && vaultSame();
   const ledgerSig = () => LKINDS.map(([, sk]) => state[sk].map(x => x.id + ':' + (x.enc ? x.enc.iv : 'p')).join(',')).join('|');
@@ -4894,7 +4896,7 @@
     save(); LV.sig = ledgerSig();
   }
   const ledgerSave = () => { ledgerCommit().catch(() => toast(t('vaultError'))); };
-  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], worth: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
+  function ledgerLock() { Object.assign(LV, { key: null, raw: null, vid: null, entries: [], cats: [], recurring: [], events: [], calc: [], budgets: [], projs: [], imports: [], worth: [], contacts: [], plain: new Map(), known: new Set(), bad: 0, sig: '' }); pinBuf = ''; }
   async function useKey(key, raw) { LV.key = key; LV.raw = raw; sessTried = ''; LV.vid = VAULT.vidOf(state.ledgerVault); await ledgerLoad(); runRecurring(); }
   // Abrir con la contraseña. Las libretas antiguas (v1) se pasan a v2 en ese momento (se vuelve a cifrar todo).
   async function ledgerUnlock(pw) {
@@ -6697,7 +6699,7 @@
     const c = catOf(e.categoryId), priv = privacyOn(), inc = e.type === 'income', inv = e.type === 'invest';
     const ac = inv ? 'amt-inv' : inc ? 'amt-in' : 'amt-out', sg = inv ? '' : inc ? '+' : '−';
     return `<div class="swipe" data-swipe="${esc(e.id)}"><div class="swipe-acts"><button class="sw-act edit" data-sw-edit="${esc(e.id)}" aria-label="${esc(t('edit'))}" title="${esc(t('edit'))}">${ico('edit')}</button><button class="sw-act del" data-sw-del="${esc(e.id)}" aria-label="${esc(t('delete'))}" title="${esc(t('delete'))}">${ico('trash')}</button></div>
-      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}${linkedNow(e) ? ` · <span class="led-link" title="${esc(t('lkLinked'))}">${ico('link', 'xs')}</span>` : ''}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${ac}">${priv ? '•••' : sg + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${ac}">${priv ? '•••' : sg + cents(e.amountCents)}</b>`}</button></div>`;
+      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}${linkedNow(e) ? ` · <span class="led-link" title="${esc(t('lkLinked'))}">${ico('link', 'xs')}</span>` : ''}${debtBadge(e)}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${ac}">${priv ? '•••' : sg + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${ac}">${priv ? '•••' : sg + cents(e.amountCents)}</b>`}</button></div>`;
   }
   const SW_W = 124;
   let swg = null, swOpen = null, swBlock = false;
@@ -6751,6 +6753,37 @@
   // v1.23: tipos de movimiento (Gasto, Ingreso, Inversión). «Ambos» vale para gasto e ingreso; la inversión tiene sus categorías
   const LTYPE_K = { expense: 'ledgerExpenseOne', income: 'ledgerIncomeOne', invest: 'ledgerInvestOne' };
   const catFits = (c, type) => c.type === type || (c.type === 'both' && type !== 'invest');
+  /* v1.25: personas de las deudas. Siempre se guardan como contacto ({ c: id }); se elige uno, un amigo por @nametag
+     (se crea su contacto) o se escribe un nombre nuevo (también se crea). LV.contacts = [{ id, name, tag }] */
+  const contactById = id => LV.contacts.find(c => c.id === id);
+  const whoLabel = who => { if (!who) return '—'; const c = who.c && contactById(who.c); if (c) return c.name || (c.tag ? '@' + c.tag : '—'); return who.name || (who.tag ? '@' + who.tag : '—'); };
+  const whoKeyOk = who => !!(who && (who.c && contactById(who.c) || (who.tag && String(who.tag).trim()) || (who.name && String(who.name).trim())));
+  function whoFromSel(v, name) {
+    if (!v) return {};
+    if (v.startsWith('c:')) return { c: v.slice(2) };
+    if (v.startsWith('t:')) return { tag: v.slice(2) };
+    if (v === 'new') return { name: String(name || '').trim().slice(0, 40), _new: true };
+    return {};
+  }
+  function contactFor(who) {
+    if (who.c && contactById(who.c)) return { c: who.c };
+    const tag = who.tag ? String(who.tag).replace(/^@/, '').toLowerCase() : '', name = String(who.name || '').trim().slice(0, 40);
+    let c = tag ? LV.contacts.find(x => x.tag === tag) : LV.contacts.find(x => !x.tag && x.name.toLowerCase() === name.toLowerCase());
+    if (!c) { const f = tag && (chatData.friends || []).find(x => String(x.nametag || '').toLowerCase() === tag); c = { id: uid(), name: tag ? (f ? personName(f) : '') : name, tag, createdAt: Date.now() }; LV.contacts.push(c); }
+    return { c: c.id };
+  }
+  function whoSelHtml(who, selAttr, nameAttr) {
+    const friends = (chatData.friends || []).filter(f => f.status === 'accepted' && f.nametag && !LV.contacts.some(c => c.tag === String(f.nametag).toLowerCase()));
+    const cur = who && who.c ? 'c:' + who.c : who && who.tag ? 't:' + who.tag : who && who._new ? 'new' : '';
+    return `<select class="input grow" ${selAttr}><option value="">${esc(t('dbWhoPick'))}</option>${LV.contacts.map(c => `<option value="c:${esc(c.id)}" ${cur === 'c:' + c.id ? 'selected' : ''}>${esc(c.name || '')}${c.tag ? ' @' + esc(c.tag) : ''}</option>`).join('')}${friends.map(f => `<option value="t:${esc(String(f.nametag).toLowerCase())}" ${cur === 't:' + String(f.nametag).toLowerCase() ? 'selected' : ''}>@${esc(f.nametag)} · ${esc(personName(f))}</option>`).join('')}<option value="new" ${cur === 'new' ? 'selected' : ''}>${esc(t('dbWhoNew'))}</option></select>${cur === 'new' ? `<input class="input grow" ${nameAttr} maxlength="40" value="${esc(who.name || '')}" placeholder="${esc(t('dbWhoName'))}">` : ''}`;
+  }
+  // Etiqueta pequeña en la fila del movimiento
+  function debtBadge(e) {
+    if (e.type === 'expense' && e.due && e.due.on) return ` · <span class="led-debt ${e.due.paid ? 'done' : ''}">${ico('users', 'xs')} ${esc(t(e.due.paid ? 'dbBadgeDuePaid' : 'dbBadgeDue', { who: whoLabel(e.due.who) }))}</span>`;
+    if (DEBT.owedOn(e)) { const L = DEBT.list(LV.entries).filter(d => d.eid === e.id), left = L.reduce((a, d) => a + d.left, 0), extra = L.reduce((a, d) => a + d.extra, 0), pv = privacyOn(); return ` · <span class="led-debt ${left ? '' : 'done'}">${ico('users', 'xs')} ${esc(left ? t('dbBadgeOwed', { a: pv ? '•••' : cents(left) }) : extra ? t('dbDoneExtra', { a: pv ? '•••' : cents(extra) }) : t('dbDone'))}</span>`; }
+    if (e.type === 'income' && e.pay) { const d = DEBT.list(LV.entries).find(x => x.eid === e.pay.e && x.pid === e.pay.p); return d ? ` · <span class="led-debt done">${ico('users', 'xs')} ${esc(whoLabel(d.who))}</span>` : ''; }
+    return '';
+  }
   function openEntry(entry, date) {
     const isNew = !entry;
     const f = entry ? { ...entry } : { type: 'expense', amountCents: 0, categoryId: 'food', note: '', method: 'card', date: date || todayKey(), every: '', to: '' };
@@ -6760,6 +6793,10 @@
     // v1.23.4: «Vincular otro movimiento» (cualquier categoría): ids de los otros movimientos de su grupo
     const linkOf = en => (en && en.link && en.type !== 'invest' ? LV.entries.filter(x => x.id !== (entry && entry.id) && x.link === en.link && x.type !== 'invest').map(x => x.id) : []);
     f.links = linkOf(entry); const links0 = [...f.links];
+    // v1.25: Pendiente de Aportación (gasto), Pendiente de devolver (gasto) y pago de una aportación (ingreso)
+    f.owed = f.owed && f.owed.on ? { on: true, parts: f.owed.parts.map(x => ({ ...x, who: { ...(x.who || {}) } })) } : { on: false, parts: [] };
+    f.due = f.due && f.due.on ? { ...f.due, who: { ...(f.due.who || {}) } } : { on: false, who: {}, paid: null };
+    f.pay = f.pay && f.pay.e ? { ...f.pay } : null;
     let pick = null, wref;
     const linkSigned = (type, c) => (type === 'income' ? 1 : -1) * c;
     const linkBox = () => {
@@ -6783,6 +6820,59 @@
         html += `<div class="lk-pick clay"><div class="row" style="gap:8px"><input class="input grow" id="lk-q" value="${esc(pick)}" placeholder="${esc(t('lkSearch'))}" autocomplete="off"><button type="button" class="icon-btn sm" data-lk="close" aria-label="${esc(t('close'))}">${ico('x')}</button></div>
           <div class="lk-list" style="margin-top:8px">${cand.length ? cand.map(x => `<button type="button" class="lk-opt" data-lk-add="${esc(x.id)}">${row(x, '')}</button>`).join('') : `<p class="muted small" style="margin:4px 0">${esc(t('lkNone'))}</p>`}</div></div>`;
       }
+      box.innerHTML = html + '</div>';
+    };
+    const debtRead = () => {
+      const box = $('#le-debt', wref); if (!box) return;
+      for (const r of $$('[data-dp]', box)) {
+        const pt = f.owed.parts.find(x => x.id === r.dataset.dp); if (!pt) continue;
+        const sel = $('[data-dp-who]', r).value, nm = $('[data-dp-name]', r);
+        pt.who = whoFromSel(sel, nm ? nm.value : '');
+        const v = $('[data-dp-v]', r).value; pt.v = pt.mode === 'pct' ? Math.max(0, Math.min(100, Number(String(v).replace(',', '.')) || 0)) : (LED.parseCents(v) || 0);
+      }
+      const dw = $('#le-due-who', box); if (dw) f.due.who = whoFromSel(dw.value, ($('#le-due-name', box) || {}).value || '');
+    };
+    // Base de las aportaciones: el gasto (en la moneda principal) neto de sus vinculados
+    const debtBase = () => {
+      const amt = LED.parseCents(($('#le-amt', wref) || {}).value || '') || 0;
+      const myC = f.cur !== main && f.rate ? FX.toMain(amt, FX.roundRate(f.rate)) : amt;
+      const net = f.links.map(id => LV.entries.find(x => x.id === id)).filter(Boolean).reduce((a, x) => a + LED.signed(x), -myC);
+      return net < 0 ? -net : 0;
+    };
+    // Al escribir: solo cambia el «Te tiene que dar» de cada persona (sin volver a pintar, para no perder el foco)
+    const debtExp = () => {
+      const box = $('#le-debt', wref); if (!box || !f.owed.on) return;
+      debtRead(); const base = debtBase(), priv = privacyOn();
+      for (const r of $$('[data-dp]', box)) { const pt = f.owed.parts.find(x => x.id === r.dataset.dp), el = $('.db-exp', r); if (pt && el) el.textContent = t('dbExpected', { a: priv ? '•••' : cents(DEBT.expectedOf(pt, base)) }); }
+      const bl = $('.db-base', box); if (bl) bl.textContent = t('dbBase', { a: priv ? '•••' : cents(base) });
+    };
+    const debtBox = () => {
+      const box = $('#le-debt', wref); if (!box) return;
+      const priv = privacyOn(), all = DEBT.list(LV.entries);
+      if (f.type === 'income') {
+        const opts = DEBT.openParts(LV.entries, entry);
+        if (!opts.length && !f.pay) { box.innerHTML = ''; return; }
+        const cur = f.pay && all.find(d => d.eid === f.pay.e && d.pid === f.pay.p);
+        box.innerHTML = `<div class="field"><span>${ico('users', 'xs')} ${esc(t('dbPayTitle'))}</span><select class="input" id="le-pay"><option value="">${esc(t('dbPayNone'))}</option>${opts.map(d => { const x = LV.entries.find(y => y.id === d.eid) || {}; return `<option value="${esc(d.eid + '|' + d.pid)}" ${f.pay && f.pay.e === d.eid && f.pay.p === d.pid ? 'selected' : ''}>${esc(whoLabel(d.who))} · ${esc(x.note || catName(catOf(x.categoryId)))} · ${priv ? '•••' : cents(d.left || d.expected)}</option>`; }).join('')}</select>
+          ${cur ? `<p class="muted small" style="margin:6px 0 0">${esc(t('dbPayInfo', { e: priv ? '•••' : cents(cur.expected), p: priv ? '•••' : cents(cur.paid) }))}</p>` : `<p class="muted small" style="margin:6px 0 0">${esc(t('dbPayHint'))}</p>`}</div>`;
+        return;
+      }
+      if (f.type !== 'expense') { box.innerHTML = ''; return; }
+      const base = debtBase();
+      const sw = (id, on, title, hint) => `<label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(title)}</b><br><span class="muted small">${esc(hint)}</span></span></label>`;
+      let html = `<div class="stack" style="gap:10px">${sw('le-owed', f.owed.on, t('dbOwedTitle'), t('dbOwedHint'))}`;
+      if (f.owed.on) {
+        html += `<div class="stack db-parts" style="gap:8px">${f.owed.parts.map(pt => {
+          const st = entry && all.find(d => d.eid === entry.id && d.pid === pt.id), exp = DEBT.expectedOf(pt, base);
+          return `<div class="db-part clay" data-dp="${esc(pt.id)}"><div class="row" style="gap:8px">${whoSelHtml(pt.who, 'data-dp-who', 'data-dp-name')}<button type="button" class="icon-btn sm" data-dp-del="${esc(pt.id)}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>
+            <div class="row" style="gap:8px;margin-top:8px"><div class="seg seg-sm">${[['fixed', 'dbFixed'], ['pct', 'dbPct']].map(([v, k]) => `<button type="button" data-dp-mode="${v}" class="${pt.mode === v ? 'on' : ''}" aria-pressed="${pt.mode === v}">${esc(t(k))}</button>`).join('')}</div><input class="input grow" data-dp-v inputmode="decimal" autocomplete="off" value="${pt.mode === 'pct' ? (pt.v ? esc(fmtPctIn(pt.v)) : '') : pt.v ? esc(fmtPctIn(pt.v / 100)) : ''}" placeholder="${pt.mode === 'pct' ? '%' : '0,00'}"></div>
+            <p class="muted small" style="margin:6px 0 0"><span class="db-exp">${esc(t('dbExpected', { a: priv ? '•••' : cents(exp) }))}</span>${st ? ' · ' + esc(st.status === 'done' ? (st.extra ? t('dbDoneExtra', { a: priv ? '•••' : cents(st.extra) }) : t('dbDone')) : t('dbLeft', { a: priv ? '•••' : cents(st.left) })) : ''}</p></div>`;
+        }).join('')}<button type="button" class="chip" data-dp-add style="align-self:flex-start">${ico('plus')} ${esc(t('dbAddPart'))}</button>
+          <p class="muted small db-base" style="margin:0">${esc(t('dbBase', { a: priv ? '•••' : cents(base) }))}</p></div>`;
+      }
+      html += sw('le-due', f.due.on, t('dbDueTitle'), t('dbDueHint'));
+      if (f.due.on) html += `<div class="db-part clay"><div class="row" style="gap:8px">${whoSelHtml(f.due.who, 'id="le-due-who"', 'id="le-due-name"')}</div>
+        ${!isNew ? `<label class="row" style="gap:12px;margin-top:10px"><span class="switch"><input type="checkbox" id="le-due-paid" ${f.due.paid ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('dbDuePaid'))}</b>${f.due.paid ? `<br><span class="muted small">${esc(fmtDate(f.due.paid))}</span>` : ''}</span></label>` : ''}</div>`;
       box.innerHTML = html + '</div>';
     };
     const curOpts = () => [main, ...(KGPlan.allows(PL(), 'fx') ? FX.ALL.filter(c => c !== main) : f.cur && f.cur !== main ? [f.cur] : [])].map(c => `<option value="${c}" ${f.cur === c ? 'selected' : ''}>${c}</option>`).join('');
@@ -6817,6 +6907,7 @@
         <label class="field"><span>${esc(t('ledgerNote'))}</span><input class="input" id="le-note" maxlength="140" value="${esc(f.note || '')}" placeholder="${esc(t('ledgerNotePh'))}"></label>
         <div class="field"><span>${esc(t('ledgerMethod'))}</span><div class="seg">${LED.METHODS.map(v => `<button type="button" data-le-method="${v}" class="${f.method === v ? 'on' : ''}" aria-pressed="${f.method === v}">${esc(t('method_' + v))}</button>`).join('')}</div></div>
         <div id="le-link"></div>
+        <div id="le-debt"></div>
         ${isNew ? `<label class="field"><span>${esc(t('ledgerRepeat'))}</span><select class="input" id="le-every"><option value="">${esc(t('repeat_none'))}</option>${LED.REPEATS.map(v => `<option value="${v}" ${f.every === v ? 'selected' : ''}>${esc(t('repeat_' + v))}</option>`).join('')}</select></label>
           <label class="field ${f.every ? '' : 'hidden'}" id="le-to-wrap"><span>${esc(t('ledgerRepeatTo'))}</span><input class="input" type="date" id="le-to" value="${esc(f.to || '')}"></label>` : entry.recurringId ? `<p class="muted small row" style="margin:0;gap:6px">${ico('repeat', 'xs')} ${esc(t('ledgerFromRec'))}</p>` : ''}
       </div>`;
@@ -6825,14 +6916,20 @@
     openModal({
       title: esc(t(isNew ? 'ledgerNew' : 'ledgerEdit')), body: '<div id="le"></div>',
       foot: `${isNew ? '' : `<button class="btn danger" data-le="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-le="save">${esc(t('save'))}</button>`,
-      onMount: w => { wref = w; draw(); linkBox(); fxFetchRate(); setTimeout(() => { const a = $('#le-amt', w); if (a && isNew) a.focus(); }, 60);
+      onMount: w => { wref = w; draw(); linkBox(); debtBox(); fxFetchRate(); setTimeout(() => { const a = $('#le-amt', w); if (a && isNew) a.focus(); }, 60);
         w.addEventListener('change', e => {
           if (e.target.id === 'le-every') { $('#le-to-wrap', w).classList.toggle('hidden', !e.target.value); linkBox(); }
           if (e.target.id === 'le-cur') { f.cur = e.target.value; f.rateSet = false; f.rate = 0; fxLine(); fxFetchRate(); }
           if (e.target.id === 'le-date') { f.date = e.target.value || f.date; fxFetchRate(); }
+          if (e.target.id === 'le-owed') { debtRead(); f.owed.on = e.target.checked; if (f.owed.on) { f.due.on = false; if (!f.owed.parts.length) f.owed.parts.push({ id: uid(), who: {}, mode: 'fixed', v: 0 }); } debtBox(); }
+          if (e.target.id === 'le-due') { debtRead(); f.due.on = e.target.checked; if (f.due.on) f.owed.on = false; debtBox(); }
+          if (e.target.id === 'le-due-paid') { f.due.paid = e.target.checked ? todayKey() : null; debtRead(); debtBox(); }
+          if (e.target.id === 'le-pay') { const [pe, pp] = e.target.value.split('|'); f.pay = pe ? { e: pe, p: pp } : null; debtBox(); }
+          if (e.target.matches('[data-dp-who], #le-due-who')) { debtRead(); debtBox(); }
         });
         w.addEventListener('input', e => {
-          if (e.target.id === 'le-amt') { fxPrev(); if (f.links.length) linkBox(); }
+          if (e.target.id === 'le-amt') { fxPrev(); if (f.links.length) linkBox(); debtExp(); }
+          if (e.target.matches('[data-dp-v]')) debtExp();
           if (e.target.id === 'lk-q') { pick = e.target.value; const pos = e.target.selectionStart; linkBox(); const q = $('#lk-q', w); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
           if (e.target.id === 'le-rate') { const v = Number(String(e.target.value).replace(/\s/g, '').replace(',', '.')); if (v > 0) { f.rate = v; f.rateSet = true; } fxPrev(); }
         });
@@ -6840,16 +6937,19 @@
       onClick: async (e, close) => {
         let el;
         const keepAmt = () => { const a = $('#le-amt', wref); f._amt = a ? a.value : ''; };
-        const restore = () => { if (f._amt != null) $('#le-amt', wref).value = f._amt; fxLine(); linkBox(); };
+        const restore = () => { if (f._amt != null) $('#le-amt', wref).value = f._amt; fxLine(); linkBox(); debtBox(); };
         if ((el = e.target.closest('[data-lk]'))) { pick = el.dataset.lk === 'open' ? '' : null; linkBox(); if (pick != null) { const q = $('#lk-q', wref); if (q) q.focus(); } return; }
-        if ((el = e.target.closest('[data-lk-del]'))) { f.links = f.links.filter(id => id !== el.dataset.lkDel); linkBox(); return; }
+        if ((el = e.target.closest('[data-lk-del]'))) { f.links = f.links.filter(id => id !== el.dataset.lkDel); linkBox(); debtBox(); return; }
+        if (e.target.closest('[data-dp-add]')) { debtRead(); if (f.owed.parts.length < 20) f.owed.parts.push({ id: uid(), who: {}, mode: 'fixed', v: 0 }); debtBox(); return; }
+        if ((el = e.target.closest('[data-dp-del]'))) { debtRead(); f.owed.parts = f.owed.parts.filter(x => x.id !== el.dataset.dpDel); if (!f.owed.parts.length) f.owed.on = false; debtBox(); return; }
+        if ((el = e.target.closest('[data-dp-mode]'))) { debtRead(); const pt = f.owed.parts.find(x => x.id === el.closest('[data-dp]').dataset.dp); if (pt && pt.mode !== el.dataset.dpMode) { pt.mode = el.dataset.dpMode; pt.v = 0; } debtBox(); return; }
         if ((el = e.target.closest('[data-lk-add]'))) {
           // Si ya estaba vinculado con otros, entra todo su grupo
           const x = LV.entries.find(y => y.id === el.dataset.lkAdd); if (!x) return;
           const add = [x.id, ...(x.link ? LV.entries.filter(y => y.link === x.link && y.id !== x.id && y.type !== 'invest' && (!entry || y.id !== entry.id)).map(y => y.id) : [])];
-          f.links = [...new Set([...f.links, ...add])]; pick = null; linkBox(); return;
+          f.links = [...new Set([...f.links, ...add])]; pick = null; linkBox(); debtBox(); return;
         }
-        if ((el = e.target.closest('[data-le-type]'))) { read(); keepAmt(); f.type = el.dataset.leType; const c = catOf(f.categoryId); if (!catFits(c, f.type)) f.categoryId = (LV.cats.find(x => !x.archived && catFits(x, f.type)) || { id: 'other' }).id; draw(); restore(); return; }
+        if ((el = e.target.closest('[data-le-type]'))) { read(); keepAmt(); debtRead(); f.type = el.dataset.leType; const c = catOf(f.categoryId); if (!catFits(c, f.type)) f.categoryId = (LV.cats.find(x => !x.archived && catFits(x, f.type)) || { id: 'other' }).id; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-cat]'))) { read(); keepAmt(); f.categoryId = el.dataset.leCat; draw(); restore(); return; }
         if ((el = e.target.closest('[data-le-store]'))) { const r = $('#le-rate', wref); if (r) { const v = Number(String(r.value).replace(/\s/g, '').replace(',', '.')); if (v > 0) { f.rate = v; f.rateSet = true; } } f.conv = el.dataset.leStore === 'conv'; fxLine(); return; }
         if ((el = e.target.closest('[data-le-method]'))) { read(); keepAmt(); f.method = el.dataset.leMethod; draw(); restore(); return; }
@@ -6862,6 +6962,18 @@
           const amt = LED.parseCents($('#le-amt', wref).value);
           if (!amt) { toast(t('ledgerNeedAmount')); $('#le-amt', wref).focus(); return; }
           const data = { type: f.type, amountCents: amt, categoryId: f.categoryId, note: f.note, method: f.method, date: f.date };
+          // v1.25: deudas (las personas nuevas se guardan como contactos)
+          debtRead();
+          if (f.type === 'expense' && f.owed.on) {
+            const parts = f.owed.parts.filter(x => x.v > 0);
+            if (parts.some(x => !whoKeyOk(x.who))) { toast(t('dbNeedWho')); return; }
+            if (parts.length) data.owed = { on: true, parts: parts.map(x => ({ id: x.id, who: contactFor(x.who), mode: x.mode, v: x.v })) };
+          }
+          if (f.type === 'expense' && f.due.on) {
+            if (!whoKeyOk(f.due.who)) { toast(t('dbNeedWho')); return; }
+            data.due = { on: true, who: contactFor(f.due.who), paid: f.due.paid || null };
+          }
+          if (f.type === 'income' && f.pay) data.pay = { e: f.pay.e, p: f.pay.p };
           if (f.cur !== main) {
             const rt = FX.roundRate($('#le-rate', wref) ? Number(String($('#le-rate', wref).value).replace(/\s/g, '').replace(',', '.')) : f.rate);
             if (!(rt > 0)) { toast(t('fxNeedRate')); const ri = $('#le-rate', wref); if (ri) ri.focus(); return; }
@@ -6874,7 +6986,7 @@
             runRecurring();
             if (f.date > todayKey()) toast(t('ledgerRecFuture'));
           } else if (isNew) { const ne = { id: uid(), ...data, recurringId: '', createdAt: Date.now() }; LV.entries.push(ne); saveLinks(ne, f.type === 'invest' ? [] : f.links, []); }
-          else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; saveLinks(tg, f.type === 'invest' ? [] : f.links, links0); }
+          else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; for (const k of ['owed', 'due', 'pay']) if (!data[k]) delete tg[k]; saveLinks(tg, f.type === 'invest' ? [] : f.links, links0); }
           state.ui.ledgerDay = f.date; state.ui.ledgerMonth = f.date.slice(0, 7);
           ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'expense' ? 'pop' : 'money');
         }

@@ -15,7 +15,14 @@
     shopTitle: 'Usuario KeepGoing', shopBack: 'Volver a KeepGoing',
     hProjects: 'Proyectos', hProjectsHint: 'Toca para meterlo o sacarlo de un proyecto.',
     hMove: 'Mover a un proyecto', hMoveTitle: 'Mover «{name}»', hMoveHere: 'ya está aquí', hMoveNone: 'No tienes otros proyectos.',
-    folderNewHabit: 'Nuevo hábito aquí', hMoveOut: 'Sacar de este proyecto', hMoveOutAll: 'Sacar de todos los proyectos'
+    folderNewHabit: 'Nuevo hábito aquí', hMoveOut: 'Sacar de este proyecto', hMoveOutAll: 'Sacar de todos los proyectos',
+    dbPayTitle: 'Paga una aportación', dbPayNone: 'No paga ninguna aportación', dbPayInfo: 'Acordado {e} · pagado hasta ahora {p}', dbPayHint: 'Si este ingreso es lo que alguien te devuelve de un gasto, elígelo aquí.',
+    dbOwedTitle: 'Pendiente de Aportación', dbOwedHint: 'Otras personas te tienen que devolver una parte de este gasto.', dbFixed: 'Cantidad', dbPct: '%',
+    dbExpected: 'Te tiene que dar {a}', dbDone: 'Resuelta', dbDoneExtra: 'Resuelta · {a} de Comisiones', dbLeft: 'Deuda: faltan {a}', dbAddPart: 'Añadir persona',
+    dbBase: 'El % se calcula sobre {a} (el gasto después de sus movimientos vinculados).',
+    dbDueTitle: 'Pendiente de devolver', dbDueHint: 'Se lo debes a otra persona (por ejemplo, te lo pagó ella). No cuenta en gastos ni en el patrimonio hasta que lo marques como devuelto.',
+    dbDuePaid: 'Ya lo he devuelto', dbNeedWho: 'Elige a quién corresponde cada deuda.', dbWhoPick: 'Elige una persona', dbWhoNew: 'Otra persona (escribir nombre)', dbWhoName: 'Nombre',
+    dbBadgeDue: 'Pendiente de devolver · {who}', dbBadgeDuePaid: 'Devuelto · {who}', dbBadgeOwed: 'Te deben {a}'
   };
   const en = {
     back: 'Back',
@@ -32,7 +39,14 @@
     shopTitle: 'KeepGoing User', shopBack: 'Back to KeepGoing',
     hProjects: 'Projects', hProjectsHint: 'Tap to add it to or remove it from a project.',
     hMove: 'Move to a project', hMoveTitle: 'Move “{name}”', hMoveHere: 'already here', hMoveNone: 'You have no other projects.',
-    folderNewHabit: 'New habit here', hMoveOut: 'Remove from this project', hMoveOutAll: 'Remove from every project'
+    folderNewHabit: 'New habit here', hMoveOut: 'Remove from this project', hMoveOutAll: 'Remove from every project',
+    dbPayTitle: 'Pays a contribution', dbPayNone: 'Does not pay any contribution', dbPayInfo: 'Agreed {e} · paid so far {p}', dbPayHint: 'If this income is someone paying you back for an expense, pick it here.',
+    dbOwedTitle: 'Pending contribution', dbOwedHint: 'Other people have to pay you back part of this expense.', dbFixed: 'Amount', dbPct: '%',
+    dbExpected: 'Owes you {a}', dbDone: 'Settled', dbDoneExtra: 'Settled · {a} in Fees', dbLeft: 'Debt: {a} left', dbAddPart: 'Add person',
+    dbBase: 'The % is worked out on {a} (the expense after its linked movements).',
+    dbDueTitle: 'Pending repayment', dbDueHint: 'You owe it to someone else (for example, they paid it for you). It does not count in expenses or net worth until you mark it as repaid.',
+    dbDuePaid: 'I have paid it back', dbNeedWho: 'Choose who each debt belongs to.', dbWhoPick: 'Choose a person', dbWhoNew: 'Someone else (type a name)', dbWhoName: 'Name',
+    dbBadgeDue: 'Pending repayment · {who}', dbBadgeDuePaid: 'Repaid · {who}', dbBadgeOwed: 'Owed {a}'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
