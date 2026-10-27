@@ -1234,6 +1234,8 @@
     if (typeof LV === 'undefined' || !ledgerOpen()) return out;
     for (const ev of LV.events || []) {
       const pt = ev.paint; if (!pt || !pt.on || !pt[where] || !ev.from || !ev.to) continue;
+      const dl = evDays(ev);
+      if (dl) { for (const k of dl) (out[k] = out[k] || []).push(ev); continue; }
       for (let k = ev.from, i = 0; k <= ev.to && i < 800; k = addDays(k, 1), i++) (out[k] = out[k] || []).push(ev);
     }
     return out;
@@ -5198,7 +5200,7 @@
     const yMin = Math.min(...years) - 1, yMax = Math.max(...years) + 1;
     const monthNames = Array.from({ length: 12 }, (_, i) => fmtDate(`2026-${pad(i + 1)}-01`, { month: 'long' }));
     const wd = Array.from({ length: 7 }, (_, i) => fmtDate(addDays('2026-10-12', i), { weekday: 'short' }));
-    const evd = tfEvDays('led');
+    const evd = tfEvDays('led'), orgDays = state.ledgerPrefs.orgDays !== false;
     html += `<section class="ledger-cal clay" aria-label="${esc(t('ledgerCalendar'))}">
       <div class="cal-head"><button class="icon-btn sm" data-act="ledger-month" data-d="-1" aria-label="${esc(t('ledgerPrev'))}">${ico('left')}</button>
         <select class="input sel" data-ledger-m aria-label="${esc(t('ledgerMonthSel'))}">${monthNames.map((n, i) => `<option value="${i + 1}" ${i + 1 === m ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
@@ -5211,9 +5213,12 @@
       ${LED.monthGrid(y, m).map(w => `<div class="cal-row" role="row">${w.map(k => {
         if (!k) return '<span class="cal-cell empty" role="gridcell"></span>';
         const d = days[k], lbl = `${fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' })}${d ? ` · ${t('ledgerIncome')} ${cents(d.income)} · ${t('ledgerExpense')} ${cents(d.expense)}` : ''}`;
-        const evs = evd[k] || [];
-        return `<button class="cal-cell ${k === sel ? 'on' : ''} ${k === todayKey() ? 'today' : ''} ${evs.length ? 'evp' : ''}" ${evs.length ? `style="--evc:${tfColor(evs[0].paint.color)}"` : ''} role="gridcell" data-ledger-day="${k}" aria-label="${esc(lbl + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}" aria-pressed="${k === sel}"><span class="cal-n">${+k.slice(8)}</span>${d ? `<span class="cal-dots">${d.income ? '<i class="in"></i>' : ''}${d.expense ? '<i class="out"></i>' : ''}${d.invest ? '<i class="inv"></i>' : ''}</span><span class="cal-net ${d.net < 0 ? 'amt-out' : 'amt-in'}">${priv ? '•••' : esc(compactMoney(d.net / 100))}</span>` : ''}</button>`;
+        // v1.25: los colores de los días de Organización (si están encendidos) y de los eventos, hasta 3 como en Organización
+        const evs = evd[k] || [], dks = orgDays ? tfDksOf(k) : [], cs = [...new Set([...dks.map(x => tfColor(x.color)), ...evs.map(v => tfColor(v.paint.color))])].slice(0, TF_DK_MAX);
+        const names = [...dks.map(tfDkName), ...evs.map(v => v.name)];
+        return `<button class="cal-cell ${k === sel ? 'on' : ''} ${k === todayKey() ? 'today' : ''} ${cs.length ? 'evp' : ''}" ${cs.length ? `style="--evc:${cs[0]};${cs.length > 1 && k !== sel ? tfTintStyle(cs, 32).replace(/^--dk:[^;]*;/, '') : ''}"` : ''} role="gridcell" data-ledger-day="${k}" aria-label="${esc(lbl + (names.length ? ' · ' + names.join(', ') : ''))}" aria-pressed="${k === sel}"><span class="cal-n">${+k.slice(8)}</span>${d ? `<span class="cal-dots">${d.income ? '<i class="in"></i>' : ''}${d.expense ? '<i class="out"></i>' : ''}${d.invest ? '<i class="inv"></i>' : ''}</span><span class="cal-net ${d.net < 0 ? 'amt-out' : 'amt-in'}">${priv ? '•••' : esc(compactMoney(d.net / 100))}</span>` : ''}</button>`;
       }).join('')}</div>`).join('')}</div>
+      <label class="row led-orgdays" style="gap:12px;margin-top:10px"><span class="switch sm"><input type="checkbox" data-led-opt="orgdays" ${orgDays ? 'checked' : ''}><span></span></span><span class="grow small">${esc(t('ledOrgDays'))}</span></label>
     </section>`;
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
     // Herramientas de la Libreta: icono de línea con su nombre debajo (mismo estilo que la calculadora)
@@ -6678,10 +6683,15 @@
   function ledgerDayHtml(k) {
     const list = LV.entries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(NET(list));
     // v1.25: flechas y deslizar a los lados para pasar de día sin volver al calendario
-    return `<section class="ledger-day clay" aria-live="polite"><div class="row"><button class="icon-btn sm" data-act="ledger-dayshift" data-d="-1" aria-label="${esc(t('tfPrevDay'))}">${ico('left')}</button><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="icon-btn sm" data-act="ledger-dayshift" data-d="1" aria-label="${esc(t('tfNextDay'))}">${ico('right')}</button><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>
+    return `<section class="ledger-day clay" aria-live="polite"><div class="row"><button class="icon-btn sm" data-act="ledger-dayshift" data-d="-1" aria-label="${esc(t('tfPrevDay'))}">${ico('left')}</button><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="icon-btn sm" data-act="ledger-dayshift" data-d="1" aria-label="${esc(t('tfNextDay'))}">${ico('right')}</button><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>${ledgerDayKinds(k)}
       ${list.length ? `<ul class="ledger-list">${list.map(e => `<li>${entryRow(e)}</li>`).join('')}</ul>
         <div class="entry"><span class="muted">${esc(t('ledgerDayNet'))}</span><b>${cents(tot.net)}</b></div>` : `<p class="muted small" style="margin:10px 0 0">${esc(t('ledgerDayEmpty'))}</p>`}
     </section>`;
+  }
+  // v1.25: el tipo de día de Organización y los eventos del día, debajo del título del resumen
+  function ledgerDayKinds(k) {
+    const dks = state.ledgerPrefs.orgDays !== false ? tfDksOf(k) : [], evs = tfEvDays('led')[k] || [];
+    return dks.length || evs.length ? `<div class="row wrap" style="gap:6px;margin-top:8px">${dks.map(d => tfDkTag(d)).join('')}${evs.map(v => `<span class="tf-tag" style="--c:${tfColor(v.paint.color)};--fg-c:${tfFg(tfColor(v.paint.color))}">${esc(v.name)}</span>`).join('')}</div>` : '';
   }
 
   /* v1.22: en el calendario de la Libreta, el cambio estimado de hoy de las monedas que aparecen en el mes */
@@ -7428,7 +7438,7 @@
             const g = e2.target.closest('[data-esg]'); if (!g) return;
             g.disabled = true;
             const cats = (ev.catIds || []).map(id => catOf(id)).filter(Boolean).map(c => ({ name: catName(c), icon: c.icon }));
-            try { await rpc('kg_post', { p_group: g.dataset.esg, p_kind: 'share', p_body: '', p_payload: { type: 'event', event: { name: ev.name, icon: ev.icon || '🗂️', from: ev.from, to: ev.to, cats } } }); sfx('pop'); toast(t('evShared')); close2(); }
+            try { await rpc('kg_post', { p_group: g.dataset.esg, p_kind: 'share', p_body: '', p_payload: { type: 'event', event: { name: ev.name, icon: ev.icon || '🗂️', from: ev.from, to: ev.to, ...(evDays(ev) ? { days: evDays(ev) } : {}), cats } } }); sfx('pop'); toast(t('evShared')); close2(); }
             catch (err) { g.disabled = false; toast(chatErr(err)); }
           }
         });
@@ -7484,11 +7494,64 @@
     ledgerSave(); sfx('unlock'); toast(t('evAdded', { name: v.name || '' })); render();
   }
   /* ---------- Eventos: una franja de fechas con sus categorías (p. ej. «Vacaciones»), para entender por qué un mes se gasta más ---------- */
-  const eventEntries = ev => LED.inRange(LV.entries, ev.from, ev.to).filter(e => !(ev.catIds || []).length || ev.catIds.includes(e.categoryId));
+  const evDays = ev => (ev && Array.isArray(ev.days) && ev.days.length ? ev.days : null);
+  const evRangeDays = (a, b) => { const out = []; if (!a || !b) return out; if (b < a) [a, b] = [b, a]; for (let k = a, i = 0; k <= b && i < 400; k = addDays(k, 1), i++) out.push(k); return out; };
+  /* v1.25: elegir los días de un evento en el calendario de Organización. Solo se ven los días de color (tipos de día y
+     eventos); se tocan para elegirlos o, con «Pintar», se colorean ahí mismo (eso se queda en Organización aunque borres el evento). */
+  function openEvDayPicker(days0, done) {
+    const sel = new Set(days0 || []), td = todayKey();
+    let ym = (days0 && days0.length ? days0[days0.length - 1] : td).slice(0, 7), paint = '', wref;
+    const ws = tfWs(), wd = Array.from({ length: 7 }, (_, i) => fmtDate(addDays('2026-10-11', (ws + i) % 7), { weekday: 'narrow' }));
+    const grid = () => {
+      const first = ym + '-01', off = (parseKey(first).getDay() - ws + 7) % 7, n = new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate(), cells = [];
+      for (let i = 0; i < off; i++) cells.push('<span class="evp-cell empty"></span>');
+      for (let d = 1; d <= n; d++) {
+        const k = ym + '-' + String(d).padStart(2, '0'), cs = tfDayColors(k);
+        cells.push(`<button type="button" class="evp-cell ${cs.length ? 'dk' : ''} ${sel.has(k) ? 'on' : ''} ${k === td ? 'today' : ''}" data-evp-k="${k}" style="${tfTintStyle(cs, 55)}" aria-pressed="${sel.has(k)}"><span>${d}</span>${sel.has(k) ? ico('check', 'xs') : ''}</button>`);
+      }
+      return cells.join('');
+    };
+    const draw = () => {
+      const kinds = tfDayKinds(), mDays = Object.keys(state.calDayK).filter(k => k.startsWith(ym));
+      $('#evp', wref).innerHTML = `<p class="muted small" style="margin-top:0">${esc(t(paint ? 'evpPaintHint' : 'evpHint'))}</p>
+        <div class="seg seg-sm" role="group" style="display:flex;margin-bottom:10px">${[['', 'evpSelect'], ['p', 'evpPaint']].map(([v, k]) => `<button type="button" data-evp-mode="${v}" class="${(paint ? 'p' : '') === v ? 'on' : ''}" style="flex:1">${ico(v ? 'brush' : 'check', 'xs')} ${esc(t(k))}</button>`).join('')}</div>
+        <div class="row wrap" style="gap:6px;margin-bottom:10px">${kinds.map(d => `<button type="button" class="chip sm ${paint === d.id ? 'on' : ''}" data-evp-kind="${esc(d.id)}"><i class="dk-dot" style="background:${tfColor(d.color)}"></i> ${esc(paint ? tfDkName(d) : t('evpAllOf', { k: tfDkName(d) }))}</button>`).join('')}</div>
+        <div class="cal-head"><button type="button" class="icon-btn sm" data-evp-m="-1" aria-label="${esc(t('ledgerPrev'))}">${ico('left')}</button><b class="grow center">${esc(fmtDate(ym + '-01', { month: 'long', year: 'numeric' }))}</b><button type="button" class="icon-btn sm" data-evp-m="1" aria-label="${esc(t('ledgerNext'))}">${ico('right')}</button></div>
+        <div class="evp-grid">${wd.map(x => `<span class="evp-wd">${esc(x)}</span>`).join('')}${grid()}</div>
+        <p class="muted small center" style="margin:10px 0 0">${esc(t('evDaysPicked', { n: sel.size }))}${mDays.length ? '' : ' · ' + esc(t('evpNoColor'))}</p>`;
+    };
+    openModal({
+      title: `${ico('calendar')} ${esc(t('evDaysPick'))}`, body: '<div id="evp"></div>',
+      foot: `<button type="button" class="btn" data-evp-clear>${esc(t('evpClear'))}</button><button type="button" class="btn primary" data-evp-ok>${esc(t('done'))}</button>`,
+      onMount: w => { wref = w; draw(); },
+      onClick: (e, close) => {
+        let el;
+        if ((el = e.target.closest('[data-evp-m]'))) { const d = parseKey(ym + '-01'); d.setMonth(d.getMonth() + +el.dataset.evpM); ym = keyOf(d).slice(0, 7); draw(); return; }
+        if ((el = e.target.closest('[data-evp-mode]'))) { paint = el.dataset.evpMode ? (tfDayKinds()[0] || {}).id || '' : ''; draw(); return; }
+        if ((el = e.target.closest('[data-evp-kind]'))) {
+          const id = el.dataset.evpKind;
+          if (paint) paint = id;
+          else { const ks = Object.keys(state.calDayK).filter(k => k.startsWith(ym) && tfDkIds(k).includes(id)); if (!ks.length) toast(t('evpNoneOf')); ks.forEach(k => sel.add(k)); }
+          draw(); return;
+        }
+        if ((el = e.target.closest('[data-evp-k]'))) {
+          const k = el.dataset.evpK;
+          if (paint) { if (tfDkToggle(k, paint)) { tfSave(false); sel.add(k); } else if (!tfDkIds(k).includes(paint)) return; }
+          else if (sel.has(k)) sel.delete(k); else sel.add(k);
+          sfx('tap'); draw(); return;
+        }
+        if (e.target.closest('[data-evp-clear]')) { sel.clear(); draw(); return; }
+        if (e.target.closest('[data-evp-ok]')) { close(); done([...sel].sort()); }
+      },
+      onClose: () => render()
+    });
+  }
+  const eventEntries = ev => { const dl = evDays(ev), set = dl && new Set(dl); return LED.inRange(LV.entries, ev.from, ev.to).filter(e => (!set || set.has(e.date)) && (!(ev.catIds || []).length || ev.catIds.includes(e.categoryId))); };
+  const evNDays = ev => { const dl = evDays(ev); return dl ? dl.length : Math.max(1, diffDays(ev.from, ev.to) + 1); };
   const eventState = ev => { const k = todayKey(); return k < ev.from ? 'soon' : k > ev.to ? 'done' : 'now'; };
   function eventCard(ev) {
     const tot = LED.totals(NET(eventEntries(ev))), st = eventState(ev), priv = privacyOn();
-    return `<button class="ev-card clay" data-ev-open="${esc(ev.id)}"><span class="ev-ico">${esc(ev.icon || '🗂️')}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(ev.name)}</b><span class="muted small">${esc(fmtShort(ev.from))} – ${esc(fmtShort(ev.to))} · <span class="ev-st ${st}">${esc(t('evSt_' + st))}</span></span></span>
+    return `<button class="ev-card clay" data-ev-open="${esc(ev.id)}"><span class="ev-ico">${esc(ev.icon || '🗂️')}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(ev.name)}</b><span class="muted small">${esc(fmtShort(ev.from))} – ${esc(fmtShort(ev.to))}${evDays(ev) ? ' · ' + esc(t('evDays', { n: evDays(ev).length })) : ''} · <span class="ev-st ${st}">${esc(t('evSt_' + st))}</span></span></span>
       <span class="ev-amt"><b class="amt-out">${priv ? '•••' : cents(tot.expense)}</b>${tot.income ? `<small class="amt-in">+${priv ? '•••' : cents(tot.income)}</small>` : ''}</span></button>`;
   }
   // Tira de eventos en la Libreta: los que están en curso y la «base de datos» de los ya terminados
@@ -7660,6 +7723,8 @@
   function openEventEditor(ev = null) {
     const isNew = !ev, k = todayKey();
     const f = ev ? JSON.parse(JSON.stringify(ev)) : { name: '', icon: '🏖️', from: addDays(k, -7), to: k, catIds: [] };
+    // v1.25: días sueltos elegidos en el calendario de Organización (f.days); sin ellos, el evento es de Desde a Hasta
+    if (!evDays(f)) delete f.days;
     // v1.24: «Colorear días»: el rango del evento se tiñe en el calendario de Organización, en el de la Libreta o en los dos
     f.paint = { on: false, color: '#7c5cff', org: true, led: true, ...(f.paint || {}) };
     const icons = ['🏖️', '✈️', '🎄', '🎂', '💍', '🏠', '🚗', '🎓', '🩺', '🎉', '🛠️', '🗂️'];
@@ -7667,7 +7732,8 @@
       $('#eve', w).innerHTML = `<div class="stack" style="gap:16px">
         <label class="field"><span>${esc(t('evName'))}</span><input class="input" id="ev-name" maxlength="40" value="${esc(f.name)}" placeholder="${esc(t('evNamePh'))}"></label>
         <div class="field"><span>${esc(t('habitIcon'))}</span><div class="emoji-grid" style="max-height:110px">${icons.map(i => `<button type="button" data-ev-icon="${i}" class="${f.icon === i ? 'on' : ''}">${i}</button>`).join('')}</div></div>
-        <div class="row" style="gap:12px"><label class="field grow"><span>${esc(t('ledFrom'))}</span><input class="input" id="ev-from" type="date" value="${f.from}"></label><label class="field grow"><span>${esc(t('ledTo'))}</span><input class="input" id="ev-to" type="date" value="${f.to}"></label></div>
+        <div class="field"><div class="row" style="gap:12px"><label class="field grow"><span>${esc(t('ledFrom'))}</span><input class="input" id="ev-from" type="date" value="${f.from}" ${f.days ? 'disabled' : ''}></label><label class="field grow"><span>${esc(t('ledTo'))}</span><input class="input" id="ev-to" type="date" value="${f.to}" ${f.days ? 'disabled' : ''}></label></div>
+          <div class="row wrap" style="gap:8px;margin-top:8px"><button type="button" class="btn sm" data-ev-days>${ico('calendar')} ${esc(t(f.days ? 'evDaysEdit' : 'evDaysPick'))}</button>${f.days ? `<span class="muted small grow">${esc(t('evDaysPicked', { n: f.days.length }))}</span><button type="button" class="chip" data-ev-days-clear>${esc(t('evDaysRange'))}</button>` : `<span class="muted small grow">${esc(t('evDaysPickHint'))}</span>`}</div></div>
         <div class="field"><span>${esc(t('evCats'))}</span><div class="muted small">${esc(t('evCatsHint'))}</div>
           <div class="row wrap" style="gap:8px;margin-top:6px">${LV.cats.filter(c => !c.archived || f.catIds.includes(c.id)).map(c => `<label class="check-chip tgl"><input type="checkbox" data-ev-cat="${esc(c.id)}" ${f.catIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.icon)} ${esc(catName(c))}</span></label>`).join('')}</div></div>
         <div class="stack" style="gap:10px"><label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="ev-paint" ${f.paint.on ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('evPaint'))}</b><br><span class="muted small">${esc(t('evPaintHint'))}</span></span></label>
@@ -7675,7 +7741,7 @@
             <div class="row wrap" style="gap:8px"><label class="check-chip tgl"><input type="checkbox" id="ev-porg" ${f.paint.org ? 'checked' : ''}><span>${ico('calendar')} ${esc(t('tabCalendar'))}</span></label><label class="check-chip tgl"><input type="checkbox" id="ev-pled" ${f.paint.led ? 'checked' : ''}><span>${ico('wallet')} ${esc(t('tabLedger'))}</span></label></div></div>` : ''}</div></div>`;
     };
     const read = w => {
-      f.name = $('#ev-name', w).value.trim(); f.from = $('#ev-from', w).value || f.from; f.to = $('#ev-to', w).value || f.to; f.catIds = [...w.querySelectorAll('[data-ev-cat]')].filter(i => i.checked).map(i => i.dataset.evCat);
+      f.name = $('#ev-name', w).value.trim(); if (!f.days) { f.from = $('#ev-from', w).value || f.from; f.to = $('#ev-to', w).value || f.to; } f.catIds = [...w.querySelectorAll('[data-ev-cat]')].filter(i => i.checked).map(i => i.dataset.evCat);
       f.paint.on = $('#ev-paint', w).checked;
       if ($('#ev-pcolor', w)) { f.paint.color = tfColor($('#ev-pcolor', w).value); f.paint.org = $('#ev-porg', w).checked; f.paint.led = $('#ev-pled', w).checked; }
     };
@@ -7686,12 +7752,14 @@
       onClick: async (e, close, w) => {
         let el;
         if ((el = e.target.closest('[data-ev-icon]'))) { read(w); f.icon = el.dataset.evIcon; draw(w); return; }
+        if (e.target.closest('[data-ev-days-clear]')) { read(w); delete f.days; draw(w); return; }
+        if (e.target.closest('[data-ev-days]')) { read(w); openEvDayPicker(f.days || (isNew ? [] : evRangeDays(f.from, f.to)), list => { if (list.length) { f.days = list; f.from = list[0]; f.to = list[list.length - 1]; } else delete f.days; draw(w); }); return; }
         if (!(el = e.target.closest('[data-ev]'))) return;
         if (el.dataset.ev === 'del') { if (await confirmDialog(t('evDeleteQ', { name: ev.name }))) { LV.events = LV.events.filter(x => x.id !== ev.id); ledgerSave(); close(); render(); } return; }
         read(w);
         if (!f.name) { toast(t('evNeedName')); $('#ev-name', w).focus(); return; }
         if (f.to < f.from) [f.from, f.to] = [f.to, f.from];
-        if (isNew) LV.events.push({ id: uid(), ...f, createdAt: Date.now() }); else Object.assign(LV.events.find(x => x.id === ev.id), f);
+        if (isNew) LV.events.push({ id: uid(), ...f, createdAt: Date.now() }); else { const cur = LV.events.find(x => x.id === ev.id); if (!f.days) delete cur.days; Object.assign(cur, f); }
         ledgerSave(); close(); render(); sfx('complete'); toast(t('saved'));
       }
     });
@@ -7700,12 +7768,12 @@
   function openEvent(id) {
     const ev = LV.events.find(x => x.id === id); if (!ev) return;
     let mode = 'io', wref;
-    const days = Math.max(1, diffDays(ev.from, ev.to) + 1);
+    const days = evNDays(ev);
     const draw = () => {
       const list = eventEntries(ev).sort((a, b) => a.date < b.date ? 1 : -1), nl = NET(list), tot = LED.totals(nl), priv = privacyOn();
       const segs = mode === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }].filter(s => s.value)
         : LED.byCategory(nl, mode).map((r, i) => { const c = catOf(r.id); return { label: `${c.icon} ${catName(c)}`, value: r.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
-      $('#evd', wref).innerHTML = `<p class="muted" style="margin-top:0">${esc(fmtDate(ev.from))} – ${esc(fmtDate(ev.to))} · ${esc(t('evDays', { n: days }))} · <span class="ev-st ${eventState(ev)}">${esc(t('evSt_' + eventState(ev)))}</span></p>
+      $('#evd', wref).innerHTML = `<p class="muted" style="margin-top:0">${esc(fmtDate(ev.from))} – ${esc(fmtDate(ev.to))} · ${esc(t(evDays(ev) ? 'evDaysPicked' : 'evDays', { n: days }))} · <span class="ev-st ${eventState(ev)}">${esc(t('evSt_' + eventState(ev)))}</span></p>
         <div class="month-sum"><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${priv ? '•••' : cents(tot.expense)}</b></div><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${priv ? '•••' : cents(tot.income)}</b></div><div><span>${esc(t('evPerDay'))}</span><b>${priv ? '•••' : cents(Math.round(tot.expense / days))}</b></div></div>
         ${list.length ? `<div class="seg seg-sm" role="group" style="margin-top:14px;display:flex">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-evm="${v}" class="${mode === v ? 'on' : ''}" style="flex:1">${esc(t(k))}</button>`).join('')}</div>
           <div class="${priv ? 'priv' : ''}">${mode === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net)) : donutChart(segs, t(mode === 'expense' ? 'ledgerExpense' : 'ledgerIncome'))}</div>` : ''}
@@ -8879,7 +8947,7 @@
   const pickOf = (v, list, d) => (list.includes(v) ? v : d);
   function cleanSpec(kind, s) {
     s = s && typeof s === 'object' ? s : {};
-    if (kind === 'event') return { name: sStr(s.name), icon: sStr(s.icon, 8), from: sDate(s.from), to: sDate(s.to), catIds: sArr(s.catIds, 40).map(x => sStr(x, 40)),
+    if (kind === 'event') return { name: sStr(s.name), icon: sStr(s.icon, 8), from: sDate(s.from), to: sDate(s.to), catIds: sArr(s.catIds, 40).map(x => sStr(x, 40)), days: sArr(s.days, 400).map(x => sDate(x)).filter(Boolean),
       cats: sArr(s.cats, 40).filter(c => c && typeof c === 'object').map(c => ({ id: sStr(c.id, 40), name: sStr(c.name, 40), icon: sStr(c.icon, 8), color: sStr(c.color, 20) })) };
     if (kind === 'project') {
       const g = s.goal && typeof s.goal === 'object' ? s.goal : {};
@@ -10517,6 +10585,7 @@
       if (o === 'flip') setFlip(on);
       if (o === 'cap') { state.ledgerPrefs = { ...state.ledgerPrefs, capHidden: !on }; save(); render(); }
       if (o === 'capsum') { state.ledgerPrefs = { ...state.ledgerPrefs, capSum: on }; save(); render(); }
+      if (o === 'orgdays') { state.ledgerPrefs = { ...state.ledgerPrefs, orgDays: on }; save(); render(); }
     }
     if (e.target.matches('[data-ledger-m], [data-ledger-y]')) {
       const y = $('[data-ledger-y]').value, m = $('[data-ledger-m]').value;

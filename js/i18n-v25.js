@@ -26,6 +26,10 @@
     ctFromFriend: 'O elige un amigo por @nametag', ctOwesYou: 'Te deben', ctYouOwe: 'Debes', ctFees: 'Comisiones', ctDebts: 'Deudas', ctEven: 'Sin deudas pendientes',
     ctRowFavor: 'Te debe {a}', ctRowContra: 'Le debes {a}', ctTabFavor: 'A tu favor', ctTabContra: 'En tu contra', ctTabDone: 'Resueltas', ctNoDebts: 'No hay deudas aquí.',
     ctTagHint: 'solo sirve para saber quién es', ctDelete: 'Borrar contacto', ctHasDebts: 'Tiene deudas: quítalas de sus movimientos antes de borrarlo.',
+    evDaysPick: 'Elegir días en el calendario', evDaysEdit: 'Cambiar los días', evDaysPicked: '{n} días elegidos', evDaysRange: 'Usar Desde y Hasta', evDaysPickHint: 'O elige días sueltos en el calendario de Organización.',
+    evpHint: 'Toca los días del evento. Se ven los colores de Organización.', evpPaintHint: 'Elige un tipo de día y toca las casillas para colorearlas: se quedan en Organización y se eligen para el evento.',
+    evpSelect: 'Elegir', evpPaint: 'Pintar', evpAllOf: 'Todos los de {k}', evpNoneOf: 'Este mes no hay días de ese tipo.', evpNoColor: 'este mes no hay días de color', evpClear: 'Quitar todos',
+    ledOrgDays: 'Ver los colores de los días de Organización',
     dbBadgeDue: 'Pendiente de devolver · {who}', dbBadgeDuePaid: 'Devuelto · {who}', dbBadgeOwed: 'Te deben {a}'
   };
   const en = {
@@ -54,6 +58,10 @@
     ctFromFriend: 'Or pick a friend by @nametag', ctOwesYou: 'Owed to you', ctYouOwe: 'You owe', ctFees: 'Fees', ctDebts: 'Debts', ctEven: 'No pending debts',
     ctRowFavor: 'Owes you {a}', ctRowContra: 'You owe {a}', ctTabFavor: 'In your favour', ctTabContra: 'Against you', ctTabDone: 'Settled', ctNoDebts: 'No debts here.',
     ctTagHint: 'only used to know who it is', ctDelete: 'Delete contact', ctHasDebts: 'They have debts: remove them from their movements before deleting.',
+    evDaysPick: 'Pick days on the calendar', evDaysEdit: 'Change the days', evDaysPicked: '{n} days picked', evDaysRange: 'Use From and To', evDaysPickHint: 'Or pick single days on the Organisation calendar.',
+    evpHint: 'Tap the days of the event. Organisation colours are shown.', evpPaintHint: 'Choose a day type and tap the cells to colour them: they stay in Organisation and are picked for the event.',
+    evpSelect: 'Pick', evpPaint: 'Paint', evpAllOf: 'All {k}', evpNoneOf: 'There are no days of that type this month.', evpNoColor: 'no coloured days this month', evpClear: 'Clear all',
+    ledOrgDays: 'Show the Organisation day colours',
     dbBadgeDue: 'Pending repayment · {who}', dbBadgeDuePaid: 'Repaid · {who}', dbBadgeOwed: 'Owed {a}'
   };
   Object.assign(window.I18N.es, es);
