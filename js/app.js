@@ -211,7 +211,8 @@
       ledgerProjs: [],
       ledgerWorth: [], ledgerContacts: [], // v1.25: contactos de la Libreta (cifrados)
       calDayK: {}, cdkmt: {}, perfectRules: [], ledDays: {}, ldmt: {},
-      calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, // v1.25: nota de cada día del Calendario y valoración del día ({ r: 0..10 }) // v1.24: requisitos del día perfecto (historial por fecha) y días con movimientos
+      calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, calGaps: {}, cgmt: {}, // v1.26: notas en los huecos entre turnos
+      // v1.25: nota de cada día del Calendario y valoración del día ({ r: 0..10 }) // v1.24: requisitos del día perfecto (historial por fecha) y días con movimientos
       // v1.24: tipo de día de cada fecha (Laboral, Libre, Festivo…) → id de calPrefs.dayKinds
       calRoutines: [], calPlaces: [], // v1.26: lugares del Calendario { id, name, icon, color, addr, lat, lon }; v1.23: rutinas del Calendario (grupos de turnos de un día o semana tipo) // v1.23: punto de partida real de la Libreta (saldos a una fecha) para «Patrimonio actual», cifrado
       ledgerImports: [], // v1.22: registros de lo importado con «Registrar» (cifrados como el resto de la Libreta)
@@ -230,7 +231,7 @@
   const ORDER_LISTS = ['projects', 'routines'];
   const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt'], ['sublogs', 'slmt']]; // hábito → día → valor (v1.23: sublogs = objetivos o maneras hechos ese día)
-  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt']];             // clave → valor
+  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt'], ['calGaps', 'cgmt']];             // clave → valor
   function normalize(s) {
     const d = defaultState();
     const out = { ...d, ...s };
@@ -251,7 +252,7 @@
     out.perfectMastery = s.perfectMastery && typeof s.perfectMastery === 'object' && !Array.isArray(s.perfectMastery) ? s.perfectMastery : {};
     out.rest = s.rest && typeof s.rest === 'object' ? s.rest : {};
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
-    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
+    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'cgmt', 'calGaps', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
     for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'perfectRules']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     out.calDays = s.calDays && typeof s.calDays === 'object' && !Array.isArray(s.calDays) ? s.calDays : {};
@@ -1017,7 +1018,7 @@
     let html = `<div class="tf-tl ${big ? 'big' : ''}" style="--cols:${keys.length};--ph:${ph}px" data-tl="${big ? 'd' : 'w'}" data-tl-first="${first < 1440 ? first : 480}">`;
     if (anyAll) html += `<div class="tf-tl-all"><span class="tf-tl-h muted small">${esc(t('tfAllDay'))}</span>${keys.map((k, i) => `<button class="tf-tl-allc" data-tf-day="${k}" aria-label="${esc(tfLong(k))}">${L[i].allDay.map(({ s, e }) => tfTag(s, '', undefined, e)).join('')}</button>`).join('')}</div>`;
     html += `<div class="tf-tl-body"><div class="tf-tl-hours">${hours.map(h => `<span>${pad(h)}:00</span>`).join('')}</div>`;
-    html += keys.map((k, i) => `<button class="tf-tl-col ${k === tk ? 'today' : ''}" data-tf-day="${k}" data-tf-tl="${k}" aria-label="${esc(tfLong(k) + (L[i].timed.length ? ': ' + L[i].timed.map(it => it.s.name + ' ' + it.start + '–' + it.end).join(', ') : ''))}">${L[i].timed.map(it => tfBlock(it, k, L[i].lanes, ph, big)).join('')}${k === tk ? `<i class="tf-now" style="top:calc(var(--ph) * ${+(nowM / 60).toFixed(4)})" aria-hidden="true"></i>` : ''}</button>`).join('');
+    html += keys.map((k, i) => `<button class="tf-tl-col ${k === tk ? 'today' : ''}" data-tf-day="${k}" data-tf-tl="${k}" aria-label="${esc(tfLong(k) + (L[i].timed.length ? ': ' + L[i].timed.map(it => it.s.name + ' ' + it.start + '–' + it.end).join(', ') : ''))}">${L[i].timed.map(it => tfBlock(it, k, L[i].lanes, ph, big)).join('')}${tfLayers().notes ? tfGaps(k).map((g, j) => { const a = tfMin(g.a), b = Math.max(a + 15, tfMin(g.b)); return `<span class="tf-gapn" role="button" data-tf-gapn="${k}" data-i="${j}" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:calc(var(--ph) * ${+((b - a) / 60).toFixed(4)})" title="${esc(g.a + '–' + g.b + ' · ' + g.t)}">${ico('doc', 'xs')}<span>${big ? `<b>${esc(g.a)}–${esc(g.b)}</b> ` : ''}${esc(g.t)}</span></span>`; }).join('') : ''}${k === tk ? `<i class="tf-now" style="top:calc(var(--ph) * ${+(nowM / 60).toFixed(4)})" aria-hidden="true"></i>` : ''}</button>`).join('');
     return html + '</div></div>';
   }
   // Tras pintar: la caja de horas vuelve a donde estaba o, si es otra vista, se abre una hora antes del primer turno
@@ -1197,6 +1198,7 @@
     }
     for (const f of shown) for (const id of f.days[k] || []) { const s = f.shifts.find(x => x.id === id); if (s) rows.push(row(tfGhost(s, f.name), f.name)); }
     for (const e of ext) rows.push(row(`<span class="tf-tag" style="--c:#888">${ico('calendar', 'xs')} <span class="tn">${esc(e.title)}</span>${(p => p && p.id ? tfPlBadge(p) : '')(tfExtPl(e))}</span>`, [tfExtTime(e), (tfExtPl(e) || {}).addr].filter(Boolean).join(' · ')));
+    for (const g of tfGaps(k)) rows.push(`<div class="tf-all-note">${ico('doc', 'xs')} <span><b>${esc(g.a)}–${esc(g.b)}</b> ${esc(g.t)}</span></div>`);
     const note = tfDayNote(k), rv = dayRateOf(k);
     if (note) rows.push(`<div class="tf-all-note">${ico('doc', 'xs')} <span>${esc(note)}</span></div>`);
     if (rv != null) rows.push(`<div class="row" style="gap:8px"><span class="muted small">${esc(t('rateTitle'))}</span><b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b></div>`);
@@ -1361,6 +1363,56 @@
   /* v1.25: nota del día (state.calNotes[fecha] = texto) */
   const TF_NOTE_MAX = 500;
   const tfDayNote = k => typeof state.calNotes[k] === 'string' ? state.calNotes[k] : '';
+  /* v1.26: notas en los huecos entre turnos: state.calGaps[k] = [{ a, b, t }]. La nota se queda en su hora (de a a b) aunque
+     luego cambien los turnos. Se ve en Día, Semana, «Ver más» y en el PDF con Detalle. */
+  const TF_GAP_MAX = 12;
+  const tfGaps = k => Array.isArray(state.calGaps[k]) ? state.calGaps[k] : [];
+  const tfSetGaps = (k, l) => { l = l.filter(g => g && String(g.t || '').trim()).sort((x, y) => x.a.localeCompare(y.a)).slice(0, TF_GAP_MAX); if (l.length) state.calGaps[k] = l; else delete state.calGaps[k]; };
+  // Huecos entre turnos (no antes del primero ni después del último), en minutos del día
+  function tfGapsOf(timed) {
+    const out = []; let end = null;
+    for (const it of [...timed].sort((x, y) => x.a - y.a)) { if (end != null && it.a > end) out.push({ a: end, b: it.a }); end = end == null ? it.b : Math.max(end, it.b); }
+    return out;
+  }
+  const tfHm = m => pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60);
+  function tfGapNote(k, i, pre) {
+    const cur = i >= 0 ? tfGaps(k)[i] : null, g = cur ? { ...cur } : { a: '', b: '', t: '', ...(pre || {}) };
+    openModal({
+      title: `${ico('doc')} ${esc(t(cur ? 'tfGapEdit' : 'tfGapNew'))}`, cls: 'tf-sheet',
+      body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(tfLong(k))}</p><div class="tf-form">${tfField(t('tfStart'), `<input class="input" type="time" id="tfg-a" value="${esc(g.a)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfg-b" value="${esc(g.b)}">`)}</div>
+        <textarea class="input" id="tfg-t" rows="3" maxlength="${TF.LIMITS.note}" placeholder="${esc(t('tfGapPh'))}">${esc(g.t)}</textarea></div>`,
+      foot: `${cur ? `<button class="btn danger" data-tfg="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-tfg="save">${ico('check')} ${esc(t('save'))}</button>`,
+      onMount: w => setTimeout(() => $('#tfg-t', w)?.focus(), 50),
+      onClick: (e, close, w) => {
+        const b = e.target.closest('[data-tfg]'); if (!b) return;
+        const l = [...tfGaps(k)];
+        if (b.dataset.tfg === 'del') l.splice(i, 1);
+        else {
+          let a = $('#tfg-a', w).value, z = $('#tfg-b', w).value; const txt = $('#tfg-t', w).value.trim().slice(0, TF.LIMITS.note);
+          if (!a || !z) { toast(t('tfBothTimes')); return; }
+          if (!txt) { toast(t('tfGapNeed')); return; }
+          if (z < a) [a, z] = [z, a];
+          if (i < 0 && l.length >= TF_GAP_MAX) { toast(t('tfRtFull')); return; }
+          const n = { a, b: z, t: txt }; if (i >= 0) l[i] = n; else l.push(n);
+        }
+        tfSetGaps(k, l); tfSave(); sfx('tap'); close();
+      }
+    });
+  }
+  // Tocar un hueco entre dos turnos: turno puntual o nota en ese hueco
+  function tfGapMenu(k, gap) {
+    const a = tfHm(gap.a), b = tfHm(gap.b);
+    openModal({
+      title: esc(`${a}–${b}`), cls: 'tf-sheet',
+      body: `<div class="stack" style="gap:10px"><button class="btn block" data-tfgm="once">${ico('plus')} ${esc(t('tfOnceNew'))}</button><button class="btn block" data-tfgm="note">${ico('doc')} ${esc(t('tfGapNew'))}</button></div>`,
+      onClick: (e, close) => {
+        const m = e.target.closest('[data-tfgm]'); if (!m) return;
+        close();
+        if (m.dataset.tfgm === 'once') tfOnceEditor(k, -1, () => tfSave(), { start: a, end: b });
+        else tfGapNote(k, -1, { a, b });
+      }
+    });
+  }
   const tfSetDayNote = (k, v) => { v = String(v || '').slice(0, TF_NOTE_MAX); if (v.trim()) state.calNotes[k] = v; else delete state.calNotes[k]; };
   // Turno puntual: nuevo (i = -1) o editar el de la posición i del día
   function tfOnceEditor(k, i, after, pre) {
@@ -1455,7 +1507,7 @@
 
   /* ---------- Compartir (PDF del mes) y Compartidos (@nametag, solo ver) ---------- */
   const tfPdfLabels = () => ({ months: tfMonths(), dow: Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(state.lang, { weekday: 'short' }).format(new Date(2024, 0, 7 + i)).replace('.', '').toUpperCase()),
-    shifts: t('tfPdfShifts'), more: t('tfPdfMore'), generated: t('tfPdfGenerated'), detail: t('tfPdfDetail'), heads: ['tfPdfDate', 'tfPdfShift', 'tfPdfTime', 'tfPdfBreak', 'tfHours', 'tfNote'].map(x => t(x)), total: t('tfPdfTotal'), locale: state.lang, file: t('tfPdfFile') });
+    shifts: t('tfPdfShifts'), more: t('tfPdfMore'), generated: t('tfPdfGenerated'), detail: t('tfPdfDetail'), heads: ['tfPdfDate', 'tfPdfShift', 'tfPdfTime', 'tfPdfBreak', 'tfHours', 'tfNote'].map(x => t(x)), total: t('tfPdfTotal'), gap: t('tfGapPdf'), locale: state.lang, file: t('tfPdfFile') });
   const tfFriendBy = tag => { const n = String(tag || '').trim().replace(/^@/, '').toLowerCase(); return (chatData.friends || []).find(f => f.status === 'accepted' && String(f.nametag || '').toLowerCase() === n); };
   /* v1.25: PDF del Calendario de fecha a fecha, con interruptores de lo que se ve (Turnos, Rutinas, Mostrar texto, Días,
      Notas, Valoraciones) y Detalle (una semana que no cabe se hace más alta, solo esa). La última elección se recuerda. */
@@ -1468,14 +1520,15 @@
       const l = list.filter(e => e.rt ? o.routines : o.shifts);
       if (l.length) days[k] = l;
     }
-    const notes = {}, rates = {};
+    const notes = {}, rates = {}, gaps = {};
+    for (const [k, v] of Object.entries(state.calGaps)) if (k >= from && k <= to && Array.isArray(v) && v.length) gaps[k] = v;
     for (const [k, v] of Object.entries(state.calNotes)) if (k >= from && k <= to && typeof v === 'string' && v.trim()) notes[k] = v;
     for (const k of Object.keys(state.dayRate)) if (k >= from && k <= to) { const r = dayRateOf(k); if (r != null) rates[k] = r; }
     const used = new Map();
     const colors = k => { const ds = tfDksOf(k); ds.forEach(d => used.set(d.id, d)); return tfDayColors(k); };
     for (let k = from, i = 0; k <= to && i < 800; k = addDays(k, 1), i++) colors(k);
     const routines = Object.fromEntries(state.calRoutines.map(r => [r.id, r.name]));
-    const X = { layers: { shifts: o.shifts || o.routines, text: o.text, days: o.days, notes: o.notes, rates: o.rates }, detail: o.detail, colors, notes, rates, routines, legend: [...used.values()].map(d => ({ name: tfDkName(d), color: tfColor(d.color) })) };
+    const X = { layers: { shifts: o.shifts || o.routines, text: o.text, days: o.days, notes: o.notes, rates: o.rates }, detail: o.detail, colors, notes, rates, gaps, routines, legend: [...used.values()].map(d => ({ name: tfDkName(d), color: tfColor(d.color) })) };
     return TFPDF.rangePdf({ ...base, days }, from, to, tfWs(), new Date(), tfPdfLabels(), X);
   }
   const tfPdfFormHtml = (from, to, o) => `<div class="stack" style="gap:10px"><div class="row" style="gap:8px"><label class="field grow"><span>${esc(t('tfPdfFrom'))}</span><input class="input" type="date" id="tfp-from" value="${esc(from)}"></label><label class="field grow"><span>${esc(t('tfPdfTo'))}</span><input class="input" type="date" id="tfp-to" value="${esc(to)}"></label></div>
@@ -2057,15 +2110,20 @@
     if (xm) { tfOpenMaps(tfPlace(xm.dataset.pl) || { addr: xm.dataset.tfExtmap }); return true; }
     const more = e.target.closest('[data-tf-more]');
     if (more) { e.preventDefault(); tfSeeAll(more.dataset.tfMore); return true; }
-    const el = e.target.closest('[data-tf],[data-tf-qtab],[data-tf-go],[data-tf-cv],[data-tf-day],[data-tf-open],[data-tf-month],[data-tf-q],[data-tf-rm],[data-tf-ws],[data-tf-shift],[data-tf-job],[data-tf-place],[data-tf-map],[data-tf-rt]');
+    const el = e.target.closest('[data-tf],[data-tf-qtab],[data-tf-go],[data-tf-cv],[data-tf-gapn],[data-tf-day],[data-tf-open],[data-tf-month],[data-tf-q],[data-tf-rm],[data-tf-ws],[data-tf-shift],[data-tf-job],[data-tf-place],[data-tf-map],[data-tf-rt]');
     if (!el) { if (TFS.menu && !e.target.closest('.tf-menu')) { TFS.menu = false; render(); } return false; }
     const u = tfUi(), y = +u.ym.slice(0, 4), mo = +u.ym.slice(5, 7) - 1, ym = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
     if (el.dataset.tfGo === 'view') { TFS.menu = false; render(); tfOpenLayers(); return true; }
     if (el.dataset.tfGo) { u.view = el.dataset.tfGo; TFS.quick = null; TFS.menu = false; TFS.sheet = false; save(); render(); window.scrollTo(0, 0); return true; }
     if (el.dataset.tfCv) { tfSetCv(el.dataset.tfCv); return true; }
     if (el.dataset.tfMap) { const p = tfPlace(el.dataset.tfMap); if (p) tfOpenMaps(p); return true; }
+    if (el.dataset.tfGapn) { if (!TFS.quick) tfGapNote(el.dataset.tfGapn, +el.dataset.i); return true; }
     // v1.26: tocar un hueco vacío de Día o Semana abre un turno puntual con esa hora
-    if (el.dataset.tfTl && !TFS.quick && !e.target.closest('.tf-blk') && e.detail !== 0) { const m = tfTlMinute(el, e.clientY), hm = x => pad(Math.floor(x / 60) % 24) + ':' + pad(x % 60); tfOnceEditor(el.dataset.tfTl, -1, () => tfSave(), { start: hm(m), end: hm(Math.min(m + 60, 1439)) }); return true; }
+    if (el.dataset.tfTl && !TFS.quick && !e.target.closest('.tf-blk') && e.detail !== 0) {
+      const ph = parseFloat(getComputedStyle(el.closest('.tf-tl')).getPropertyValue('--ph')) || 40, at = (e.clientY - el.getBoundingClientRect().top) / ph * 60;
+      const gap = tfGapsOf(tfDayItems(el.dataset.tfTl).timed).find(g => at >= g.a && at < g.b);
+      if (gap) { tfGapMenu(el.dataset.tfTl, gap); return true; }
+      const m = tfTlMinute(el, e.clientY), hm = x => pad(Math.floor(x / 60) % 24) + ':' + pad(x % 60); tfOnceEditor(el.dataset.tfTl, -1, () => tfSave(), { start: hm(m), end: hm(Math.min(m + 60, 1439)) }); return true; }
     if (el.dataset.tfDay) { if (TFS.quick && e.detail !== 0 && u.cv !== 'year') return true; /* con el dedo o el ratón pinta tfPaint */ tfOnDay(el.dataset.tfDay); return true; }
     if (el.dataset.tfOpen) { u.d = el.dataset.tfOpen; u.ym = u.d.slice(0, 7); u.cv = 'day'; TFS.quick = null; save(); render(); return true; }
     if (el.dataset.tfMonth) { u.ym = `${y}-${pad(+el.dataset.tfMonth + 1)}`; u.d = u.ym + '-01'; u.cv = 'month'; save(); render(); return true; }

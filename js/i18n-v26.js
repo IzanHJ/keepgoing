@@ -47,7 +47,13 @@
     tfIcsPlHint: 'Este calendario trae {n} lugares. Elige el nombre, el icono y el color de cada uno, o apaga los que no quieras guardar en tus Lugares.',
     tfIcsPlN: '{n} eventos',
     tfIcsPlN1: '1 evento',
-    tfIcsPlSkip: 'Ahora no'
+    tfIcsPlSkip: 'Ahora no',
+    // Notas en huecos
+    tfGapNew: 'Nota en este hueco',
+    tfGapEdit: 'Nota del hueco',
+    tfGapPh: 'Comer con Ana, recoger el coche…',
+    tfGapNeed: 'Escribe la nota.',
+    tfGapPdf: 'Nota'
   };
   const en = {
     tfBrkDay: 'Break this day',
@@ -93,7 +99,12 @@
     tfIcsPlHint: 'This calendar has {n} places. Choose a name, icon and colour for each, or turn off the ones you don\'t want in your Places.',
     tfIcsPlN: '{n} events',
     tfIcsPlN1: '1 event',
-    tfIcsPlSkip: 'Not now'
+    tfIcsPlSkip: 'Not now',
+    tfGapNew: 'Note in this gap',
+    tfGapEdit: 'Gap note',
+    tfGapPh: 'Lunch with Ana, pick up the car…',
+    tfGapNeed: 'Write the note.',
+    tfGapPdf: 'Note'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);

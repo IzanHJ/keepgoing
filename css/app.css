@@ -2097,3 +2097,9 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .tf-cell .tf-tag:has(> .tf-pl) .tn { margin-right: .2em; }
 .tf-tag.big:has(> .tf-pl), .row .tf-tag:has(> .tf-pl), td .tf-tag:has(> .tf-pl) { display: inline-flex; }
 .tf-ext-addr { border: 0; background: none; padding: 2px 0 0; font: inherit; font-size: 12px; text-align: left; cursor: pointer; text-decoration: underline dotted; display: inline-flex; gap: 4px; align-items: center; }
+/* v1.26: nota en un hueco entre turnos (se queda en su hora) */
+.tf-gapn { position: absolute; left: 3px; right: 3px; display: flex; gap: 4px; align-items: flex-start; padding: 3px 5px; border-radius: 8px; border: 1.5px dashed var(--muted); background: color-mix(in srgb, var(--surface-2) 70%, transparent); color: var(--fg); font-size: 11px; line-height: 1.25; overflow: hidden; cursor: pointer; z-index: 1; text-align: left; }
+.tf-gapn > span { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }
+.tf-tl:not(.big) .tf-gapn { font-size: 9.5px; padding: 2px 3px; }
+.tf-tl:not(.big) .tf-gapn > svg { display: none; }
+.tf-gapn > span { overflow-wrap: anywhere; }
