@@ -68,7 +68,19 @@
     tfClockDrop: 'Descartar',
     tfClockDropQ: '¿Descartar este fichaje? No se guardará ningún turno.',
     tfClockSaved: 'Turno guardado con tu hora real',
-    tfClockSame: 'La entrada y la salida son a la misma hora. Cámbialas o descarta el fichaje.'
+    tfClockSame: 'La entrada y la salida son a la misma hora. Cámbialas o descarta el fichaje.',
+    // Ayuda (sin Tipos; con Lugares, Vista y fichaje)
+    help_cal_start: 'Abre el menú (icono de 4 cuadrados) → Turnos y crea tus turnos, sus categorías (con o sin paga) y tus lugares.|Toca el pincel (abajo a la derecha), elige un turno y toca o desliza por los días para ponerlo o quitarlo.|Toca un día para ver su detalle, cambiar sus horas o su descanso, añadir una nota o poner una rutina.|En Día y Semana, toca un hueco vacío para añadir un turno puntual, o un hueco entre dos turnos para poner una nota.|Para fichar, toca «Fichar entrada» en el Día de hoy o en el pincel, y «Fichar salida» al acabar.',
+    help_cal_feat: 'Vistas de Día, Semana (de 0:00 a 23:59), Mes y Año; pellizca para cambiar de vista o, dentro de las horas, para ampliarlas.|«Vista» en el menú: elige qué se ve (turnos, nombres, colores, notas, lugares y valoraciones).|Lugares con icono, color y dirección; búscala aquí o pega un enlace de Mapas, y ábrela con «Ver en Mapas».|Rutinas de un día o semana tipo, con plantillas, para poner varios turnos de una vez.|Rotaciones (4×4, 2-2-3, Panamá, DuPont, Continental, 5×2 o la tuya) para rellenar meses de golpe.|Categorías con o sin paga y tarifa propia en cada turno (igual, +X €/h o +X %).|Informes por semana, mes, año o rango: horas, extras, paga y reparto por turno y por categoría.|Horas extra y pluses por franja horaria.|Avisos antes de cada turno, importar .ics (con hora y lugar) y exportarlo, y copia de seguridad .json.|PDF del calendario para descargar o enviar.',
+    // Novedades
+    wn_1_26_0_1: 'Día y Semana de 0:00 a 23:59|Como en Google Calendar: todas las horas, la línea roja de ahora y la caja se abre en tu primer turno. Pellizca en vertical (o Ctrl + rueda) para hacer las horas más grandes.',
+    wn_1_26_0_2: 'Toca un hueco|Un hueco vacío crea un turno puntual con esa hora. Un hueco entre dos turnos te deja elegir entre un turno puntual o una nota, que se queda en su hora y sale en Día, Semana, «Ver más» y el PDF.',
+    wn_1_26_0_3: 'Lugares|Dale a cada sitio un icono (letras o emoji), un color y su dirección. Búscala en la app o pega el enlace de Google Maps o Apple Maps. En el turno sale un icono pequeño y, en el Día, la dirección para abrirla en Mapas.',
+    wn_1_26_0_4: 'Ficha tu entrada y tu salida|Desde el pincel o el Día de hoy, al minuto. Verás «Fichado desde…» en todos tus dispositivos y, al salir, se crea el turno con tu hora real, su lugar, su categoría y una nota.',
+    wn_1_26_0_5: 'Botón «Vista»|En el menú del Calendario: enciende o apaga turnos, nombres, colores de las casillas, notas, lugares y valoraciones. Se guarda igual en todos tus dispositivos.',
+    wn_1_26_0_6: 'Adiós a los Tipos|Si una categoría cobra o no ya se decide en la Categoría, y la tarifa (igual, +X €/h o +X %) en cada turno. Lo que tenías se ha pasado solo. Los Informes reparten las horas por categoría.',
+    wn_1_26_0_7: 'Calendarios importados con lugar|Al importar un .ics se leen la hora y el lugar de cada evento, y eliges el icono y el color de cada lugar. Al exportar, tus turnos llevan su dirección.',
+    wn_1_26_0_8: 'Horas bien contadas|Un turno partido (el mismo turno dos veces en un día) ya no resta el descanso en cada trozo. Y puedes cambiar el descanso de un día concreto.'
   };
   const en = {
     tfBrkDay: 'Break this day',
@@ -133,7 +145,17 @@
     tfClockDrop: 'Discard',
     tfClockDropQ: 'Discard this clock-in? No shift will be saved.',
     tfClockSaved: 'Shift saved with your real times',
-    tfClockSame: 'Clock-in and clock-out are at the same time. Change them or discard the clock-in.'
+    tfClockSame: 'Clock-in and clock-out are at the same time. Change them or discard the clock-in.',
+    help_cal_start: 'Open the menu (4-squares icon) → Shifts and create your shifts, their categories (paid or not) and your places.|Tap the brush (bottom right), pick a shift and tap or swipe across days to add or remove it.|Tap a day to see its detail, change its times or break, add a note or apply a routine.|In Day and Week, tap an empty spot to add a one-off shift, or a gap between two shifts to add a note.|To clock in, tap “Clock in” on today’s Day view or in the brush, and “Clock out” when you finish.',
+    help_cal_feat: 'Day, Week (0:00 to 23:59), Month and Year views; pinch to switch views or, inside the hours, to make them bigger.|“View” in the menu: choose what shows (shifts, names, colours, notes, places and ratings).|Places with icon, colour and address; search it here or paste a Maps link, and open it with “Open in Maps”.|Day routines or typical weeks, with templates, to add several shifts at once.|Rotations (4×4, 2-2-3, Panama, DuPont, Continental, 5×2 or your own) to fill months at once.|Categories paid or not, and each shift with its own rate (same, +X €/h or +X %).|Reports by week, month, year or range: hours, overtime, pay and split by shift and by category.|Overtime and time-band bonuses.|Reminders before each shift, .ics import (with time and place) and export, and .json backup.|Calendar PDF to download or send.',
+    wn_1_26_0_1: 'Day and Week from 0:00 to 23:59|Like Google Calendar: every hour, the red now line, and it opens at your first shift. Pinch vertically (or Ctrl + wheel) to make the hours bigger.',
+    wn_1_26_0_2: 'Tap a gap|An empty spot creates a one-off shift at that time. A gap between two shifts lets you pick a one-off shift or a note, which stays at its time and shows in Day, Week, “See more” and the PDF.',
+    wn_1_26_0_3: 'Places|Give each place an icon (letters or emoji), a colour and its address. Search it in the app or paste a Google Maps or Apple Maps link. Shifts show a small icon and, in Day view, the address to open in Maps.',
+    wn_1_26_0_4: 'Clock in and out|From the brush or today’s Day view, to the minute. You’ll see “Clocked in since…” on all your devices and, when you clock out, the shift is created with your real times, its place, category and a note.',
+    wn_1_26_0_5: '“View” button|In the Calendar menu: turn shifts, names, cell colours, notes, places and ratings on or off. It is saved the same on all your devices.',
+    wn_1_26_0_6: 'Goodbye to Types|Whether a category is paid is now set on the Category, and the rate (same, +X €/h or +X %) on each shift. What you had was moved over for you. Reports split hours by category.',
+    wn_1_26_0_7: 'Imported calendars with places|Importing an .ics reads each event’s time and place, and you choose the icon and colour of each place. When exporting, your shifts carry their address.',
+    wn_1_26_0_8: 'Hours counted right|A split shift (the same shift twice in a day) no longer subtracts the break on each part. And you can change the break for a specific day.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
