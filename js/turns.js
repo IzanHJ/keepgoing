@@ -89,6 +89,7 @@
       kind: kindOk(s.kind) ? s.kind : 'work',
       start: timeOr(s.start), end: timeOr(s.end),
       breakMin: num(s.breakMin, 0, 720, 0), diffPct: num(s.diffPct, -100, 1000, 0), alarmMin: num(s.alarmMin, 0, 1440, 0),
+      ...(s.rateMode === 'fixed' ? { rateMode: 'fixed', rateV: num(s.rateV, -1000, 1000, 0) } : {}), ...(typeof s.placeId === 'string' && RE_ID.test(s.placeId) ? { placeId: s.placeId } : {}),
     }));
     const shiftIds = new Set(shifts.map((s) => s.id));
     const days = {};
@@ -98,8 +99,8 @@
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
       const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
       const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}),
-          ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '' } } : {}) }));
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}),
+          ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '', ...(typeof e.once.placeId === 'string' && RE_ID.test(e.once.placeId) ? { placeId: e.once.placeId } : {}) } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
     const ext = (Array.isArray(raw.ext) ? raw.ext : []).slice(0, LIMITS.ext)
@@ -132,7 +133,8 @@
       v1.23: paidKind(kind) dice si un tipo cuenta para la paga (por defecto solo 'work'); una categoría con paid === false no cobra.
       v1.24: kindRate(kind) → { mode: 'same' | 'fixed' | 'pct', v } cambia la tarifa de la categoría para ese tipo (+v €/h o +v %). */
   function report(data, from, to, weekStart, paidKind, kindRate) {
-    const adj = (kind, b) => { const r = kindRate ? kindRate(kind) : null; if (!r || !Number.isFinite(+r.v)) return b; return r.mode === 'fixed' ? Math.max(0, b + +r.v) : r.mode === 'pct' ? Math.max(0, b * (1 + +r.v / 100)) : b; };
+    // v1.26: la tarifa +X €/h va en el propio turno (s.rateMode = 'fixed', s.rateV); el +X % es s.diffPct. kindRate queda para datos antiguos.
+    const adj = (s, b) => { if (s.rateMode === 'fixed' && Number.isFinite(+s.rateV)) return Math.max(0, b + +s.rateV); const r = kindRate ? kindRate(s.kind) : null; if (!r || !Number.isFinite(+r.v)) return b; return r.mode === 'fixed' ? Math.max(0, b + +r.v) : r.mode === 'pct' ? Math.max(0, b * (1 + +r.v / 100)) : b; };
     const isPaid = (s, job) => (paidKind ? paidKind(s.kind) : s.kind === 'work') && job.paid !== false;
     const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
     const jobBy = Object.fromEntries(data.jobs.map((j) => [j.id, j]));
@@ -159,7 +161,7 @@
           fr.forEach((f, i) => {
             if (!f) return;
             const sp = sps[i];
-            let base = adj(s.kind, sp ? (sp.rate > 0 ? sp.rate : job.rate) : job.rate);
+            let base = adj(s, sp ? (sp.rate > 0 ? sp.rate : job.rate) : job.rate);
             if (sp) base = applyPlus(base, sp.mode, sp.plus);
             pay += (regular * f * base + ot * f * applyPlus(base, job.otMode, job.otPlus)) * (1 + s.diffPct / 100);
           });
