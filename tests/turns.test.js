@@ -107,3 +107,14 @@ test('v1.23: rutinas de un día y semana tipo', () => {
   assert.strictEqual(data.days['2026-10-06'][0].rt, 'r1');
   assert.strictEqual(T.sanitize({ ...d, days: data.days }).days['2026-10-06'][0].rt, 'r1');
 }
+
+test('v1.26: el descanso no se resta en una jornada partida y se puede cambiar por día', () => {
+  const s = { id: 'p', start: '09:00', end: '20:00', breakMin: 210 };
+  const day = [{ sid: 'p', start: '09:00', end: '14:00' }, { sid: 'p', start: '17:30', end: '20:00' }];
+  assert.equal(T.entryHours(s, day[0], day), 5);
+  assert.equal(T.entryHours(s, day[1], day), 2.5);
+  assert.equal(T.entryHours(s, { sid: 'p' }, [{ sid: 'p' }]), 7.5);
+  assert.equal(T.entryHours(s, { sid: 'p', brk: 60 }, [{ sid: 'p' }]), 10);
+  const r = T.report({ jobs: [{ id: 'j', rate: 10, otWeekHours: 0, specials: [] }], shifts: [{ ...s, jobId: 'j', kind: 'work', diffPct: 0 }], days: { '2026-10-27': day } }, '2026-10-27', '2026-10-27', 1);
+  assert.equal(r.hours, 7.5);
+});

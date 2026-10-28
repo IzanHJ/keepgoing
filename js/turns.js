@@ -98,7 +98,7 @@
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
       const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
       const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}),
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}),
           ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '' } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
@@ -113,12 +113,19 @@
   }
 
   function entryTimes(shift, e) { return { start: (e && e.start) || shift.start, end: (e && e.end) || shift.end }; }
-  function entryHours(shift, e) {
+  /* v1.26: descanso de una entrada. e.brk (minutos) lo cambia solo ese día; si no, el del turno, salvo que el mismo turno salga
+     varias veces ese día (jornada partida): entonces el hueco entre los trozos ya es el descanso y no se resta. day = lista del día. */
+  function entryBreak(shift, e, day) {
+    if (e && Number.isFinite(e.brk) && e.brk >= 0) return Math.min(720, e.brk);
+    if (day && e && day.filter((x) => x && x.sid === e.sid).length > 1) return 0;
+    return shift.breakMin || 0;
+  }
+  function entryHours(shift, e, day) {
     const { start, end } = entryTimes(shift, e);
     if (!start || !end) return 0;
     let a = toMin(start), b = toMin(end);
     if (b <= a) b += 1440;
-    return Math.max(0, (b - a - shift.breakMin) / 60);
+    return Math.max(0, (b - a - entryBreak(shift, e, day)) / 60);
   }
 
   /** Informe de horas/paga entre dos fechas ISO (inclusive). Extras semanales por trabajo.
@@ -137,7 +144,7 @@
         const s = shiftBy[e.sid]; if (!s) continue;
         if (s.once && !jobBy[s.jobId]) continue; // v1.25: un turno puntual solo cuenta si tiene categoría
         const job = jobBy[s.jobId] || data.jobs[0];
-        const h = entryHours(s, e);
+        const h = entryHours(s, e, data.days[k]);
         let regular = h, ot = 0;
         const paid = isPaid(s, job);
         if (paid) {
@@ -312,7 +319,7 @@
 
   const api = {
     LIMITS, KINDS, KIND_LABEL, defaultKinds, kindOk, applyRoutine, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
-    defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
+    defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;
 })(typeof window !== 'undefined' ? window : globalThis);

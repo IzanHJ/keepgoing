@@ -271,11 +271,11 @@
         if (r.note != null) {
           nl.forEach((ln, i) => p.text(cols[1], y - i * 11, ln, 9, false, DARK));
         } else {
-          const { e, s } = r, hrs = T.entryHours(s, e), t = T.entryTimes(s, e); if (!(s.once && !s.jobId)) total += hrs;
+          const { e, s } = r, hrs = T.entryHours(s, e, data.days[r.k]), t = T.entryTimes(s, e); if (!(s.once && !s.jobId)) total += hrs;
           p.rect(cols[1], y - 1, 7, 7, rgb(s.color));
           p.text(cols[1] + 12, y, fit(s.name, 9, true, cols[2] - cols[1] - 20), 9, true, DARK);
           p.text(cols[2], y, t.start && t.end ? t.start + ' - ' + t.end : '—', 9, false, DARK);
-          p.text(cols[3], y, s.breakMin ? s.breakMin + ' min' : '—', 9, false, DARK);
+          const bk = T.entryBreak(s, e, data.days[r.k]); p.text(cols[3], y, bk ? bk + ' min' : '—', 9, false, DARK);
           p.text(cols[4], y, hrs ? fmtH(hrs) + ' h' : '—', 9, false, DARK);
           nl.forEach((ln, i) => p.text(cols[5], y - i * 11, ln, 9, false, DARK));
         }
