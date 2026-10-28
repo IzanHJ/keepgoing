@@ -99,7 +99,7 @@
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
       const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
       const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}),
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...(jobIds.has(e.job) ? { job: e.job } : {}),
           ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '', ...(typeof e.once.placeId === 'string' && RE_ID.test(e.once.placeId) ? { placeId: e.once.placeId } : {}) } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
@@ -149,7 +149,7 @@
       for (const e of data.days[k] || []) {
         const s = shiftBy[e.sid]; if (!s) continue;
         if (s.once && !jobBy[s.jobId]) continue; // v1.25: un turno puntual solo cuenta si tiene categoría
-        const job = jobBy[s.jobId] || data.jobs[0];
+        const job = jobBy[e.job] || jobBy[s.jobId] || data.jobs[0]; // v1.26: e.job = otra categoría solo ese día (fichaje)
         const h = entryHours(s, e, data.days[k]);
         let regular = h, ot = 0;
         const paid = isPaid(s, job);

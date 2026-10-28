@@ -53,7 +53,22 @@
     tfGapEdit: 'Nota del hueco',
     tfGapPh: 'Comer con Ana, recoger el coche…',
     tfGapNeed: 'Escribe la nota.',
-    tfGapPdf: 'Nota'
+    tfGapPdf: 'Nota',
+    // Fichaje
+    tfClockInBtn: 'Fichar entrada',
+    tfClockIn: 'Entrada',
+    tfClockOutL: 'Salida',
+    tfClockOut: 'Fichar salida',
+    tfClockSince: 'Fichado desde las {t}',
+    tfClockInDone: 'Fichado a las {t}',
+    tfClockLen: '{d} fichado',
+    tfClockFromList: 'De mi lista',
+    tfClockName: 'Fichaje',
+    tfClockSave: 'Guardar turno',
+    tfClockDrop: 'Descartar',
+    tfClockDropQ: '¿Descartar este fichaje? No se guardará ningún turno.',
+    tfClockSaved: 'Turno guardado con tu hora real',
+    tfClockSame: 'La entrada y la salida son a la misma hora. Cámbialas o descarta el fichaje.'
   };
   const en = {
     tfBrkDay: 'Break this day',
@@ -104,7 +119,21 @@
     tfGapEdit: 'Gap note',
     tfGapPh: 'Lunch with Ana, pick up the car…',
     tfGapNeed: 'Write the note.',
-    tfGapPdf: 'Note'
+    tfGapPdf: 'Note',
+    tfClockInBtn: 'Clock in',
+    tfClockIn: 'In',
+    tfClockOutL: 'Out',
+    tfClockOut: 'Clock out',
+    tfClockSince: 'Clocked in since {t}',
+    tfClockInDone: 'Clocked in at {t}',
+    tfClockLen: '{d} clocked',
+    tfClockFromList: 'From my list',
+    tfClockName: 'Clocked shift',
+    tfClockSave: 'Save shift',
+    tfClockDrop: 'Discard',
+    tfClockDropQ: 'Discard this clock-in? No shift will be saved.',
+    tfClockSaved: 'Shift saved with your real times',
+    tfClockSame: 'Clock-in and clock-out are at the same time. Change them or discard the clock-in.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);

@@ -138,3 +138,10 @@ test('v1.26: el .ics exportado lleva el lugar', () => {
   assert.ok(ics.includes('LOCATION:Calle Mayor 1\\, Madrid'));
   assert.ok(ics.includes('GEO:40.4;-3.7'));
 });
+
+test('v1.26: un fichaje con otra categoría cobra con la de ese día', () => {
+  const data = { jobs: [{ id: 'j1', rate: 10, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [] }, { id: 'j2', rate: 20, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [] }], shifts: [{ id: 's1', jobId: 'j1', kind: 'work', start: '09:00', end: '11:00', breakMin: 0, diffPct: 0 }], days: { '2026-11-02': [{ sid: 's1' }, { sid: 's1', start: '15:00', end: '16:00', job: 'j2' }] } };
+  const r = T.report(data, '2026-11-02', '2026-11-02', 1, () => true, null);
+  assert.strictEqual(r.pay, 2 * 10 + 1 * 20);
+  assert.strictEqual(r.byJob.j2.hours, 1);
+});

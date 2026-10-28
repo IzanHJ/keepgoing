@@ -2103,3 +2103,11 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .tf-tl:not(.big) .tf-gapn { font-size: 9.5px; padding: 2px 3px; }
 .tf-tl:not(.big) .tf-gapn > svg { display: none; }
 .tf-gapn > span { overflow-wrap: anywhere; }
+/* v1.26: fichaje en curso */
+.tf-clock { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 0 0 10px; border-radius: 16px; font-size: 14px; }
+.tf-clock-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 0 0 rgba(255, 59, 48, .6); animation: tfClockPulse 1.6s infinite; flex: 0 0 auto; }
+@keyframes tfClockPulse { 70% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
+@media (prefers-reduced-motion: reduce) { .tf-clock-dot { animation: none; } }
+.tf-qfoot { flex-wrap: wrap; }
+.tf-clock b { white-space: nowrap; }
+.tf-clock-blk { background: repeating-linear-gradient(135deg, rgba(255, 59, 48, .22) 0 8px, rgba(255, 59, 48, .1) 8px 16px) !important; color: var(--fg) !important; border: 1.5px dashed #ff3b30; border-radius: 8px; pointer-events: none; }
