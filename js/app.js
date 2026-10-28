@@ -974,26 +974,45 @@
     for (const it of timed) { it.joinT = timed.some(o => o !== it && o.lane === it.lane && o.b === it.a); it.joinB = timed.some(o => o !== it && o.lane === it.lane && o.a === it.b); }
     return { timed, allDay, lanes: Math.max(1, lanes.length) };
   }
-  function tfHourRange(lists) {
-    let lo = 8 * 60, hi = 20 * 60;
-    for (const L of lists) for (const it of L.timed) { lo = Math.min(lo, it.a); hi = Math.max(hi, it.b); }
-    return [Math.floor(lo / 60), Math.min(24, Math.ceil(hi / 60))];
-  }
-  const tfBlock = (it, k, lanes, H0, ph, big) => {
-    const top = (it.a - H0 * 60) * ph / 60, h = Math.max(14, (it.b - it.a) * ph / 60), w = 100 / lanes, c = tfColor(it.s.color);
+  /* v1.26: Día y Semana van siempre de 0:00 a 23:59, como Google Calendar, dentro de una caja con scroll que se abre en la
+     hora del primer turno (o la de ahora). La altura de cada hora (--ph) se amplía pellizcando en vertical o con Ctrl + rueda. */
+  const TF_PH = { d: [52, 22, 180], w: [32, 16, 140] };
+  const tfPh = big => { const [def, lo, hi] = TF_PH[big ? 'd' : 'w'], v = +((state.ui.tfPh || {})[big ? 'd' : 'w']); return v ? clamp(v, lo, hi) : def; };
+  const tfBlock = (it, k, lanes, ph, big) => {
+    const h = (it.b - it.a) * ph / 60, w = 100 / lanes, c = tfColor(it.s.color);
     const label = `${it.s.emoji ? esc(it.s.emoji) + ' ' : ''}${esc(it.s.name)}`;
-    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" style="top:${top}px;height:${h}px;left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e)) + ' h' : ''}</small>` : ''}</span>`;
+    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e)) + ' h' : ''}</small>` : ''}</span>`;
   };
   function tfTimeline(keys, big) {
-    const L = keys.map(tfDayItems), [H0, H1] = tfHourRange(L), ph = big ? 52 : 32, tk = todayKey();
-    const hours = Array.from({ length: H1 - H0 }, (_, i) => H0 + i);
+    const L = keys.map(tfDayItems), ph = tfPh(big), tk = todayKey(), now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
+    const hours = Array.from({ length: 24 }, (_, i) => i);
     const anyAll = L.some(x => x.allDay.length);
-    let html = `<div class="tf-tl ${big ? 'big' : ''}" style="--cols:${keys.length}">`;
+    const first = Math.min(...L.flatMap(x => x.timed.map(it => it.a)), keys.includes(tk) ? nowM : 1440);
+    let html = `<div class="tf-tl ${big ? 'big' : ''}" style="--cols:${keys.length};--ph:${ph}px" data-tl="${big ? 'd' : 'w'}" data-tl-first="${first < 1440 ? first : 480}">`;
     if (anyAll) html += `<div class="tf-tl-all"><span class="tf-tl-h muted small">${esc(t('tfAllDay'))}</span>${keys.map((k, i) => `<button class="tf-tl-allc" data-tf-day="${k}" aria-label="${esc(tfLong(k))}">${L[i].allDay.map(({ s }) => tfTag(s)).join('')}</button>`).join('')}</div>`;
-    html += `<div class="tf-tl-body"><div class="tf-tl-hours">${hours.map(h => `<span style="height:${ph}px">${pad(h)}:00</span>`).join('')}</div>`;
-    html += keys.map((k, i) => `<button class="tf-tl-col ${k === tk ? 'today' : ''}" data-tf-day="${k}" style="height:${hours.length * ph}px;--ph:${ph}px" aria-label="${esc(tfLong(k) + (L[i].timed.length ? ': ' + L[i].timed.map(it => it.s.name + ' ' + it.start + '–' + it.end).join(', ') : ''))}">${L[i].timed.map(it => tfBlock(it, k, L[i].lanes, H0, ph, big)).join('')}</button>`).join('');
+    html += `<div class="tf-tl-body"><div class="tf-tl-hours">${hours.map(h => `<span>${pad(h)}:00</span>`).join('')}</div>`;
+    html += keys.map((k, i) => `<button class="tf-tl-col ${k === tk ? 'today' : ''}" data-tf-day="${k}" data-tf-tl="${k}" aria-label="${esc(tfLong(k) + (L[i].timed.length ? ': ' + L[i].timed.map(it => it.s.name + ' ' + it.start + '–' + it.end).join(', ') : ''))}">${L[i].timed.map(it => tfBlock(it, k, L[i].lanes, ph, big)).join('')}${k === tk ? `<i class="tf-now" style="top:calc(var(--ph) * ${+(nowM / 60).toFixed(4)})" aria-hidden="true"></i>` : ''}</button>`).join('');
     return html + '</div></div>';
   }
+  // Tras pintar: la caja de horas vuelve a donde estaba o, si es otra vista, se abre una hora antes del primer turno
+  function tfTlScroll(root) {
+    const tl = root && $('.tf-tl', root); if (!tl) return;
+    const body = $('.tf-tl-body', tl), u = tfUi(), key = u.cv + '|' + u.d, ph = parseFloat(getComputedStyle(tl).getPropertyValue('--ph')) || 40;
+    body.scrollTop = TFS.tlKey === key && TFS.tlTop != null ? TFS.tlTop : Math.max(0, (+tl.dataset.tlFirst / 60 - 1) * ph);
+    TFS.tlKey = key; TFS.tlTop = body.scrollTop;
+    body.addEventListener('scroll', () => { TFS.tlTop = body.scrollTop; }, { passive: true });
+  }
+  // Minuto del día donde se tocó una columna (en tramos de 30 min)
+  const tfTlMinute = (col, y) => { const tl = col.closest('.tf-tl'), ph = parseFloat(getComputedStyle(tl).getPropertyValue('--ph')) || 40; return clamp(Math.floor((y - col.getBoundingClientRect().top) / ph * 2) * 30, 0, 1410); };
+  // Cambiar la altura de las horas sin volver a pintar (manteniendo a la vista la hora que estaba en el centro)
+  function tfSetPh(tl, ph, cy) {
+    const big = tl.dataset.tl === 'd', [, lo, hi] = TF_PH[big ? 'd' : 'w'], body = $('.tf-tl-body', tl), old = parseFloat(getComputedStyle(tl).getPropertyValue('--ph')) || ph;
+    ph = clamp(Math.round(ph), lo, hi); if (ph === old) return ph;
+    const r = body.getBoundingClientRect(), off = (cy == null ? r.height / 2 : cy - r.top), at = (body.scrollTop + off) / old;
+    tl.style.setProperty('--ph', ph + 'px'); body.scrollTop = at * ph - off; TFS.tlTop = body.scrollTop;
+    return ph;
+  }
+  const tfSavePh = (tl, ph) => { state.ui.tfPh = { ...(state.ui.tfPh || {}), [tl.dataset.tl]: ph }; save(); };
   function tfWeekView(keys) {
     const tk = todayKey(), y = TF.parseISO(keys[6]).getFullYear(), tot = tfWeekNo(y + '-12-31');
     const head = keys.map(k => { const d = TF.parseISO(k), dks = tfDksOf(k), cs = tfLayers().days ? tfDayColors(k) : []; return `<button class="tf-wk-d ${k === tk ? 'today' : ''} ${cs.length ? 'dk' : ''}" ${cs.length ? `style="${tfTintStyle(cs)}" title="${esc(dks.map(tfDkName).join(', '))}"` : ''} data-tf-open="${k}"><span>${esc(new Intl.DateTimeFormat(state.lang, { weekday: 'short' }).format(d).replace('.', ''))}</span><b>${d.getDate()}</b></button>`; }).join('');
@@ -1007,7 +1026,7 @@
     return `<div class="tf-count"><b>${esc(t('tfDayCount', { n: tfDoy(k), t: tot }))}</b><span class="muted small">${esc(tfLong(k))}</span>${rv != null ? ` <b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b>` : ''}</div>
       ${note ? `<div class="tf-all-note" style="margin:0 2px 8px">${ico('doc', 'xs')} <span>${esc(note)}</span></div>` : ''}
       ${dks.length || evs.length ? `<div class="row wrap" style="gap:6px;margin:0 2px 8px">${dks.map(d => tfDkTag(d)).join('')}${evs.map(v => `<span class="tf-tag" style="--c:${tfColor(v.paint.color)};--fg-c:${tfFg(tfColor(v.paint.color))}">${esc(v.name)}</span>`).join('')}</div>` : ''}
-      <div class="tf-week tf-day clay">${it.timed.length || it.allDay.length ? tfTimeline([k], true) : `<button class="tf-empty-day" data-tf-day="${k}">${ico('plus')} ${esc(t('tfNoDayShifts'))}</button>`}</div>
+      <div class="tf-week tf-day clay">${tfTimeline([k], true)}</div>
       ${mates.length ? `<section class="clay card stack" style="gap:8px;margin-bottom:12px"><h3 class="section-title" style="margin:0">${esc(t('tfMates'))}</h3>${mates.map(({ f, ids }) => `<div class="tf-item"><b>${esc(f.name)}</b><div class="row wrap grow" style="gap:6px">${ids.map(id => { const s = f.shifts.find(x => x.id === id); return s ? tfTag(s) : ''; }).join('')}</div></div>`).join('')}</section>` : ''}
       ${ext.length ? `<section class="clay card stack" style="gap:8px;margin-bottom:12px"><h3 class="section-title" style="margin:0">${esc(t('tfExtEvents'))}</h3>${ext.map(e => `<div class="tf-item">${ico('calendar')} ${esc(e.title)}</div>`).join('')}</section>` : ''}`;
   }
@@ -1028,19 +1047,25 @@
   document.addEventListener('touchstart', e => {
     if (state.ui.tab !== 'cal' || e.touches.length !== 2 || !e.target.closest('.tf-zoom')) return;
     tfPinch = { d: tfDist(e.touches), done: false }; mSw = null; tfPaintEnd(false);
+    // v1.26: en Día y Semana, pellizcar en vertical sobre las horas las amplía (como Google Calendar)
+    const tl = e.target.closest('.tf-tl'), dy = Math.abs(e.touches[0].clientY - e.touches[1].clientY), dx = Math.abs(e.touches[0].clientX - e.touches[1].clientX);
+    if (tl && e.target.closest('.tf-tl-body') && dy > dx) Object.assign(tfPinch, { tl, dy: dy || 1, ph: parseFloat(getComputedStyle(tl).getPropertyValue('--ph')) || 40 });
   }, { passive: true });
   document.addEventListener('touchmove', e => {
     if (!tfPinch || e.touches.length !== 2) return;
     if (e.cancelable) e.preventDefault();
+    if (tfPinch.tl) { const dy = Math.abs(e.touches[0].clientY - e.touches[1].clientY); tfPinch.cur = tfSetPh(tfPinch.tl, tfPinch.ph * dy / tfPinch.dy, (e.touches[0].clientY + e.touches[1].clientY) / 2); return; }
     if (tfPinch.done) return;
     const r = tfDist(e.touches) / (tfPinch.d || 1);
     if (r > 1.3) { tfPinch.done = true; tfZoomBy(TF_PINCH.out); } else if (r < .77) { tfPinch.done = true; tfZoomBy(TF_PINCH.in); }
   }, { passive: false });
-  document.addEventListener('touchend', e => { if (tfPinch && e.touches.length < 2) tfPinch = null; }, { passive: true });
+  document.addEventListener('touchend', e => { if (tfPinch && e.touches.length < 2) { if (tfPinch.tl && tfPinch.cur) tfSavePh(tfPinch.tl, tfPinch.cur); tfPinch = null; } }, { passive: true });
   let tfWheelAt = 0;
   document.addEventListener('wheel', e => {
     if (!e.ctrlKey || state.ui.tab !== 'cal' || !e.target.closest || !e.target.closest('.tf-zoom')) return;
     e.preventDefault();
+    const tl = e.target.closest('.tf-tl-body') && e.target.closest('.tf-tl');
+    if (tl) { const ph = parseFloat(getComputedStyle(tl).getPropertyValue('--ph')) || 40; tfSavePh(tl, tfSetPh(tl, ph * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientY)); return; }
     if (Date.now() - tfWheelAt < 450 || Math.abs(e.deltaY) < 4) return;
     tfWheelAt = Date.now(); tfZoomBy(e.deltaY < 0 ? TF_PINCH.out : TF_PINCH.in);
   }, { passive: false });
@@ -1314,8 +1339,8 @@
   const tfDayNote = k => typeof state.calNotes[k] === 'string' ? state.calNotes[k] : '';
   const tfSetDayNote = (k, v) => { v = String(v || '').slice(0, TF_NOTE_MAX); if (v.trim()) state.calNotes[k] = v; else delete state.calNotes[k]; };
   // Turno puntual: nuevo (i = -1) o editar el de la posición i del día
-  function tfOnceEditor(k, i, after) {
-    const list = state.calDays[k] || [], cur = i >= 0 ? list[i] : null, o = cur && cur.once ? { ...cur.once } : { name: '', emoji: '', color: HABIT_COLORS[1], start: '', end: '', jobId: '' };
+  function tfOnceEditor(k, i, after, pre) {
+    const list = state.calDays[k] || [], cur = i >= 0 ? list[i] : null, o = cur && cur.once ? { ...cur.once } : { name: '', emoji: '', color: HABIT_COLORS[1], start: '', end: '', jobId: '', ...(pre || {}) };
     const cols = ['#8e8e93', ...HABIT_COLORS];
     openModal({
       title: esc(t(cur ? 'tfOnceEdit' : 'tfOnceNew')), cls: 'tf-sheet',
@@ -1907,6 +1932,8 @@
     const u = tfUi(), y = +u.ym.slice(0, 4), mo = +u.ym.slice(5, 7) - 1, ym = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
     if (el.dataset.tfGo) { u.view = el.dataset.tfGo; TFS.quick = null; TFS.menu = false; TFS.sheet = false; save(); render(); window.scrollTo(0, 0); return true; }
     if (el.dataset.tfCv) { tfSetCv(el.dataset.tfCv); return true; }
+    // v1.26: tocar un hueco vacío de Día o Semana abre un turno puntual con esa hora
+    if (el.dataset.tfTl && !TFS.quick && !e.target.closest('.tf-blk') && e.detail !== 0) { const m = tfTlMinute(el, e.clientY), hm = x => pad(Math.floor(x / 60) % 24) + ':' + pad(x % 60); tfOnceEditor(el.dataset.tfTl, -1, () => tfSave(), { start: hm(m), end: hm(Math.min(m + 60, 1439)) }); return true; }
     if (el.dataset.tfDay) { if (TFS.quick && e.detail !== 0 && u.cv !== 'year') return true; /* con el dedo o el ratón pinta tfPaint */ tfOnDay(el.dataset.tfDay); return true; }
     if (el.dataset.tfOpen) { u.d = el.dataset.tfOpen; u.ym = u.d.slice(0, 7); u.cv = 'day'; TFS.quick = null; save(); render(); return true; }
     if (el.dataset.tfMonth) { u.ym = `${y}-${pad(+el.dataset.tfMonth + 1)}`; u.d = u.ym + '-01'; u.cv = 'month'; save(); render(); return true; }
@@ -2073,7 +2100,7 @@
 
   function afterRender() {
     initCals($('#main'));
-    tfFitCells($('#main'));
+    tfFitCells($('#main')); tfTlScroll($('#main'));
     if (state.ui.tab === 'habits') loadPhotos($('#main'));
     applyWOrder($('#main'));
     decorateJiggle();

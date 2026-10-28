@@ -2073,3 +2073,9 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .mini-f > span { font-size: 11px; color: var(--muted); }
 .mini-f .input { min-height: 36px; padding: 6px 10px; font-size: 14px; }
 .mini-f > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* v1.26: Día y Semana de 0:00 a 23:59 con scroll y altura de hora ampliable (--ph) */
+.tf-tl-body { max-height: min(68vh, 900px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-top: 8px; scrollbar-width: thin; }
+.tf-tl-hours span { height: var(--ph); }
+.tf-tl-col { height: calc(var(--ph) * 24); }
+.tf-now { position: absolute; left: 0; right: 0; height: 2px; background: #ff3b30; z-index: 2; pointer-events: none; }
+.tf-now::before { content: ""; position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; }
