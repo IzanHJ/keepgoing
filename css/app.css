@@ -2073,3 +2073,41 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .mini-f > span { font-size: 11px; color: var(--muted); }
 .mini-f .input { min-height: 36px; padding: 6px 10px; font-size: 14px; }
 .mini-f > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* v1.26: Día y Semana de 0:00 a 23:59 con scroll y altura de hora ampliable (--ph) */
+.tf-tl-body { max-height: min(68vh, 900px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-top: 8px; scrollbar-width: thin; }
+.tf-tl-hours span { height: var(--ph); }
+.tf-tl-col { height: calc(var(--ph) * 24); }
+.tf-now { position: absolute; left: 0; right: 0; height: 2px; background: #ff3b30; z-index: 2; pointer-events: none; }
+.tf-now::before { content: ""; position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; }
+
+/* v1.26: Lugares. Un icono pequeño (texto o emoji sobre su color) a la derecha del nombre del turno */
+.tf-pl { display: inline-grid; place-items: center; min-width: 1.35em; height: 1.35em; padding: 0 .25em; margin-left: .3em; border-radius: 999px; background: var(--c, #888); color: var(--fg-c, #fff); font-size: .78em; line-height: 1; vertical-align: .08em; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .55); font-weight: 700; }
+.tf-pl.big { font-size: 15px; min-width: 32px; height: 32px; margin: 0; padding: 0 6px; box-shadow: none; flex: 0 0 auto; }
+.tf-pl-prev { display: grid; place-items: center; min-width: 40px; height: 40px; margin-bottom: 4px; }
+.tf-pl-prev .tf-pl.big { min-width: 40px; height: 40px; font-size: 18px; }
+.tf-blk-addr { opacity: .75 !important; font-size: 9.5px !important; white-space: normal !important; line-height: 1.25; text-decoration: underline dotted; cursor: pointer; }
+.mc-pl { position: absolute; left: 2px; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px var(--bg); }
+.tf-pl-hit { display: flex; gap: 8px; align-items: flex-start; text-align: left; width: 100%; border: 0; background: var(--surface-2); color: var(--fg); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.tf-pl-hit:hover { background: var(--surface-3); }
+.tf-pl-osm { align-self: flex-end; font-size: 10px; }
+.tf-tag:has(> .tf-pl) { display: flex; align-items: center; justify-content: flex-start; }
+.tf-tag:has(> .tf-pl) .tn { overflow: hidden; text-overflow: ellipsis; min-width: 0; white-space: nowrap; }
+.tf-tag > .tf-pl, .tf-blk b > .tf-pl { flex: 0 0 auto; }
+.tf-cell .tf-tag > .tf-pl { font-size: .7em; margin-left: auto; padding-left: .2em; }
+.tf-cell .tf-tag:has(> .tf-pl) .tn { margin-right: .2em; }
+.tf-tag.big:has(> .tf-pl), .row .tf-tag:has(> .tf-pl), td .tf-tag:has(> .tf-pl) { display: inline-flex; }
+.tf-ext-addr { border: 0; background: none; padding: 2px 0 0; font: inherit; font-size: 12px; text-align: left; cursor: pointer; text-decoration: underline dotted; display: inline-flex; gap: 4px; align-items: center; }
+/* v1.26: nota en un hueco entre turnos (se queda en su hora) */
+.tf-gapn { position: absolute; left: 3px; right: 3px; display: flex; gap: 4px; align-items: flex-start; padding: 3px 5px; border-radius: 8px; border: 1.5px dashed var(--muted); background: color-mix(in srgb, var(--surface-2) 70%, transparent); color: var(--fg); font-size: 11px; line-height: 1.25; overflow: hidden; cursor: pointer; z-index: 1; text-align: left; }
+.tf-gapn > span { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }
+.tf-tl:not(.big) .tf-gapn { font-size: 9.5px; padding: 2px 3px; }
+.tf-tl:not(.big) .tf-gapn > svg { display: none; }
+.tf-gapn > span { overflow-wrap: anywhere; }
+/* v1.26: fichaje en curso */
+.tf-clock { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 0 0 10px; border-radius: 16px; font-size: 14px; }
+.tf-clock-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 0 0 rgba(255, 59, 48, .6); animation: tfClockPulse 1.6s infinite; flex: 0 0 auto; }
+@keyframes tfClockPulse { 70% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
+@media (prefers-reduced-motion: reduce) { .tf-clock-dot { animation: none; } }
+.tf-qfoot { flex-wrap: wrap; }
+.tf-clock b { white-space: nowrap; }
+.tf-clock-blk { background: repeating-linear-gradient(135deg, rgba(255, 59, 48, .22) 0 8px, rgba(255, 59, 48, .1) 8px 16px) !important; color: var(--fg) !important; border: 1.5px dashed #ff3b30; border-radius: 8px; pointer-events: none; }

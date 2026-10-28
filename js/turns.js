@@ -89,6 +89,7 @@
       kind: kindOk(s.kind) ? s.kind : 'work',
       start: timeOr(s.start), end: timeOr(s.end),
       breakMin: num(s.breakMin, 0, 720, 0), diffPct: num(s.diffPct, -100, 1000, 0), alarmMin: num(s.alarmMin, 0, 1440, 0),
+      ...(s.rateMode === 'fixed' ? { rateMode: 'fixed', rateV: num(s.rateV, -1000, 1000, 0) } : {}), ...(typeof s.placeId === 'string' && RE_ID.test(s.placeId) ? { placeId: s.placeId } : {}),
     }));
     const shiftIds = new Set(shifts.map((s) => s.id));
     const days = {};
@@ -98,34 +99,46 @@
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
       const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
       const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}),
-          ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '' } } : {}) }));
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...(jobIds.has(e.job) ? { job: e.job } : {}),
+          ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '', ...(typeof e.once.placeId === 'string' && RE_ID.test(e.once.placeId) ? { placeId: e.once.placeId } : {}) } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
     const ext = (Array.isArray(raw.ext) ? raw.ext : []).slice(0, LIMITS.ext)
-      .filter((e) => e && RE_DATE.test(e.date)).map((e) => ({ date: e.date, title: str(e.title, LIMITS.text) }));
+      .filter((e) => e && RE_DATE.test(e.date)).map((e) => ({ date: e.date, title: str(e.title, LIMITS.text), ...(timeOr(e.start) ? { start: e.start, end: timeOr(e.end) } : {}), ...(typeof e.location === 'string' && e.location.trim() ? { location: str(e.location, 300) } : {}), ...(typeof e.pl === 'string' && RE_ID.test(e.pl) ? { pl: e.pl } : {}) }));
     const st = raw.settings && typeof raw.settings === 'object' ? raw.settings : {};
     const settings = {
       weekStart: [0, 1, 6].includes(st.weekStart) ? st.weekStart : 1,
       alarms: st.alarms === true,
     };
-    return { v: 1, jobs, shifts, days, ext, settings };
+    // v1.26: lugares
+    const places = (Array.isArray(raw.places) ? raw.places : []).slice(0, 60).filter((p) => p && RE_ID.test(p.id)).map((p) => ({
+      id: p.id, name: str(p.name, 40, 'Lugar'), icon: str(p.icon, 4), color: RE_COLOR.test(p.color) ? p.color : '#5b8cff', addr: str(p.addr, 300),
+      ...(Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180 ? { lat: p.lat, lon: p.lon } : {}) }));
+    return { v: 1, jobs, shifts, days, ext, settings, places };
   }
 
   function entryTimes(shift, e) { return { start: (e && e.start) || shift.start, end: (e && e.end) || shift.end }; }
-  function entryHours(shift, e) {
+  /* v1.26: descanso de una entrada. e.brk (minutos) lo cambia solo ese día; si no, el del turno, salvo que el mismo turno salga
+     varias veces ese día (jornada partida): entonces el hueco entre los trozos ya es el descanso y no se resta. day = lista del día. */
+  function entryBreak(shift, e, day) {
+    if (e && Number.isFinite(e.brk) && e.brk >= 0) return Math.min(720, e.brk);
+    if (day && e && day.filter((x) => x && x.sid === e.sid).length > 1) return 0;
+    return shift.breakMin || 0;
+  }
+  function entryHours(shift, e, day) {
     const { start, end } = entryTimes(shift, e);
     if (!start || !end) return 0;
     let a = toMin(start), b = toMin(end);
     if (b <= a) b += 1440;
-    return Math.max(0, (b - a - shift.breakMin) / 60);
+    return Math.max(0, (b - a - entryBreak(shift, e, day)) / 60);
   }
 
   /** Informe de horas/paga entre dos fechas ISO (inclusive). Extras semanales por trabajo.
       v1.23: paidKind(kind) dice si un tipo cuenta para la paga (por defecto solo 'work'); una categoría con paid === false no cobra.
       v1.24: kindRate(kind) → { mode: 'same' | 'fixed' | 'pct', v } cambia la tarifa de la categoría para ese tipo (+v €/h o +v %). */
   function report(data, from, to, weekStart, paidKind, kindRate) {
-    const adj = (kind, b) => { const r = kindRate ? kindRate(kind) : null; if (!r || !Number.isFinite(+r.v)) return b; return r.mode === 'fixed' ? Math.max(0, b + +r.v) : r.mode === 'pct' ? Math.max(0, b * (1 + +r.v / 100)) : b; };
+    // v1.26: la tarifa +X €/h va en el propio turno (s.rateMode = 'fixed', s.rateV); el +X % es s.diffPct. kindRate queda para datos antiguos.
+    const adj = (s, b) => { if (s.rateMode === 'fixed' && Number.isFinite(+s.rateV)) return Math.max(0, b + +s.rateV); const r = kindRate ? kindRate(s.kind) : null; if (!r || !Number.isFinite(+r.v)) return b; return r.mode === 'fixed' ? Math.max(0, b + +r.v) : r.mode === 'pct' ? Math.max(0, b * (1 + +r.v / 100)) : b; };
     const isPaid = (s, job) => (paidKind ? paidKind(s.kind) : s.kind === 'work') && job.paid !== false;
     const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
     const jobBy = Object.fromEntries(data.jobs.map((j) => [j.id, j]));
@@ -136,8 +149,8 @@
       for (const e of data.days[k] || []) {
         const s = shiftBy[e.sid]; if (!s) continue;
         if (s.once && !jobBy[s.jobId]) continue; // v1.25: un turno puntual solo cuenta si tiene categoría
-        const job = jobBy[s.jobId] || data.jobs[0];
-        const h = entryHours(s, e);
+        const job = jobBy[e.job] || jobBy[s.jobId] || data.jobs[0]; // v1.26: e.job = otra categoría solo ese día (fichaje)
+        const h = entryHours(s, e, data.days[k]);
         let regular = h, ot = 0;
         const paid = isPaid(s, job);
         if (paid) {
@@ -152,7 +165,7 @@
           fr.forEach((f, i) => {
             if (!f) return;
             const sp = sps[i];
-            let base = adj(s.kind, sp ? (sp.rate > 0 ? sp.rate : job.rate) : job.rate);
+            let base = adj(s, sp ? (sp.rate > 0 ? sp.rate : job.rate) : job.rate);
             if (sp) base = applyPlus(base, sp.mode, sp.plus);
             pay += (regular * f * base + ot * f * applyPlus(base, job.otMode, job.otPlus)) * (1 + s.diffPct / 100);
           });
@@ -238,7 +251,7 @@
   const ymdhm = (d, t) => ymd(d) + 'T' + t.replace(':', '') + '00';
 
   function toICS(data, from, to, now) {
-    const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
+    const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s])), placeBy = Object.fromEntries((data.places || []).map((p) => [p.id, p]));
     const stamp = (now || new Date()).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
     const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//KeepGoing//ES', 'CALSCALE:GREGORIAN'];
     for (let d = parseISO(from), end = parseISO(to); d <= end; d = addDays(d, 1)) {
@@ -255,6 +268,9 @@
         }
         L.push('SUMMARY:' + icsEsc((s.emoji ? s.emoji + ' ' : '') + s.name));
         if (e.note) L.push('DESCRIPTION:' + icsEsc(e.note));
+        const pl = e.pl === '-' ? null : placeBy[e.pl || s.placeId];
+        if (pl && (pl.addr || pl.name)) L.push('LOCATION:' + icsEsc(pl.addr || pl.name));
+        if (pl && Number.isFinite(pl.lat) && Number.isFinite(pl.lon)) L.push('GEO:' + pl.lat + ';' + pl.lon);
         L.push('END:VEVENT');
       });
     }
@@ -263,20 +279,34 @@
   }
 
   /** Lee eventos (fecha de inicio + título) de un .ics externo. */
+  /* v1.26: también la hora (DTSTART/DTEND con hora; en UTC si acaba en Z, que se pasa a la hora local) y el lugar (LOCATION) */
+  const icsTime = (val) => {
+    const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/.exec(val); if (!m) return null;
+    if (m[4] === undefined) return { date: m[1] + '-' + m[2] + '-' + m[3], time: '' };
+    const d = m[7] ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])) : new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    return { date: iso(d), time: pad(d.getHours()) + ':' + pad(d.getMinutes()) };
+  };
   function parseICS(text) {
     const lines = String(text).replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
     const out = []; let cur = null;
     for (const line of lines) {
       if (line === 'BEGIN:VEVENT') cur = {};
       else if (line === 'END:VEVENT') {
-        if (cur && cur.date) out.push({ date: cur.date, title: (cur.title || 'Evento').slice(0, LIMITS.text) });
+        if (cur && cur.date) {
+          const ev = { date: cur.date, title: (cur.title || 'Evento').slice(0, LIMITS.text) };
+          if (cur.start) { ev.start = cur.start; ev.end = cur.end || ''; }
+          if (cur.location) ev.location = cur.location.slice(0, 300);
+          out.push(ev);
+        }
         cur = null;
         if (out.length >= LIMITS.ext) break;
       } else if (cur) {
         const i = line.indexOf(':'); if (i < 0) continue;
         const name = line.slice(0, i).split(';')[0].toUpperCase(), val = line.slice(i + 1);
-        if (name === 'DTSTART') { const m = /^(\d{4})(\d{2})(\d{2})/.exec(val); if (m) cur.date = m[1] + '-' + m[2] + '-' + m[3]; }
+        if (name === 'DTSTART') { const x = icsTime(val); if (x) { cur.date = x.date; cur.start = x.time; } }
+        else if (name === 'DTEND') { const x = icsTime(val); if (x) { cur.endDate = x.date; cur.end = x.time; } }
         else if (name === 'SUMMARY') cur.title = icsUnesc(val);
+        else if (name === 'LOCATION') cur.location = icsUnesc(val).trim();
       }
     }
     return out;
@@ -312,7 +342,7 @@
 
   const api = {
     LIMITS, KINDS, KIND_LABEL, defaultKinds, kindOk, applyRoutine, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
-    defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
+    defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -107,3 +107,41 @@ test('v1.23: rutinas de un día y semana tipo', () => {
   assert.strictEqual(data.days['2026-10-06'][0].rt, 'r1');
   assert.strictEqual(T.sanitize({ ...d, days: data.days }).days['2026-10-06'][0].rt, 'r1');
 }
+
+test('v1.26: el descanso no se resta en una jornada partida y se puede cambiar por día', () => {
+  const s = { id: 'p', start: '09:00', end: '20:00', breakMin: 210 };
+  const day = [{ sid: 'p', start: '09:00', end: '14:00' }, { sid: 'p', start: '17:30', end: '20:00' }];
+  assert.equal(T.entryHours(s, day[0], day), 5);
+  assert.equal(T.entryHours(s, day[1], day), 2.5);
+  assert.equal(T.entryHours(s, { sid: 'p' }, [{ sid: 'p' }]), 7.5);
+  assert.equal(T.entryHours(s, { sid: 'p', brk: 60 }, [{ sid: 'p' }]), 10);
+  const r = T.report({ jobs: [{ id: 'j', rate: 10, otWeekHours: 0, specials: [] }], shifts: [{ ...s, jobId: 'j', kind: 'work', diffPct: 0 }], days: { '2026-10-27': day } }, '2026-10-27', '2026-10-27', 1);
+  assert.equal(r.hours, 7.5);
+});
+
+test('v1.26: .ics con hora y lugar', () => {
+  const ics = 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART:20261102T090000\r\nDTEND:20261102T140000\r\nSUMMARY:Turno\r\nLOCATION:Oficina\\, Calle Mayor 1\\, Madrid\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20261103\r\nSUMMARY:Fiesta\r\nEND:VEVENT\r\nEND:VCALENDAR';
+  const ev = T.parseICS(ics);
+  assert.deepStrictEqual(ev[0], { date: '2026-11-02', title: 'Turno', start: '09:00', end: '14:00', location: 'Oficina, Calle Mayor 1, Madrid' });
+  assert.deepStrictEqual(ev[1], { date: '2026-11-03', title: 'Fiesta' });
+  const z = T.parseICS('BEGIN:VEVENT\nDTSTART:20261102T080000Z\nEND:VEVENT')[0];
+  const d = new Date(Date.UTC(2026, 10, 2, 8, 0));
+  assert.strictEqual(z.start, String(d.getHours()).padStart(2, '0') + ':00');
+  const s = T.sanitize({ jobs: [], shifts: [], days: {}, ext: [{ date: '2026-11-02', title: 'x', start: '09:00', end: 'bad', location: 'Ofi', pl: 'p1' }] });
+  assert.deepStrictEqual(s.ext[0], { date: '2026-11-02', title: 'x', start: '09:00', end: '', location: 'Ofi', pl: 'p1' });
+});
+
+test('v1.26: el .ics exportado lleva el lugar', () => {
+  const data = { shifts: [{ id: 's1', name: 'Mañana', emoji: '', start: '09:00', end: '14:00', placeId: 'p1' }], days: { '2026-11-02': [{ sid: 's1' }], '2026-11-03': [{ sid: 's1', pl: '-' }] }, places: [{ id: 'p1', name: 'Oficina', addr: 'Calle Mayor 1, Madrid', lat: 40.4, lon: -3.7 }] };
+  const ics = T.toICS(data, '2026-11-02', '2026-11-03', new Date(0));
+  assert.strictEqual((ics.match(/LOCATION:/g) || []).length, 1);
+  assert.ok(ics.includes('LOCATION:Calle Mayor 1\\, Madrid'));
+  assert.ok(ics.includes('GEO:40.4;-3.7'));
+});
+
+test('v1.26: un fichaje con otra categoría cobra con la de ese día', () => {
+  const data = { jobs: [{ id: 'j1', rate: 10, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [] }, { id: 'j2', rate: 20, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [] }], shifts: [{ id: 's1', jobId: 'j1', kind: 'work', start: '09:00', end: '11:00', breakMin: 0, diffPct: 0 }], days: { '2026-11-02': [{ sid: 's1' }, { sid: 's1', start: '15:00', end: '16:00', job: 'j2' }] } };
+  const r = T.report(data, '2026-11-02', '2026-11-02', 1, () => true, null);
+  assert.strictEqual(r.pay, 2 * 10 + 1 * 20);
+  assert.strictEqual(r.byJob.j2.hours, 1);
+});

@@ -121,7 +121,7 @@
     const PW = 842, PH = 595, M = 30, GAP = 4, GRAY = [0.45, 0.47, 0.52], DARK = [0.1, 0.11, 0.18];
     const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
     const colors = typeof X.colors === 'function' ? X.colors : () => [];
-    const notes = X.notes || {}, rates = X.rates || {}, rtName = X.routines || {};
+    const notes = X.notes || {}, rates = X.rates || {}, rtName = X.routines || {}, gaps = X.gaps || {};
     const stamp = (now || new Date());
     const pages = [];
     const f0 = T.parseISO(from), t0 = T.parseISO(to);
@@ -147,6 +147,8 @@
           if (LY.notes && e.note) for (const ln of wrap(e.note, 6.5, false, cw - 12)) out.push({ kind: 'note', h: NOTE, label: ln, indent: 6 });
         }
       }
+      // v1.26: notas en huecos entre turnos, con su hora
+      if (LY.notes) for (const g of gaps[k] || []) for (const ln of wrap(g.a + '-' + g.b + ' ' + g.t, 6.5, false, cw - 12)) out.push({ kind: 'note', h: NOTE, label: ln, indent: 6 });
       if (LY.notes && notes[k]) for (const ln of wrap(notes[k], 7, false, cw - 10)) out.push({ kind: 'dnote', h: NOTE + 0.5, label: ln });
       return out;
     }
@@ -248,6 +250,7 @@
     for (let d = new Date(f0); d <= t0; d = T.addDays(d, 1)) {
       const k = T.iso(d);
       if (LY.shifts) for (const e of data.days[k] || []) { const s = shiftBy[e.sid]; if (s) rowsData.push({ k, d: new Date(d), e, s }); }
+      if (LY.notes) for (const g of gaps[k] || []) rowsData.push({ k, d: new Date(d), gap: g });
       if (LY.notes && notes[k]) rowsData.push({ k, d: new Date(d), note: notes[k] });
     }
     if (rowsData.length && X.table !== false) {
@@ -263,19 +266,23 @@
       let y = startPage(), total = 0;
       for (const r of rowsData) {
         const wd = r.d.getDay(), dayLbl = DOW[wd].charAt(0) + DOW[wd].slice(1).toLowerCase() + ' ' + r.d.getDate() + (from.slice(0, 7) === to.slice(0, 7) ? '' : '/' + (r.d.getMonth() + 1));
-        const noteTxt = r.note != null ? r.note : (LY.notes ? r.e.note : '');
+        const noteTxt = r.note != null ? r.note : r.gap ? r.gap.t : (LY.notes ? r.e.note : '');
         const nl = noteTxt ? wrap(noteTxt, 9, false, right - (r.note != null ? cols[1] : cols[5])) : [];
         const rowH = Math.max(16, nl.length * 11 + 5);
         if (y - rowH < M + 10) y = startPage();
         p.text(cols[0], y, fit(dayLbl, 9, false, cols[1] - cols[0] - 8), 9, false, DARK);
         if (r.note != null) {
           nl.forEach((ln, i) => p.text(cols[1], y - i * 11, ln, 9, false, DARK));
+        } else if (r.gap) {
+          p.text(cols[1] + 12, y, fit(L.gap || 'Nota', 9, true, cols[2] - cols[1] - 20), 9, true, GRAY);
+          p.text(cols[2], y, r.gap.a + ' - ' + r.gap.b, 9, false, DARK);
+          nl.forEach((ln, i) => p.text(cols[5], y - i * 11, ln, 9, false, DARK));
         } else {
-          const { e, s } = r, hrs = T.entryHours(s, e), t = T.entryTimes(s, e); if (!(s.once && !s.jobId)) total += hrs;
+          const { e, s } = r, hrs = T.entryHours(s, e, data.days[r.k]), t = T.entryTimes(s, e); if (!(s.once && !s.jobId)) total += hrs;
           p.rect(cols[1], y - 1, 7, 7, rgb(s.color));
           p.text(cols[1] + 12, y, fit(s.name, 9, true, cols[2] - cols[1] - 20), 9, true, DARK);
           p.text(cols[2], y, t.start && t.end ? t.start + ' - ' + t.end : '—', 9, false, DARK);
-          p.text(cols[3], y, s.breakMin ? s.breakMin + ' min' : '—', 9, false, DARK);
+          const bk = T.entryBreak(s, e, data.days[r.k]); p.text(cols[3], y, bk ? bk + ' min' : '—', 9, false, DARK);
           p.text(cols[4], y, hrs ? fmtH(hrs) + ' h' : '—', 9, false, DARK);
           nl.forEach((ln, i) => p.text(cols[5], y - i * 11, ln, 9, false, DARK));
         }
