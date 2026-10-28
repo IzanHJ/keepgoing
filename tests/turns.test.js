@@ -118,3 +118,23 @@ test('v1.26: el descanso no se resta en una jornada partida y se puede cambiar p
   const r = T.report({ jobs: [{ id: 'j', rate: 10, otWeekHours: 0, specials: [] }], shifts: [{ ...s, jobId: 'j', kind: 'work', diffPct: 0 }], days: { '2026-10-27': day } }, '2026-10-27', '2026-10-27', 1);
   assert.equal(r.hours, 7.5);
 });
+
+test('v1.26: .ics con hora y lugar', () => {
+  const ics = 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART:20261102T090000\r\nDTEND:20261102T140000\r\nSUMMARY:Turno\r\nLOCATION:Oficina\\, Calle Mayor 1\\, Madrid\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20261103\r\nSUMMARY:Fiesta\r\nEND:VEVENT\r\nEND:VCALENDAR';
+  const ev = T.parseICS(ics);
+  assert.deepStrictEqual(ev[0], { date: '2026-11-02', title: 'Turno', start: '09:00', end: '14:00', location: 'Oficina, Calle Mayor 1, Madrid' });
+  assert.deepStrictEqual(ev[1], { date: '2026-11-03', title: 'Fiesta' });
+  const z = T.parseICS('BEGIN:VEVENT\nDTSTART:20261102T080000Z\nEND:VEVENT')[0];
+  const d = new Date(Date.UTC(2026, 10, 2, 8, 0));
+  assert.strictEqual(z.start, String(d.getHours()).padStart(2, '0') + ':00');
+  const s = T.sanitize({ jobs: [], shifts: [], days: {}, ext: [{ date: '2026-11-02', title: 'x', start: '09:00', end: 'bad', location: 'Ofi', pl: 'p1' }] });
+  assert.deepStrictEqual(s.ext[0], { date: '2026-11-02', title: 'x', start: '09:00', end: '', location: 'Ofi', pl: 'p1' });
+});
+
+test('v1.26: el .ics exportado lleva el lugar', () => {
+  const data = { shifts: [{ id: 's1', name: 'Mañana', emoji: '', start: '09:00', end: '14:00', placeId: 'p1' }], days: { '2026-11-02': [{ sid: 's1' }], '2026-11-03': [{ sid: 's1', pl: '-' }] }, places: [{ id: 'p1', name: 'Oficina', addr: 'Calle Mayor 1, Madrid', lat: 40.4, lon: -3.7 }] };
+  const ics = T.toICS(data, '2026-11-02', '2026-11-03', new Date(0));
+  assert.strictEqual((ics.match(/LOCATION:/g) || []).length, 1);
+  assert.ok(ics.includes('LOCATION:Calle Mayor 1\\, Madrid'));
+  assert.ok(ics.includes('GEO:40.4;-3.7'));
+});

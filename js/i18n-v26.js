@@ -42,7 +42,12 @@
     tfPlSearchErr: 'Ahora no se puede buscar. Prueba más tarde o pega el enlace de Mapas.',
     tfPlShort: 'Ese enlace es corto y la app no puede leerlo. Ábrelo en Mapas y copia la dirección o las coordenadas.',
     tfPlOsm: 'Datos © OpenStreetMap',
-    tfDelPlaceQ: '¿Borrar este lugar? Los turnos que lo usan se quedan sin lugar.'
+    tfDelPlaceQ: '¿Borrar este lugar? Los turnos que lo usan se quedan sin lugar.',
+    tfIcsPlTitle: 'Lugares del calendario',
+    tfIcsPlHint: 'Este calendario trae {n} lugares. Elige el nombre, el icono y el color de cada uno, o apaga los que no quieras guardar en tus Lugares.',
+    tfIcsPlN: '{n} eventos',
+    tfIcsPlN1: '1 evento',
+    tfIcsPlSkip: 'Ahora no'
   };
   const en = {
     tfBrkDay: 'Break this day',
@@ -83,7 +88,12 @@
     tfPlSearchErr: "Search isn't available right now. Try later or paste the Maps link.",
     tfPlShort: "That's a short link and the app can't read it. Open it in Maps and copy the address or the coordinates.",
     tfPlOsm: 'Data © OpenStreetMap',
-    tfDelPlaceQ: 'Delete this place? Shifts that use it will have no place.'
+    tfDelPlaceQ: 'Delete this place? Shifts that use it will have no place.',
+    tfIcsPlTitle: 'Places in the calendar',
+    tfIcsPlHint: 'This calendar has {n} places. Choose a name, icon and colour for each, or turn off the ones you don\'t want in your Places.',
+    tfIcsPlN: '{n} events',
+    tfIcsPlN1: '1 event',
+    tfIcsPlSkip: 'Not now'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);

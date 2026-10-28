@@ -104,13 +104,17 @@
       if (list.length) { days[k] = list; n++; }
     }
     const ext = (Array.isArray(raw.ext) ? raw.ext : []).slice(0, LIMITS.ext)
-      .filter((e) => e && RE_DATE.test(e.date)).map((e) => ({ date: e.date, title: str(e.title, LIMITS.text) }));
+      .filter((e) => e && RE_DATE.test(e.date)).map((e) => ({ date: e.date, title: str(e.title, LIMITS.text), ...(timeOr(e.start) ? { start: e.start, end: timeOr(e.end) } : {}), ...(typeof e.location === 'string' && e.location.trim() ? { location: str(e.location, 300) } : {}), ...(typeof e.pl === 'string' && RE_ID.test(e.pl) ? { pl: e.pl } : {}) }));
     const st = raw.settings && typeof raw.settings === 'object' ? raw.settings : {};
     const settings = {
       weekStart: [0, 1, 6].includes(st.weekStart) ? st.weekStart : 1,
       alarms: st.alarms === true,
     };
-    return { v: 1, jobs, shifts, days, ext, settings };
+    // v1.26: lugares
+    const places = (Array.isArray(raw.places) ? raw.places : []).slice(0, 60).filter((p) => p && RE_ID.test(p.id)).map((p) => ({
+      id: p.id, name: str(p.name, 40, 'Lugar'), icon: str(p.icon, 4), color: RE_COLOR.test(p.color) ? p.color : '#5b8cff', addr: str(p.addr, 300),
+      ...(Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180 ? { lat: p.lat, lon: p.lon } : {}) }));
+    return { v: 1, jobs, shifts, days, ext, settings, places };
   }
 
   function entryTimes(shift, e) { return { start: (e && e.start) || shift.start, end: (e && e.end) || shift.end }; }
@@ -247,7 +251,7 @@
   const ymdhm = (d, t) => ymd(d) + 'T' + t.replace(':', '') + '00';
 
   function toICS(data, from, to, now) {
-    const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
+    const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s])), placeBy = Object.fromEntries((data.places || []).map((p) => [p.id, p]));
     const stamp = (now || new Date()).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
     const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//KeepGoing//ES', 'CALSCALE:GREGORIAN'];
     for (let d = parseISO(from), end = parseISO(to); d <= end; d = addDays(d, 1)) {
@@ -264,6 +268,9 @@
         }
         L.push('SUMMARY:' + icsEsc((s.emoji ? s.emoji + ' ' : '') + s.name));
         if (e.note) L.push('DESCRIPTION:' + icsEsc(e.note));
+        const pl = e.pl === '-' ? null : placeBy[e.pl || s.placeId];
+        if (pl && (pl.addr || pl.name)) L.push('LOCATION:' + icsEsc(pl.addr || pl.name));
+        if (pl && Number.isFinite(pl.lat) && Number.isFinite(pl.lon)) L.push('GEO:' + pl.lat + ';' + pl.lon);
         L.push('END:VEVENT');
       });
     }
@@ -272,20 +279,34 @@
   }
 
   /** Lee eventos (fecha de inicio + título) de un .ics externo. */
+  /* v1.26: también la hora (DTSTART/DTEND con hora; en UTC si acaba en Z, que se pasa a la hora local) y el lugar (LOCATION) */
+  const icsTime = (val) => {
+    const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/.exec(val); if (!m) return null;
+    if (m[4] === undefined) return { date: m[1] + '-' + m[2] + '-' + m[3], time: '' };
+    const d = m[7] ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])) : new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    return { date: iso(d), time: pad(d.getHours()) + ':' + pad(d.getMinutes()) };
+  };
   function parseICS(text) {
     const lines = String(text).replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
     const out = []; let cur = null;
     for (const line of lines) {
       if (line === 'BEGIN:VEVENT') cur = {};
       else if (line === 'END:VEVENT') {
-        if (cur && cur.date) out.push({ date: cur.date, title: (cur.title || 'Evento').slice(0, LIMITS.text) });
+        if (cur && cur.date) {
+          const ev = { date: cur.date, title: (cur.title || 'Evento').slice(0, LIMITS.text) };
+          if (cur.start) { ev.start = cur.start; ev.end = cur.end || ''; }
+          if (cur.location) ev.location = cur.location.slice(0, 300);
+          out.push(ev);
+        }
         cur = null;
         if (out.length >= LIMITS.ext) break;
       } else if (cur) {
         const i = line.indexOf(':'); if (i < 0) continue;
         const name = line.slice(0, i).split(';')[0].toUpperCase(), val = line.slice(i + 1);
-        if (name === 'DTSTART') { const m = /^(\d{4})(\d{2})(\d{2})/.exec(val); if (m) cur.date = m[1] + '-' + m[2] + '-' + m[3]; }
+        if (name === 'DTSTART') { const x = icsTime(val); if (x) { cur.date = x.date; cur.start = x.time; } }
+        else if (name === 'DTEND') { const x = icsTime(val); if (x) { cur.endDate = x.date; cur.end = x.time; } }
         else if (name === 'SUMMARY') cur.title = icsUnesc(val);
+        else if (name === 'LOCATION') cur.location = icsUnesc(val).trim();
       }
     }
     return out;

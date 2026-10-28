@@ -2096,3 +2096,4 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .tf-cell .tf-tag > .tf-pl { font-size: .7em; margin-left: auto; padding-left: .2em; }
 .tf-cell .tf-tag:has(> .tf-pl) .tn { margin-right: .2em; }
 .tf-tag.big:has(> .tf-pl), .row .tf-tag:has(> .tf-pl), td .tf-tag:has(> .tf-pl) { display: inline-flex; }
+.tf-ext-addr { border: 0; background: none; padding: 2px 0 0; font: inherit; font-size: 12px; text-align: left; cursor: pointer; text-decoration: underline dotted; display: inline-flex; gap: 4px; align-items: center; }
