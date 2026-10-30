@@ -145,3 +145,11 @@ test('v1.26: un fichaje con otra categoría cobra con la de ese día', () => {
   assert.strictEqual(r.pay, 2 * 10 + 1 * 20);
   assert.strictEqual(r.byJob.j2.hours, 1);
 });
+
+test('v1.26.1: lugar puntual en el .ics y al validar', () => {
+  const data = { shifts: [{ id: 's1', name: 'Mañana', emoji: '', start: '09:00', end: '14:00', placeId: 'p1' }], days: { '2026-11-02': [{ sid: 's1', plx: { addr: 'Hospital, Madrid' } }] }, places: [{ id: 'p1', name: 'Oficina', addr: 'Calle Mayor 1' }] };
+  const ics = T.toICS(data, '2026-11-02', '2026-11-02', new Date(0));
+  assert.ok(ics.includes('LOCATION:Hospital\\, Madrid')); assert.ok(!ics.includes('Calle Mayor'));
+  const s = T.sanitize({ jobs: [], shifts: [{ id: 's1', name: 'x' }], days: { '2026-11-02': [{ sid: 's1', plx: { addr: 'Hospital' } }, { sid: 's1', plx: { addr: '  ' } }] } });
+  assert.deepStrictEqual(s.days['2026-11-02'][0].plx, { addr: 'Hospital' }); assert.strictEqual(s.days['2026-11-02'][1].plx, undefined);
+});

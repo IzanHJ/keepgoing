@@ -65,6 +65,7 @@
     }
     return fr.map((x) => x / (b - a));
   }
+  const plxOk = (x) => !!x && typeof x === 'object' && typeof x.addr === 'string' && !!x.addr.trim(); // v1.26.1: lugar puntual
   const timeOr = (v) => (typeof v === 'string' && RE_TIME.test(v) ? v : '');
 
   /** Valida y normaliza datos externos (localStorage o importación). Lanza Error si no son válidos. */
@@ -99,8 +100,8 @@
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
       const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
       const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...(jobIds.has(e.job) ? { job: e.job } : {}),
-          ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '', ...(typeof e.once.placeId === 'string' && RE_ID.test(e.once.placeId) ? { placeId: e.once.placeId } : {}) } } : {}) }));
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...(jobIds.has(e.job) ? { job: e.job } : {}), ...(plxOk(e.plx) ? { plx: { addr: str(e.plx.addr, 300) } } : {}),
+          ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '', ...(typeof e.once.placeId === 'string' && RE_ID.test(e.once.placeId) ? { placeId: e.once.placeId } : {}), ...(plxOk(e.once.plx) ? { plx: { addr: str(e.once.plx.addr, 300) } } : {}) } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
     const ext = (Array.isArray(raw.ext) ? raw.ext : []).slice(0, LIMITS.ext)
@@ -268,7 +269,7 @@
         }
         L.push('SUMMARY:' + icsEsc((s.emoji ? s.emoji + ' ' : '') + s.name));
         if (e.note) L.push('DESCRIPTION:' + icsEsc(e.note));
-        const pl = e.pl === '-' ? null : placeBy[e.pl || s.placeId];
+        const pl = e.pl === '-' ? null : plxOk(e.plx) ? e.plx : !e.pl && plxOk(s.plx) ? s.plx : placeBy[e.pl || s.placeId];
         if (pl && (pl.addr || pl.name)) L.push('LOCATION:' + icsEsc(pl.addr || pl.name));
         if (pl && Number.isFinite(pl.lat) && Number.isFinite(pl.lon)) L.push('GEO:' + pl.lat + ';' + pl.lon);
         L.push('END:VEVENT');

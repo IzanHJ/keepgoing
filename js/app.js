@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.26.0';
+  const VERSION = '1.26.1';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -879,7 +879,7 @@
     tfOnceCache = { ref: state.calDays, gen: tfOnceGen, map };
     return map;
   }
-  const tfOnceShift = e => { const o = e.once || {}; return { id: e.sid, name: String(o.name || '').slice(0, 40) || '—', emoji: String(o.emoji || '').slice(0, 8), color: /^#[0-9a-fA-F]{6}$/.test(o.color || '') ? o.color : '#8e8e93', kind: 'work', start: o.start || '', end: o.end || '', jobId: o.jobId || '', breakMin: 0, diffPct: 0, alarmMin: 0, once: true, ...(o.placeId ? { placeId: o.placeId } : {}) }; };
+  const tfOnceShift = e => { const o = e.once || {}; return { id: e.sid, name: String(o.name || '').slice(0, 40) || '—', emoji: String(o.emoji || '').slice(0, 8), color: /^#[0-9a-fA-F]{6}$/.test(o.color || '') ? o.color : '#8e8e93', kind: 'work', start: o.start || '', end: o.end || '', jobId: o.jobId || '', breakMin: 0, diffPct: 0, alarmMin: 0, once: true, ...(o.placeId ? { placeId: o.placeId } : {}), ...(o.plx ? { plx: o.plx } : {}) }; };
   const tfFg = hex => { const n = parseInt(String(hex).slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 160 ? '#1b1f2e' : '#ffffff'; };
   const tfColor = c => /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#4f6bed';
   const tfH = n => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 2 }).format(Math.round(n * 100) / 100);
@@ -896,9 +896,11 @@
   /* v1.26: Lugares (state.calPlaces = [{ id, name, icon, color, addr, lat, lon }]). El turno lleva placeId; una entrada del día
      puede cambiarlo solo ese día con e.pl (id de un lugar, o '-' = ninguno). En el turno solo se ve un icono a la derecha del nombre. */
   const tfPlace = id => id ? state.calPlaces.find(p => p.id === id) || null : null;
-  const tfPlaceOf = (s, e) => { if (e && e.pl === '-') return null; return tfPlace((e && e.pl) || (s && s.placeId)); };
+  // v1.26.1: lugar puntual (e.plx o, en un turno puntual, once.plx = { addr }): solo para esa vez, no está en tus Lugares
+  const tfPlOnce = x => x && typeof x.addr === 'string' && x.addr.trim() ? { id: '', once: true, name: KGPlaces.shortName(x.addr), addr: x.addr.trim(), color: '#8e8e93' } : null;
+  const tfPlaceOf = (s, e) => { if (e && e.pl === '-') return null; if (e && e.plx) return tfPlOnce(e.plx); if (!(e && e.pl) && s && s.plx) return tfPlOnce(s.plx); return tfPlace((e && e.pl) || (s && s.placeId)); };
   const tfPlIcon = p => esc(String(p.icon || '').trim() || (String(p.name).trim().charAt(0) || '?').toUpperCase());
-  const tfPlBadge = (p, cls = '') => p ? `<span class="tf-pl ${cls}" style="--c:${tfColor(p.color)};--fg-c:${tfFg(tfColor(p.color))}" title="${esc(p.name)}">${tfPlIcon(p)}</span>` : '';
+  const tfPlBadge = (p, cls = '') => p ? `<span class="tf-pl ${cls}" style="--c:${tfColor(p.color)};--fg-c:${tfFg(tfColor(p.color))}" title="${esc(p.name)}">${p.once ? ico('pin', 'xs') : tfPlIcon(p)}</span>` : '';
   const tfIsApple = () => /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
   const tfTag = (s, cls = '', label, e) => { const pl = label === undefined && tfLayers().places ? tfPlaceOf(s, e) : null; return `<span class="tf-tag ${cls}" style="--c:${tfColor(s.color)};--fg-c:${tfFg(tfColor(s.color))}">${label !== undefined ? esc(label) : `${s.emoji ? esc(s.emoji) + ' ' : `<span class="ini">${esc((String(s.name).trim().charAt(0) || '?').toUpperCase())}</span>`}<span class="tn">${esc(s.name)}</span>${tfPlBadge(pl)}`}</span>`; };
   const tfGhost = (s, who) => `<span class="tf-tag ghost" style="--c:${tfColor(s.color)}"><span class="who">${esc((String(who).trim().charAt(0) || '?').toUpperCase())}</span>${s.emoji ? esc(s.emoji) + ' ' : ''}<span class="tn">${esc(s.name)}</span></span>`;
@@ -1010,7 +1012,7 @@
     const h = (it.b - it.a) * ph / 60, w = 100 / lanes, c = tfColor(it.s.color);
     const pl = tfLayers().places ? tfPlaceOf(it.s, it.e) : null;
     const label = `${it.s.emoji ? esc(it.s.emoji) + ' ' : ''}${esc(it.s.name)}${tfPlBadge(pl)}`;
-    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-map="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
+    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
   };
   function tfTimeline(keys, big) {
     const L = keys.map(tfDayItems), ph = tfPh(big), tk = todayKey(), now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
@@ -1423,7 +1425,7 @@
     let mode = timed.length ? 'list' : 'once', sid = ([...timed].sort((x, y) => dist(x) - dist(y))[0] || state.calShifts[0] || {}).id || '';
     let wref;
     const f = { start: tfClockHm(at), end: tfClockHm(now), note: '', name: t('tfClockName'), job: '', place: '' };
-    const read = () => { if (!wref) return; const v = id => { const x = $('#' + id, wref); return x ? x.value : undefined; }; ['start', 'end', 'note', 'name', 'job', 'place'].forEach(n => { const x = v('tfc-' + n); if (x !== undefined) f[n] = x; }); const sx = v('tfc-sid'); if (sx !== undefined) sid = sx; };
+    const read = () => { if (!wref) return; const v = id => { const x = $('#' + id, wref); return x ? x.value : undefined; }; ['start', 'end', 'note', 'name', 'job', 'place'].forEach(n => { const x = v('tfc-' + n); if (x !== undefined) f[n] = x; }); const ps = $('#tfc-place', wref); if (ps) f.plx = ps.value === '*' ? ps.dataset.plx || '' : ''; const sx = v('tfc-sid'); if (sx !== undefined) sid = sx; };
     const draw = () => {
       const s = state.calShifts.find(x => x.id === sid);
       if (mode === 'list' && s && !f.jobTouched) f.job = s.jobId;
@@ -1432,7 +1434,7 @@
         <div class="seg seg-sm" role="group">${[['list', 'tfClockFromList'], ['once', 'tfOnce']].map(([m, l]) => `<button type="button" data-tfc-m="${m}" class="${mode === m ? 'on' : ''}" ${m === 'list' && !state.calShifts.length ? 'disabled' : ''}>${esc(t(l))}</button>`).join('')}</div>
         <div class="tf-form">${mode === 'list' ? tfField(t('tfPdfShift'), tfSel('id="tfc-sid"', state.calShifts.map(x => [x.id, (x.emoji ? x.emoji + ' ' : '') + x.name]), sid), true) : tfField(t('tfName'), `<input class="input" id="tfc-name" maxlength="40" value="${esc(f.name)}">`, true)}
         ${tfField(t('tfJob'), tfSel('id="tfc-job"', [...(mode === 'once' ? [['', t('tfOnceNoJob')]] : []), ...state.calJobs.map(j => [j.id, j.name])], f.job), true)}
-        ${tfField(t('tfPlace'), tfPlSelHtml('id="tfc-place"', f.place, mode === 'list' ? t('tfPlSame', { p: (tfPlace(s && s.placeId) || { name: t('tfPlNone') }).name }) : ''), true)}</div>
+        ${tfField(t('tfPlace'), tfPlSelHtml('id="tfc-place"', f.place, mode === 'list' ? t('tfPlSame', { p: (tfPlace(s && s.placeId) || { name: t('tfPlNone') }).name }) : '', f.plx), true)}</div>
         <textarea class="input" id="tfc-note" rows="2" maxlength="${TF.LIMITS.note}" placeholder="${esc(t('tfNotePh'))}">${esc(f.note)}</textarea></div>`;
     };
     openModal({
@@ -1451,10 +1453,10 @@
         const pl = f.place && f.place !== '+' ? f.place : '', note = String(f.note || '').slice(0, TF.LIMITS.note);
         if (mode === 'list') {
           const s = state.calShifts.find(x => x.id === sid); if (!s) return;
-          list.push({ sid: s.id, note, start: f.start, end: f.end, ...(f.job && f.job !== s.jobId ? { job: f.job } : {}), ...(pl === '-' || tfPlace(pl) ? { pl } : {}) });
+          list.push({ sid: s.id, note, start: f.start, end: f.end, ...(f.job && f.job !== s.jobId ? { job: f.job } : {}), ...(f.plx ? { plx: { addr: f.plx.slice(0, 300) } } : pl === '-' || tfPlace(pl) ? { pl } : {}) });
         } else {
           const name = String(f.name || '').trim() || t('tfClockName');
-          list.push({ sid: 'o_' + uid(), once: { name: name.slice(0, 40), emoji: '', color: cols[1], start: f.start, end: f.end, jobId: f.job || '', ...(tfPlace(pl) ? { placeId: pl } : {}) }, note, start: '', end: '' });
+          list.push({ sid: 'o_' + uid(), once: { name: name.slice(0, 40), emoji: '', color: cols[1], start: f.start, end: f.end, jobId: f.job || '', ...(f.plx ? { plx: { addr: f.plx.slice(0, 300) } } : tfPlace(pl) ? { placeId: pl } : {}) }, note, start: '', end: '' });
         }
         tfSetDay(k, list); state.calPrefs = { ...state.calPrefs, clock: null };
         close(); tfSave(); sfx('complete'); toast(t('tfClockSaved'));
@@ -1486,7 +1488,7 @@
         <div class="tf-form">${tfField(t('tfName'), `<input class="input" id="tfo-name" maxlength="40" value="${esc(o.name)}" placeholder="${esc(t('tfOncePh'))}">`)}${tfField(t('tfEmoji'), `<input class="input" id="tfo-emoji" maxlength="8" value="${esc(o.emoji)}">`)}
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfo-start" value="${esc(o.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfo-end" value="${esc(o.end)}">`)}
         ${tfField(t('tfOnceJob'), tfSel('id="tfo-job"', [['', t('tfOnceNoJob')], ...state.calJobs.map(j => [j.id, j.name])], o.jobId), true)}
-        ${tfField(t('tfPlace'), tfPlSelHtml('id="tfo-place"', o.placeId || ''), true)}</div>
+        ${tfField(t('tfPlace'), tfPlSelHtml('id="tfo-place"', o.placeId || '', '', o.plx && o.plx.addr), true)}</div>
         <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${cols.map(c => `<button type="button" class="sw ${o.color === c ? 'on' : ''}" data-tfo-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="tfo-color" value="${tfColor(o.color)}" aria-label="${esc(t('themeCustom'))}"></div></div></div>`,
       foot: `<button class="btn primary block" data-tfo="save">${ico('check')} ${esc(t('save'))}</button>`,
       onMount: w => tfPlSelWire(w),
@@ -1498,7 +1500,7 @@
         if (!name) { toast(t('tfNeedName')); return; }
         if (!!v('tfo-start') !== !!v('tfo-end')) { toast(t('tfBothTimes')); return; }
         const picked = v('tfo-color'); if (/^#[0-9a-fA-F]{6}$/.test(picked) && picked.toLowerCase() !== tfColor(o.color).toLowerCase()) o.color = picked;
-        const once = { name: name.slice(0, 40), emoji: v('tfo-emoji').trim().slice(0, 8), color: tfColor(o.color), start: v('tfo-start'), end: v('tfo-end'), jobId: v('tfo-job'), ...(tfPlace(v('tfo-place')) ? { placeId: v('tfo-place') } : {}) };
+        const once = { name: name.slice(0, 40), emoji: v('tfo-emoji').trim().slice(0, 8), color: tfColor(o.color), start: v('tfo-start'), end: v('tfo-end'), jobId: v('tfo-job'), ...(r => r.plx ? { plx: r.plx } : tfPlace(r.pl) ? { placeId: r.pl } : {})(tfPlRead($('#tfo-place', w))) };
         const next = [...(state.calDays[k] || [])];
         if (cur) next[i] = { ...cur, once, start: '', end: '' };
         else { if (next.length >= TF.LIMITS.perDay) { toast(t('tfRtFull')); return; } next.push({ sid: 'o_' + uid(), once, note: '', start: '', end: '' }); }
@@ -1519,7 +1521,7 @@
         ${list.map((e, i) => { const s = tfShift(e.sid); if (!s) return ''; const tm = TF.entryTimes(s, e); return `<div class="tf-entry" data-i="${i}"><div class="row" style="justify-content:space-between">${tfTag(s, 'big')}${s.once ? `<span class="muted small grow">${esc(t('tfOnce'))}</span><button class="icon-btn sm" data-tfd="once-edit" aria-label="${esc(t('edit'))}">${ico('edit')}</button>` : ''}<button class="icon-btn sm danger-text" data-tfd="del" aria-label="${esc(t('tfRemoveShift'))}">${ico('x')}</button></div>
           <div class="row" style="gap:8px"><input class="input grow" type="time" data-tfd-t="start" value="${esc(e.start || tm.start || '')}" aria-label="${esc(t('tfStart'))}"><input class="input grow" type="time" data-tfd-t="end" value="${esc(e.end || tm.end || '')}" aria-label="${esc(t('tfEnd'))}"><span class="muted small tf-hrs">${tfH(TF.entryHours(s, e, list))} h</span></div>
           ${tm.start && tm.end ? `<label class="row tf-brk" style="gap:8px"><span class="muted small grow">${esc(t('tfBrkDay'))}</span><input class="input" type="number" inputmode="numeric" data-tfd-brk min="0" max="720" style="width:90px" value="${Number.isFinite(e.brk) ? e.brk : ''}" placeholder="${TF.entryBreak(s, { sid: e.sid }, list)}" aria-label="${esc(t('tfBrkDay'))}"><span class="muted small">min</span></label>` : ''}
-          ${!s.once && state.calPlaces.length ? `<label class="row" style="gap:8px">${ico('pin', 'xs')}<span class="muted small">${esc(t('tfPlace'))}</span>${tfPlSelHtml('class="input grow" data-tfd-pl style="flex:1"', e.pl || '', t('tfPlSame', { p: (tfPlace(s.placeId) || { name: t('tfPlNone') }).name }))}</label>` : ''}
+          ${!s.once ? `<label class="row" style="gap:8px">${ico('pin', 'xs')}<span class="muted small">${esc(t('tfPlace'))}</span>${tfPlSelHtml('class="input grow" data-tfd-pl style="flex:1"', e.pl || '', t('tfPlSame', { p: (tfPlace(s.placeId) || { name: t('tfPlNone') }).name }), e.plx && e.plx.addr)}</label>` : ''}
           <input class="input" type="text" data-tfd-note maxlength="${TF.LIMITS.note}" value="${esc(e.note || '')}" placeholder="${esc(t('tfNotePh'))}" aria-label="${esc(t('tfNote'))}"></div>`; }).join('')}
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfDkTitle'))}</h3><div class="row wrap" style="gap:6px">${tfDayKinds().map(d => `<button class="tf-pal" data-tfd-dk="${esc(d.id)}" aria-pressed="${tfDkIds(k).includes(d.id)}">${tfDkTag(d, 'big')}</button>`).join('')}</div>
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button class="tf-pal" data-tfd-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}<button class="chip" data-tfd="once-new">${ico('plus')} ${esc(t('tfOnceNew'))}</button></div>
@@ -1540,7 +1542,7 @@
           if (e.target.matches('[data-tfd-t]')) { const which = e.target.dataset.tfdT; en[which] = e.target.value === s[which] ? '' : e.target.value; list[i] = en; tfSetDay(k, list); tfSave(false); draw(); }
           // v1.26: descanso solo de ese día (vacío = el del turno, o ninguno si el turno sale varias veces ese día)
           if (e.target.matches('[data-tfd-brk]')) { const v = e.target.value.trim(); if (v === '') delete en.brk; else en.brk = clamp(Math.round(+v) || 0, 0, 720); list[i] = en; tfSetDay(k, list); tfSave(false); draw(); }
-          if (e.target.matches('[data-tfd-pl]')) { const v = e.target.value; if (v === '+') return; if (v === '-' || tfPlace(v)) en.pl = v; else delete en.pl; list[i] = en; tfSetDay(k, list); tfSave(false); return; }
+          if (e.target.matches('[data-tfd-pl]')) { const v = e.target.value; if (v === '+' || (v === '*' && !e.target.dataset.plx)) return; const r = tfPlRead(e.target); delete en.pl; delete en.plx; if (r.plx) en.plx = r.plx; else if (r.pl === '-' || tfPlace(r.pl)) en.pl = r.pl; list[i] = en; tfSetDay(k, list); tfSave(false); return; }
           if (e.target.matches('[data-tfd-note]')) { en.note = e.target.value.slice(0, TF.LIMITS.note); list[i] = en; tfSetDay(k, list); save(); }
         });
       },
@@ -1730,13 +1732,37 @@
      las coordenadas. «Ver en Mapas» abre Apple Maps en iPhone, iPad y Mac, y Google Maps en lo demás. */
   const TF_PL_MAX = 60;
   const tfPlUses = id => state.calShifts.filter(s => s.placeId === id).length;
-  const tfPlSelHtml = (attr, val, same) => tfSel(`${attr} data-tf-plsel`, [...(same ? [['', same]] : []), [same ? '-' : '', t('tfPlNone')], ...state.calPlaces.map(p => [p.id, (p.icon ? p.icon + ' ' : '') + p.name]), ['+', t('tfPlNew')]], val);
-  // En un editor: elegir «+ Nuevo lugar» abre el editor de lugares y, al guardar, deja elegido el nuevo
+  // noOnce: sin «Lugar puntual» (en la plantilla del turno no tiene sentido). plx: la dirección puntual elegida (valor '*')
+  const tfPlSelHtml = (attr, val, same, plx, noOnce) => tfSel(`${attr} data-tf-plsel ${noOnce ? 'data-noonce="1"' : ''} data-plx="${esc(plx || '')}" data-prev="${esc(plx && !noOnce ? '*' : val || '')}"`, [...(same ? [['', same]] : []), [same ? '-' : '', t('tfPlNone')], ...state.calPlaces.map(p => [p.id, (p.icon ? p.icon + ' ' : '') + p.name]), ...(noOnce ? [] : [['*', plx ? t('tfPlOnceT') + ': ' + plx : t('tfPlOnce')]]), ['+', t('tfPlNew')]], plx && !noOnce ? '*' : val);
+  // Lo elegido en uno de esos desplegables: { pl } (id, '-' o '') o { plx: { addr } }
+  const tfPlRead = sel => sel.value === '*' && sel.dataset.plx ? { plx: { addr: sel.dataset.plx.slice(0, 300) } } : { pl: sel.value === '+' || sel.value === '*' ? '' : sel.value };
+  function tfPlOnceAsk(cur, done) {
+    openModal({
+      title: `${ico('pin')} ${esc(t('tfPlOnceT'))}`, cls: 'tf-sheet',
+      body: `<div class="stack" style="gap:10px"><p class="muted small" style="margin:0">${esc(t('tfPlOnceHint'))}</p><textarea class="input" id="tfpo" rows="2" maxlength="300" placeholder="${esc(t('tfPlOncePh'))}">${esc(cur || '')}</textarea>
+        <button type="button" class="btn sm ghost" data-tfpo="maps" style="align-self:flex-start">${ico('pin')} ${esc(t('tfPlInMaps'))}</button></div>`,
+      foot: `<button class="btn primary block" data-tfpo="ok">${ico('check')} ${esc(t('save'))}</button>`,
+      onMount: w => setTimeout(() => $('#tfpo', w)?.focus(), 50),
+      onClose: () => done(null),
+      onClick: (e, close, w) => {
+        const b = e.target.closest('[data-tfpo]'); if (!b) return;
+        const v = $('#tfpo', w).value.trim();
+        if (b.dataset.tfpo === 'maps') { if (v) tfOpenMaps({ addr: v }); return; }
+        if (!v) { toast(t('tfPlOncePh')); return; }
+        done = (d => x => { d(x); d = () => {}; })(done); done(v); close();
+      }
+    });
+  }
+  // En un editor: «+ Nuevo lugar» abre el editor de lugares y «Lugar puntual…» pide una dirección solo para esa vez
   const tfPlSelWire = w => w.addEventListener('change', e => {
-    const sel = e.target.closest('select[data-tf-plsel]'); if (!sel) return;
-    if (sel.value !== '+') { sel.dataset.prev = sel.value; return; }
-    sel.value = sel.dataset.prev || (sel.options[0] && sel.options[0].value) || '';
-    tfEditPlace(null, id => { const same = sel.querySelector('option[value="-"]') ? sel.options[0].textContent : ''; const tmp = document.createElement('div'); tmp.innerHTML = tfPlSelHtml('', id, same); const n = tmp.firstElementChild; sel.innerHTML = n.innerHTML; sel.value = id; sel.dataset.prev = id; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+    const sel = e.target.closest('select[data-tf-plsel]'); if (!sel || e.detail === 'tfpl') return;
+    if (sel.value !== '+' && sel.value !== '*') { sel.dataset.prev = sel.value; return; }
+    const pick = sel.value;
+    sel.value = sel.dataset.prev !== undefined ? sel.dataset.prev : (sel.dataset.plx ? '*' : (sel.options[0] && sel.options[0].value) || '');
+    const same = sel.querySelector('option[value="-"]') ? sel.options[0].textContent : '';
+    const rebuild = (val, plx) => { const tmp = document.createElement('div'); tmp.innerHTML = tfPlSelHtml('', val, same, plx, sel.dataset.noonce === '1'); const n = tmp.firstElementChild; sel.innerHTML = n.innerHTML; sel.dataset.plx = plx || ''; sel.value = plx ? '*' : val; sel.dataset.prev = sel.value; sel.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: 'tfpl' })); };
+    if (pick === '+') tfEditPlace(null, id => rebuild(id, ''));
+    else tfPlOnceAsk(sel.dataset.plx, v => { if (v) rebuild('', v); });
   });
   const tfOpenMaps = p => { const u = KGPlaces.mapUrl(p, tfIsApple()); if (u) window.open(u, '_blank', 'noopener'); };
   // v1.26: un evento de un calendario importado, con su hora y su lugar (si lo tiene)
@@ -2021,7 +2047,7 @@
       body: `<div class="tf-form">${tfField(t('tfName'), `<input class="input" id="tfe-name" maxlength="100" value="${esc(d.name)}">`)}${tfField(t('tfEmoji'), `<input class="input" id="tfe-emoji" maxlength="8" value="${esc(d.emoji)}">`)}
         ${tfField(t('tfColor'), `<input class="tf-swatch" type="color" id="tfe-color" value="${tfColor(d.color)}" aria-label="${esc(t('tfColor'))}">`)}${tfField(t('tfJob'), tfSel('id="tfe-job"', state.calJobs.map(j => [j.id, j.name]), d.jobId))}
         <div class="field full" id="tfe-rate-box"></div>
-        ${tfField(t('tfPlace'), tfPlSelHtml('id="tfe-place"', d.placeId || ''), true)}
+        ${tfField(t('tfPlace'), tfPlSelHtml('id="tfe-place"', d.placeId || '', '', '', true), true)}
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfe-start" value="${esc(d.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfe-end" value="${esc(d.end)}">`)}
         ${tfField(t('tfBreak'), `<input class="input" type="number" id="tfe-brk" min="0" max="720" value="${d.breakMin}">`)}${tfField(t('tfAlarm'), `<input class="input" type="number" id="tfe-alarm" min="0" max="1440" value="${d.alarmMin}">`)}</div>`,
       foot: `${isNew ? '' : `<button class="btn danger" data-tfe="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-tfe="save">${esc(t('save'))}</button>`,
@@ -4037,7 +4063,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.26', [['1.26.0', 8]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
