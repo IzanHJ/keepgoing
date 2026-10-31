@@ -71,4 +71,11 @@ test('v1.25: PDF con colores de día, notas largas, valoraciones y Detalle', () 
   // Rango de dos meses: dos hojas de calendario
   const r2 = P.rangePdf(d, '2026-10-20', '2026-11-10', 1, new Date(), null, { table: false });
   assert.strictEqual(r2.pages, 2);
+  // v1.27: notas del día entero (sin hora), en la casilla y en el Detalle
+  const L3 = { months: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'], dow: ['D', 'L', 'M', 'X', 'J', 'V', 'S'], heads: ['F', 'T', 'H', 'D', 'h', 'N'], allDay: 'Todo el dia', gap: 'Nota', detail: 'Detalle', total: 'Total', shifts: 'Turnos', more: 'mas', generated: 'Hecho', locale: 'es', file: 'x' };
+  const r3 = P.rangePdf(d, '2026-10-01', '2026-10-31', 1, new Date(), L3, { detail: true, layers: { shifts: true, notes: true, text: true }, gaps: { '2026-10-09': [{ a: '', b: '', t: 'Leer Dune 30', tp: 'tp_read' }] } });
+  const s3 = Buffer.from(r3.bytes).toString('latin1');
+  assert.ok(s3.includes('(Leer Dune 30) Tj'), 'nota del día entero');
+  assert.ok(s3.includes('(Todo el dia) Tj'), 'sin horas en el Detalle');
+  assert.ok(!s3.includes('( - ) Tj') && !s3.includes('(-Leer'), 'sin guion de horas vacías');
 });

@@ -2370,3 +2370,28 @@ body.orb-open { overflow: hidden; }
 .br-lines .l { stroke: var(--line); }
 .br-lines .lw { stroke: var(--accent); stroke-width: 2.5; animation-delay: .7s; }
 @keyframes brIn { from { opacity: 0; transform: translateX(-24px) scale(.9); } to { opacity: 1; transform: none; } }
+
+/* v1.27: Organización — «Nombres» apagado también en Día y Semana, notas a la vista */
+.ly-notext .tf-blk > b { display: none; }
+.tf-blk-note { display: flex !important; gap: 3px; align-items: flex-start; white-space: normal !important; line-height: 1.25; overflow: hidden; }
+.tf-blk-note svg.i { width: 10px; height: 10px; flex: none; margin-top: 1px; }
+.tf-tl:not(.big) .tf-blk-note svg.i { display: none; }
+.tf-cell .n .tf-nn { display: inline-flex; align-items: center; gap: 1px; color: var(--muted); margin-left: auto; margin-right: 2px; }
+.tf-cell .n .tf-nn svg.i { width: 10px; height: 10px; }
+@media (max-width: 520px) { .tf-cell .tf-dnote { display: none; } }
+.tf-note-row { width: 100%; border: 0; text-align: left; cursor: pointer; font: inherit; }
+.tf-zclip.zooming { overflow: hidden; }
+/* v1.27: plantillas de notas */
+.tf-gapn[style*="--nc"] { border-color: var(--nc); background: color-mix(in srgb, var(--nc) 16%, var(--surface-2)); }
+.tf-gapn[style*="--nc"] > svg.i { color: var(--nc); }
+.tf-gapn-all { position: static; display: flex; margin-top: 2px; }
+.tf-all-note[style*="--nc"] { box-shadow: inset 3px 0 0 var(--nc); }
+.tf-all-note[style*="--nc"] > svg.i { color: var(--nc); }
+.tf-tpl-chip svg.i { color: var(--c); }
+.nt-ic { color: var(--nc); }
+.nt-icp[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.nt-prog { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 3px 0 0 var(--nc); }
+.nt-bar { height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--fg) 10%, transparent); overflow: hidden; }
+.nt-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--nc, var(--accent)); transition: width .3s ease; }
+.nt-rep { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 3px 0 0 var(--nc); }
+.nt-key { display: flex; flex-direction: column; gap: 4px; }
