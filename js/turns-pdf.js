@@ -148,7 +148,7 @@
         }
       }
       // v1.26: notas en huecos entre turnos, con su hora
-      if (LY.notes) for (const g of gaps[k] || []) for (const ln of wrap(g.a + '-' + g.b + ' ' + g.t, 6.5, false, cw - 12)) out.push({ kind: 'note', h: NOTE, label: ln, indent: 6 });
+      if (LY.notes) for (const g of gaps[k] || []) for (const ln of wrap((g.a ? g.a + '-' + g.b + ' ' : '') + g.t, 6.5, false, cw - 12)) out.push({ kind: 'note', h: NOTE, label: ln, indent: 6 });
       if (LY.notes && notes[k]) for (const ln of wrap(notes[k], 7, false, cw - 10)) out.push({ kind: 'dnote', h: NOTE + 0.5, label: ln });
       return out;
     }
@@ -275,7 +275,7 @@
           nl.forEach((ln, i) => p.text(cols[1], y - i * 11, ln, 9, false, DARK));
         } else if (r.gap) {
           p.text(cols[1] + 12, y, fit(L.gap || 'Nota', 9, true, cols[2] - cols[1] - 20), 9, true, GRAY);
-          p.text(cols[2], y, r.gap.a + ' - ' + r.gap.b, 9, false, DARK);
+          p.text(cols[2], y, r.gap.a ? r.gap.a + ' - ' + r.gap.b : (L.allDay || ''), 9, false, DARK);
           nl.forEach((ln, i) => p.text(cols[5], y - i * 11, ln, 9, false, DARK));
         } else {
           const { e, s } = r, hrs = T.entryHours(s, e, data.days[r.k]), t = T.entryTimes(s, e); if (!(s.once && !s.jobId)) total += hrs;
