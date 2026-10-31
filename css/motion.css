@@ -1,0 +1,84 @@
+/* =========================================================
+   KeepGoing v1.29 — movimiento
+   Curvas (de la guía de animación): salir/entrar = ease-out fuerte; moverse en pantalla = ease-in-out;
+   cajones = curva de iOS. Todo respeta Ajustes → Animaciones (data-motion en <html>).
+   ========================================================= */
+:root {
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+  --ease-in-out: cubic-bezier(.77, 0, .175, 1);
+  --ease-drawer: cubic-bezier(.32, .72, 0, 1);
+  --ease-spring: cubic-bezier(.3, 1.4, .5, 1);
+}
+
+/* ---------- cerrar hojas: bajan y el fondo se funde ---------- */
+.backdrop.out { animation: kgFadeOut .2s var(--ease-out) forwards; pointer-events: none; }
+.backdrop.out .sheet:not(.imm) { animation: kgSheetOut .2s var(--ease-out) forwards; }
+.backdrop.cv.out .sheet { animation: none; }
+.backdrop.cv.out .card-view-cap, .backdrop.cv.out .sheet > .row { animation: kgFadeOut .15s ease forwards; }
+@keyframes kgFadeOut { to { opacity: 0; } }
+@keyframes kgSheetOut { to { opacity: 0; transform: translateY(30px) scale(.98); } }
+.backdrop.imm-wrap.out { animation: kgFadeOut .42s ease forwards; }
+
+/* ---------- cartas y maestrías: siempre centradas (también en el móvil) ---------- */
+.backdrop.cv { align-items: center; justify-content: center; padding: 16px calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l)); }
+.backdrop.cv .sheet.card-view { position: relative; z-index: 1; padding: 0; margin: 0 auto; max-height: none; overflow: visible; }
+.backdrop.cv .ach-fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.backdrop.cv .ach-rays { left: var(--cx, 50%); top: var(--cy, 42%); width: min(760px, 190vmin); height: min(760px, 190vmin); margin: 0; translate: -50% -50%; }
+.ach-fx.lite .ach-rays { animation: achRaysIn 1.4s .1s var(--ease-out) forwards, achSpin 40s linear infinite; filter: saturate(.8); }
+.ach-fx.lite .ach-rays { --lite: .6; }
+.ach-fx.lite { opacity: .75; }
+.ach.lite .flip .kcard-face::after { animation-delay: .45s; }
+/* brillo que sigue la inclinación */
+.ach .flip .kcard-face::before { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit;
+  background: radial-gradient(circle at var(--gx, 50%) 20%, rgba(255,255,255,.22), transparent 55%); mix-blend-mode: soft-light; }
+
+/* ---------- pantallas inmersivas (perfil, diario, valoración) ---------- */
+.backdrop:has(> .sheet.imm) { padding: 0; align-items: stretch; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.sheet.imm { position: relative; width: 100%; max-width: none; height: 100vh; height: 100dvh; max-height: none; border-radius: 0; border: 0;
+  padding: calc(10px + var(--safe-t)) calc(18px + var(--safe-r)) calc(30px + var(--safe-b)) calc(18px + var(--safe-l));
+  background:
+    radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--accent) 95%, #fff) 0%, var(--accent) 30%, color-mix(in srgb, var(--accent) 45%, var(--bg)) 52%, var(--bg) 78%) no-repeat,
+    var(--bg);
+  background-attachment: local, scroll;
+  box-shadow: none; }
+:root[data-style="glass"] .sheet.imm {
+  background:
+    radial-gradient(70% 40% at 20% 0%, color-mix(in srgb, var(--accent) 70%, transparent), transparent 70%),
+    radial-gradient(70% 45% at 90% 10%, var(--aurora-b), transparent 70%),
+    color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(30px) saturate(1.6); -webkit-backdrop-filter: blur(30px) saturate(1.6); }
+.sheet.imm .sheet-grab { display: none; }
+.sheet.imm .sheet-head { position: sticky; top: 0; z-index: 3; margin: 0 -6px 4px; padding: 4px 6px; }
+.sheet.imm .sheet-head h2 { color: var(--accent-ink); font-size: 15px; letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
+:root[data-style="glass"] .sheet.imm .sheet-head h2 { color: var(--fg); }
+.sheet.imm .sheet-body { max-width: 760px; margin: 0 auto; }
+.imm-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 8px 0 18px; color: var(--accent-ink); }
+:root[data-style="glass"] .imm-hero { color: var(--fg); }
+.imm-hero .prof-name { font-size: clamp(30px, 8vw, 44px); margin: 8px 0 0; }
+.imm-hero .prof-lvl, .imm-hero .prof-tag { color: inherit; opacity: .85; }
+.imm-hero .me-avatar { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent-ink) 14%, transparent), 0 18px 50px rgba(0,0,0,.35); }
+.imm-hero .link-btn { color: inherit; }
+.imm-stats { display: flex; gap: clamp(18px, 7vw, 40px); margin-top: 10px; }
+.imm-stats div { display: flex; flex-direction: column; align-items: center; }
+.imm-stats b { font-size: clamp(26px, 7vw, 34px); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.imm-stats span { font-size: 12px; font-weight: 600; opacity: .75; max-width: 110px; }
+.imm-since { font-size: 12px; opacity: .7; }
+.imm-ring { position: fixed; z-index: 5; pointer-events: none; }
+@media (min-width: 700px) { .sheet.imm { border-radius: 0; } }
+
+/* ---------- primer registro: icono que nace del centro ---------- */
+.pfx-ico { width: min(34vw, 150px); height: min(34vw, 150px); border-radius: 50%; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent-ink) 12%, transparent); box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent-ink) 6%, transparent);
+  opacity: 0; transform: scale(.3) rotate(-30deg); animation: pfxIco .7s var(--ease-spring) .55s forwards; }
+.pfx-ico svg.i { width: 46%; height: 46%; stroke-width: 1.6; }
+.pfx.first .pfx-t { animation-delay: .85s; }
+.pfx-sub { margin: 0; max-width: 300px; font-size: 15px; font-weight: 600; opacity: 0; animation: fade .4s ease 1.1s forwards; }
+@keyframes pfxIco { to { opacity: 1; transform: none; } }
+:root[data-style="glass"] .pfx-bg { background: radial-gradient(circle at var(--ox) var(--oy), color-mix(in srgb, var(--accent) 70%, #fff) 0%, color-mix(in srgb, var(--accent) 80%, var(--bg)) 35%, color-mix(in srgb, var(--bg) 85%, var(--accent)) 100%); }
+
+/* ---------- reducido: fundidos en vez de movimiento ---------- */
+:root:is([data-motion="soft"], [data-motion="off"]) .pfx-ico, :root:is([data-motion="soft"], [data-motion="off"]) .pfx-sub { opacity: 1; transform: none; }
+:root[data-motion="soft"] .backdrop.out { animation: kgFadeOut .2s ease forwards !important; }
+/* la hoja de la carta es invisible en todos los temas (los degradados le ponían fondo) */
+.backdrop.cv .sheet.card-view { background: transparent !important; border: 0 !important; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.backdrop.cv .sheet.card-view .sheet-body { width: 100%; } .backdrop.cv .flip { margin-left: auto; margin-right: auto; }
