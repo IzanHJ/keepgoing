@@ -1,0 +1,113 @@
+/* =========================================================
+   KeepGoing v1.29 — GLASSFORMISMO
+   Estilo «glass» del tema (data-style="glass" en <html>, lo pone applyTheme()).
+   Un vacío de espacio profundo con auroras y estrellas; encima, superficies de cristal
+   translúcidas con desenfoque, borde fino y un brillo en el canto superior. Sin sombras
+   proyectadas: la profundidad sale de lo que se ve borroso detrás.
+   Variables (calculadas en app.js para todos los estilos, para que otras partes puedan usarlas):
+   --glass-bg, --glass-bg-2, --glass-border, --glass-blur, --glass-hi, --glow, --aurora-a, --aurora-b
+   ========================================================= */
+:root[data-style="glass"] {
+  --r-xl: 26px; --r-lg: 22px; --r-md: 16px; --r-sm: 12px;
+  --sh-out: none;
+  --sh-in: var(--glass-hi);
+  --sh-press: inset 0 0 0 1px var(--glass-border), inset 0 6px 18px rgba(0, 0, 0, .25);
+}
+
+/* ---------- el vacío: auroras que respiran y un campo de estrellas ---------- */
+:root[data-style="glass"] body { background: var(--bg); }
+:root[data-style="glass"] body::before,
+:root[data-style="glass"] body::after { content: ""; position: fixed; inset: -20%; z-index: -1; pointer-events: none; }
+:root[data-style="glass"] body::before {
+  background:
+    radial-gradient(40% 35% at 18% 12%, var(--aurora-a), transparent 70%),
+    radial-gradient(45% 40% at 88% 30%, var(--aurora-b), transparent 70%),
+    radial-gradient(60% 45% at 50% 110%, var(--aurora-b), transparent 70%),
+    var(--app-bg);
+  animation: glAurora 26s ease-in-out infinite alternate;
+}
+:root[data-style="glass"][data-light="0"] body::after {
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,.8), transparent 60%),
+    radial-gradient(1px 1px at 72% 8%, rgba(255,255,255,.6), transparent 60%),
+    radial-gradient(1.5px 1.5px at 38% 62%, rgba(255,255,255,.7), transparent 60%),
+    radial-gradient(1px 1px at 86% 72%, rgba(255,255,255,.55), transparent 60%),
+    radial-gradient(1px 1px at 22% 88%, rgba(255,255,255,.5), transparent 60%),
+    radial-gradient(1.5px 1.5px at 58% 34%, rgba(255,255,255,.65), transparent 60%),
+    radial-gradient(1px 1px at 94% 44%, rgba(255,255,255,.5), transparent 60%),
+    radial-gradient(1px 1px at 6% 50%, rgba(255,255,255,.6), transparent 60%);
+  background-size: 420px 420px;
+  animation: glStars 9s ease-in-out infinite alternate;
+}
+@keyframes glAurora { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(3%, -2%, 0) scale(1.06); } 100% { transform: translate3d(-3%, 2%, 0) scale(1.02); } }
+@keyframes glStars { from { opacity: .45; } to { opacity: .95; } }
+
+/* ---------- superficies de cristal ---------- */
+:root[data-style="glass"] .clay,
+:root[data-style="glass"] .kpi,
+:root[data-style="glass"] .icon-btn,
+:root[data-style="glass"] .pill-group,
+:root[data-style="glass"] .tf-menu,
+:root[data-style="glass"] .calc-box {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-hi);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+:root[data-style="glass"] .clay { background: linear-gradient(135deg, rgba(255,255,255,.08), transparent 40%), var(--glass-bg); }
+:root[data-style="glass"][data-light="1"] .clay { background: linear-gradient(135deg, rgba(255,255,255,.5), transparent 42%), var(--glass-bg); }
+
+/* ---------- botones y controles ---------- */
+:root[data-style="glass"] .btn {
+  background: var(--glass-bg-2); border: 1px solid var(--glass-border); box-shadow: var(--glass-hi);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+}
+:root[data-style="glass"] .btn.primary { background: var(--fg); color: var(--bg); border-color: transparent; }
+:root[data-style="glass"] .btn.accent { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: var(--glow); }
+:root[data-style="glass"] .btn.ghost { background: transparent; border-color: transparent; backdrop-filter: none; }
+:root[data-style="glass"] .btn.danger { background: #e5484d; border-color: transparent; }
+:root[data-style="glass"] .chip { background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: none; }
+:root[data-style="glass"] .chip.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: var(--glow); }
+:root[data-style="glass"] .seg { background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: none; }
+:root[data-style="glass"] .seg button.on { background: var(--fg); color: var(--bg); box-shadow: none; }
+:root[data-style="glass"] .input { background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: none; }
+:root[data-style="glass"] .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); outline: none; }
+:root[data-style="glass"] .btn:active, :root[data-style="glass"] .icon-btn:active, :root[data-style="glass"] .chip:active { box-shadow: var(--sh-press); }
+
+/* ---------- hojas y diálogos: cristal denso sobre un velo borroso ---------- */
+:root[data-style="glass"] .backdrop { background: rgba(0, 0, 0, .35); backdrop-filter: blur(10px) saturate(1.2); -webkit-backdrop-filter: blur(10px) saturate(1.2); }
+:root[data-style="glass"] .sheet:not(.card-view):not(.rate-imm):not(.jr-sheet):not(.imm) {
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  border: 1px solid var(--glass-border); border-bottom: 0;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .35), var(--glass-hi);
+  backdrop-filter: blur(30px) saturate(1.8); -webkit-backdrop-filter: blur(30px) saturate(1.8);
+}
+:root[data-style="glass"][data-light="1"] .sheet:not(.card-view):not(.rate-imm):not(.jr-sheet):not(.imm) { background: rgba(255, 255, 255, .72); }
+:root[data-style="glass"] .sheet-grab { background: var(--glass-border); }
+:root[data-style="glass"] .toast { background: color-mix(in srgb, var(--fg) 88%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+
+/* ---------- orbe y lunas de cristal ---------- */
+:root[data-style="glass"] .orb {
+  background: radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--accent) 70%, #fff) 0%, var(--accent) 45%, color-mix(in srgb, var(--accent) 55%, #000) 100%);
+  border: 1px solid rgba(255, 255, 255, .35);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 12%, transparent), 0 0 40px color-mix(in srgb, var(--accent) 55%, transparent), inset 0 1px 0 rgba(255,255,255,.5);
+}
+:root[data-style="glass"] .moon { background: var(--glass-bg-2); border: 1px solid var(--glass-border); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+:root[data-style="glass"] .moon.cur { border-color: var(--accent); box-shadow: var(--glow); }
+
+/* ---------- detalles que en clay eran relieve ---------- */
+:root[data-style="glass"] .acc-ico, :root[data-style="glass"] .tool-ico { box-shadow: none; border: 1px solid var(--glass-border); background: var(--glass-bg-2); }
+:root[data-style="glass"] .tf-cell { box-shadow: none; border: 1px solid var(--glass-border); }
+:root[data-style="glass"] .bar { background: var(--glass-bg-2); box-shadow: none; }
+:root[data-style="glass"] .bar i { box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent); }
+:root[data-style="glass"] .habit-ico { box-shadow: none; border: 1px solid var(--glass-border); }
+:root[data-style="glass"] .switch span { box-shadow: none; border: 1px solid var(--glass-border); }
+
+/* ---------- títulos con un leve brillo estelar ---------- */
+:root[data-style="glass"][data-light="0"] .page-title { text-shadow: 0 0 28px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* Sin movimiento: auroras y estrellas quietas (la regla global de app.css ya para el resto) */
+:root:is([data-motion="soft"], [data-motion="off"])[data-style="glass"] body::before,
+:root:is([data-motion="soft"], [data-motion="off"])[data-style="glass"] body::after { animation: none !important; }

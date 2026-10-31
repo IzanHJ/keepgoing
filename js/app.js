@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.30.0';
+  const VERSION = '1.31.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -54,6 +54,10 @@
 
   const PRESETS = [
     { id: 'noche', es: 'Noche', en: 'Night', bg: '#000000', fg: '#ffffff', accent: '#3ddc97' },
+    // v1.29: Glassformismo (cristal sobre espacio profundo)
+    { id: 'nebulosa', es: 'Nebulosa', en: 'Nebula', bg: '#03040b', bg2: '#1a1145', fg: '#f4f5ff', accent: '#8f7cff', bgMode: 'gradient', style: 'glass' },
+    { id: 'portal', es: 'Portal', en: 'Portal', bg: '#000000', bg2: '#062a33', fg: '#effcff', accent: '#41e6d2', bgMode: 'gradient', style: 'glass' },
+    { id: 'cristal', es: 'Cristal', en: 'Crystal', bg: '#eef1fb', bg2: '#d6defa', fg: '#0d1330', accent: '#5b5cf0', bgMode: 'gradient', style: 'glass' },
     { id: 'papel', es: 'Papel', en: 'Paper', bg: '#f1f1f4', fg: '#111111', accent: '#2f6bff' },
     { id: 'grafito', es: 'Grafito', en: 'Graphite', bg: '#1b1e24', fg: '#e9eef5', accent: '#7aa2ff' },
     { id: 'menta', es: 'Menta', en: 'Mint', bg: '#dcf3e7', fg: '#0f3a29', accent: '#109e66' },
@@ -460,13 +464,28 @@
       T.surfaceHex = mix(th.bg, th.fg, .11);
       surface = T.surfaceHex; s2 = mix(th.bg, th.fg, .17); s3 = mix(th.bg, th.fg, .25);
     }
+    // v1.29: Glassformismo. Superficies translúcidas con desenfoque y borde fino sobre un fondo de espacio profundo
+    const glass = th.style === 'glass';
+    if (glass) {
+      T.surfaceHex = mix(base, th.fg, light ? .06 : .1);
+      surface = light ? 'rgba(255,255,255,.46)' : rgba(th.fg, .06);
+      s2 = light ? 'rgba(255,255,255,.6)' : rgba(th.fg, .1);
+      s3 = light ? rgba(th.fg, .1) : rgba(th.fg, .16);
+    }
     const r = document.documentElement;
     const css = {
       '--bg': th.bg, '--fg': th.fg, '--accent': th.accent, '--accent-ink': ink(th.accent),
       '--app-bg': grad ? `linear-gradient(160deg, ${th.bg}, ${th.bg2})` : th.bg,
       '--surface': surface, '--surface-2': s2, '--surface-3': s3, '--surface-solid': mix(base, th.fg, light ? .04 : .12),
       '--muted': mix(th.fg, base, .45), '--line': rgba(th.fg, .1),
-      '--glass': grad ? 'blur(18px) saturate(1.3)' : 'none',
+      '--glass': glass ? 'blur(22px) saturate(1.7)' : grad ? 'blur(18px) saturate(1.3)' : 'none',
+      '--glass-blur': 'blur(22px) saturate(1.7)',
+      '--glass-bg': light ? 'rgba(255,255,255,.46)' : rgba(th.fg, .06),
+      '--glass-bg-2': light ? 'rgba(255,255,255,.66)' : rgba(th.fg, .11),
+      '--glass-border': light ? 'rgba(255,255,255,.75)' : rgba(th.fg, .13),
+      '--glass-hi': light ? 'inset 0 1px 0 rgba(255,255,255,.9)' : `inset 0 1px 0 ${rgba(th.fg, .18)}`,
+      '--glow': `0 0 32px ${rgba(th.accent, .45)}`,
+      '--aurora-a': rgba(th.accent, light ? .28 : .32), '--aurora-b': rgba(grad ? th.bg2 : mix(th.accent, '#7a5cff', .6), light ? .3 : .45),
       '--sh-out': light ? '0 14px 28px rgba(20,20,45,.13), 0 3px 6px rgba(20,20,45,.07)' : '0 14px 30px rgba(0,0,0,.55), 0 2px 4px rgba(0,0,0,.3)',
       '--sh-in': light ? 'inset 0 3px 2px rgba(255,255,255,.85), inset 0 -8px 16px rgba(20,20,45,.08)' : 'inset 0 2px 1px rgba(255,255,255,.07), inset 0 -8px 16px rgba(0,0,0,.35)',
       '--sh-press': light ? 'inset 0 4px 10px rgba(20,20,45,.16)' : 'inset 0 4px 12px rgba(0,0,0,.5)',
@@ -634,7 +653,7 @@
     if (v > before && day.perfect && !snap.day.perfect && k === todayKey()) setTimeout(() => perfectFx(k), 160); // v1.27
     const gain = day.cpts - snap.day.cpts;
     if (gain > 1e-9) setTimeout(() => { pointsPop(gain); if (!(lvl > snap.lvl) && !(day.perfect && !snap.day.perfect) && !(done && !snap.done)) sfx('points'); }, 120);
-    if (lvl > snap.lvl) setTimeout(() => { toast(t('levelUpToast', { n: lvl, title: levelTitle(lvl) })); const k = PETS.KINDS.find(x => PET_LEVEL[x] > snap.lvl && PET_LEVEL[x] <= lvl); if (k) setTimeout(() => toast(t('petUnlocked_' + k)), 2600); }, 200);
+    if (lvl > snap.lvl) setTimeout(() => { toast(t('levelUpToast', { n: lvl, title: levelTitle(lvl) })); }, 200);
   }
   /* v1.27: logo de KeepGoing en piezas para animarlo (las cinco llamas, las dos curvas y la cinta) */
   const KG_LOGO = () => `<svg class="kg-logo" viewBox="0 0 512 512" aria-hidden="true"><g transform="translate(44 30) scale(.828)">
@@ -674,6 +693,52 @@
     el.addEventListener('click', end);
     setTimeout(end, rm ? 2200 : 3600);
   }
+  /* v1.29: misma puesta en escena que el día perfecto para otros momentos (primer registro de una pestaña…).
+     inner = HTML del centro; los <b data-cnt> cuentan hacia arriba. Se cierra tocando o sola. */
+  function takeoverFx(inner, { hold = 3400, cls = '' } = {}) {
+    if (document.querySelector('.pfx')) return;
+    const o = lastTap && Date.now() - lastTap.at < 4000 ? lastTap : { x: innerWidth / 2, y: innerHeight / 2 };
+    const el = document.createElement('div'); el.className = 'pfx ' + cls; el.setAttribute('role', 'status');
+    el.style.setProperty('--ox', o.x + 'px'); el.style.setProperty('--oy', o.y + 'px');
+    el.innerHTML = `<div class="pfx-bg"></div><div class="pfx-ring"></div><div class="pfx-in">${inner}<p class="pfx-hint">${esc(t('pfxTap'))}</p></div>`;
+    document.body.appendChild(el);
+    vibrate([15, 50, 30]); sfx('unlock');
+    const rm = reducedMotion();
+    $$('[data-cnt]', el).forEach(b => {
+      const to = +b.dataset.cnt, t0 = performance.now(), dur = rm ? 0 : 900;
+      const step = now => { const p = dur ? Math.min(1, (now - t0 - 900) / dur) : 1; b.textContent = p <= 0 ? 0 : Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    let gone = false;
+    const end = () => {
+      if (gone) return; gone = true;
+      el.style.setProperty('--tx', o.x + 'px'); el.style.setProperty('--ty', o.y + 'px');
+      el.classList.add('out'); setTimeout(() => el.remove(), rm ? 150 : 650);
+    };
+    el.addEventListener('click', end);
+    setTimeout(end, rm ? 2000 : hold);
+  }
+  /* v1.29: primer registro en cada pestaña. state.firsts[clave] = fecha. Quien ya tenía datos no lo ve (se marca al cargar). */
+  const FIRSTS = { habits: 'checklist', projects: 'folder', cal: 'calendar', ledger: 'wallet', chat: 'chat', journal: 'book', rate: 'sparkle' };
+  function firstTime(kind, isFirst = true) {
+    if (!state.firsts) state.firsts = {};
+    if (state.firsts[kind]) return;
+    state.firsts[kind] = todayKey(); save();
+    if (!isFirst) return;
+    setTimeout(() => takeoverFx(`<div class="pfx-ico">${ico(FIRSTS[kind] || 'sparkle')}</div><h2 class="pfx-t">${esc(t('first_' + kind))}</h2><p class="pfx-sub">${esc(t('firstSub_' + kind))}</p>`, { cls: 'first' }), 350);
+  }
+  function initFirsts() {
+    if (state.firsts) return;
+    const f = {}, d = todayKey();
+    if (state.habits.length) f.habits = d;
+    if (state.projects.length) f.projects = d;
+    if ((state.calShifts || []).length || Object.keys(state.calNotes || {}).length || Object.keys(state.calDays || {}).length) f.cal = d;
+    if (state.ledgerVault || (state.ledgerEntries || []).length) f.ledger = d;
+    if (Object.keys(state.dayRate || {}).length) f.rate = d;
+    state.firsts = f;
+  }
+  initFirsts();
+
   // «+2,5 pts» que sube junto a la insignia de nivel
   function pointsPop(n) {
     const pill = $('.lvl-pill'); if (!pill) return;
@@ -2512,7 +2577,7 @@
     let job = state.calJobs.find(j => paid ? j.paid !== false : j.paid === false);
     if (!job && !paid && state.calJobs.length < TF.LIMITS.jobs) { job = { id: TF.uid(), name: t('tfRtPersonal'), color: '#8a94a6', paid: false, rate: 0, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [] }; state.calJobs.push(job); }
     const s = { id: TF.uid(), jobId: (job || state.calJobs[0]).id, name, emoji: '', color, kind, start: start || '', end: end || '', breakMin: 0, diffPct: 0, alarmMin: 0 };
-    state.calShifts.push(s); return s.id;
+    state.calShifts.push(s); firstTime('cal', state.calShifts.length === 1); return s.id;
   }
   function tfAddTemplate(key) {
     const T = TF_RT_TPL[key]; if (!T) return;
@@ -3566,7 +3631,7 @@
           if (isNew && !gateAdd('habits', activeHabitCount())) return;
           if (isNew) {
             target = { id: uid(), ...props, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], createdAt: todayKey(), archived: false };
-            state.habits.push(target);
+            state.habits.push(target); firstTime('habits', state.habits.length === 1);
           } else {
             // Continuidad: si cambia la regla, los días pasados se quedan con la anterior (hasta hoy, sin incluirlo)
             const ruleOf = x => JSON.stringify(RULE_KEYS.map(k => x[k] ?? null)), today = todayKey(), changed = ruleOf(h) !== ruleOf(props);
@@ -3916,7 +3981,7 @@
           if (!f.name) { toast(t('projectNeedName')); $('#pf-name', w).focus(); return; }
           const share = f.share; delete f.share;
           if (isNew && !gateAdd('projects', state.projects.length)) return;
-          if (isNew) { f.id = uid(); f.createdAt = todayKey(); state.projects.push(f); }
+          if (isNew) { f.id = uid(); f.createdAt = todayKey(); state.projects.push(f); firstTime('projects', state.projects.length === 1); }
           else { Object.assign(p, f); if (!f.hideCal) delete p.hideCal; }
           save(); close(); state.ui.tab = 'habits'; render();
           const obj = isNew ? f : p;
@@ -4312,47 +4377,76 @@
 
   /* v1.27: «logro desbloqueado». Detrás de la carta se abre un halo de rayos que gira, salen chispas en ráfaga que luego
      quedan orbitando despacio, el título aparece letra a letra y la carta se inclina siguiendo el dedo o el cursor. */
-  function achieveFx(w, color) {
-    const sheet = $('.sheet', w); if (!sheet) return;
-    sheet.classList.add('ach'); sheet.style.setProperty('--ach', color || 'var(--accent)');
+  /* v1.29: la capa de efectos ya no cuelga de la hoja sino del fondo (pantalla completa): los rayos y las chispas se
+     centran en la carta también en el móvil, donde antes quedaban descentrados. lite = ver una carta (sin ráfaga):
+     el halo aparece suave y las chispas ya orbitan. */
+  function achieveFx(w, color, lite = false) {
+    const sheet = $('.sheet', w); if (!sheet || $('.ach-fx', w)) return;
+    sheet.classList.add('ach'); if (lite) sheet.classList.add('lite'); sheet.style.setProperty('--ach', color || 'var(--accent)');
+    w.style.setProperty('--ach', color || 'var(--accent)');
     const ttl = $('.ach-title', sheet);
     if (ttl && !reducedMotion()) { const txt = ttl.textContent; ttl.textContent = ''; [...txt].forEach((ch, i) => { const s = document.createElement('span'); s.textContent = ch; s.style.animationDelay = (380 + i * 32) + 'ms'; ttl.appendChild(s); }); }
     if (reducedMotion()) return;
-    const fx = document.createElement('div'); fx.className = 'ach-fx'; fx.setAttribute('aria-hidden', 'true');
+    const fx = document.createElement('div'); fx.className = 'ach-fx' + (lite ? ' lite' : ''); fx.setAttribute('aria-hidden', 'true');
     fx.innerHTML = '<div class="ach-rays"></div><canvas class="ach-cv"></canvas>';
-    sheet.prepend(fx);
+    w.prepend(fx);
     const flip = $('.flip', sheet), cv = $('canvas', fx), ctx = cv.getContext('2d');
     const dpr = Math.min(2, devicePixelRatio || 1);
-    const size = () => { const r = fx.getBoundingClientRect(); cv.width = r.width * dpr; cv.height = r.height * dpr; return r; };
-    let R = size();
+    let C = { x: innerWidth / 2, y: innerHeight * .42 };
+    const center = () => { const b = flip && flip.getBoundingClientRect(); if (b && b.width) C = { x: b.left + b.width / 2, y: b.top + b.height / 2 }; fx.style.setProperty('--cx', C.x + 'px'); fx.style.setProperty('--cy', C.y + 'px'); };
+    const size = () => { cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; center(); };
+    size(); setTimeout(center, 700);
     const col = getComputedStyle(sheet).getPropertyValue('--ach').trim() || '#3ddc97';
-    const cx = () => R.width / 2, cy = () => R.height * .42;
-    const P = Array.from({ length: 70 }, (_, i) => { const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 7; return { a, v, d: 0, s: 1 + Math.random() * 2.4, orb: i % 3 === 0, r0: 120 + Math.random() * 120, sp: (Math.random() < .5 ? -1 : 1) * (.004 + Math.random() * .006), w: Math.random() }; });
+    const P = Array.from({ length: lite ? 46 : 70 }, (_, i) => { const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 7; return { a, v, d: lite ? 140 + Math.random() * 120 : 0, s: 1 + Math.random() * 2.4, orb: lite || i % 3 === 0, r0: 120 + Math.random() * 120, sp: (Math.random() < .5 ? -1 : 1) * (.003 + Math.random() * .005), w: Math.random() }; });
     const t0 = performance.now(); let raf = 0;
     const frame = now => {
       if (!w.isConnected) return cancelAnimationFrame(raf);
-      const el = now - t0; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, R.width, R.height);
+      const el = now - t0, W = cv.width / dpr, H = cv.height / dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
       P.forEach(p => {
-        if (p.orb && el > 900) { p.a += p.sp; p.d += (p.r0 - p.d) * .03; } else { p.d += p.v; p.v *= .955; }
-        const x = cx() + Math.cos(p.a) * p.d, y = cy() + Math.sin(p.a) * p.d * .8;
-        const life = p.orb ? Math.min(1, el / 400) : Math.max(0, 1 - el / 1800);
+        if (p.orb && (lite || el > 900)) { p.a += p.sp; p.d += (p.r0 - p.d) * .03; } else { p.d += p.v; p.v *= .955; }
+        const x = C.x + Math.cos(p.a) * p.d, y = C.y + Math.sin(p.a) * p.d * .8;
+        const life = p.orb ? Math.min(1, el / (lite ? 900 : 400)) : Math.max(0, 1 - el / 1800);
         if (life <= 0) return;
         const tw = .55 + .45 * Math.sin(now / 180 + p.w * 9);
-        ctx.globalAlpha = life * tw; ctx.fillStyle = p.w > .6 ? '#fff' : col;
+        ctx.globalAlpha = life * tw * (lite ? .8 : 1); ctx.fillStyle = p.w > .6 ? '#fff' : col;
         ctx.beginPath(); ctx.arc(x, y, p.s, 0, Math.PI * 2); ctx.fill();
         if (p.s > 2.6) { ctx.fillRect(x - p.s * 2.2, y - .4, p.s * 4.4, .8); ctx.fillRect(x - .4, y - p.s * 2.2, .8, p.s * 4.4); }
       });
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    addEventListener('resize', () => { R = size(); }, { once: true });
-    // Inclinación de la carta
-    if (flip) w.addEventListener('pointermove', e => {
-      const b = flip.getBoundingClientRect(); if (!b.width) return;
-      const dx = (e.clientX - (b.left + b.width / 2)) / b.width, dy = (e.clientY - (b.top + b.height / 2)) / b.height;
-      flip.style.setProperty('--ry', clamp(dx * 18, -12, 12) + 'deg'); flip.style.setProperty('--rx', clamp(-dy * 18, -12, 12) + 'deg');
-    });
-    if (flip) w.addEventListener('pointerleave', () => { flip.style.setProperty('--ry', '0deg'); flip.style.setProperty('--rx', '0deg'); });
+    const onRs = () => { if (!w.isConnected) return removeEventListener('resize', onRs); size(); };
+    addEventListener('resize', onRs);
+    // Inclinación de la carta (dedo, cursor o, en el móvil, al inclinar el teléfono)
+    if (flip) {
+      const tilt = (dx, dy) => { flip.style.setProperty('--ry', clamp(dx * 18, -12, 12) + 'deg'); flip.style.setProperty('--rx', clamp(-dy * 18, -12, 12) + 'deg'); flip.style.setProperty('--gx', (50 + dx * 60) + '%'); };
+      w.addEventListener('pointermove', e => { const b = flip.getBoundingClientRect(); if (!b.width) return; tilt((e.clientX - (b.left + b.width / 2)) / b.width, (e.clientY - (b.top + b.height / 2)) / b.height); });
+      w.addEventListener('pointerleave', () => tilt(0, 0));
+    }
+  }
+  // v1.29: «zoom» de la carta desde su miniatura (como Calendario de Apple al pasar de mes a día) y vuelta al cerrar
+  let cardOrigin = null;
+  document.addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest('.kcard-btn, [data-zoom-from]'); if (b) cardOrigin = { el: b, at: Date.now() }; }, { passive: true, capture: true });
+  function cardZoom(w) {
+    const flip = $('.flip', w), o = cardOrigin; cardOrigin = null;
+    if (!flip || reducedMotion() || !flip.animate || flip.classList.contains('unlock-burst')) return;
+    const src = o && Date.now() - o.at < 2500 && o.el.isConnected ? (o.el.querySelector('.kcard, .kcard-face, svg, img') || o.el) : null;
+    const F = flip.getBoundingClientRect();
+    const rest = $$('.card-view-cap, .sheet > .row', w);
+    rest.forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 260 + i * 70, easing: 'cubic-bezier(.23, 1, .32, 1)', fill: 'backwards' }));
+    if (!src || !F.width) { flip.animate([{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.23, 1, .32, 1)' }); return; }
+    const R = src.getBoundingClientRect();
+    const from = `translate(${R.left + R.width / 2 - (F.left + F.width / 2)}px, ${R.top + R.height / 2 - (F.top + F.height / 2)}px) scale(${R.width / F.width})`;
+    src.style.visibility = 'hidden';
+    flip.animate([{ transform: from, borderRadius: '8px' }, { transform: 'none' }], { duration: 560, easing: 'cubic-bezier(.32, .72, 0, 1)' }).finished.catch(() => {}).then(() => { src.style.visibility = ''; });
+    w._zoomBack = () => {
+      if (!src.isConnected) return 0;
+      const R2 = src.getBoundingClientRect(), F2 = flip.getBoundingClientRect(); if (!R2.width || !F2.width) return 0;
+      src.style.visibility = 'hidden';
+      flip.animate([{ transform: 'none' }, { transform: `translate(${R2.left + R2.width / 2 - (F2.left + F2.width / 2)}px, ${R2.top + R2.height / 2 - (F2.top + F2.height / 2)}px) scale(${R2.width / F2.width})` }], { duration: 380, easing: 'cubic-bezier(.32, .72, 0, 1)', fill: 'forwards' });
+      setTimeout(() => { src.style.visibility = ''; }, 390);
+      return 380;
+    };
   }
 
   function openCard(h, i, celebrate = false) {
@@ -4366,7 +4460,7 @@
     openModal({
       cls: 'card-view',
       body: inner + cap + `<div class="row" style="justify-content:center;margin-top:16px">${un ? `<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
-      onMount: w => { if (celebrate && un) achieveFx(w, (PACK_COLORS[r] || [])[1]); },
+      onMount: w => { if (un) achieveFx(w, (PACK_COLORS[r] || [])[1], !celebrate); },
       onClick: (e, close, w) => {
         if (e.target.closest('[data-m="share"]')) {
           const side = $('#flip', w).classList.contains('back') ? 'back' : 'front';
@@ -4578,7 +4672,7 @@
         if (e.target.closest('[data-m="share"]')) shareCanvas(() => contractCanvas(cc), `keepgoing-contrato-${cc.end}.png`, t('contractDone'));
         if (e.target.closest('[data-m="renew"]')) { close(); renewContract(); }
       },
-      onMount: w => { if (celebrate) achieveFx(w); }
+      onMount: w => achieveFx(w, null, !celebrate)
     });
     if (celebrate) vibrate([20, 40, 20]);
   }
@@ -4720,7 +4814,7 @@
         const locked = p.lvl && p.lvl > myLevel;
         return `<button type="button" class="preset ${th.preset === p.id ? 'on' : ''} ${locked ? 'locked' : ''}" data-th-preset="${p.id}"><span class="pv" style="background:${bg}"><i style="background:${p.fg}"></i><i style="background:${p.accent}"></i>${locked ? `<b class="pv-lock">${ico('lock')} ${esc(t('lvShort', { n: p.lvl }))}</b>` : ''}</span><span class="pn">${esc(presetName(p))}${p.lvl && !locked ? ' ✨' : ''}</span></button>`;
       }).join('')}</div></div>
-      <div class="field"><span>${esc(t('themeStyle'))}</span><div class="seg">${['clay', 'minimal'].map(s => `<button type="button" data-th-style="${s}" class="${th.style === s ? 'on' : ''}">${esc(t(s === 'clay' ? 'styleClay' : 'styleMinimal'))}</button>`).join('')}</div></div>
+      <div class="field"><span>${esc(t('themeStyle'))}</span><div class="seg">${['clay', 'glass', 'minimal'].map(s => `<button type="button" data-th-style="${s}" class="${th.style === s ? 'on' : ''}">${esc(t(s === 'clay' ? 'styleClay' : s === 'glass' ? 'styleGlass' : 'styleMinimal'))}</button>`).join('')}</div></div>
       <div class="field"><span>${esc(t('themeCustom'))}</span><div class="row wrap" style="gap:18px">${pick('bg', t('colorPrimary'))}${pick('fg', t('colorSecondary'))}${pick('accent', t('colorAccent'))}</div></div>
       <div class="field"><span>${esc(t('bgMode'))}</span><div class="seg">${['solid', 'gradient'].map(m => `<button type="button" data-th-bg="${m}" class="${th.bgMode === m ? 'on' : ''}">${esc(t(m === 'solid' ? 'bgSolid' : 'bgGradient'))}</button>`).join('')}</div>
         ${th.bgMode === 'gradient' ? `<div style="margin-top:6px">${pick('bg2', t('gradientTo'))}</div>` : ''}</div>
@@ -4769,7 +4863,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -5416,7 +5510,6 @@
           if (nt) { state.prompts[nt] = { ...(state.prompts[nt] || {}), note: e.target.value.trim() }; save(); toast(t('saved')); }
           if (e.target.dataset && e.target.dataset.ntf) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntf]: e.target.checked }; const at = e.target.closest('.ntf-row').querySelector('[data-ntf-at]'); if (at) at.disabled = !e.target.checked; save(); toast(t(e.target.checked ? 'ntfOn' : 'ntfOff')); }
           if (e.target.dataset && e.target.dataset.ntfAt && /^\d{2}:\d{2}$/.test(e.target.value)) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntfAt]: e.target.value }; save(); toast(t('saved')); }
-          if (e.target.id === 'pet-name') { petSetName(e.target.value); toast(t('saved')); }
           if (e.target.closest && e.target.closest('#st-priv')) privacyChange(e, w);
           if (e.target.matches && e.target.matches('[data-s-sound]')) { state.soundOn = e.target.checked; save(); if (state.soundOn) sfx('toggle'); toast(t(state.soundOn ? 'soundOnToast' : 'soundOffToast')); }
           if (e.target.matches && e.target.matches('[data-s-motion]')) setFlip(e.target.checked);
@@ -5442,7 +5535,6 @@
           return;
         }
         if (q('[data-s-sound-test]')) { const seq = ['complete', 'points', 'perfect', 'levelup']; seq.forEach((n, i) => setTimeout(() => sfx(n), i * 900)); return; }
-        if (petSettingsClick(e, w)) return;
         if (!(el = q('[data-s]'))) return;
         switch (el.dataset.s) {
           case 'vacations': openVacations(); break;
@@ -8052,7 +8144,7 @@
             LV.recurring.push({ id: uid(), ...data, every: f.every, from: f.date, to: f.to && f.to >= f.date ? f.to : '', archived: false });
             runRecurring();
             if (f.date > todayKey()) toast(t('ledgerRecFuture'));
-          } else if (isNew) { const ne = { id: uid(), ...data, recurringId: '', createdAt: Date.now() }; LV.entries.push(ne); saveLinks(ne, f.type === 'invest' ? [] : f.links, []); }
+          } else if (isNew) { const ne = { id: uid(), ...data, recurringId: '', createdAt: Date.now() }; LV.entries.push(ne); firstTime('ledger', LV.entries.length === 1); saveLinks(ne, f.type === 'invest' ? [] : f.links, []); }
           else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; for (const k of ['owed', 'due', 'pay']) if (!data[k]) delete tg[k]; saveLinks(tg, f.type === 'invest' ? [] : f.links, links0); }
           state.ui.ledgerDay = f.date; state.ui.ledgerMonth = f.date.slice(0, 7);
           ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'expense' ? 'pop' : 'money');
@@ -8903,14 +8995,6 @@
     });
   }
 
-  /* ---------- energía del día (1–5) ---------- */
-  const ENERGY = ['🪫', '😴', '🙂', '😃', '🔥'];
-  function energyHtml() {
-    const v = state.energy[todayKey()] || 0;
-    return `<div class="clay card energy-card" data-w="energy"><div class="row"><b class="grow">${esc(t('energyToday'))}</b><span class="muted small">${v ? esc(t('energyLvl', { n: v })) : ''}</span></div>
-      <div class="energy-row">${ENERGY.map((e, i) => `<button class="energy-btn ${v === i + 1 ? 'on' : ''}" data-energy="${i + 1}" aria-label="${i + 1}"><span>${e}</span><small>${i + 1}</small></button>`).join('')}</div></div>`;
-  }
-
   /* ---------- v1.25: valoración del día del 0 al 10 (state.dayRate[fecha] = { r }) ---------- */
   const dayRateOf = k => { const v = state.dayRate[k]; return v && Number.isInteger(v.r) && v.r >= 0 && v.r <= 10 ? v.r : null; };
   function setDayRate(k, n) { if (dayRateOf(k) === n) delete state.dayRate[k]; else state.dayRate[k] = { r: n }; save(); }
@@ -8979,7 +9063,7 @@
       },
       onClick: (e, close) => {
         const b = e.target.closest('[data-ri]'); if (!b) return;
-        if (b.dataset.ri === 'clear') delete state.dayRate[k]; else state.dayRate[k] = { r: v };
+        if (b.dataset.ri === 'clear') delete state.dayRate[k]; else { state.dayRate[k] = { r: v }; firstTime('rate', Object.keys(state.dayRate).length === 1); }
         save(); sfx(b.dataset.ri === 'clear' ? 'undo' : 'complete'); close(); render();
       },
       onClose: () => cancelAnimationFrame(raf)
@@ -9028,7 +9112,7 @@
     const pending = items.filter(h => !todayStatus(h).done || isQuit(h));
     const done = items.filter(h => todayStatus(h).done && !isQuit(h));
     const di = dayInfo(todayKey());
-    let html = (hidW('dayrate') ? '' : dayRateHtml()) + (hidW('pet') ? '' : petCardHtml()) + (hidW('energy') ? '' : energyHtml());
+    let html = hidW('dayrate') ? '' : dayRateHtml();
     if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span></div>`;
     if (di.perfect && items.length) html += `<div class="perfect-banner clay">🎉 <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${fmtPts(di.cpts)} pts</span></div>`;
     const routs = state.routines.filter(r => r.habitIds.some(id => { const h = getHabit(id); return h && !h.archived && todayStatus(h).due; }));
@@ -9245,10 +9329,12 @@
 
   /* ---------- cartas secretas ---------- */
   const countTimes = test => { let n = 0; for (const m of Object.values(state.ltime)) for (const tm of Object.values(m)) if (typeof tm === 'string' && test(tm)) n++; return n; };
+  // v1.29: «A tope» ya no mira la energía (se quitó): 7 días seguidos valorados con 9 o más (la energía 5 de antes también cuenta)
   function bestEnergy5Run() {
     let run = 0, best = 0, prev = null;
-    for (const k of Object.keys(state.energy).sort()) {
-      run = state.energy[k] === 5 ? (prev && addDays(prev, 1) === k ? run + 1 : 1) : 0;
+    const top = k => state.energy[k] === 5 || (dayRateOf(k) != null && dayRateOf(k) >= 9);
+    for (const k of [...new Set([...Object.keys(state.energy), ...Object.keys(state.dayRate || {})])].sort()) {
+      run = top(k) ? (prev && addDays(prev, 1) === k ? run + 1 : 1) : 0;
       prev = k; best = Math.max(best, run);
     }
     return best;
@@ -9351,8 +9437,8 @@
     const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
     for (const h of D) {
       const yes = [], no = [];
-      days.forEach(k => { const e = state.energy[k]; const s = dayScore(h, k); if (!e || s == null) return; (s >= 1 ? yes : no).push(e); });
-      if (yes.length >= 5 && no.length >= 5) { const a = avg(yes), b = avg(no); if (Math.abs(a - b) >= .4) out.push({ score: Math.abs(a - b) * 2, icon: '⚡', text: t(a > b ? 'insEnergyUp' : 'insEnergyDown', { h: `${h.icon} ${h.name}`, a: fmtNum(Math.round(a * 10) / 10), b: fmtNum(Math.round(b * 10) / 10) }) }); }
+      days.forEach(k => { const e = dayRateOf(k); const s = dayScore(h, k); if (e == null || s == null) return; (s >= 1 ? yes : no).push(e); });
+      if (yes.length >= 5 && no.length >= 5) { const a = avg(yes), b = avg(no); if (Math.abs(a - b) >= .8) out.push({ score: Math.abs(a - b), icon: '⭐', text: t(a > b ? 'insRateUp' : 'insRateDown', { h: `${h.icon} ${h.name}`, a: fmtNum(Math.round(a * 10) / 10), b: fmtNum(Math.round(b * 10) / 10) }) }); }
     }
     for (const A of D) for (const B of D) {
       if (A === B) continue;
@@ -9370,9 +9456,9 @@
         if (best[0] - worst[0] >= .15) out.push({ score: best[0] - worst[0], icon: '📅', text: t('insWeekday', { best: names[best[1]], b: Math.round(best[0] * 100), worst: names[worst[1]], w: Math.round(worst[0] * 100) }) });
       }
     }
-    const eAvg = (a, b) => { const v = []; for (let k = a; k <= b; k = addDays(k, 1)) if (state.energy[k]) v.push(state.energy[k]); return v.length >= 3 ? avg(v) : null; };
+    const eAvg = (a, b) => { const v = []; for (let k = a; k <= b; k = addDays(k, 1)) if (dayRateOf(k) != null) v.push(dayRateOf(k)); return v.length >= 3 ? avg(v) : null; };
     const e1 = eAvg(addDays(today, -6), today), e0 = eAvg(addDays(today, -13), addDays(today, -7));
-    if (e1 != null && e0 != null && Math.abs(e1 - e0) >= .4) out.push({ score: .3, icon: '📈', text: t(e1 > e0 ? 'insEnergyWeekUp' : 'insEnergyWeekDown', { a: fmtNum(Math.round(e1 * 10) / 10), b: fmtNum(Math.round(e0 * 10) / 10) }) });
+    if (e1 != null && e0 != null && Math.abs(e1 - e0) >= .8) out.push({ score: .3, icon: '📈', text: t(e1 > e0 ? 'insRateWeekUp' : 'insRateWeekDown', { a: fmtNum(Math.round(e1 * 10) / 10), b: fmtNum(Math.round(e0 * 10) / 10) }) });
     return out.sort((a, b) => b.score - a.score).slice(0, 6);
   }
 
@@ -9434,7 +9520,7 @@
     const n = diffDays(from, to) + 1, days = []; for (let k = from; k <= to; k = addDays(k, 1)) days.push(k);
     const H = state.habits.filter(h => firstKey(h) <= to);
     let perfect = 0, pts = 0, entries = 0; const act = new Set(), en = [];
-    days.forEach(k => { const d = dayInfo(k); if (d.perfect) perfect++; pts += d.cpts; if (state.energy[k]) en.push(state.energy[k]); });
+    days.forEach(k => { const d = dayInfo(k); if (d.perfect) perfect++; pts += d.cpts; { const r = dayRateOf(k); if (r != null) en.push(r); } });
     H.forEach(h => { if (isQuit(h)) return; const L = state.logs[h.id] || {}; for (const k in L) if (k >= from && k <= to && L[k] > 0) { entries += isAmount(h) ? 1 : L[k]; act.add(k); } });
     const rates = H.map(h => rate(h, n, to)).filter(r => r != null);
     const rateP = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length * 100) : null;
@@ -9455,7 +9541,7 @@
       <body><div class="rep">
         <div class="row" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap"><div><div class="muted" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1>${esc(t('reportOf', { m: monthName }))}</h1>${state.contract ? `<div class="muted">${esc(state.contract.name)}</div>` : ''}</div><div class="no-print"><button class="btn primary" id="rep-print">${esc(t('reportSave'))}</button></div></div>
         <h2>${esc(t('reportSummary'))}</h2>
-        <div class="kpis">${kpi(rateP == null ? '—' : rateP + '%', t('kpiRate'))}${kpi(perfect, t('perfectDays'))}${kpi(fmtPts(pts), t('ptsEarned'))}${kpi(entries, t('kpiTotal'))}${kpi(act.size, t('kpiActiveDays'))}${kpi(en.length ? fmtNum(en.reduce((a, b) => a + b, 0) / en.length) + '/5' : '—', t('energyAvg'))}</div>
+        <div class="kpis">${kpi(rateP == null ? '—' : rateP + '%', t('kpiRate'))}${kpi(perfect, t('perfectDays'))}${kpi(fmtPts(pts), t('ptsEarned'))}${kpi(entries, t('kpiTotal'))}${kpi(act.size, t('kpiActiveDays'))}${kpi(en.length ? fmtNum(Math.round(en.reduce((a, b) => a + b, 0) / en.length * 10) / 10) + '/10' : '—', t('rateAvg'))}</div>
         <div class="chart-grid"><section class="chart-card clay"><h3>${esc(t('chartDaily'))}</h3>${lineChart(linePts, { min: 0, max: 100, fmt: v => Math.round(v) + '%' })}</section>
           <section class="chart-card clay"><h3>${esc(t('chartWeekday'))}</h3>${barChart(wdBars, { max: 100, fmt: v => Math.round(v) + '%' })}</section></div>
         <h2>${esc(t('chartTable'))}</h2>
@@ -9668,40 +9754,9 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? { name: $('#ct-wit-name', root).value.trim(), email } : 'bad';
   }
 
-  /* ---------- mascota de plastilina: gato, perro o ninfa (dibujos en js/pets.js) ---------- */
-  const PETS = window.KGPets;
   const safeImg = s => typeof s === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(s) ? s : '';
-  const PET_EMOJI = { cat: '🐈', dog: '🐕', cockatiel: '🐦' };
-  /* v1.23.1: cada mascota tiene su nombre (pet.names[kind], con uno por defecto) y su aspecto (pet.looks[kind]).
-     El perro se desbloquea en el nivel 5 y la ninfa en el 8; quien ya la tenía antes la conserva (pet.keep). */
-  const PET_LEVEL = { cat: 0, dog: 5, cockatiel: 8 };
-  function petOf() {
-    // Sin tocar state.pet (solo se guarda cuando el usuario cambia algo): las mascotas de antes de la v1.23.1 se leen igual
-    const s = state.pet && typeof state.pet === 'object' ? state.pet : {};
-    const names = s.names && typeof s.names === 'object' ? { ...s.names } : s.name ? { [PETS.KINDS.includes(s.kind) ? s.kind : 'cat']: s.name } : {};
-    const keep = Array.isArray(s.keep) ? [...s.keep] : PETS.KINDS.includes(s.kind) && s.kind !== 'cat' ? [s.kind] : [];
-    const p = { kind: 'cat', fur: true, ...s, names, looks: { ...(s.looks || {}) }, keep };
-    if (!PETS.KINDS.includes(p.kind) || !petUnlocked(p.kind, p)) { p.kind = 'cat'; Object.assign(p, { fur: true, colors: null }, p.looks.cat || {}); }
-    if (!Array.isArray(p.colors) || !p.colors.length) p.colors = PETS.defaults(p.kind);
-    p.name = p.names[p.kind] || '';
-    return p;
-  }
-  const petUnlocked = (k, p = state.pet || {}) => k === 'cat' || levelInfo().level >= (PET_LEVEL[k] || 0) || (Array.isArray(p.keep) ? p.keep.includes(k) : p.kind === k);
-  const petName = (p = petOf()) => p.name || t('petName_' + p.kind);
-  function petSetName(v) { const p = petOf(); p.names[p.kind] = String(v || '').trim().slice(0, 20); p.name = p.names[p.kind]; state.pet = p; save(); }
-  const catSvg = (pet, mood = 'neutral', size = 120) => PETS.svg(pet, mood, size);
-  function petMood() {
-    const today = todayKey(), hour = new Date().getHours(), di = dayInfo(today);
-    const active = state.habits.filter(h => !h.archived);
-    if (!active.length) return 'neutral';
-    if (di.perfect && di.due > 0) return 'excited';
-    if (hour >= 23 || hour < 6) return 'sleepy';
-    const y = addDays(today, -1);
-    const missedY = active.some(h => !isQuit(h) && h.freq === 'daily' && y >= firstKey(h) && periodState(h, y) === 'miss');
-    if (missedY && di.done === 0) return 'sad';
-    return di.due && di.done / di.due >= .5 ? 'happy' : 'neutral';
-  }
-  function petMessages() {
+  /* v1.29: las mascotas se fueron (state.pet se conserva sin usarse). Sus frases con tus datos las dice ahora el orbe. */
+  function orbMessages() {
     const out = [], today = todayKey(), y = addDays(today, -1), hour = new Date().getHours(), name = firstName();
     const active = state.habits.filter(h => !h.archived), di = dayInfo(today);
     out.push(t(hour < 13 ? 'petMorning' : hour < 20 ? 'petAfternoon' : 'petNight', { name: name ? ', ' + name : '' }));
@@ -9717,55 +9772,11 @@
     if (near) out.push(t('petNextPerfect', { k: near.k, rank: t('rank_' + near.r) }));
     const q = active.filter(isQuit).map(h => [h, currentStreak(h)]).sort((a, b) => b[1] - a[1])[0];
     if (q && q[1] >= 1) out.push(t('petQuit', { n: q[1], h: q[0].name }));
-    if (!state.energy[today]) out.push(t('petEnergy'));
     const c = state.contract; if (c) { const left = diffDays(today, c.endsAt); if (left >= 0 && left <= 3) out.push(t('petContract', { n: left })); }
     const pi = pointsInfo();
     out.push(t('petPoints', { n: fmtPts(pi.points) }));
     return out;
   }
-  let petIdx = 0;
-  function petCardHtml() {
-    const pet = petOf(), msgs = petMessages(), msg = msgs[petIdx % msgs.length];
-    return `<div class="pet-card clay" data-w="pet"><button class="pet-btn" data-act="pet" aria-label="${esc(petName(pet))}">${catSvg(pet, petMood(), 96)}</button>
-      <div class="bubble grow"><b>${esc(petName(pet))}</b><span id="pet-msg">${esc(msg)}</span></div>
-      <button class="icon-btn sm pet-edit" data-act="pet-edit" aria-label="${esc(t('petCustomize'))}" title="${esc(t('petCustomize'))}">${ico('edit')}</button></div>`;
-  }
-  // Personalizar la mascota (solo desde su tarjeta en la vista Hoy)
-  function openPetEditor() {
-    openModal({
-      title: `${PET_EMOJI[petOf().kind]} ${esc(t('petTitle'))}`, cls: 'wide',
-      body: `<div id="st-pet">${petSettingsHtml()}</div>`,
-      onMount: w => w.addEventListener('change', e => { if (e.target.id === 'pet-name') { petSetName(e.target.value); render(); toast(t('saved')); } }),
-      onClick: (e, close, w) => { if (petSettingsClick(e, w)) render(); }
-    });
-  }
-  function petSettingsHtml() {
-    const pet = petOf();
-    return `<div class="pet-settings"><div class="pet-preview">${catSvg(pet, 'happy', 120)}</div><div class="stack grow" style="gap:12px;min-width:200px">
-      <label class="field"><span>${esc(t('petName'))}</span><input class="input" id="pet-name" maxlength="20" value="${esc(pet.name)}" placeholder="${esc(t('petName_' + pet.kind))}"></label>
-      <div class="field"><span>${esc(t('petKind'))}</span><div class="seg">${PETS.KINDS.map(k => petUnlocked(k) ? `<button data-pet-kind="${k}" class="${pet.kind === k ? 'on' : ''}">${PET_EMOJI[k]} ${esc(t('petKind_' + k))}</button>` : `<button data-pet-kind="${k}" class="locked" aria-disabled="true" title="${esc(t('petLockedAt', { n: PET_LEVEL[k] }))}">${ico('lock', 'xs')} ${esc(t('petKind_' + k))} <span class="muted small">${esc(t('petLevelN', { n: PET_LEVEL[k] }))}</span></button>`).join('')}</div>
-        <span class="muted small">${esc(t('petNamesHint'))}</span></div>
-      ${pet.kind === 'cockatiel' ? '' : `<div class="field"><span>${esc(t(pet.kind === 'dog' ? 'petEars' : 'petFur'))}</span><div class="seg"><button data-pet-fur="1" class="${pet.fur ? 'on' : ''}">${esc(t(pet.kind === 'dog' ? 'petLongEars' : 'petWithFur'))}</button><button data-pet-fur="0" class="${pet.fur ? '' : 'on'}">${esc(t(pet.kind === 'dog' ? 'petShortHair' : 'petHairless'))}</button></div></div>`}
-      <div class="field"><span>${esc(t('petColors'))}</span>
-        ${PETS.palettes(pet.kind).map((slot, i) => `<div class="swatches" style="margin-top:8px"><span class="small muted" style="width:78px">${esc(t('petSlot_' + slot.key))}</span>${i ? `<button class="sw auto ${pet.colors[i] ? '' : 'on'}" data-pet-c="${i}:" title="${esc(t('petAuto'))}" aria-label="${esc(t('petAuto'))}">∅</button>` : ''}${slot.options.filter(([, hex]) => hex).map(([k, hex]) => `<button class="sw ${pet.colors[i] === hex ? 'on' : ''}" data-pet-c="${i}:${hex}" style="--c:${hex}" title="${esc(t('pc_' + k))}" aria-label="${esc(t('pc_' + k))}"></button>`).join('')}</div>`).join('')}</div>
-    </div></div>`;
-  }
-  function petSettingsClick(e, root) {
-    let el; const pet = petOf();
-    if ((el = e.target.closest('[data-pet-kind]'))) {
-      const k = el.dataset.petKind;
-      if (!petUnlocked(k)) { toast(t('petLockedAt', { n: PET_LEVEL[k] })); return true; }
-      if (k !== 'cat' && k !== pet.kind && !gate('themes')) return true;
-      if (pet.kind !== k) { pet.looks[pet.kind] = { fur: pet.fur, colors: pet.colors }; Object.assign(pet, { kind: k, fur: true, colors: PETS.defaults(k) }, pet.looks[k] || {}); pet.name = pet.names[k] || ''; }
-    }
-    else if ((el = e.target.closest('[data-pet-fur]'))) pet.fur = el.dataset.petFur === '1';
-    else if ((el = e.target.closest('[data-pet-c]'))) { const [i, hex] = el.dataset.petC.split(':'); while (pet.colors.length <= +i) pet.colors.push(''); pet.colors[+i] = hex || (pet.kind === 'cockatiel' && +i === 2 ? 'none' : ''); while (pet.colors.length > 1 && !pet.colors[pet.colors.length - 1]) pet.colors.pop(); }
-    else return false;
-    pet.looks[pet.kind] = { fur: pet.fur, colors: pet.colors };
-    state.pet = pet; save(); $('#st-pet', root).innerHTML = petSettingsHtml(); return true;
-  }
-
-  /* ---------- PERFIL (arriba de Maestrías): mascota, bio, vitrina, estadísticas, mapa anual, logros y carnet ---------- */
   const profileName = () => (state.contract && state.contract.name) || firstName() || t('profileYou');
   const memberSince = () => [firstDay(), ...state.habits.map(h => h.createdAt), state.contract && state.contract.signedAt].filter(k => k && k > '2000').sort()[0] || todayKey();
   function lifeStats() {
@@ -9882,9 +9893,11 @@
     const kpi = (v, l) => `<div class="kpi clay"><b>${v}</b><span>${esc(l)}</span></div>`;
     const sec = (icon, title, body) => `<section class="prof-sec"><h3 class="section-title">${icon} ${esc(title)}</h3>${body}</section>`;
     return `<div class="stack" style="gap:22px">
+      <section class="imm-hero prof-head"><div class="photo-wrap"><label class="avatar-pick" title="${esc(t('avatarChange'))}">${meAvatar(132)}<span class="photo-cam" aria-hidden="true">${ico('camera')}</span><input type="file" id="pf-photo" accept="image/*" class="sr-only" aria-label="${esc(t('avatarChange'))}"></label>${myAvatar() ? `<button class="link-btn small" data-pf="photo-rm">${esc(t('avatarRemove'))}</button>` : ''}</div>
+        <h2 class="prof-name">${esc(profileName())}</h2>${myTag() ? `<div class="prof-tag">@${esc(myTag())}</div>` : ''}<div class="prof-lvl">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</div>
+        <div class="imm-stats"><div><b data-cnt="${st.activeDays}">${fmtNum(st.activeDays)}</b><span>${esc(t('kpiActiveDays'))}</span></div><div><b data-cnt="${st.perfect}">${st.perfect}</b><span>${esc(t('perfectDays'))}</span></div><div><b data-cnt="${st.best}">${st.best}</b><span>${esc(t('kpiBest'))}</span></div></div>
+        <div class="imm-since">${esc(t('memberSince', { d: fmtDate(st.since) }))}</div></section>
       <section class="clay card prof-tag-box" id="pf-tag-box">${nametagHtml()}</section>
-      <div class="prof-head"><div class="photo-wrap"><label class="avatar-pick" title="${esc(t('avatarChange'))}">${meAvatar(124)}<span class="photo-cam" aria-hidden="true">${ico('camera')}</span><input type="file" id="pf-photo" accept="image/*" class="sr-only" aria-label="${esc(t('avatarChange'))}"></label>${myAvatar() ? `<button class="link-btn small" data-pf="photo-rm">${esc(t('avatarRemove'))}</button>` : ''}</div>
-        <div class="grow"><h2 class="prof-name">${esc(profileName())}</h2>${myTag() ? `<div class="prof-tag">@${esc(myTag())}</div>` : ''}<div class="prof-lvl">${esc(t('lvShortTitle', { n: lv.level, title: lv.title }))}</div><div class="muted small">${esc(t('memberSince', { d: fmtDate(st.since) }))}</div></div></div>
       <label class="field"><span>${esc(t('bioTitle'))}</span><textarea class="input" id="pf-bio" maxlength="140" rows="2" placeholder="${esc(t('ct_quote_' + (state.commitment || 'serio'), { perfecto: 'perfecto' }))}">${esc(pr.bio || '')}</textarea></label>
       <div class="row wrap"><button class="btn primary" data-pf="carnet">${ico('upload')} ${esc(t('carnetShare'))}</button>${pr.enabled && pr.slug ? `<a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${ico('globe')} ${esc(t('profileOpen'))}</a>` : `<button class="btn" data-pf="public">${ico('globe')} ${esc(t('profilePublicSetup'))}</button>`}</div>
       ${sec('🎖️', t('badgesTitle'), badgesHtml())}
@@ -9895,30 +9908,37 @@
       ${sec('🏅', t('repTotal'), `<div id="pf-rep">${repHtml()}</div>`)}
     </div>`;
   }
-  /* v1.27: el perfil «se despliega» desde el botón que lo abre (la píldora @, la tarjeta de perfil…): la hoja crece desde
-     ese rectángulo con esquinas de píldora, la foto cae a su sitio con rebote y cada bloque entra después, escalonado. */
-  let profOrigin = null;
-  document.addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest('[data-act="profile"]'); if (b) profOrigin = { r: b.getBoundingClientRect(), at: Date.now() }; }, { passive: true });
-  function profileMorph(w) {
-    const sheet = $('.sheet', w), o = profOrigin; profOrigin = null;
-    if (!sheet || reducedMotion() || !sheet.animate) return;
+  /* v1.29: pantallas inmersivas. Como el día perfecto: desde donde tocaste se abre un círculo con el color de acento
+     (o el cristal del tema) que llena la pantalla; dentro, la cabecera (.imm-hero) entra con rebote, las cifras
+     [data-cnt] cuentan y el resto de bloques sube escalonado. Lo usan el perfil, el diario y la valoración del día. */
+  let immOrigin = null;
+  document.addEventListener('pointerdown', e => { immOrigin = { x: e.clientX, y: e.clientY, at: Date.now() }; }, { passive: true, capture: true });
+  function immersiveIn(w) {
+    const sheet = $('.sheet', w), o = immOrigin && Date.now() - immOrigin.at < 3000 ? immOrigin : { x: innerWidth / 2, y: innerHeight - 40 };
+    if (!sheet) return;
+    const rm = reducedMotion();
+    $$('[data-cnt]', sheet).forEach(b => {
+      const to = +b.dataset.cnt; if (!(to > 0) || rm) return;
+      const t0 = performance.now(), dur = 1000;
+      const step = now => { const p = Math.min(1, Math.max(0, (now - t0 - 450) / dur)); b.textContent = fmtNum(Math.round(to * (1 - Math.pow(1 - p, 3)))); if (p < 1 && b.isConnected) requestAnimationFrame(step); };
+      b.textContent = '0'; requestAnimationFrame(step);
+    });
+    if (rm || !sheet.animate) return;
     sheet.style.animation = 'none'; w.style.animation = 'none';
-    const S = sheet.getBoundingClientRect();
-    const r = o && Date.now() - o.at < 3000 ? o.r : { left: innerWidth / 2 - 30, top: 20, width: 60, height: 36 };
-    const ins = `inset(${Math.max(0, r.top - S.top)}px ${Math.max(0, S.right - r.right)}px ${Math.max(0, S.bottom - r.bottom)}px ${Math.max(0, r.left - S.left)}px round 999px)`;
-    sheet.animate([{ clipPath: ins, filter: 'brightness(1.6)' }, { clipPath: 'inset(0 0 0 0 round 32px 32px 0 0)', filter: 'none' }], { duration: 560, easing: 'cubic-bezier(.65, 0, .2, 1)' });
-    w.animate([{ backgroundColor: 'rgba(0,0,0,0)', backdropFilter: 'blur(0px)' }, { backgroundColor: 'rgba(0,0,0,.55)', backdropFilter: 'blur(6px)' }], { duration: 500, easing: 'ease-out' });
-    const av = $('.prof-head .avatar-pick', sheet);
-    if (av) av.animate([{ transform: `translate(${r.left + r.width / 2 - (S.left + 90)}px, ${r.top - (S.top + 120)}px) scale(.25)`, opacity: 0 }, { opacity: 1, offset: .5 }, { transform: 'translate(0, 6px) scale(1.06)', offset: .8 }, { transform: 'none' }], { duration: 760, easing: 'cubic-bezier(.3, 1.2, .4, 1)' });
-    $$('#pf > .stack > *, .sheet-head', sheet).forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(26px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 160 + Math.min(i, 8) * 55, easing: 'cubic-bezier(.2, .9, .3, 1.1)', fill: 'backwards' }));
+    sheet.animate([{ clipPath: `circle(0px at ${o.x}px ${o.y}px)` }, { clipPath: `circle(${Math.hypot(innerWidth, innerHeight)}px at ${o.x}px ${o.y}px)` }], { duration: 680, easing: 'cubic-bezier(.7, 0, .2, 1)' });
+    const ring = document.createElement('div'); ring.className = 'pfx-ring imm-ring'; ring.style.left = o.x + 'px'; ring.style.top = o.y + 'px'; w.appendChild(ring); setTimeout(() => ring.remove(), 900);
+    const hero = $('.imm-hero', sheet);
+    if (hero) [...hero.children].forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(30px) scale(.7)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 620, delay: 300 + i * 80, easing: 'cubic-bezier(.3, 1.4, .5, 1)', fill: 'backwards' }));
+    $$('.sheet-head, .sheet-body > * > .stack > *:not(.imm-hero), .imm-body > *', sheet).forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(26px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 560 + Math.min(i, 8) * 60, easing: 'cubic-bezier(.23, 1, .32, 1)', fill: 'backwards' }));
+    w._immOut = () => sheet.animate([{ clipPath: `circle(${Math.hypot(innerWidth, innerHeight)}px at ${o.x}px ${o.y}px)` }, { clipPath: `circle(0px at ${o.x}px ${o.y}px)` }], { duration: 420, easing: 'cubic-bezier(.7, 0, .3, 1)', fill: 'forwards' });
   }
   function openProfile() {
     achAll = false;
     openModal({
-      title: esc(t('profileTitle')), cls: 'wide', body: '<div id="pf"></div>',
+      title: esc(t('profileTitle')), cls: 'wide imm', body: '<div id="pf"></div>',
       onMount: w => {
         const draw = () => { $('#pf', w).innerHTML = profileHtml(); };
-        w._draw = draw; draw(); profileMorph(w);
+        w._draw = draw; draw(); immersiveIn(w);
         if (auth) loadRep().then(() => { const el = $('#pf-rep', w); if (el) el.innerHTML = repHtml(); const tb = $('#pf-tag-box', w); if (tb && !$('#pf-tag', w)?.matches(':focus')) tb.innerHTML = nametagHtml(); });
         w.addEventListener('change', e => {
           if (e.target.id === 'pf-bio') { state.profile = { ...profileOf(), bio: e.target.value.trim().slice(0, 140) }; save(); render(); toast(t('saved')); }
@@ -10218,11 +10238,13 @@
       onClick: (e, close) => { if (e.target.closest('[data-pv]')) { close(); try { localStorage.setItem(JOIN_KEY, code); } catch (err) { /* nada */ } processJoin(); } }
     });
   }
+  // v1.29: todo grupo nace con ranking (semanal, todos los roles). Ya no se puede apagar
+  const rankingOn = (gid, freq = '1W') => rpc('kg_set_ranking', { p_group: gid, p_on: true, p_freq: freq, p_roles: GG.ROLES, p_users: [] }).catch(() => {});
   async function shareAsGroup(kind, obj) {
     if (!auth) { toast(t('groupNeedLogin')); return; }
     try {
       const r = await rpc('kg_create_group', { p_name: obj.name, p_icon: obj.icon || '🎯', p_kind: kind, p_spec: kind === 'habit' ? habitSpec(obj) : projectSpec(obj), p_display_name: firstName() || 'Yo', p_local_id: obj.id });
-      obj.groupId = r.group_id; save(); myGroups.at = 0;
+      obj.groupId = r.group_id; save(); myGroups.at = 0; await rankingOn(r.group_id);
       openGroup(obj.groupId, r.code);
     } catch (e) { toast(t('groupError', { e: e.message })); }
   }
@@ -10407,6 +10429,7 @@
         b.disabled = true;
         const r = await chatAction(() => rpc('kg_chat_create', { p_name: name, p_icon: icon, p_display_name: myName(), p_members: members }));
         if (!r) { b.disabled = false; return; }
+        await rankingOn(r.group_id);
         close(); openGroup(r.group_id, r.code, 'chat');
       }
     });
@@ -10873,7 +10896,6 @@
       if (leader) {
         const tags = members.filter(m => (g.rank_users || []).includes(m.user_id) && m.nametag).map(m => '@' + m.nametag).join(', ');
         html += `<section class="clay card stack" style="gap:12px" id="rank-set">
-          <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="rk-on" ${g.ranking_on ? 'checked' : ''}><span></span></span><b class="grow">${esc(t('rankEnable'))}</b></label>
           <div class="field"><span>${esc(t('rankFreq'))}</span><div class="seg" role="radiogroup">${GG.FREQS.map(f => `<button type="button" role="radio" aria-checked="${g.ranking_freq === f}" class="${g.ranking_freq === f ? 'on' : ''}" data-rk-freq="${f}" title="${esc(t('freqLong_' + f))}">${esc(t('freq_' + f))}</button>`).join('')}</div></div>
           <div class="field"><span>${esc(t('rankWho'))} · ${esc(t('rankWhoRoles'))}</span><div class="row wrap" style="gap:8px">${ROLES.map(r => `<label class="check-chip"><input type="checkbox" data-rk-role="${r}" ${(g.rank_roles || []).includes(r) ? 'checked' : ''}><span>${ROLE_ICON[r]} ${esc(t('role_' + r))}</span></label>`).join('')}</div></div>
           <label class="field"><span>${esc(t('rankWhoTags'))}</span><input class="input" id="rk-tags" value="${esc(tags)}" placeholder="${esc(t('rankTagsPh'))}" autocomplete="off"></label>
@@ -10988,7 +11010,7 @@
     }
     async function saveRanking() {
       const w = body(), g = G.info.group;
-      const on = $('#rk-on', w).checked, freq = ($('[data-rk-freq].on', w) || {}).dataset ? $('[data-rk-freq].on', w).dataset.rkFreq : g.ranking_freq;
+      const on = true, freq = ($('[data-rk-freq].on', w) || {}).dataset ? $('[data-rk-freq].on', w).dataset.rkFreq : g.ranking_freq;
       const roles = [...w.querySelectorAll('[data-rk-role]')].filter(i => i.checked).map(i => i.dataset.rkRole);
       const users = [];
       for (const raw of $('#rk-tags', w).value.split(/[\s,]+/).filter(Boolean)) {
@@ -11132,6 +11154,7 @@
           b.disabled = true;
           try {
             await rpc('kg_chat_upgrade', { p_group: gid, p_kind: k, p_spec: k === 'project' ? projectSpec(o) : habitSpec(o), p_local_id: o.id });
+            if (!G.info.group.ranking_on) await rankingOn(gid);
             o.groupId = gid; save(); sfx('unlock'); close(); G.tab = 'profile'; myGroups.at = 0;
             await pushGroupProgress(); await refresh(); toast(t('gUpgraded'));
           } catch (err) { b.disabled = false; toast(t('groupError', { e: err.message })); }
@@ -11179,7 +11202,7 @@
           const i = $('#chat-in', w), text = i.value.trim(); if (!text) return;
           i.value = ''; e.target.classList.remove('has-text');
           const reply = G.reply; setReply(null);
-          try { await rpc('kg_post', { p_group: gid, p_kind: 'text', p_body: text, p_payload: reply ? { reply } : {} }); sfx('tap'); await loadMsgs(); draw(true); scrollChat(); }
+          try { await rpc('kg_post', { p_group: gid, p_kind: 'text', p_body: text, p_payload: reply ? { reply } : {} }); sfx('tap'); firstTime('chat'); await loadMsgs(); draw(true); scrollChat(); }
           catch (err) { i.value = text; e.target.classList.add('has-text'); toast(t('groupError', { e: err.message })); }
           i.focus();
         });
@@ -11335,18 +11358,25 @@
     const wrap = document.createElement('div'); wrap.className = 'backdrop';
     const isCard = cls.includes('card-view');
     wrap.innerHTML = `<div class="sheet ${cls}" role="dialog" aria-modal="true">${isCard ? '' : '<div class="sheet-grab"></div>'}${title ? `<div class="sheet-head"><h2>${title}</h2>${dismissable ? `<button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button>` : ''}</div>` : ''}<div class="sheet-body">${body}</div>${foot ? `<div class="sheet-foot">${foot}</div>` : ''}</div>`;
-    if (isCard) { wrap.style.background = 'rgba(0,0,0,.9)'; wrap.style.backdropFilter = wrap.style.webkitBackdropFilter = 'blur(8px)'; }
+    if (isCard) { wrap.classList.add('cv'); wrap.style.background = 'rgba(0,0,0,.9)'; wrap.style.backdropFilter = wrap.style.webkitBackdropFilter = 'blur(8px)'; }
     root.appendChild(wrap);
     document.body.style.overflow = 'hidden';
     const onKey = e => { if (e.key === 'Escape' && dismissable && root.lastElementChild === wrap) tryClose(); };
     // v1.23: beforeClose (si lo hay) decide si se puede cerrar con la X, Cancelar, el fondo o Escape (p. ej. cambios sin guardar)
     let asking = false;
     const tryClose = async () => { if (asking) return; if (beforeClose) { asking = true; let ok = false; try { ok = await beforeClose(wrap); } finally { asking = false; } if (!ok) return; } close(); };
+    // v1.29: al cerrar, la hoja baja y el fondo se funde (la carta vuelve a su miniatura) antes de quitarse
     const close = () => {
-      wrap.remove(); document.removeEventListener('keydown', onKey);
-      if (!root.children.length) document.body.style.overflow = '';
+      if (wrap._closing) return; wrap._closing = true;
+      document.removeEventListener('keydown', onKey);
+      const finish = () => {
+        wrap.remove();
+        if (!root.children.length) document.body.style.overflow = '';
+        if (!root.children.length && modalQueue.length) setTimeout(modalQueue.shift(), 280);
+      };
+      const back = wrap._zoomBack ? wrap._zoomBack() : wrap._immOut && !reducedMotion() ? (wrap._immOut(), 420) : 0, dur = reducedMotion() ? 0 : Math.max(back, 200);
       onClose && onClose();
-      if (!root.children.length && modalQueue.length) setTimeout(modalQueue.shift(), 280);
+      if (dur && wrap.isConnected) { wrap.classList.add('out'); setTimeout(finish, dur); } else finish();
     };
     document.addEventListener('keydown', onKey);
     wrap.addEventListener('click', e => {
@@ -11356,6 +11386,7 @@
     });
     if (onInput) wrap.addEventListener('input', e => onInput(e, wrap));
     onMount && onMount(wrap, close);
+    if (isCard) cardZoom(wrap);
     return { close, el: wrap };
   }
   /* v1.23: aviso al cerrar un editor con cambios sin guardar. snap() devuelve el estado del formulario; si no ha cambiado
@@ -11536,7 +11567,7 @@
      Hábitos, carpetas, retos, rutinas, chats, grupos, libretas compartidas y eventos se borran (o se dejan) con confirmación;
      el resto de tarjetas (mascota, energía, contrato, gráficas…) solo se ocultan y se recuperan en Ajustes. */
   const JIG_SEL = '.habit-grid > .habit, .habit-grid > .folder, .proj.finished, .today-row[data-trow], .routine-card[data-rid], .chat-sw, .ev-card[data-ev-open], [data-w]';
-  const HW = { dayrate: '⭐', pet: '🐾', energy: '⚡', contract: '📜', insights: '💡', reviews: '📝', ledPie: '🥧', ledLine: '📈', ledFilter: '🔎' };
+  const HW = { dayrate: '⭐', contract: '📜', insights: '💡', reviews: '📝', ledPie: '🥧', ledLine: '📈', ledFilter: '🔎' };
   let jiggle = false, jgTimer = null, jigBlockClick = false;
   function enterJiggle() {
     if (jiggle) return;
@@ -11779,7 +11810,6 @@
       return;
     }
     if ((el = e.target.closest('[data-drate]')) && !el.closest('#modal-root')) { setDayRate(todayKey(), +el.dataset.drate); vibrate(8); render(); return; }
-    if ((el = e.target.closest('[data-energy]'))) { const v = +el.dataset.energy, k = todayKey(); if (state.energy[k] === v) delete state.energy[k]; else state.energy[k] = v; save(); checkSecrets(); vibrate(8); render(); return; }
     if ((el = e.target.closest('[data-routine-run]'))) { const r = state.routines.find(x => x.id === el.dataset.routineRun); if (r) runRoutine(r); return; }
     if ((el = e.target.closest('[data-routine-edit]'))) { const r = state.routines.find(x => x.id === el.dataset.routineEdit); if (r) openRoutineEditor(r); return; }
     if ((el = e.target.closest('[data-cal]'))) { const box = el.closest('[data-hid]'); if (box) { moveCal(box.dataset.hid, +el.dataset.cal); vibrate(6); } return; }
@@ -11857,12 +11887,6 @@
       case 'review-now': openReview(weekStart(todayKey())); break;
       case 'review-open': openReview(a.dataset.v); break;
       case 'secret-open': { const s = SECRETS.find(x => x[0] === id); if (s) openTrophy(secretCardHtml(s[0], s[1]), state.secrets[id] ? t('sec_' + id) : '???', state.secrets[id] ? t('secd_' + id) : t('secretHidden'), state.secrets[id] ? () => trophyCanvas('secret', { id, icon: s[1] }) : null); break; }
-      case 'pet-edit': openPetEditor(); break;
-      case 'pet': {
-        petIdx++; const msgs = petMessages(), m = $('#pet-msg'); if (m) m.textContent = msgs[petIdx % msgs.length];
-        a.classList.remove('bounce'); void a.offsetWidth; a.classList.add('bounce'); vibrate([8, 30, 8, 30, 8]);
-        break;
-      }
       case 'chal-open': { const c = state.challengeCards.find(x => x.id === id); if (c) openTrophy(challengeCardHtml(c), t('challengeDone'), c.name, () => trophyCanvas('challenge', c)); break; }
       case 'settings': openSettings(); break;
       case 'habit-new': openHabitEditor(); break;
