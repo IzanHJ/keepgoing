@@ -64,7 +64,7 @@ const minutesBetween = (a: string, b: string) => { const [h1, m1] = a.split(":")
 const inWindow = (at: unknown, now: string) => typeof at === "string" && /^\d{2}:\d{2}$/.test(at) && (() => { const d = minutesBetween(at, now); return d >= 0 && d <= 10; })();
 
 // Lo mismo que NOTIF0 en js/app.js
-const NOTIF0 = { energy: true, energyAt: "21:00", summary: true, summaryAt: "09:00", challenge: true, share: true, group: true, message: true };
+const NOTIF0 = { rate: true, rateAt: "22:00", energy: false, energyAt: "21:00", summary: true, summaryAt: "09:00", challenge: true, share: true, group: true, message: true };
 
 // ¿Toca hoy y aún no está hecho? (misma lógica que la app, simplificada)
 // deno-lint-ignore no-explicit-any
@@ -89,7 +89,7 @@ const projectDone = (p: any) => !!(p.archived || p.goal?.achieved || (p.goal?.ty
 const TX = {
   es: {
     habit: "Es la hora de tu hábito. ¡Sigue así!", test: "Las notificaciones funcionan 🎉",
-    energyT: "¿Qué tal tu energía hoy?", energyB: "Valórala del 1 al 5 en «Hoy». Solo te lleva un segundo.",
+    rateT: "¿Qué tal ha ido tu día?", rateB: "Toca para ponerle nota con la corona. Solo te lleva un segundo.",
     sumT: (n: number) => n === 1 ? "Te queda 1 hábito hoy" : `Te quedan ${n} hábitos hoy`,
     chT: (name: string) => `🏁 ${name}`, chB: (n: number) => n === 1 ? "¡Último día! Mañana acaba." : `Quedan ${n} días para que acabe.`,
     prB: (n: number) => n === 1 ? "Mañana es la fecha límite del proyecto." : `Quedan ${n} días para la fecha límite del proyecto.`,
@@ -100,7 +100,7 @@ const TX = {
   },
   en: {
     habit: "It's time for your habit. Keep going!", test: "Notifications are working 🎉",
-    energyT: "How is your energy today?", energyB: "Rate it from 1 to 5 in “Today”. It only takes a second.",
+    rateT: "How was your day?", rateB: "Tap to rate it with the crown. It only takes a second.",
     sumT: (n: number) => n === 1 ? "1 habit left today" : `${n} habits left today`,
     chT: (name: string) => `🏁 ${name}`, chB: (n: number) => n === 1 ? "Last day! It ends tomorrow." : `${n} days left until it ends.`,
     prB: (n: number) => n === 1 ? "The project's deadline is tomorrow." : `${n} days left until the project's deadline.`,
@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
       const { day, time, wd } = localNow(list[0].tz || "Europe/Madrid");
       const L = (d.lang || list[0].lang) === "en" ? TX.en : TX.es;
       // Sin state.notif (la app aún no está en la v1.22) solo van los recordatorios de cada hábito, como antes
-      const N = d.notif && typeof d.notif === "object" ? { ...NOTIF0, ...d.notif } : { ...NOTIF0, energy: false, summary: false, challenge: false };
+      const N = d.notif && typeof d.notif === "object" ? { ...NOTIF0, ...d.notif } : { ...NOTIF0, rate: false, energy: false, summary: false, challenge: false };
       for (const h of d.habits || []) {
         const r = h.reminder;
         if (!r || !r.on || !inWindow(r.time, time)) continue;
@@ -185,8 +185,9 @@ Deno.serve(async (req) => {
         if (!(await once(uid, String(h.id), day))) continue; // ya se avisó hoy
         sent += await sendAll(list, { title: `${String(h.icon || "⏰").slice(0, 8)} ${String(h.name || "").slice(0, 80)}`, body: L.habit, url: APP_URL, tag: String(h.id) });
       }
-      if (N.energy && inWindow(N.energyAt, time) && !(d.energy && d.energy[day]) && await once(uid, "kg:energy", day))
-        sent += await sendAll(list, { title: L.energyT, body: L.energyB, url: APP_URL, tag: "kg-energy" });
+      // v1.32: la energía se quitó; a la hora elegida (22:00 por defecto) se avisa de valorar el día y el aviso abre la corona
+      if (N.rate && inWindow(N.rateAt, time) && !(d.dayRate && d.dayRate[day]) && await once(uid, "kg:rate", day))
+        sent += await sendAll(list, { title: L.rateT, body: L.rateB, url: `${APP_URL}?rate=${day}`, tag: "kg-rate" });
       if (N.summary && inWindow(N.summaryAt, time)) {
         const pend = (d.habits || []).filter((h: { archived?: boolean }) => !h.archived && isDueAndPending(h, d, day, wd));
         if (pend.length && await once(uid, "kg:summary", day))

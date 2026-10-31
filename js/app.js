@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.31.0';
+  const VERSION = '1.33.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -195,7 +195,7 @@
   const defaultCaprice = () => ({ income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT }, history: [{ from: '0000-00-00', income: CAP.DEFAULT_INCOME, pct: { ...CAP.DEFAULT_PCT } }] });
   const defaultLedgerCats = () => window.KGLedger.DEFAULT_CATEGORIES.map(c => ({ ...c, name: '', archived: false }));
   // v1.22: tipos de notificación (Ajustes → Notificaciones); el servidor los lee de kg_state para decidir qué envía
-  const NOTIF0 = { energy: true, energyAt: '21:00', summary: true, summaryAt: '09:00', challenge: true, share: true, group: true, message: true };
+  const NOTIF0 = { rate: true, rateAt: '22:00', energy: false, energyAt: '21:00', summary: true, summaryAt: '09:00', challenge: true, share: true, group: true, message: true };
   function defaultState() {
     const lang = (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
     return {
@@ -220,7 +220,7 @@
       ledgerProjs: [],
       ledgerWorth: [], ledgerContacts: [], // v1.25: contactos de la Libreta (cifrados)
       calDayK: {}, cdkmt: {}, perfectRules: [], ledDays: {}, ldmt: {},
-      calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, calGaps: {}, cgmt: {}, // v1.26: notas en los huecos entre turnos
+      calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, calGaps: {}, cgmt: {}, jrNotes: {}, jnmt: {}, // v1.26: notas en los huecos entre turnos
       // v1.25: nota de cada día del Calendario y valoración del día ({ r: 0..10 }) // v1.24: requisitos del día perfecto (historial por fecha) y días con movimientos
       // v1.24: tipo de día de cada fecha (Laboral, Libre, Festivo…) → id de calPrefs.dayKinds
       gymWorkouts: [], gymRoutines: [], gymEx: [], gymPrefs: {}, // v1.30: Gimnasio (entrenamientos, rutinas, ejercicios propios y ajustes)
@@ -241,7 +241,7 @@
   const ORDER_LISTS = ['projects', 'routines'];
   const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'gymWorkouts', 'gymRoutines', 'gymEx'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt'], ['sublogs', 'slmt']]; // hábito → día → valor (v1.23: sublogs = objetivos o maneras hechos ese día)
-  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt'], ['calGaps', 'cgmt']];             // clave → valor
+  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt'], ['calGaps', 'cgmt'], ['jrNotes', 'jnmt']];             // clave → valor
   function normalize(s) {
     const d = defaultState();
     const out = { ...d, ...s };
@@ -262,7 +262,7 @@
     out.perfectMastery = s.perfectMastery && typeof s.perfectMastery === 'object' && !Array.isArray(s.perfectMastery) ? s.perfectMastery : {};
     out.rest = s.rest && typeof s.rest === 'object' ? s.rest : {};
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
-    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'cgmt', 'calGaps', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
+    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'cgmt', 'calGaps', 'jnmt', 'jrNotes', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
     for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'perfectRules', 'gymRoutines', 'gymEx']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     // v1.30: entrenamientos limpios (llegan de la nube o de una copia); ajustes del Gimnasio
@@ -1125,45 +1125,86 @@
     ks.forEach(k => tfDksOf(k).forEach(d => { (dk[d.id] = dk[d.id] || { d, n: 0 }).n++; }));
     const perfect = state.habits.length ? ks.filter(k => k <= tk && dayInfo(k).perfect).length : null;
     const notes = []; ks.forEach(k => tfGaps(k).forEach(g => { if (notes.length < 4) notes.push({ k, a: g.a, t: String(g.t || '') }); }));
-    return { ks, r, avg: rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null, dk: Object.values(dk), perfect, notes, partial: ks[6] > tk };
+    // v1.32: resumen de hábitos y proyectos de la semana
+    const habits = state.habits.filter(h => !h.archived && !isQuit(h) && firstKey(h) <= ks[6]).map(h => {
+      if (h.freq === 'daily') { const sc = ks.map(k => dayScore(h, k)).filter(v => v != null); return { h, done: sc.filter(v => v >= 1).length, of: sc.length }; }
+      const sum = ks.reduce((a, k) => a + (k <= tk ? cnt(h, k) : 0), 0); return { h, done: sum, of: h.freq === 'weekly' ? (+h.target || 1) : 0 };
+    }).filter(x => x.of || x.done);
+    const projects = state.projects.filter(p => !p.archived && (p.habitIds || []).length).map(p => {
+      const xs = habits.filter(x => p.habitIds.includes(x.h.id) && x.of); if (!xs.length) return null;
+      return { p, pct: Math.round(xs.reduce((a, x) => a + Math.min(1, x.done / x.of), 0) / xs.length * 100) };
+    }).filter(Boolean);
+    return { ks, r, avg: rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null, rates: ks.map(dayRateOf), dk: Object.values(dk), perfect, notes, partial: ks[6] > tk, habits, projects, note: jrNoteOf(ks[0]) };
   }
+  // v1.32: notas propias de cada semana (state.jrNotes[lunes] = texto), se sincronizan como las demás notas
+  const JR_NOTE_MAX = 4000;
+  const jrNoteOf = w => typeof (state.jrNotes || {})[w] === 'string' ? state.jrNotes[w] : '';
+  const jrSetNote = (w, v) => { if (!state.jrNotes) state.jrNotes = {}; v = String(v || '').slice(0, JR_NOTE_MAX); if (v.trim()) state.jrNotes[w] = v; else delete state.jrNotes[w]; };
+  const JR_AXIS_KEY = 'keepgoing.jrAxis';
+  const jrAxis = () => { try { return localStorage.getItem(JR_AXIS_KEY) === 'h' ? 'h' : 'v'; } catch (e) { return 'v'; } };
+  // Icono morph: dos flechas que giran entre vertical (↕) y horizontal (↔)
+  const jrAxisIco = () => `<svg class="i jr-ax-i" viewBox="0 0 24 24" aria-hidden="true"><g class="jr-ax-g"><path d="M12 4v16"/><path class="jr-ax-a" d="M8 8l4-4 4 4"/><path class="jr-ax-b" d="M8 16l4 4 4-4"/></g></svg>`;
+  /* v1.32: el diario es un ARCHIVADOR. Cada semana es una carpeta con su pestaña (número de semana y media de la
+     valoración); se ojea en vertical (pasillo hacia el fondo) o en horizontal (carpetas en fila, como un archivador
+     abierto): el botón con flechas cambia de eje con un icono que se transforma. Debajo, la semana abierta: resumen
+     (valoración media día a día, hábitos, proyectos, Organización y Gimnasio) y una nota propia que se puede editar. */
   function makeJournal() {
-    const weeks = jrWeeks(); let f = 0, wref = null, wheelT = 0;
+    const weeks = jrWeeks(); let f = 0, wref = null, wheelT = 0, ax = jrAxis(), saveT = 0;
     const years = [...new Set(weeks.map(w => tfWeekKeys(w)[6].slice(0, 4)))];
     const frame = (w, i) => {
-      const ks = tfWeekKeys(w), tk = todayKey();
+      const ks = tfWeekKeys(w), tk = todayKey(), rs = ks.map(dayRateOf).filter(v => v != null), avg = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null, note = jrNoteOf(ks[0]);
       const cells = ks.map(k => { const cs = tfDayColors(k), rv = dayRateOf(k), n = (state.calDays[k] || []).length; return `<i class="${k > tk ? 'fut' : ''}" style="${cs.length ? `--c:${cs[0]}` : rv != null ? `--c:${rateColor(rv)}` : ''}">${n ? `<b>${n}</b>` : ''}</i>`; }).join('');
-      return `<button class="jr-f" data-jr-i="${i}" aria-label="${esc(jrFmtRange(ks[0], ks[6]))}"><span class="jr-wk">${esc(t('jrWeekN', { n: tfWeekNo(ks[0]) }))}</span><span class="jr-rg">${esc(jrFmtRange(ks[0], ks[6]))}</span><span class="jr-cells">${cells}</span></button>`;
+      return `<button class="jr-f" data-jr-i="${i}" aria-label="${esc(jrFmtRange(ks[0], ks[6]))}"><span class="jr-tabl"><b>${esc(t('jrWeekN', { n: tfWeekNo(ks[0]) }))}</b>${avg != null ? `<i style="--rc:${rateColor(avg)}">${fmtNum(Math.round(avg * 10) / 10)}</i>` : ''}</span><span class="jr-rg">${esc(jrFmtRange(ks[0], ks[6]))}</span><span class="jr-cells">${cells}</span>${note ? `<span class="jr-snip">${ico('edit', 'xs')} ${esc(note.slice(0, 90))}</span>` : ''}</button>`;
     };
     const detail = () => {
       const S = jrWeek(weeks[f]), pv = privacyOn(), stat = (v, l) => `<div class="jr-st"><b>${v}</b><span>${esc(l)}</span></div>`;
-      // v1.30: Gimnasio de la semana (días entrenados y músculos trabajados)
       const G = window.KGGym ? KGGym.weekSummary(state.gymWorkouts, S.ks, state.gymEx) : null, gm = m => (KGGym.MUSCLE_NAME[state.lang] || KGGym.MUSCLE_NAME.es)[m] || m;
+      const bars = S.rates.some(v => v != null) ? `<div class="jr-rbars" aria-label="${esc(t('rateAvg'))}">${S.ks.map((k, i) => { const v = S.rates[i]; return `<span><i style="--h:${v == null ? 0 : Math.max(4, Math.round(v * 4.6))}px;--rc:${v == null ? 'transparent' : rateColor(v)};--d:${i}"></i><small>${esc(fmtDate(k, { weekday: 'narrow' }))}</small></span>`; }).join('')}</div>` : '';
       return `<div class="jr-d-h"><b>${esc(jrFmtRange(S.ks[0], S.ks[6]))}</b>${S.partial ? `<span class="chip sm">${esc(t('jrNow'))}</span>` : ''}</div>
-        <div class="jr-stats">${stat(tfH(S.r.hours) + ' h', t('tfHours'))}${stat(S.r.count, t('tfShiftsN'))}${S.r.pay > 0 ? stat(pv ? '••••' : esc(money(S.r.pay)), t('tfPayEst')) : ''}${S.perfect != null ? stat(S.perfect + '/7', t('perfectDays')) : ''}${G && G.sessions ? stat(G.days.length + '/7', t('gyDaysTrained')) : ''}${stat(S.avg == null ? '—' : fmtNum(Math.round(S.avg * 10) / 10) + '/10', t('rateTitle'))}</div>
+        <div class="jr-stats">${stat(S.avg == null ? '—' : fmtNum(Math.round(S.avg * 10) / 10) + '/10', t('rateAvg'))}${S.perfect != null ? stat(S.perfect + '/7', t('perfectDays')) : ''}${stat(tfH(S.r.hours) + ' h', t('tfHours'))}${stat(S.r.count, t('tfShiftsN'))}${S.r.pay > 0 ? stat(pv ? '••••' : esc(money(S.r.pay)), t('tfPayEst')) : ''}${G && G.sessions ? stat(G.days.length + '/7', t('gyDaysTrained')) : ''}</div>
+        ${bars}
+        ${S.habits.length ? `<div class="jr-sec"><span class="jr-h">${ico('checklist', 'xs')} ${esc(t('jrHabits'))}</span><div class="jr-hab">${S.habits.map(x => `<span class="jr-hb" style="${habitVars(hColor(x.h))}"><span class="grow ellipsis">${esc(x.h.icon || '')} ${esc(x.h.name)}</span><b>${x.of ? `${x.done}/${x.of}` : `×${x.done}`}</b><i style="--p:${x.of ? Math.min(100, x.done / x.of * 100) : 100}%"></i></span>`).join('')}</div></div>` : ''}
+        ${S.projects.length ? `<div class="jr-sec"><span class="jr-h">${ico('folder', 'xs')} ${esc(t('jrProjects'))}</span><div class="jr-hab">${S.projects.map(x => `<span class="jr-hb" style="--h:${x.p.color || 'var(--accent)'}"><span class="grow ellipsis">${esc(x.p.icon || '')} ${esc(x.p.name)}</span><b>${x.pct}%</b><i style="--p:${x.pct}%"></i></span>`).join('')}</div></div>` : ''}
         ${S.dk.length ? `<div class="row wrap" style="gap:6px">${S.dk.map(x => `${tfDkTag(x.d)}<span class="muted small" style="align-self:center">×${x.n}</span>`).join('')}</div>` : ''}
         ${G && G.sessions ? `<div class="jr-gym"><span class="muted small">${ico('dumbbell', 'xs')} ${esc(t('gyJrLine', { s: G.sessions, sets: G.sets }))}</span><div class="gy-mchips">${G.muscles.slice(0, 6).map(x => `<span class="gy-mchip">${esc(gm(x.m))}<b>${fmtNum(x.n)}</b></span>`).join('')}</div></div>` : ''}
         ${S.notes.length ? `<ul class="jr-notes">${S.notes.map(n => `<li><span class="muted small">${esc(fmtDate(n.k, { weekday: 'short', day: 'numeric' }))} · ${esc(n.a)}</span> ${esc(n.t)}</li>`).join('')}</ul>` : ''}
-        ${!S.r.count && S.avg == null && !S.dk.length && !S.notes.length && !(G && G.sessions) ? `<p class="muted small" style="margin:0">${esc(t('jrEmpty'))}</p>` : ''}`;
+        <label class="jr-note"><span class="jr-h">${ico('edit', 'xs')} ${esc(t('jrNote'))}</span><textarea class="input" id="jr-note" rows="3" maxlength="${JR_NOTE_MAX}" placeholder="${esc(t('jrNotePh'))}">${esc(S.note)}</textarea><small class="muted" id="jr-note-st" aria-live="polite"></small></label>`;
     };
-    const place = () => {
+    const place = (refresh = true) => {
       if (!wref) return;
+      const H = ax === 'h';
       $$('.jr-f', wref).forEach(el => {
-        const i = +el.dataset.jrI, d = i - f, side = (i % 2 ? 1 : -1);
-        el.style.transform = d < 0 ? `translate3d(${side * 40}px, 120px, 260px) rotateX(-12deg)` : `translate3d(${side * Math.min(d, 6) * 14}px, ${-d * 26}px, ${-d * 190}px) rotateY(${side * Math.min(d, 6) * -3}deg)`;
-        el.style.opacity = d < 0 ? 0 : Math.max(0, 1 - d * .16);
-        el.style.zIndex = 100 - Math.abs(d); el.style.pointerEvents = d < 0 || d > 6 ? 'none' : '';
+        const i = +el.dataset.jrI, d = i - f, side = (i % 2 ? 1 : -1), ad = Math.abs(d);
+        if (H) {
+          // Horizontal: las carpetas en fila; la abierta delante, las demás se inclinan hacia los lados (las antiguas a la izquierda)
+          el.style.transform = d === 0 ? 'translate3d(0, 0, 60px)' : `translate3d(${-Math.sign(d) * (110 + Math.min(ad, 5) * 46)}px, ${Math.min(ad, 5) * 6}px, ${-ad * 120}px) rotateY(${Math.sign(d) * 48}deg)`;
+          el.style.opacity = ad > 5 ? 0 : Math.max(0, 1 - ad * .14);
+        } else {
+          el.style.transform = d < 0 ? `translate3d(${side * 40}px, 120px, 260px) rotateX(-12deg)` : `translate3d(${side * Math.min(d, 6) * 14}px, ${-d * 26}px, ${-d * 190}px) rotateY(${side * Math.min(d, 6) * -3}deg)`;
+          el.style.opacity = d < 0 ? 0 : Math.max(0, 1 - d * .16);
+        }
+        el.style.zIndex = 100 - ad; el.style.pointerEvents = (H ? ad > 5 : d < 0 || d > 6) ? 'none' : '';
         el.classList.toggle('on', d === 0); el.tabIndex = d === 0 ? 0 : -1;
       });
-      $('#jr-d', wref).innerHTML = detail();
+      if (refresh) { const box = $('#jr-d', wref); box.innerHTML = detail(); if (!reducedMotion()) { box.classList.remove('jr-in'); void box.offsetWidth; box.classList.add('jr-in'); } }
       const ky = tfWeekKeys(weeks[f])[6].slice(0, 4);
       $$('[data-jr-y]', wref).forEach(b => b.classList.toggle('on', b.dataset.jrY === ky));
       const rng = $('#jr-rng', wref); if (rng) rng.value = weeks.length - 1 - f;
       $('.jr-grid', wref).style.setProperty('--z', f * 40 + 'px');
     };
-    const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; f = nf; vibrate(5); place(); };
-    const html = `<div class="jr jr-tab"><div class="jr-grid" aria-hidden="true"></div>
-        <div class="jr-top"><h1 class="page-title grow" style="margin:0">${esc(t('jrTitle'))}</h1></div>
+    const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; flush(); f = nf; vibrate(5); sfx('tap'); place(); };
+    const flush = () => { if (!saveT) return; clearTimeout(saveT); saveT = 0; const ta = wref && $('#jr-note', wref); if (ta) commit(ta.value); };
+    const commit = v => { const w = tfWeekKeys(weeks[f])[0], had = Object.keys(state.jrNotes || {}).length; jrSetNote(w, v); save(); if (v.trim()) firstTime('journal', !had); const st = wref && $('#jr-note-st', wref); if (st) st.textContent = t('saved'); const fr = wref && $(`.jr-f[data-jr-i="${f}"]`, wref); if (fr) { fr.outerHTML = frame(weeks[f], f); place(false); } };
+    const setAxis = a => {
+      ax = a; try { localStorage.setItem(JR_AXIS_KEY, a); } catch (e) { /* nada */ }
+      const root = wref && $('.jr', wref); if (root) root.dataset.ax = a;
+      const b = wref && $('[data-jr-ax]', wref); if (b) { b.setAttribute('aria-pressed', a === 'h'); b.title = b.ariaLabel = t(a === 'h' ? 'jrAxisH' : 'jrAxisV'); }
+      vibrate(8); sfx('toggle'); place(false);
+    };
+    const html = `<div class="jr jr-tab" data-ax="${ax}"><div class="jr-grid" aria-hidden="true"></div>
+        <div class="jr-top"><h1 class="page-title grow" style="margin:0">${esc(t('jrTitle'))}</h1>
+          <button class="icon-btn sm jr-nav" data-jr-step="1" aria-label="${esc(t('jrOlder'))}" title="${esc(t('jrOlder'))}">${ico('left')}</button><button class="icon-btn sm jr-nav" data-jr-step="-1" aria-label="${esc(t('jrNewer'))}" title="${esc(t('jrNewer'))}">${ico('right')}</button>
+          <button class="icon-btn sm jr-ax" data-jr-ax aria-pressed="${ax === 'h'}" aria-label="${esc(t(ax === 'h' ? 'jrAxisH' : 'jrAxisV'))}" title="${esc(t(ax === 'h' ? 'jrAxisH' : 'jrAxisV'))}">${jrAxisIco()}</button></div>
         <div class="jr-years" role="tablist">${years.map(y => `<button class="chip sm" role="tab" data-jr-y="${y}">${y}</button>`).join('')}</div>
         <div class="jr-stage" id="jr-stage">${weeks.map((w, i) => frame(w, i)).join('')}</div>
         <input type="range" class="jr-rng" id="jr-rng" min="0" max="${Math.max(0, weeks.length - 1)}" value="${weeks.length - 1}" aria-label="${esc(t('jrScrub'))}">
@@ -1171,14 +1212,22 @@
     const mount = w => {
       wref = w; place();
       const st = $('#jr-stage', w);
-      st.addEventListener('wheel', e => { e.preventDefault(); if (Date.now() - wheelT < 120) return; wheelT = Date.now(); go(f + (e.deltaY > 0 ? 1 : -1)); }, { passive: false });
-      let y0 = null;
-      st.addEventListener('pointerdown', e => { y0 = e.clientY; });
-      st.addEventListener('pointermove', e => { if (y0 == null) return; const dy = e.clientY - y0; if (Math.abs(dy) > 40) { go(f + (dy < 0 ? 1 : -1)); y0 = e.clientY; } });
-      const up = () => { y0 = null; }; st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
-      w.addEventListener('keydown', e => { if (!e.target.closest('.jr')) return; if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); go(f + 1); } if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); go(f - 1); } });
+      st.addEventListener('wheel', e => { e.preventDefault(); if (Date.now() - wheelT < 120) return; wheelT = Date.now(); const dv = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; go(f + (dv > 0 ? 1 : -1)); }, { passive: false });
+      let p0 = null;
+      st.addEventListener('pointerdown', e => { p0 = { x: e.clientX, y: e.clientY }; });
+      st.addEventListener('pointermove', e => {
+        if (!p0) return; const dx = e.clientX - p0.x, dy = e.clientY - p0.y;
+        if (ax === 'h' && Math.abs(dx) > 40) { go(f + (dx > 0 ? 1 : -1)); p0 = { x: e.clientX, y: e.clientY }; }
+        else if (ax === 'v' && Math.abs(dy) > 40) { go(f + (dy < 0 ? 1 : -1)); p0 = { x: e.clientX, y: e.clientY }; }
+      });
+      const up = () => { p0 = null; }; st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
+      w.addEventListener('keydown', e => { if (!e.target.closest('.jr') || e.target.closest('textarea')) return; if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); go(f + 1); } if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); go(f - 1); } });
       $('#jr-rng', w).addEventListener('input', e => go(weeks.length - 1 - +e.target.value));
+      w.addEventListener('input', e => { if (e.target.id !== 'jr-note') return; const st2 = $('#jr-note-st', w); if (st2) st2.textContent = ''; clearTimeout(saveT); const v = e.target.value; saveT = setTimeout(() => { saveT = 0; commit(v); }, 700); });
+      w.addEventListener('focusout', e => { if (e.target.id === 'jr-note') flush(); });
       w.addEventListener('click', e => {
+        if (e.target.closest('[data-jr-ax]')) { setAxis(ax === 'h' ? 'v' : 'h'); return; }
+        const sb = e.target.closest('[data-jr-step]'); if (sb) { go(f + +sb.dataset.jrStep); return; }
         const fr = e.target.closest('[data-jr-i]'); if (fr) { go(+fr.dataset.jrI); return; }
         const yb = e.target.closest('[data-jr-y]'); if (yb) { const i = weeks.findIndex(x => tfWeekKeys(x)[6].slice(0, 4) === yb.dataset.jrY); if (i >= 0) go(i); }
       });
@@ -4863,7 +4912,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -9017,46 +9066,92 @@
     return d + 'Z';
   }
   const rateShape = (v, size = 44) => `<svg class="rate-shape" viewBox="0 0 100 100" width="${size}" height="${size}" aria-hidden="true"><path d="${ratePath(v, 40, 50, 50)}" fill="${rateColor(v)}"/></svg>`;
+  /* v1.32: valoración con CORONA a pantalla completa. Una corona de joyas en el centro crece con la nota: con 0-3 es
+     de bronce apagado, pequeña, ladeada y temblorosa; desde el 5 se endereza y se dora; cada 2 puntos se enciende una joya
+     (rubí, zafiro, esmeralda, amatista, topacio) y con 8 o más brillan las puntas, giran rayos detrás y suben chispas.
+     El fondo toma el color de la nota. Se abre desde la tarjeta «¿Qué tal tu día?» o desde el aviso de las 22:00. */
+  const CROWN_GEMS = ['#ff2d55', '#2f7bff', '#14d98b', '#b44dff', '#ffb020'];
+  function drawCrown(ctx, cx, cy, R, v, tm) {
+    const q = v / 10, lit = Math.ceil(v / 2), tilt = v < 4 ? -.22 * (1 - v / 4) + Math.sin(tm * 9) * .02 * (1 - v / 4) : Math.sin(tm * 1.4) * .02;
+    const W = R * 2.3, bh = R * .5, top = cy - R * .1;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(tilt); const sc = .72 + q * .38 + Math.sin(tm * 2) * .012; ctx.scale(sc, sc); ctx.translate(-cx, -cy);
+    // Rayos y halo
+    if (v >= 5) {
+      const n = 18, a0 = tm * .25;
+      ctx.save(); ctx.globalAlpha = (q - .4) * .55;
+      for (let i = 0; i < n; i++) { const a = a0 + i / n * Math.PI * 2; ctx.fillStyle = CROWN_GEMS[i % 5]; ctx.beginPath(); ctx.moveTo(cx, top); ctx.arc(cx, top, R * 3.4, a, a + .07); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    }
+    const g = ctx.createRadialGradient(cx, top, R * .2, cx, top, R * 2.2); g.addColorStop(0, `hsla(45, 100%, 70%, ${.15 + q * .45})`); g.addColorStop(1, 'hsla(45, 100%, 60%, 0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, top, R * 2.2, 0, Math.PI * 2); ctx.fill();
+    // Silueta: banda + 5 puntas (la central más alta)
+    const L = cx - W / 2, Rr = cx + W / 2, base = top + bh, hs = [.75, .95, 1.25, .95, .75].map(h => h * R * (.55 + q * .55));
+    const path = new Path2D(); path.moveTo(L, base); path.lineTo(L, top);
+    const xs = [0, .25, .5, .75, 1].map(f => L + f * W);
+    xs.forEach((x, i) => { if (i) path.lineTo((xs[i - 1] + x) / 2, top + R * .18); path.lineTo(x, top - hs[i]); });
+    path.lineTo(Rr, top); path.lineTo(Rr, base); path.quadraticCurveTo(cx, base + R * .12, L, base); path.closePath();
+    const sat = 25 + q * 75, lig = 32 + q * 22;
+    const gold = ctx.createLinearGradient(0, top - R * 1.3, 0, base + R * .2);
+    gold.addColorStop(0, `hsl(48, ${sat}%, ${lig + 30}%)`); gold.addColorStop(.45, `hsl(42, ${sat}%, ${lig + 8}%)`); gold.addColorStop(1, `hsl(30, ${sat}%, ${lig - 12}%)`);
+    ctx.shadowColor = `hsla(45, 100%, 60%, ${q * .8})`; ctx.shadowBlur = 20 + q * 40; ctx.fillStyle = gold; ctx.fill(path); ctx.shadowBlur = 0;
+    ctx.lineWidth = 3; ctx.strokeStyle = `hsla(40, ${sat}%, ${lig + 35}%, .8)`; ctx.stroke(path);
+    // Grieta si la nota es muy baja
+    if (v <= 2) { ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx - R * .1, top - hs[2] * .6); ctx.lineTo(cx + R * .05, top - R * .1); ctx.lineTo(cx - R * .08, top + bh * .5); ctx.lineTo(cx + R * .06, base); ctx.stroke(); }
+    // Banda con brillo que pasa
+    const sh = ((tm * .35) % 1.6 - .3) * W;
+    ctx.save(); ctx.clip(path); const sg = ctx.createLinearGradient(L + sh - 40, 0, L + sh + 40, 0); sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, `rgba(255,255,255,${.15 + q * .35})`); sg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = sg; ctx.fillRect(L, top - R * 1.5, W, R * 2.5); ctx.restore();
+    // Joyas de la banda
+    [.14, .32, .5, .68, .86].forEach((f, i) => {
+      const x = L + f * W, y = top + bh * .52, on = i < lit, r = R * (i === 2 ? .17 : .13);
+      ctx.save(); if (on) { ctx.shadowColor = CROWN_GEMS[i]; ctx.shadowBlur = 18 + Math.sin(tm * 3 + i) * 6; }
+      ctx.fillStyle = on ? CROWN_GEMS[i] : 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); ctx.fill();
+      if (on) { ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(x - r * .3, y - r * .3, r * .22, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+    });
+    // Perlas en las puntas (8 o más)
+    xs.forEach((x, i) => {
+      const on = v >= 8, y = top - hs[i] - R * .08, r = R * .1;
+      ctx.save(); if (on) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 16; }
+      ctx.fillStyle = on ? `hsl(${(tm * 60 + i * 72) % 360}, 90%, 80%)` : `hsl(40, ${sat}%, ${lig + 20}%)`; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    });
+    ctx.restore();
+  }
   function openRateDay(k) {
     const cur = dayRateOf(k);
     let v = cur == null ? 5 : cur, shown = v, raf = 0;
+    const sparks = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), s: .5 + Math.random() * 2, sp: .02 + Math.random() * .06, c: CROWN_GEMS[Math.floor(Math.random() * 5)], ph: Math.random() * 6 }));
     openModal({
-      cls: 'rate-imm', title: '',
+      cls: 'imm rate-imm crown', title: '',
       body: `<div class="ri"><canvas class="ri-cv" aria-hidden="true"></canvas>
         <div class="ri-top"><button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button><span class="ri-day">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span style="width:36px"></span></div>
-        <div class="ri-mid"><b class="ri-n" id="ri-n">${v}</b><span class="ri-w" id="ri-w">${esc(t(RATE_WORDS[v]))}</span></div>
+        <div class="ri-mid"><span class="ri-q">${esc(t(k === todayKey() ? 'crownQ' : 'crownQy'))}</span><b class="ri-n" id="ri-n">${v}</b><span class="ri-w" id="ri-w">${esc(t(RATE_WORDS[v]))}</span></div>
         <div class="ri-bot"><input type="range" class="ri-range" id="ri-range" min="0" max="10" step="1" value="${v}" aria-label="${esc(t('rateTitle'))}" aria-valuetext="${v} · ${esc(t(RATE_WORDS[v]))}">
           <div class="ri-ends"><span>${esc(t('rw0'))}</span><span>${esc(t('rw10'))}</span></div>
-          <div class="row" style="gap:10px">${cur != null ? `<button class="btn grow" data-ri="clear">${ico('trash')} ${esc(t('riClear'))}</button>` : ''}<button class="btn primary grow" data-ri="save">${ico('check')} ${esc(t('save'))}</button></div></div></div>`,
+          <div class="row" style="gap:10px">${cur != null ? `<button class="btn grow" data-ri="clear">${ico('trash')} ${esc(t('riClear'))}</button>` : ''}<button class="btn primary grow" data-ri="save">${ico('crown')} ${esc(t('crownSave'))}</button></div></div></div>`,
       onMount: (w, close) => {
+        immersiveIn(w);
         const box = $('.ri', w), cv = $('.ri-cv', w), ctx = cv.getContext('2d'), rng = $('#ri-range', w), rm = reducedMotion();
         const dpr = Math.min(2, devicePixelRatio || 1);
         const fit = () => { cv.width = box.clientWidth * dpr; cv.height = box.clientHeight * dpr; };
         fit(); addEventListener('resize', fit);
-        const paint = () => { box.style.setProperty('--rc', rateColor(Math.round(shown * 10) / 10)); };
         const t0 = performance.now();
         const frame = now => {
           if (!w.isConnected) { removeEventListener('resize', fit); return; }
-          shown += (v - shown) * (rm ? 1 : .12); paint();
-          const W = cv.width / dpr, H = cv.height / dpr, cx = W / 2, cy = H * .42, R = Math.min(W, H) * .24, tm = rm ? 0 : (now - t0) / 1000;
+          shown += (v - shown) * (rm ? 1 : .1);
+          const sv = Math.max(0, Math.min(10, shown)), col = rateColor(Math.round(sv * 10) / 10);
+          box.style.setProperty('--rc', col);
+          const W = cv.width / dpr, H = cv.height / dpr, tm = rm ? 0 : (now - t0) / 1000;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
-          const col = rateColor(Math.max(0, Math.min(10, shown))), calm = (shown - 5) / 5;
-          // Ecos (patrón) que giran en sentidos opuestos
-          for (let e = 4; e >= 1; e--) {
-            ctx.save(); ctx.translate(cx, cy); ctx.rotate((e % 2 ? 1 : -1) * tm * (.08 + e * .02) * (calm < 0 ? 2 : 1)); ctx.translate(-cx, -cy);
-            const p = new Path2D(ratePath(shown, R * (1 + e * .32 + Math.sin(tm * 1.2 + e) * .02), cx, cy, tm * .4 * e));
-            ctx.globalAlpha = .1 + (4 - e) * .04; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(p); ctx.restore();
-          }
-          // Forma principal que respira
-          ctx.save(); ctx.translate(cx, cy); ctx.rotate(tm * (calm < 0 ? .25 : .1)); const br = 1 + Math.sin(tm * (calm < 0 ? 3.2 : 1.6)) * (calm < 0 ? .025 : .04); ctx.scale(br, br); ctx.translate(-cx, -cy);
-          const p = new Path2D(ratePath(shown, R, cx, cy, tm * .2));
-          ctx.globalAlpha = 1; ctx.shadowColor = col; ctx.shadowBlur = 40; ctx.fillStyle = col; ctx.fill(p); ctx.shadowBlur = 0;
-          ctx.globalAlpha = .35; ctx.fillStyle = '#fff'; ctx.fill(new Path2D(ratePath(shown, R * .45, cx - R * .12, cy - R * .14, tm * .2))); ctx.restore();
+          // Chispas que suben (más y más rápidas cuanto mejor el día)
+          const nS = Math.round(sparks.length * Math.max(0, (sv - 3) / 7));
+          for (let i = 0; i < nS; i++) { const p = sparks[i], y = ((p.y - tm * p.sp * (.5 + sv / 10)) % 1 + 1) % 1; ctx.globalAlpha = .35 + .4 * Math.sin(tm * 3 + p.ph); ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x * W, y * H, p.s * (1 + sv / 10), 0, Math.PI * 2); ctx.fill(); }
+          ctx.globalAlpha = 1;
+          drawCrown(ctx, W / 2, H * .36, Math.min(W, H) * .17, sv, tm);
           raf = requestAnimationFrame(frame);
         };
         raf = requestAnimationFrame(frame);
         rng.addEventListener('input', () => {
-          const n = +rng.value; if (n === v) return; v = n; vibrate(6); sfx('tap');
+          const n = +rng.value; if (n === v) return; const up = n > v; v = n; vibrate(n >= 8 && up ? [6, 20, 6] : 6); sfx(n === 10 && up ? 'perfect' : 'tap');
           $('#ri-n', w).textContent = n; $('#ri-w', w).textContent = t(RATE_WORDS[n]); rng.setAttribute('aria-valuetext', n + ' · ' + t(RATE_WORDS[n]));
           const nb = $('#ri-n', w); nb.classList.remove('bump'); void nb.offsetWidth; nb.classList.add('bump');
         });
@@ -9064,14 +9159,14 @@
       onClick: (e, close) => {
         const b = e.target.closest('[data-ri]'); if (!b) return;
         if (b.dataset.ri === 'clear') delete state.dayRate[k]; else { state.dayRate[k] = { r: v }; firstTime('rate', Object.keys(state.dayRate).length === 1); }
-        save(); sfx(b.dataset.ri === 'clear' ? 'undo' : 'complete'); close(); render();
+        save(); sfx(b.dataset.ri === 'clear' ? 'undo' : v >= 8 ? 'levelup' : 'complete'); vibrate(v >= 8 ? [15, 50, 15, 50, 30] : 12); close(); render();
       },
       onClose: () => cancelAnimationFrame(raf)
     });
   }
   function dayRateHtml() {
     const k = todayKey(), y = addDays(k, -1), v = dayRateOf(k), vy = dayRateOf(y);
-    return `<div class="clay card rate-card" data-w="dayrate"><button class="rate-open" data-act="rate-today">${v != null ? rateShape(v) : `<span class="rate-shape empty">${ico('sparkle')}</span>`}<span class="grow"><b>${esc(t('rateToday'))}</b><span class="muted small">${v != null ? esc(t(RATE_WORDS[v])) : esc(t('riTap'))}</span></span>${v != null ? `<span class="rate-big" style="--rc:${rateColor(v)}">${v}<small>/10</small></span>` : ico('right')}</button>
+    return `<div class="clay card rate-card" data-w="dayrate"><button class="rate-open" data-act="rate-today"><span class="rate-crown ${v != null ? 'on' : ''}" style="--rc:${v != null ? rateColor(v) : 'var(--muted)'}">${ico('crown')}</span><span class="grow"><b>${esc(t('rateToday'))}</b><span class="muted small">${v != null ? esc(t(RATE_WORDS[v])) : esc(t('riTap'))}</span></span>${v != null ? `<span class="rate-big" style="--rc:${rateColor(v)}">${v}<small>/10</small></span>` : ico('right')}</button>
       ${vy == null ? `<button class="link-btn small" data-act="rate-yday">${esc(t('rateYesterday'))}</button>` : ''}</div>`;
   }
 
@@ -10114,7 +10209,7 @@
     return `<p class="muted small" style="margin-top:0">${esc(t('pushHint'))}</p>
       <div class="row wrap"><span class="grow small" style="font-weight:var(--fw-label)">${esc(t('pushStatus_' + status))}</span>
         ${status === 'on' ? `<button class="btn" data-s="push-test">${ico('bell')} ${esc(t('pushTest'))}</button><button class="chip" data-s="push-off">${esc(t('pushDisable'))}</button>` : status === 'off' ? `<button class="btn primary" data-s="push-on">${ico('bell')} ${esc(t('pushEnable'))}</button>` : ''}</div>
-      <div class="ntf-list">${[['energy', 'energyAt'], ['summary', 'summaryAt'], ['challenge'], ['share'], ['group'], ['message']].map(([k, at]) => `<div class="ntf-row"><label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-ntf="${k}" ${n[k] ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('ntf_' + k))}</b><br><span class="muted small">${esc(t('ntf_' + k + '_h'))}</span></span></label>${at ? `<input class="input ntf-at" type="time" data-ntf-at="${at}" value="${esc(n[at])}" aria-label="${esc(t('ntfAt'))}" ${n[k] ? '' : 'disabled'}>` : ''}</div>`).join('')}</div>
+      <div class="ntf-list">${[['rate', 'rateAt'], ['summary', 'summaryAt'], ['challenge'], ['share'], ['group'], ['message']].map(([k, at]) => `<div class="ntf-row"><label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-ntf="${k}" ${n[k] ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('ntf_' + k))}</b><br><span class="muted small">${esc(t('ntf_' + k + '_h'))}</span></span></label>${at ? `<input class="input ntf-at" type="time" data-ntf-at="${at}" value="${esc(n[at])}" aria-label="${esc(t('ntfAt'))}" ${n[k] ? '' : 'disabled'}>` : ''}</div>`).join('')}</div>
       <h4 class="ntf-sub">${esc(t('ntfHabits'))}</h4>
       ${withRem.length ? `<div>${withRem.map(h => `<div class="entry"><span>${esc(h.icon)} ${esc(h.name)}</span><b>${ico('bell', 'xs')} ${esc(h.reminder.time)}</b></div>`).join('')}</div>` : `<p class="muted small">${esc(t('pushNoReminders'))}</p>`}`;
   }
@@ -11953,6 +12048,15 @@
     const l = document.createElement('link'); l.rel = 'manifest'; l.href = 'manifest.webmanifest'; document.head.appendChild(l);
     if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
+  // v1.32: el aviso de las 22:00 lleva a la corona (enlace ?rate=today, o mensaje del service worker si la app ya estaba abierta)
+  function openFromUrl(u) {
+    let q; try { q = new URL(u, location.href).searchParams; } catch (e) { return; }
+    if (!q.get('rate') || !state.onboarded) return;
+    const k = /^\d{4}-\d{2}-\d{2}$/.test(q.get('rate')) ? q.get('rate') : todayKey();
+    setTimeout(() => whenFree(() => openRateDay(k)), 450);
+  }
+  if (/[?&]rate=/.test(location.search)) { openFromUrl(location.href); try { history.replaceState(null, '', location.pathname); } catch (e) { /* nada */ } }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.kg === 'open') openFromUrl(e.data.url); });
 
   // Perfil público (?u=slug): página de solo lectura, sin cargar la app
   const params = new URLSearchParams(location.search);
