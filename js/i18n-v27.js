@@ -25,6 +25,7 @@
     wn_1_27_0_6: "Diario semanal|Nueva luna del orbe: tus semanas de Organización como marcos en un pasillo: horas, turnos, días por tipo, valoración y notas de cada semana.",
     wn_1_27_0_7: "Responde deslizando|En un chat, desliza un mensaje a la derecha para responderlo. Toca la cita para saltar al mensaje original.",
     wn_1_27_0_8: "Torneos en el grupo|Pestaña Torneo: eliminatoria entre miembros. En cada ronda pasa quien más cumple; si empatan, deciden los votos del grupo.",
+    wn_1_27_1_1: "El Diario, en el orbe|El Diario semanal es ahora una luna más del orbe, entre Organización y Libreta, con su propia pestaña.",
     wn_1_27_0_9: "Iconos con vida|Cada icono tiene su pequeña animación al pasar el cursor o tocarlo."
   };
   const en = {
@@ -51,6 +52,7 @@
     wn_1_27_0_6: "Weekly journal|A new moon in the orb: your Organisation weeks as frames down a corridor: hours, shifts, day types, rating and notes for each week.",
     wn_1_27_0_7: "Swipe to reply|In a chat, swipe a message to the right to reply. Tap the quote to jump to the original message.",
     wn_1_27_0_8: "Group cups|Cup tab: a knockout between members. Each round, whoever does the most goes through; on a tie, the group votes.",
+    wn_1_27_1_1: "The Journal, in the orb|The weekly journal is now a moon of its own in the orb, between Organisation and Ledger, with its own tab.",
     wn_1_27_0_9: "Living icons|Every icon has its own little animation when you hover or tap it."
   };
   Object.assign(window.I18N.es, es);
