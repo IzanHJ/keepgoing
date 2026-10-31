@@ -510,9 +510,10 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .set-item { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 0; width: 100%; text-align: left; color: var(--fg); font-weight: var(--fw-ui); }
 .set-item .ico { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; background: var(--surface-2); flex: none; }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
-}
+/* v1.27.2: el movimiento lo decide el ajuste «Animaciones» (js: applyMotion pone data-motion en <html>):
+   full = todo; soft = «Según el sistema» con Reducir movimiento activado → sin movimiento, solo fundidos suaves en los momentos clave;
+   off = «Reducidas» → nada se mueve. */
+:root:is([data-motion="soft"], [data-motion="off"]) *, :root:is([data-motion="soft"], [data-motion="off"]) *::before, :root:is([data-motion="soft"], [data-motion="off"]) *::after { animation: none !important; transition: none !important; }
 
 /* =========================================================
    Fase 1: Hoy, rutinas, nivel, recompensas, energía, fotos…
@@ -846,7 +847,7 @@ p { font-weight: var(--fw-body); }
 
 /* =========================================================
    v1.10: pulido (centrado, hover en PC + animación al tocar en todos los dispositivos)
-   Todo lo animado se apaga con prefers-reduced-motion (regla global de arriba).
+   Todo lo animado sigue el ajuste «Animaciones» (data-motion, regla global de arriba).
    ========================================================= */
 :root[data-light="1"] { --amt-in: #1a8a4f; --amt-out: #c62a2f; --cap-gold: #c99700; }
 /* Centrado: en escritorio la barra lateral ocupa la izquierda; el contenido queda centrado en la ventana */
@@ -1330,7 +1331,7 @@ p { font-weight: var(--fw-body); }
 .jiggle-done { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 60; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 @media (min-width: 900px) { .jiggle-done { bottom: 28px; } }
 .chat-row, .ev-card, .routine-card, .today-row, .folder, .pet-card { -webkit-touch-callout: none; }
-@media (prefers-reduced-motion: reduce) { #main .jig { animation: none !important; outline: 2px dashed var(--line); outline-offset: 2px; } }
+:root:is([data-motion="soft"], [data-motion="off"]) #main .jig { animation: none !important; outline: 2px dashed var(--line); outline-offset: 2px; }
 
 /* Perfil: el @nametag arriba del todo */
 .prof-tag-box { padding: 16px 18px; }
@@ -1798,7 +1799,7 @@ input[type="color"].tf-swatch::-moz-color-swatch { border: 3px solid var(--surfa
 .slide-r { animation: slideR .28s cubic-bezier(.2, .8, .2, 1); }
 @keyframes slideL { from { opacity: .2; transform: translateX(36px); } to { opacity: 1; transform: none; } }
 @keyframes slideR { from { opacity: .2; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .slide-l, .slide-r { animation: none; } }
+:root:is([data-motion="soft"], [data-motion="off"]) .slide-l, :root:is([data-motion="soft"], [data-motion="off"]) .slide-r { animation: none; }
 /* v1.22: casi nada se puede seleccionar ni copiar, salvo lo que sí tiene sentido copiar */
 body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 input, textarea, select, [contenteditable="true"], .contract, .contract *, .help-txt, .help-txt *, .msg-text, .msg-bubble, .msg-who, .pv-note, .pv-desc, .g-head h2, .sel-ok, .sel-ok * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
@@ -1918,7 +1919,7 @@ input, textarea, select, [contenteditable="true"], .contract, .contract *, .help
 .zoom-out { animation: tfZoomOut .26s cubic-bezier(.2, .8, .2, 1); }
 @keyframes tfZoomIn { from { opacity: .3; transform: scale(.94); } to { opacity: 1; transform: none; } }
 @keyframes tfZoomOut { from { opacity: .3; transform: scale(1.06); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .zoom-in, .zoom-out { animation: none; } }
+:root:is([data-motion="soft"], [data-motion="off"]) .zoom-in, :root:is([data-motion="soft"], [data-motion="off"]) .zoom-out { animation: none; }
 .tf-cell .tf-tag.jb { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .tf-cell .tf-tag.jt { border-top-left-radius: 0; border-top-right-radius: 0; margin-top: -2px; }
 .tf-cv button { padding-left: 10px; padding-right: 10px; }
@@ -2109,7 +2110,7 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .tf-clock { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 0 0 10px; border-radius: 16px; font-size: 14px; }
 .tf-clock-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 0 0 rgba(255, 59, 48, .6); animation: tfClockPulse 1.6s infinite; flex: 0 0 auto; }
 @keyframes tfClockPulse { 70% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
-@media (prefers-reduced-motion: reduce) { .tf-clock-dot { animation: none; } }
+:root:is([data-motion="soft"], [data-motion="off"]) .tf-clock-dot { animation: none; }
 .tf-qfoot { flex-wrap: wrap; }
 .tf-clock b { white-space: nowrap; }
 .tf-clock-blk { background: repeating-linear-gradient(135deg, rgba(255, 59, 48, .22) 0 8px, rgba(255, 59, 48, .1) 8px 16px) !important; color: var(--fg) !important; border: 1.5px dashed #ff3b30; border-radius: 8px; pointer-events: none; }
@@ -2194,9 +2195,7 @@ svg.i.imx:is([data-i="search"], [data-i="edit"], [data-i="brush"]) { animation: 
 @keyframes pfxDrop { to { opacity: 1; transform: none; } }
 @keyframes pfxPop { to { opacity: 1; transform: none; } }
 @keyframes pfxShrink { from { clip-path: circle(150vmax at var(--ox) var(--oy)); } to { clip-path: circle(0 at var(--tx) var(--ty)); } }
-@media (prefers-reduced-motion: reduce) {
-  .pfx-bg { clip-path: none; } .pfx .kl-sp path { transform: none; } .pfx .kl-cv path { stroke-dashoffset: 0; } .pfx .kl-rb, .pfx-t, .pfx-stats, .pfx-hint { opacity: 1; transform: none; }
-}
+:root:is([data-motion="soft"], [data-motion="off"]) .pfx-bg { clip-path: none; } :root:is([data-motion="soft"], [data-motion="off"]) .pfx .kl-sp path { transform: none; } :root:is([data-motion="soft"], [data-motion="off"]) .pfx .kl-cv path { stroke-dashoffset: 0; } :root:is([data-motion="soft"], [data-motion="off"]) .pfx .kl-rb, :root:is([data-motion="soft"], [data-motion="off"]) .pfx-t, :root:is([data-motion="soft"], [data-motion="off"]) .pfx-stats, :root:is([data-motion="soft"], [data-motion="off"]) .pfx-hint { opacity: 1; transform: none; }
 
 /* v1.27: valoración inmersiva */
 .sheet.rate-imm { padding: 0; max-width: 560px; height: 92vh; height: 92dvh; overflow: hidden; background: var(--bg); }
@@ -2329,10 +2328,7 @@ body.orb-open { overflow: hidden; }
   .orb-nav { --R: 150px; }
 }
 @media (orientation: landscape) and (max-height: 540px) { .orb-nav { --R: 120px; } }
-@media (prefers-reduced-motion: reduce) {
-  .orb-mini { animation: none; transform: translate(30px, -30px); } .orb-mini i { animation: none; }
-  .moon, .orb-arc { transition: opacity .15s, visibility 0s; }
-}
+:root:is([data-motion="soft"], [data-motion="off"]) .orb-mini { animation: none; transform: translate(30px, -30px); } :root:is([data-motion="soft"], [data-motion="off"]) .orb-mini i { animation: none; } :root:is([data-motion="soft"], [data-motion="off"]) .moon, :root:is([data-motion="soft"], [data-motion="off"]) .orb-arc { transition: opacity .15s, visibility 0s; }
 
 /* v1.27: torneos (cuadro eliminatorio) */
 .cup-empty { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -2375,3 +2371,22 @@ body.orb-open { overflow: hidden; }
   border-radius: 28px; background: #04050a; color: #eef1f6; }
 .jr.jr-tab .page-title { color: #eef1f6; font-size: clamp(26px, 6vw, 34px); }
 .orb-nav { --R: min(38vw, 140px); }
+
+/* v1.27.2: «Según el sistema» con Reducir movimiento activado → nada se desplaza ni gira, pero los momentos clave
+   entran con un fundido suave (día perfecto, logros, perfil y ventanas, orbe, respuesta, torneo). */
+@keyframes kgSoft { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kgSoftOut { from { opacity: 1; } to { opacity: 0; } }
+:root[data-motion="soft"] :is(.backdrop, .pfx, .orb-arc, .reply-bar, .ri, .br-col, .cup-champ) { animation: kgSoft .35s ease both !important; }
+:root[data-motion="soft"] .pfx-t { animation: kgSoft .4s ease .25s both !important; }
+:root[data-motion="soft"] .pfx-stats { animation: kgSoft .4s ease .5s both !important; }
+:root[data-motion="soft"] .pfx-hint { animation: kgSoft .4s ease .9s both !important; }
+:root[data-motion="soft"] .pfx.out { animation: kgSoftOut .15s ease both !important; }
+:root[data-motion="soft"] .ach .flip { animation: kgSoft .45s ease both !important; }
+:root[data-motion="soft"] .ach-rays { animation: kgSoft .6s ease both !important; }
+:root[data-motion="soft"] :is(.moon, .orb-arc) { transition: opacity .2s ease, visibility 0s !important; }
+
+/* Ajuste «Animaciones» */
+.anim-prev { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.anim-demo { display: grid; place-items: center; border-radius: 22px; color: var(--accent-ink); background: radial-gradient(circle at 35% 25%, color-mix(in srgb, #fff 35%, var(--accent)) 0%, var(--accent) 45%, color-mix(in srgb, var(--accent) 55%, #000) 100%); }
+.anim-demo .kg-logo { width: 58%; height: auto; }
+:root:is([data-motion="soft"], [data-motion="off"]) .pfx-ring { display: none; }

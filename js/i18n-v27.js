@@ -3,6 +3,12 @@
 (function () {
   const es = {
     pfxTap: 'Toca para seguir',
+    anTitle: 'Animaciones', anOpt_auto: 'Según el sistema', anOpt_on: 'Siempre', anOpt_off: 'Reducidas',
+    anHint_auto: 'Si tu móvil u ordenador tiene activado «Reducir movimiento», verás fundidos suaves en vez de animaciones. Elige «Siempre» para verlas todas en este dispositivo.',
+    anHint_on: 'Verás todas las animaciones en este dispositivo, aunque el sistema tenga «Reducir movimiento» activado.',
+    anHint_off: 'Nada se mueve en este dispositivo: los cambios aparecen al instante.',
+    anTestPerfect: 'Ver día perfecto', anTestAch: 'Ver maestría', anTestMsg: 'Así se ve al desbloquear una maestría.',
+    wn_1_27_2_1: "Ajuste «Animaciones»|En Ajustes → General eliges si las animaciones siguen al sistema, salen siempre o se reducen, y puedes ver el día perfecto y la maestría. Con «Reducir movimiento» del sistema, ahora hay fundidos suaves en vez de nada.",
     orbAria: 'Pestañas (ahora: {tab}). Mantén pulsado o toca para elegir',
     cupTab: 'Torneo', cupNew: 'Crear torneo', cupEmptyT: 'Sin torneo en marcha', cupEmptyS: 'Monta una eliminatoria entre los miembros: en cada ronda pasa quien más cumple; si empatan, deciden los votos del grupo.',
     cupNoPerm: 'Puede crearlo quien tenga permiso para lanzar retos.', cupNoServer: 'Los torneos aún no están activados en el servidor. Hay que aplicar la actualización de Supabase de la v1.27.',
@@ -30,6 +36,12 @@
   };
   const en = {
     pfxTap: 'Tap to continue',
+    anTitle: 'Animations', anOpt_auto: 'Follow system', anOpt_on: 'Always', anOpt_off: 'Reduced',
+    anHint_auto: 'If your phone or computer has “Reduce motion” on, you’ll see gentle fades instead of animations. Choose “Always” to see them all on this device.',
+    anHint_on: 'You’ll see every animation on this device, even if the system has “Reduce motion” on.',
+    anHint_off: 'Nothing moves on this device: changes appear instantly.',
+    anTestPerfect: 'Preview perfect day', anTestAch: 'Preview mastery', anTestMsg: 'This is how unlocking a mastery looks.',
+    wn_1_27_2_1: "“Animations” setting|In Settings → General choose whether animations follow the system, always play or are reduced, and preview the perfect day and mastery. With the system’s “Reduce motion”, you now get gentle fades instead of nothing.",
     orbAria: 'Tabs (now: {tab}). Press and hold or tap to choose',
     cupTab: 'Cup', cupNew: 'Create cup', cupEmptyT: 'No cup running', cupEmptyS: 'Set up a knockout between members: each round, whoever does the most goes through; on a tie, the group votes.',
     cupNoPerm: 'Anyone allowed to launch challenges can create one.', cupNoServer: 'Cups are not switched on in the server yet. The v1.27 Supabase update needs to be applied.',
