@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.27.2';
+  const VERSION = '1.27.3';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1005,7 +1005,6 @@
     const NAV = { day: ['tfPrevDay', 'tfNextDay'], week: ['tfPrevWeek', 'tfNextWeek'], month: ['tfPrevMonth', 'tfNextMonth'], year: ['tfPrevYear', 'tfNextYear'] }[cv];
     let html = topBar();
     html += `<div class="tf-top"><div class="tf-title grow">${year ? '' : pick('m', tfMonths().map((n, i) => [i, n]), mo, t('tfMonth'))}${pick('y', years.map(v => [v, v]), y, t('tfYear'))}</div>
-      <button class="icon-btn" data-act="journal" aria-label="${esc(t('jrTitle'))}" title="${esc(t('jrTitle'))}">${ico('book')}</button>
       <button class="icon-btn" data-tf="menu" aria-expanded="${TFS.menu}" aria-label="${esc(t('tfMenuAria'))}" title="${esc(t('tfMenuAria'))}">${ico('grid')}</button>
       ${TFS.menu ? `<div class="tf-menu" role="menu">${MENU.map(([id, ic, k]) => `<button role="menuitem" data-tf-go="${id}">${ico(ic)} ${esc(t(k))}</button>`).join('')}</div>` : ''}</div>`;
     html += `<div class="row tf-nav" style="justify-content:space-between;gap:8px"><div class="row" style="gap:8px"><div class="pill-group"><button class="icon-btn" data-tf="prev" aria-label="${esc(t(NAV[0]))}">${ico('left')}</button><button class="icon-btn" data-tf="next" aria-label="${esc(t(NAV[1]))}">${ico('right')}</button></div>${isCurrent ? '' : `<button class="chip" data-tf="today">${esc(t('tfToday'))}</button>`}</div>
@@ -1049,7 +1048,7 @@
     const notes = []; ks.forEach(k => tfGaps(k).forEach(g => { if (notes.length < 4) notes.push({ k, a: g.a, t: String(g.t || '') }); }));
     return { ks, r, avg: rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null, dk: Object.values(dk), perfect, notes, partial: ks[6] > tk };
   }
-  function openJournal() {
+  function makeJournal() {
     const weeks = jrWeeks(); let f = 0, wref = null, wheelT = 0;
     const years = [...new Set(weeks.map(w => tfWeekKeys(w)[6].slice(0, 4)))];
     const frame = (w, i) => {
@@ -1081,31 +1080,32 @@
       $('.jr-grid', wref).style.setProperty('--z', f * 40 + 'px');
     };
     const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; f = nf; vibrate(5); place(); };
-    openModal({
-      cls: 'jr-sheet', title: '',
-      body: `<div class="jr"><div class="jr-grid" aria-hidden="true"></div>
-        <div class="jr-top"><button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button><b class="grow">${esc(t('jrTitle'))}</b></div>
+    const html = `<div class="jr jr-tab"><div class="jr-grid" aria-hidden="true"></div>
+        <div class="jr-top"><h1 class="page-title grow" style="margin:0">${esc(t('jrTitle'))}</h1></div>
         <div class="jr-years" role="tablist">${years.map(y => `<button class="chip sm" role="tab" data-jr-y="${y}">${y}</button>`).join('')}</div>
-        <div class="jr-stage" id="jr-stage">${weeks.map((w, i) => i < 400 ? frame(w, i) : '').join('')}</div>
+        <div class="jr-stage" id="jr-stage">${weeks.map((w, i) => frame(w, i)).join('')}</div>
         <input type="range" class="jr-rng" id="jr-rng" min="0" max="${Math.max(0, weeks.length - 1)}" value="${weeks.length - 1}" aria-label="${esc(t('jrScrub'))}">
-        <section class="jr-d clay" id="jr-d" aria-live="polite"></section></div>`,
-      onMount: w => {
-        wref = w; place();
-        const st = $('#jr-stage', w);
-        st.addEventListener('wheel', e => { e.preventDefault(); if (Date.now() - wheelT < 120) return; wheelT = Date.now(); go(f + (e.deltaY > 0 ? 1 : -1)); }, { passive: false });
-        let y0 = null;
-        st.addEventListener('pointerdown', e => { y0 = e.clientY; });
-        st.addEventListener('pointermove', e => { if (y0 == null) return; const dy = e.clientY - y0; if (Math.abs(dy) > 40) { go(f + (dy < 0 ? 1 : -1)); y0 = e.clientY; } });
-        const up = () => { y0 = null; }; st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
-        w.addEventListener('keydown', e => { if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); go(f + 1); } if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); go(f - 1); } });
-        $('#jr-rng', w).addEventListener('input', e => go(weeks.length - 1 - +e.target.value));
-      },
-      onClick: e => {
+        <section class="jr-d clay" id="jr-d" aria-live="polite"></section></div>`;
+    const mount = w => {
+      wref = w; place();
+      const st = $('#jr-stage', w);
+      st.addEventListener('wheel', e => { e.preventDefault(); if (Date.now() - wheelT < 120) return; wheelT = Date.now(); go(f + (e.deltaY > 0 ? 1 : -1)); }, { passive: false });
+      let y0 = null;
+      st.addEventListener('pointerdown', e => { y0 = e.clientY; });
+      st.addEventListener('pointermove', e => { if (y0 == null) return; const dy = e.clientY - y0; if (Math.abs(dy) > 40) { go(f + (dy < 0 ? 1 : -1)); y0 = e.clientY; } });
+      const up = () => { y0 = null; }; st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
+      w.addEventListener('keydown', e => { if (!e.target.closest('.jr')) return; if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); go(f + 1); } if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); go(f - 1); } });
+      $('#jr-rng', w).addEventListener('input', e => go(weeks.length - 1 - +e.target.value));
+      w.addEventListener('click', e => {
         const fr = e.target.closest('[data-jr-i]'); if (fr) { go(+fr.dataset.jrI); return; }
-        const yb = e.target.closest('[data-jr-y]'); if (yb) { const i = weeks.findIndex(w => tfWeekKeys(w)[6].slice(0, 4) === yb.dataset.jrY); if (i >= 0) go(i); }
-      }
-    });
+        const yb = e.target.closest('[data-jr-y]'); if (yb) { const i = weeks.findIndex(x => tfWeekKeys(x)[6].slice(0, 4) === yb.dataset.jrY); if (i >= 0) go(i); }
+      });
+    };
+    return { html, mount };
   }
+  // v1.27: el Diario es una pestaña propia (sexta luna del orbe)
+  let JR = null;
+  function viewJournal() { tfEnsure(); JR = makeJournal(); return topBar() + JR.html; }
   // Resumen de horas, turnos y paga del periodo a la vista (v1.24: se puede quitar en Ajustes)
   function tfSummary(range) {
     const r = TF.report(tfData(), range[0], range[1], tfWs(), () => true, null);
@@ -2440,7 +2440,7 @@
      ========================================================= */
   let lastView = null, lastTabIdx = -1;
   // Pestañas: Hábitos y Proyectos (con Gráficos dentro), Libreta y Maestrías
-  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['cal', 'calendar', 'tabCalendar'], ['ledger', 'wallet', 'tabLedger'], ['chat', 'chat', 'tabChat'], ['mastery', 'crown', 'tabMastery']];
+  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['cal', 'calendar', 'tabCalendar'], ['journal', 'book', 'jrTab'], ['ledger', 'wallet', 'tabLedger'], ['chat', 'chat', 'tabChat'], ['mastery', 'crown', 'tabMastery']];
   const HVIEWS = [['today', '☀️', 'viewToday'], ['all', '📋', 'viewAll'], ['challenges', '🏁', 'viewChallenges']];
   const habitsView = () => HVIEWS.some(v => v[0] === state.ui.habitsView) ? state.ui.habitsView : 'all';
   const openFolder = () => { const p = state.ui.folder && state.projects.find(x => x.id === state.ui.folder); return p && habitsView() === 'all' ? p : null; };
@@ -2489,7 +2489,7 @@
   const ORB = { open: false, hot: -1 };
   function renderNav() {
     const cur = Math.max(0, TABS.findIndex(x => x[0] === state.ui.tab));
-    return `<nav class="orb-nav ${ORB.open ? 'open' : ''}" id="orb-nav" aria-label="KeepGoing">
+    return `<nav class="orb-nav ${ORB.open ? 'open' : ''}" id="orb-nav" aria-label="KeepGoing" style="--n:${TABS.length}">
       <div class="orb-veil" data-orb="veil" aria-hidden="true"></div><div class="orb-arc" aria-hidden="true"></div>
       ${TABS.map(([id, ic, key], i) => `<button class="moon ${i === cur ? 'cur' : ''}" data-act="go" data-tab="${id}" style="--i:${i}" tabindex="${ORB.open ? 0 : -1}" ${i === cur ? 'aria-current="page"' : ''} aria-label="${esc(t(key))}">${ico(ic)}<span class="moon-l">${esc(t(key))}</span></button>`).join('')}
       <span class="orb-mini" aria-hidden="true"><i>${ico(TABS[cur][1])}</i></span>
@@ -2568,6 +2568,7 @@
       case 'mastery': return viewMastery();
       case 'chat': return viewChat();
       case 'cal': return viewCal();
+      case 'journal': return viewJournal();
       default: return viewHabits();
     }
   }
@@ -2586,6 +2587,7 @@
     tfFitCells($('#main')); tfTlScroll($('#main'));
     if (state.ui.tab === 'habits') loadPhotos($('#main'));
     applyWOrder($('#main'));
+    if (state.ui.tab === 'journal' && JR) JR.mount($('#main'));
     decorateJiggle();
   }
   // Widgets que se han quitado con el «−» del modo edición (se recuperan en Ajustes)
@@ -4313,7 +4315,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.27', [['1.27.0', 9], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.3', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -11500,7 +11502,7 @@
       case 'ledger-add': if (!ledgerOpen()) { state.ui.tab = 'ledger'; render(); break; } openEntry(null, a.dataset.d || state.ui.ledgerDay || todayKey()); break;
       case 'rate-yday': openRateDay(addDays(todayKey(), -1)); break;
       case 'rate-today': openRateDay(todayKey()); break;
-      case 'journal': openJournal(); break;
+      case 'journal': state.ui.tab = 'journal'; save(); render(); break;
       case 'ledger-dayshift': { const k = addDays(state.ui.ledgerDay && state.ui.ledgerDay.startsWith(ledgerMonth()) ? state.ui.ledgerDay : todayKey(), +a.dataset.d); state.ui.ledgerDay = k; state.ui.ledgerMonth = k.slice(0, 7); save(); render(); break; }
       case 'ledger-month': { const [yy, mm] = ledgerMonth().split('-').map(Number), d = new Date(yy, mm - 1 + +a.dataset.d, 1); state.ui.ledgerMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; save(); render(); break; }
       case 'ledger-cats': openLedgerCats(); break;

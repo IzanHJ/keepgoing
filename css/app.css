@@ -2306,7 +2306,7 @@ svg.i.imx:is([data-i="search"], [data-i="edit"], [data-i="brush"]) { animation: 
 .orb-mini svg.i { width: 12px; height: 12px; }
 .orb-nav.open .orb-mini { opacity: 0; }
 /* Lunas */
-.moon { --a: calc(180deg + (var(--i) + .5) * 36deg); position: absolute; z-index: 2; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; padding: 0; border-radius: 50%;
+.moon { --a: calc(180deg + (var(--i) + .5) * 180deg / var(--n, 5)); position: absolute; z-index: 2; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; padding: 0; border-radius: 50%;
   display: grid; place-items: center; cursor: pointer; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); box-shadow: 0 8px 22px rgba(0,0,0,.45), var(--sh-in);
   opacity: 0; visibility: hidden; pointer-events: none; transform: rotate(var(--a)) translateX(0) rotate(calc(-1 * var(--a))) scale(.2);
   transition: transform .55s cubic-bezier(.3, 1.55, .45, 1), opacity .25s, visibility 0s .5s, background .2s, color .2s, box-shadow .2s; }
@@ -2370,3 +2370,8 @@ body.orb-open { overflow: hidden; }
 .br-lines .l { stroke: var(--line); }
 .br-lines .lw { stroke: var(--accent); stroke-width: 2.5; animation-delay: .7s; }
 @keyframes brIn { from { opacity: 0; transform: translateX(-24px) scale(.9); } to { opacity: 1; transform: none; } }
+/* v1.27: el Diario como pestaña (sexta luna) */
+.jr.jr-tab { height: calc(100vh - var(--nav-h) - var(--safe-b) - var(--safe-t) - 120px); height: calc(100dvh - var(--nav-h) - var(--safe-b) - var(--safe-t) - 120px); min-height: 520px; margin-top: 12px;
+  border-radius: 28px; background: #04050a; color: #eef1f6; }
+.jr.jr-tab .page-title { color: #eef1f6; font-size: clamp(26px, 6vw, 34px); }
+.orb-nav { --R: min(38vw, 140px); }
