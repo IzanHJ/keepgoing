@@ -1,0 +1,58 @@
+/* KeepGoing — textos de la v1.27: orbe de navegación, animaciones, valoración inmersiva, responder deslizando,
+   torneos y diario semanal (ES / EN). */
+(function () {
+  const es = {
+    pfxTap: 'Toca para seguir',
+    orbAria: 'Pestañas (ahora: {tab}). Mantén pulsado o toca para elegir',
+    cupTab: 'Torneo', cupNew: 'Crear torneo', cupEmptyT: 'Sin torneo en marcha', cupEmptyS: 'Monta una eliminatoria entre los miembros: en cada ronda pasa quien más cumple; si empatan, deciden los votos del grupo.',
+    cupNoPerm: 'Puede crearlo quien tenga permiso para lanzar retos.', cupNoServer: 'Los torneos aún no están activados en el servidor. Hay que aplicar la actualización de Supabase de la v1.27.',
+    cupRules: 'Rondas de {d} día(s) · gana quien más cumple; empate = votos', cupCancel: 'Cancelar torneo', cupCancelQ: '¿Cancelar el torneo? El cuadro desaparece para todo el grupo.',
+    cupChampion: '{name} gana el torneo', cupFinal: 'Final', cupSemi: 'Semifinal', cupQuarter: 'Cuartos', cupRound: 'Ronda {n}', cupBye: 'Pasa sin jugar',
+    cupSt_live: 'En juego', cupSt_done: 'Terminada', cupSt_next: 'Próxima', cupSt_cancelled: 'Cancelada', cupVotes: 'Votos',
+    cupTieVote: 'Empate: ¿quién debe pasar?', cupVoteHint: 'Tu voto (solo cuenta si empatan):', cupHint: 'Desliza a los lados para ver las rondas.',
+    cupName: 'Nombre', cupNamePh: 'Copa de noviembre', cupDefault: 'Torneo', cupRoundLen: 'Cada ronda dura', cupDays_1: '1 día', cupDays_3: '3 días', cupDays_7: '1 semana',
+    cupPlayers: 'Quién juega', cupPlayersHint: 'Entre 2 y 16 personas. El orden del cuadro se sortea.', cupStart: 'Empezar', cupRunning: 'Ya hay un torneo en marcha en este grupo.',
+    sys_tourney_started: 'Empieza el torneo «{title}» con {n} participantes', pfxRun: 'Días perfectos seguidos',
+    rw0: 'Horrible', rw1: 'Muy malo', rw2: 'Malo', rw3: 'Flojo', rw4: 'Regular', rw5: 'Normal', rw6: 'Bien', rw7: 'Bueno', rw8: 'Muy bueno', rw9: 'Genial', rw10: 'Perfecto',
+    riClear: 'Quitar', riTap: 'Toca para valorarlo',
+    rpReply: 'Responder', rpTo: 'Respondiendo a {name}', rpCancel: 'Cancelar respuesta', rpPhoto: 'Foto', rpAudio: 'Audio', rpSticker: 'Sticker', rpShare: 'Tarjeta', rpGone: 'Mensaje no disponible',
+    jrTitle: 'Diario semanal', jrWeekN: 'Semana {n}', jrNow: 'Semana en curso', jrScrub: 'Moverse por las semanas', jrEmpty: 'Esta semana no hay nada apuntado en Organización.',
+    wn_1_27_0_1: "El orbe|Las pestañas viven ahora en un orbe con el logo. Mantenlo pulsado, arrastra hasta una luna y suelta; o tócalo y elige. Deslízalo a los lados para ir a la pestaña de al lado.",
+    wn_1_27_0_2: "Día perfecto|Al completar el día, la pantalla se llena de tu color y el logo se construye pieza a pieza con tus puntos y tu racha.",
+    wn_1_27_0_3: "Maestría desbloqueada|La carta sube entre rayos de luz y chispas que se quedan orbitando, y se inclina al moverla con el dedo.",
+    wn_1_27_0_4: "Tu perfil se despliega|El perfil crece desde el botón que tocas y cada parte entra después, una tras otra.",
+    wn_1_27_0_5: "Valora tu día|Una forma viva cambia contigo: picos afilados en un mal día y pétalos redondos en uno genial. Desliza para elegir del 0 al 10.",
+    wn_1_27_0_6: "Diario semanal|En Organización, el botón del libro abre tus semanas como marcos en un pasillo: horas, turnos, días por tipo, valoración y notas de cada semana.",
+    wn_1_27_0_7: "Responde deslizando|En un chat, desliza un mensaje a la derecha para responderlo. Toca la cita para saltar al mensaje original.",
+    wn_1_27_0_8: "Torneos en el grupo|Pestaña Torneo: eliminatoria entre miembros. En cada ronda pasa quien más cumple; si empatan, deciden los votos del grupo.",
+    wn_1_27_0_9: "Iconos con vida|Cada icono tiene su pequeña animación al pasar el cursor o tocarlo."
+  };
+  const en = {
+    pfxTap: 'Tap to continue',
+    orbAria: 'Tabs (now: {tab}). Press and hold or tap to choose',
+    cupTab: 'Cup', cupNew: 'Create cup', cupEmptyT: 'No cup running', cupEmptyS: 'Set up a knockout between members: each round, whoever does the most goes through; on a tie, the group votes.',
+    cupNoPerm: 'Anyone allowed to launch challenges can create one.', cupNoServer: 'Cups are not switched on in the server yet. The v1.27 Supabase update needs to be applied.',
+    cupRules: '{d}-day rounds · most done wins; tie = votes', cupCancel: 'Cancel cup', cupCancelQ: 'Cancel the cup? The bracket disappears for the whole group.',
+    cupChampion: '{name} wins the cup', cupFinal: 'Final', cupSemi: 'Semi-final', cupQuarter: 'Quarter-finals', cupRound: 'Round {n}', cupBye: 'Goes through',
+    cupSt_live: 'Live', cupSt_done: 'Finished', cupSt_next: 'Next', cupSt_cancelled: 'Cancelled', cupVotes: 'Votes',
+    cupTieVote: 'Tie: who should go through?', cupVoteHint: 'Your vote (only counts on a tie):', cupHint: 'Swipe sideways to see the rounds.',
+    cupName: 'Name', cupNamePh: 'November cup', cupDefault: 'Cup', cupRoundLen: 'Each round lasts', cupDays_1: '1 day', cupDays_3: '3 days', cupDays_7: '1 week',
+    cupPlayers: 'Who plays', cupPlayersHint: 'Between 2 and 16 people. The bracket order is drawn at random.', cupStart: 'Start', cupRunning: 'This group already has a cup running.',
+    sys_tourney_started: 'The “{title}” cup starts with {n} players', pfxRun: 'Perfect days in a row',
+    rw0: 'Awful', rw1: 'Very bad', rw2: 'Bad', rw3: 'Poor', rw4: 'So-so', rw5: 'Okay', rw6: 'Fine', rw7: 'Good', rw8: 'Very good', rw9: 'Great', rw10: 'Perfect',
+    riClear: 'Remove', riTap: 'Tap to rate it',
+    rpReply: 'Reply', rpTo: 'Replying to {name}', rpCancel: 'Cancel reply', rpPhoto: 'Photo', rpAudio: 'Audio', rpSticker: 'Sticker', rpShare: 'Card', rpGone: 'Message not available',
+    jrTitle: 'Weekly journal', jrWeekN: 'Week {n}', jrNow: 'This week', jrScrub: 'Move through the weeks', jrEmpty: 'Nothing logged in Organisation this week.',
+    wn_1_27_0_1: "The orb|Tabs now live in an orb with the logo. Press and hold, drag to a moon and let go; or tap it and choose. Swipe it sideways to jump to the next tab.",
+    wn_1_27_0_2: "Perfect day|When you complete the day, the screen fills with your colour and the logo builds itself piece by piece with your points and streak.",
+    wn_1_27_0_3: "Mastery unlocked|The card rises through rays of light and sparks that stay in orbit, and it tilts as you move your finger.",
+    wn_1_27_0_4: "Your profile unfolds|The profile grows out of the button you tap, and each part follows one after another.",
+    wn_1_27_0_5: "Rate your day|A living shape changes with you: sharp spikes on a bad day, round petals on a great one. Slide to pick from 0 to 10.",
+    wn_1_27_0_6: "Weekly journal|In Organisation, the book button opens your weeks as frames down a corridor: hours, shifts, day types, rating and notes for each week.",
+    wn_1_27_0_7: "Swipe to reply|In a chat, swipe a message to the right to reply. Tap the quote to jump to the original message.",
+    wn_1_27_0_8: "Group cups|Cup tab: a knockout between members. Each round, whoever does the most goes through; on a tie, the group votes.",
+    wn_1_27_0_9: "Living icons|Every icon has its own little animation when you hover or tap it."
+  };
+  Object.assign(window.I18N.es, es);
+  Object.assign(window.I18N.en, en);
+})();

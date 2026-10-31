@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.27.0';
+  const VERSION = '1.28.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -94,6 +94,9 @@
   /* ---------- iconos (SVG en línea) ---------- */
   const ICONS = {
     brush: '<path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/>',
+    reply: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
+    trophy: '<path d="M8 4h8v6a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 14v3M8.5 20h7M10 17h4v3h-4z"/>',
+    book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 8h7"/>',
     checklist: '<path d="M11 6h10M11 12h10M11 18h10"/><path d="M3 6l1.6 1.6L7.5 4.8M3 12l1.6 1.6 2.9-2.8M3 18l1.6 1.6 2.9-2.8"/>',
     target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
     chart: '<path d="M3 21h18"/><rect x="5" y="11" width="3" height="7" rx="1"/><rect x="10.5" y="5" width="3" height="13" rx="1"/><rect x="16" y="14" width="3" height="4" rx="1"/>',
@@ -179,7 +182,8 @@
     heart: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/>',
     link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1-1"/>'
   };
-  const ico = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+  // v1.27: data-i = nombre del icono, para su micro animación propia al pasar el cursor o tocarlo
+  const ico = (n, cls = '') => `<svg class="i ${cls}" data-i="${n}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
   /* ---------- estado ---------- */
   const DEFAULT_THEME = { preset: 'noche', bg: '#000000', fg: '#ffffff', accent: '#3ddc97', style: 'clay', bgMode: 'solid', bg2: '#1b1b2f', font: 'quicksand' };
@@ -599,6 +603,18 @@
   /* ---------- respuesta al marcar: sonido, «+puntos» y subida de nivel ---------- */
   const sfx = name => { if (window.KGSound) { KGSound.setEnabled(state.soundOn !== false); KGSound.play(name); } };
   const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // v1.27: micro animación de los iconos al pasar el cursor (ratón) o al tocarlos (dedo). Cada icono tiene la suya (css .imx)
+  function icoPlay(host) {
+    if (!host || reducedMotion()) return;
+    const svg = host.matches('svg.i') ? host : host.querySelector(':scope > svg.i, :scope > .ico > svg.i, :scope > .banner-ico > svg.i, :scope > span > svg.i');
+    if (!svg || svg.classList.contains('imx')) return;
+    svg.classList.add('imx');
+    const off = () => svg.classList.remove('imx');
+    svg.addEventListener('animationend', off, { once: true }); setTimeout(off, 900);
+  }
+  const icoHost = el => el && el.closest && el.closest('button, a, .chip, [data-act], .moon');
+  document.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const h = icoHost(e.target); if (h && !(e.relatedTarget && h.contains(e.relatedTarget))) icoPlay(h); } }, { passive: true });
+  document.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') icoPlay(icoHost(e.target)); }, { passive: true });
   function habitFeedback(h, k, before, v, snap) {
     const day = dayInfo(k), lvl = levelInfo().level, done = !isQuit(h) && cnt(h, k) >= dayGoal(h, k);
     if (v < before) sfx(isQuit(h) ? 'pop' : 'undo');
@@ -607,9 +623,48 @@
     else if (day.perfect && !snap.day.perfect) sfx('perfect');
     else if (done && !snap.done) sfx('complete');
     else sfx('tap');
+    if (v > before && day.perfect && !snap.day.perfect && k === todayKey()) setTimeout(() => perfectFx(k), 160); // v1.27
     const gain = day.cpts - snap.day.cpts;
     if (gain > 1e-9) setTimeout(() => { pointsPop(gain); if (!(lvl > snap.lvl) && !(day.perfect && !snap.day.perfect) && !(done && !snap.done)) sfx('points'); }, 120);
     if (lvl > snap.lvl) setTimeout(() => { toast(t('levelUpToast', { n: lvl, title: levelTitle(lvl) })); const k = PETS.KINDS.find(x => PET_LEVEL[x] > snap.lvl && PET_LEVEL[x] <= lvl); if (k) setTimeout(() => toast(t('petUnlocked_' + k)), 2600); }, 200);
+  }
+  /* v1.27: logo de KeepGoing en piezas para animarlo (las cinco llamas, las dos curvas y la cinta) */
+  const KG_LOGO = () => `<svg class="kg-logo" viewBox="0 0 512 512" aria-hidden="true"><g transform="translate(44 30) scale(.828)">
+    <g class="kl-sp" fill="currentColor"><path style="--d:0" d="M239 384L250 114L233 122L243.1 82.9L256 40L268.9 82.9L279 122L262 114L273 384Z"/><path style="--d:1" d="M155 371.2L176.3 165.6L158.9 172.7L171 134.2L186 92L196.7 135.5L204.9 175L188.3 166.2L189 372.8Z"/><path style="--d:1" d="M323 372.8L323.7 166.2L307.1 175L315.3 135.5L326 92L341 134.2L353.1 172.7L335.7 165.6L357 371.2Z"/><path style="--d:2" d="M87.2 348.6L79.3 224.1L63.7 234.5L67.8 194.4L74 150L93.2 190.5L109.1 227.6L91.1 222.2L120.8 343.4Z"/><path style="--d:2" d="M391.2 343.4L420.9 222.2L402.9 227.6L418.8 190.5L438 150L444.2 194.4L448.3 234.5L432.7 224.1L424.8 348.6Z"/></g>
+    <g class="kl-cv" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round"><path pathLength="1" d="M250 150 C 250 330, 192 330, 190 196"/><path pathLength="1" d="M176 210 C 172 340, 110 330, 100 250"/><g transform="translate(512 0) scale(-1 1)"><path pathLength="1" d="M250 150 C 250 330, 192 330, 190 196"/><path pathLength="1" d="M176 210 C 172 340, 110 330, 100 250"/></g></g>
+    <g class="kl-rb" fill="currentColor"><path d="M62 318Q256 430 450 318L456 374Q256 490 56 374Z"/><path d="M92 392Q256 494 420 392L408 432Q340 486 282 470L256 498L230 470Q172 486 104 432Z"/></g></g></svg>`;
+  /* v1.27: día perfecto. Desde donde tocaste se abre un círculo del color de acento que llena la pantalla; dentro, el logo
+     se construye (las llamas crecen del centro hacia fuera, se dibujan las curvas y cae la cinta), aparece «¡Día perfecto!»
+     con los puntos y la racha contando, y al final todo se recoge en un punto que vuela hasta la insignia de nivel. */
+  let lastTap = null;
+  document.addEventListener('pointerdown', e => { lastTap = { x: e.clientX, y: e.clientY, at: Date.now() }; }, { passive: true, capture: true });
+  function perfectFx(k) {
+    if (document.querySelector('.pfx')) return;
+    const d = dayInfo(k), run = perfectRun().cur;
+    const o = lastTap && Date.now() - lastTap.at < 4000 ? lastTap : { x: innerWidth / 2, y: innerHeight / 2 };
+    const el = document.createElement('div'); el.className = 'pfx'; el.setAttribute('role', 'status');
+    el.style.setProperty('--ox', o.x + 'px'); el.style.setProperty('--oy', o.y + 'px');
+    el.innerHTML = `<div class="pfx-bg"></div><div class="pfx-ring"></div><div class="pfx-in">${KG_LOGO()}<h2 class="pfx-t">${esc(t('perfectToday'))}</h2>
+      <div class="pfx-stats"><div><b data-cnt="${d.cpts}" data-pts="1">0</b><span>${esc(t('ptsToday'))}</span></div><div><b data-cnt="${run}">0</b><span>${esc(t('pfxRun'))}</span></div></div><p class="pfx-hint">${esc(t('pfxTap'))}</p></div>`;
+    document.body.appendChild(el);
+    vibrate([15, 50, 15, 50, 30]);
+    const rm = reducedMotion();
+    // Contadores
+    $$('[data-cnt]', el).forEach(b => {
+      const to = +b.dataset.cnt, isPts = !!b.dataset.pts, t0 = performance.now(), dur = rm ? 0 : 900;
+      const step = now => { const p = dur ? Math.min(1, (now - t0 - 900) / dur) : 1; const v = p <= 0 ? 0 : to * (1 - Math.pow(1 - p, 3)); b.textContent = isPts ? fmtPts(v) : Math.round(v); if (p < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    let gone = false;
+    const end = () => {
+      if (gone) return; gone = true;
+      const pill = $('.lvl-pill'), r = pill && pill.getBoundingClientRect();
+      if (r && !rm) { el.style.setProperty('--tx', (r.left + r.width / 2) + 'px'); el.style.setProperty('--ty', (r.top + r.height / 2) + 'px'); }
+      el.classList.add('out');
+      setTimeout(() => { el.remove(); if (pill) { pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump'); } }, rm ? 150 : 650);
+    };
+    el.addEventListener('click', end);
+    setTimeout(end, rm ? 2200 : 3600);
   }
   // «+2,5 pts» que sube junto a la insignia de nivel
   function pointsPop(n) {
@@ -958,6 +1013,7 @@
     const NAV = { day: ['tfPrevDay', 'tfNextDay'], week: ['tfPrevWeek', 'tfNextWeek'], month: ['tfPrevMonth', 'tfNextMonth'], year: ['tfPrevYear', 'tfNextYear'] }[cv];
     let html = topBar();
     html += `<div class="tf-top"><div class="tf-title grow">${year ? '' : pick('m', tfMonths().map((n, i) => [i, n]), mo, t('tfMonth'))}${pick('y', years.map(v => [v, v]), y, t('tfYear'))}</div>
+      <button class="icon-btn" data-act="journal" aria-label="${esc(t('jrTitle'))}" title="${esc(t('jrTitle'))}">${ico('book')}</button>
       <button class="icon-btn" data-tf="menu" aria-expanded="${TFS.menu}" aria-label="${esc(t('tfMenuAria'))}" title="${esc(t('tfMenuAria'))}">${ico('grid')}</button>
       ${TFS.menu ? `<div class="tf-menu" role="menu">${MENU.map(([id, ic, k]) => `<button role="menuitem" data-tf-go="${id}">${ico(ic)} ${esc(t(k))}</button>`).join('')}</div>` : ''}</div>`;
     html += `<div class="row tf-nav" style="justify-content:space-between;gap:8px"><div class="row" style="gap:8px"><div class="pill-group"><button class="icon-btn" data-tf="prev" aria-label="${esc(t(NAV[0]))}">${ico('left')}</button><button class="icon-btn" data-tf="next" aria-label="${esc(t(NAV[1]))}">${ico('right')}</button></div>${isCurrent ? '' : `<button class="chip" data-tf="today">${esc(t('tfToday'))}</button>`}</div>
@@ -975,6 +1031,88 @@
     if (state.calPrefs.summary !== false) html += tfSummary(range);
     html += tfFab(year);
     return html;
+  }
+  /* ---------- v1.27: Diario semanal (estilo «teseracto») ----------
+     Cada semana de Organización es un marco suspendido en un pasillo 3D: la semana enfocada está delante y las anteriores
+     se alejan hacia el fondo. Se avanza con la rueda, deslizando, con las flechas o con la barra; arriba se elige el año.
+     Debajo, el resumen de la semana enfocada: horas, turnos, paga, días por tipo, días perfectos, valoración y notas. */
+  const jrFmtRange = (a, b) => {
+    const da = TF.parseISO(a), db = TF.parseISO(b), o = { day: 'numeric', month: 'long', year: 'numeric' };
+    try { return new Intl.DateTimeFormat(state.lang, o).formatRange(da, db); } catch (e) { return fmtDate(a, o) + ' – ' + fmtDate(b, o); }
+  };
+  function jrWeeks() {
+    const tk = todayKey(), keys = [...Object.keys(state.calDays || {}), ...Object.keys(state.dayRate || {}), ...Object.keys(state.calGaps || {}), ...Object.keys(state.calDayK || {}), ...state.habits.map(firstKey)].filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= tk);
+    let first = keys.length ? keys.reduce((a, b) => a < b ? a : b) : tk;
+    const minK = addDays(tk, -6 * 366); if (first < minK) first = minK;
+    const out = []; let w = tfWeekKeys(tk)[0];
+    const stop = tfWeekKeys(first)[0];
+    while (w >= stop && out.length < 320) { out.push(w); w = addDays(w, -7); }
+    return out; // de la más reciente a la más antigua
+  }
+  function jrWeek(w) {
+    const ks = tfWeekKeys(w), tk = todayKey(), r = TF.report(tfData(), ks[0], ks[6], tfWs(), () => true, null);
+    const rates = ks.map(dayRateOf).filter(v => v != null), dk = {};
+    ks.forEach(k => tfDksOf(k).forEach(d => { (dk[d.id] = dk[d.id] || { d, n: 0 }).n++; }));
+    const perfect = state.habits.length ? ks.filter(k => k <= tk && dayInfo(k).perfect).length : null;
+    const notes = []; ks.forEach(k => tfGaps(k).forEach(g => { if (notes.length < 4) notes.push({ k, a: g.a, t: String(g.t || '') }); }));
+    return { ks, r, avg: rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null, dk: Object.values(dk), perfect, notes, partial: ks[6] > tk };
+  }
+  function openJournal() {
+    const weeks = jrWeeks(); let f = 0, wref = null, wheelT = 0;
+    const years = [...new Set(weeks.map(w => tfWeekKeys(w)[6].slice(0, 4)))];
+    const frame = (w, i) => {
+      const ks = tfWeekKeys(w), tk = todayKey();
+      const cells = ks.map(k => { const cs = tfDayColors(k), rv = dayRateOf(k), n = (state.calDays[k] || []).length; return `<i class="${k > tk ? 'fut' : ''}" style="${cs.length ? `--c:${cs[0]}` : rv != null ? `--c:${rateColor(rv)}` : ''}">${n ? `<b>${n}</b>` : ''}</i>`; }).join('');
+      return `<button class="jr-f" data-jr-i="${i}" aria-label="${esc(jrFmtRange(ks[0], ks[6]))}"><span class="jr-wk">${esc(t('jrWeekN', { n: tfWeekNo(ks[0]) }))}</span><span class="jr-rg">${esc(jrFmtRange(ks[0], ks[6]))}</span><span class="jr-cells">${cells}</span></button>`;
+    };
+    const detail = () => {
+      const S = jrWeek(weeks[f]), pv = privacyOn(), stat = (v, l) => `<div class="jr-st"><b>${v}</b><span>${esc(l)}</span></div>`;
+      return `<div class="jr-d-h"><b>${esc(jrFmtRange(S.ks[0], S.ks[6]))}</b>${S.partial ? `<span class="chip sm">${esc(t('jrNow'))}</span>` : ''}</div>
+        <div class="jr-stats">${stat(tfH(S.r.hours) + ' h', t('tfHours'))}${stat(S.r.count, t('tfShiftsN'))}${S.r.pay > 0 ? stat(pv ? '••••' : esc(money(S.r.pay)), t('tfPayEst')) : ''}${S.perfect != null ? stat(S.perfect + '/7', t('perfectDays')) : ''}${stat(S.avg == null ? '—' : fmtNum(Math.round(S.avg * 10) / 10) + '/10', t('rateTitle'))}</div>
+        ${S.dk.length ? `<div class="row wrap" style="gap:6px">${S.dk.map(x => `${tfDkTag(x.d)}<span class="muted small" style="align-self:center">×${x.n}</span>`).join('')}</div>` : ''}
+        ${S.notes.length ? `<ul class="jr-notes">${S.notes.map(n => `<li><span class="muted small">${esc(fmtDate(n.k, { weekday: 'short', day: 'numeric' }))}${n.a ? ' · ' + esc(n.a) : ''}</span> ${esc(n.t)}</li>`).join('')}</ul>` : ''}
+        ${!S.r.count && S.avg == null && !S.dk.length && !S.notes.length ? `<p class="muted small" style="margin:0">${esc(t('jrEmpty'))}</p>` : ''}`;
+    };
+    const place = () => {
+      if (!wref) return;
+      $$('.jr-f', wref).forEach(el => {
+        const i = +el.dataset.jrI, d = i - f, side = (i % 2 ? 1 : -1);
+        el.style.transform = d < 0 ? `translate3d(${side * 40}px, 120px, 260px) rotateX(-12deg)` : `translate3d(${side * Math.min(d, 6) * 14}px, ${-d * 26}px, ${-d * 190}px) rotateY(${side * Math.min(d, 6) * -3}deg)`;
+        el.style.opacity = d < 0 ? 0 : Math.max(0, 1 - d * .16);
+        el.style.zIndex = 100 - Math.abs(d); el.style.pointerEvents = d < 0 || d > 6 ? 'none' : '';
+        el.classList.toggle('on', d === 0); el.tabIndex = d === 0 ? 0 : -1;
+      });
+      $('#jr-d', wref).innerHTML = detail();
+      const ky = tfWeekKeys(weeks[f])[6].slice(0, 4);
+      $$('[data-jr-y]', wref).forEach(b => b.classList.toggle('on', b.dataset.jrY === ky));
+      const rng = $('#jr-rng', wref); if (rng) rng.value = weeks.length - 1 - f;
+      $('.jr-grid', wref).style.setProperty('--z', f * 40 + 'px');
+    };
+    const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; f = nf; vibrate(5); place(); };
+    openModal({
+      cls: 'jr-sheet', title: '',
+      body: `<div class="jr"><div class="jr-grid" aria-hidden="true"></div>
+        <div class="jr-top"><button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button><b class="grow">${esc(t('jrTitle'))}</b></div>
+        <div class="jr-years" role="tablist">${years.map(y => `<button class="chip sm" role="tab" data-jr-y="${y}">${y}</button>`).join('')}</div>
+        <div class="jr-stage" id="jr-stage">${weeks.map((w, i) => i < 400 ? frame(w, i) : '').join('')}</div>
+        <input type="range" class="jr-rng" id="jr-rng" min="0" max="${Math.max(0, weeks.length - 1)}" value="${weeks.length - 1}" aria-label="${esc(t('jrScrub'))}">
+        <section class="jr-d clay" id="jr-d" aria-live="polite"></section></div>`,
+      onMount: w => {
+        wref = w; place();
+        const st = $('#jr-stage', w);
+        st.addEventListener('wheel', e => { e.preventDefault(); if (Date.now() - wheelT < 120) return; wheelT = Date.now(); go(f + (e.deltaY > 0 ? 1 : -1)); }, { passive: false });
+        let y0 = null;
+        st.addEventListener('pointerdown', e => { y0 = e.clientY; });
+        st.addEventListener('pointermove', e => { if (y0 == null) return; const dy = e.clientY - y0; if (Math.abs(dy) > 40) { go(f + (dy < 0 ? 1 : -1)); y0 = e.clientY; } });
+        const up = () => { y0 = null; }; st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
+        w.addEventListener('keydown', e => { if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); go(f + 1); } if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); go(f - 1); } });
+        $('#jr-rng', w).addEventListener('input', e => go(weeks.length - 1 - +e.target.value));
+      },
+      onClick: e => {
+        const fr = e.target.closest('[data-jr-i]'); if (fr) { go(+fr.dataset.jrI); return; }
+        const yb = e.target.closest('[data-jr-y]'); if (yb) { const i = weeks.findIndex(w => tfWeekKeys(w)[6].slice(0, 4) === yb.dataset.jrY); if (i >= 0) go(i); }
+      }
+    });
   }
   // Resumen de horas, turnos y paga del periodo a la vista (v1.24: se puede quitar en Ajustes)
   function tfSummary(range) {
@@ -2584,19 +2722,84 @@
     const p = PL(); if (!p.viewing) return '';
     return `<button class="dev-pill" data-act="dev-view-real">${ico('eye')}<span>${esc(t('stViewBanner', { plan: planHint() }))}</span><b>${esc(t('stViewBack'))}</b></button>`;
   }
+  /* v1.27: el ORBE. La barra de pestañas pasa a ser un orbe flotante con el logo de KeepGoing; la pestaña actual es una
+     luna pequeña que lo orbita. Mantenerlo pulsado (o tocarlo) despliega las cinco lunas en arco, una tras otra; se
+     arrastra el dedo hasta una (se ilumina y vibra) y al soltar se entra. Deslizar el orbe a los lados salta a la pestaña
+     de al lado. Con teclado: Intro/Espacio abre, flechas recorren las lunas, Escape cierra. */
+  const ORB = { open: false, hot: -1 };
   function renderNav() {
-    return `<nav class="nav" aria-label="KeepGoing"><span class="nav-ind" aria-hidden="true"></span>${TABS.map(([id, ic, key]) =>
-      `<button data-act="go" data-tab="${id}" class="${state.ui.tab === id ? 'on' : ''}" ${state.ui.tab === id ? 'aria-current="page"' : ''} title="${esc(t(key))}">${ico(ic)}<span>${esc(t(key))}</span></button>`).join('')}</nav>`;
+    const cur = Math.max(0, TABS.findIndex(x => x[0] === state.ui.tab));
+    return `<nav class="orb-nav ${ORB.open ? 'open' : ''}" id="orb-nav" aria-label="KeepGoing">
+      <div class="orb-veil" data-orb="veil" aria-hidden="true"></div><div class="orb-arc" aria-hidden="true"></div>
+      ${TABS.map(([id, ic, key], i) => `<button class="moon ${i === cur ? 'cur' : ''}" data-act="go" data-tab="${id}" style="--i:${i}" tabindex="${ORB.open ? 0 : -1}" ${i === cur ? 'aria-current="page"' : ''} aria-label="${esc(t(key))}">${ico(ic)}<span class="moon-l">${esc(t(key))}</span></button>`).join('')}
+      <span class="orb-mini" aria-hidden="true"><i>${ico(TABS[cur][1])}</i></span>
+      <button class="orb" id="orb" aria-expanded="${ORB.open}" aria-haspopup="true" aria-label="${esc(t('orbAria', { tab: t(TABS[cur][2]) }))}" title="${esc(t('orbAria', { tab: t(TABS[cur][2]) }))}">${KG_LOGO()}</button>
+    </nav>`;
   }
-  // Indicador que se desliza de la pestaña anterior a la nueva
+  function orbSet(open) {
+    ORB.open = open; if (!open) ORB.hot = -1;
+    const n = $('#orb-nav'); if (!n) return;
+    n.classList.toggle('open', open); $('#orb', n).setAttribute('aria-expanded', open);
+    $$('.moon', n).forEach((m, i) => { m.tabIndex = open ? 0 : -1; m.classList.toggle('hot', i === ORB.hot); });
+    document.body.classList.toggle('orb-open', open);
+  }
+  function orbGo(i) {
+    const tab = TABS[i]; if (!tab) return;
+    orbSet(false); vibrate(12); sfx('tap');
+    const b = $(`#orb-nav .moon[data-tab="${tab[0]}"]`); if (b) b.click(); // misma ruta que un toque normal (data-act="go")
+  }
+  function orbHot(i) {
+    if (i === ORB.hot) return; ORB.hot = i;
+    $$('#orb-nav .moon').forEach((m, j) => m.classList.toggle('hot', j === i));
+    if (i >= 0) vibrate(6);
+  }
+  (function bindOrb() {
+    let P = null;
+    const nearest = (x, y) => { let best = -1, bd = 56 * 56; $$('#orb-nav .moon').forEach((m, i) => { const r = m.getBoundingClientRect(), dx = r.left + r.width / 2 - x, dy = r.top + r.height / 2 - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }); return best; };
+    document.addEventListener('pointerdown', e => {
+      const orb = e.target.closest && e.target.closest('#orb');
+      if (!orb) { if (ORB.open && !e.target.closest('#orb-nav .moon')) { /* toque fuera: se cierra en el click del velo */ } return; }
+      e.preventDefault();
+      try { orb.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ }
+      P = { x: e.clientX, y: e.clientY, held: false, moved: false, wasOpen: ORB.open, id: e.pointerId };
+      orb.classList.add('press');
+      if (!ORB.open) P.timer = setTimeout(() => { if (!P) return; P.held = true; vibrate(15); orbSet(true); }, 260);
+    });
+    document.addEventListener('pointermove', e => {
+      if (!P || e.pointerId !== P.id) return;
+      const dx = e.clientX - P.x, dy = e.clientY - P.y;
+      if (!ORB.open && !P.held && Math.abs(dx) > 34 && Math.abs(dx) > Math.abs(dy)) {
+        clearTimeout(P.timer); const cur = Math.max(0, TABS.findIndex(x => x[0] === state.ui.tab)), n = clamp(cur + (dx > 0 ? 1 : -1), 0, TABS.length - 1);
+        $('#orb') && $('#orb').classList.remove('press'); P = null; if (n !== cur) orbGo(n); return;
+      }
+      if (ORB.open && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) { P.moved = true; orbHot(nearest(e.clientX, e.clientY)); }
+    });
+    const up = e => {
+      if (!P || e.pointerId !== P.id) return;
+      const p0 = P; P = null; clearTimeout(p0.timer); $('#orb') && $('#orb').classList.remove('press');
+      if (e.type === 'pointercancel') return;
+      if (ORB.open && ORB.hot >= 0 && (p0.held || p0.moved)) { orbGo(ORB.hot); return; }
+      if (!p0.held) orbSet(!p0.wasOpen); // toque corto: abre o cierra
+    };
+    document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+    document.addEventListener('click', e => {
+      if (e.target.closest && e.target.closest('[data-orb="veil"]')) { orbSet(false); return; }
+      if (ORB.open && e.target.closest && e.target.closest('#orb-nav .moon')) { ORB.open = false; document.body.classList.remove('orb-open'); }
+    }, true);
+    document.addEventListener('keydown', e => {
+      const n = $('#orb-nav'); if (!n) return;
+      if (e.target.id === 'orb' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); orbSet(!ORB.open); if (ORB.open) { const c = $('.moon.cur', n); c && c.focus(); } return; }
+      if (!ORB.open) return;
+      if (e.key === 'Escape') { orbSet(false); $('#orb', n).focus(); return; }
+      const ms = $$('.moon', n), i = ms.indexOf(document.activeElement);
+      if (i >= 0 && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); ms[clamp(i + (e.key === 'ArrowRight' ? 1 : -1), 0, ms.length - 1)].focus(); }
+    });
+  })();
+  // Al cambiar de pestaña la luna pequeña «aterriza» (pequeño rebote del orbe)
   function placeNavInd(prevIdx) {
-    const nav = $('.nav'); if (!nav) return;
-    const ind = $('.nav-ind', nav), btns = $$('button', nav), cur = btns.findIndex(b => b.classList.contains('on'));
-    if (!ind || cur < 0) return;
-    const put = b => { ind.style.width = b.offsetWidth + 'px'; ind.style.height = b.offsetHeight + 'px'; ind.style.transform = `translate(${b.offsetLeft}px, ${b.offsetTop}px)`; };
-    if (prevIdx >= 0 && prevIdx !== cur && btns[prevIdx] && !reducedMotion()) { ind.style.transition = 'none'; put(btns[prevIdx]); void ind.offsetWidth; ind.style.transition = ''; }
-    put(btns[cur]);
-    if (prevIdx >= 0 && prevIdx !== cur) btns[cur].classList.add('nav-bounce');
+    const n = $('#orb-nav'); if (!n) return;
+    const cur = TABS.findIndex(x => x[0] === state.ui.tab);
+    if (prevIdx >= 0 && prevIdx !== cur && !reducedMotion()) { const o = $('#orb', n); o.classList.add('land'); setTimeout(() => o.classList.remove('land'), 600); }
   }
 
   function renderView() {
@@ -3891,6 +4094,51 @@
       <div class="cards-row">${RANKS.map(([r], i) => { const m = (state.mastery[h.id] || {})[r]; return m ? `<button class="kcard-btn" data-act="card-open" data-id="${h.id}" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${cardFace(h, i, 'front')}<span class="cap">${esc(t('rank_' + r))}<small>${esc(fmtShort(m.date))}</small></span></button>` : ''; }).join('')}</div></div>`;
   }
 
+  /* v1.27: «logro desbloqueado». Detrás de la carta se abre un halo de rayos que gira, salen chispas en ráfaga que luego
+     quedan orbitando despacio, el título aparece letra a letra y la carta se inclina siguiendo el dedo o el cursor. */
+  function achieveFx(w, color) {
+    const sheet = $('.sheet', w); if (!sheet) return;
+    sheet.classList.add('ach'); sheet.style.setProperty('--ach', color || 'var(--accent)');
+    const ttl = $('.ach-title', sheet);
+    if (ttl && !reducedMotion()) { const txt = ttl.textContent; ttl.textContent = ''; [...txt].forEach((ch, i) => { const s = document.createElement('span'); s.textContent = ch; s.style.animationDelay = (380 + i * 32) + 'ms'; ttl.appendChild(s); }); }
+    if (reducedMotion()) return;
+    const fx = document.createElement('div'); fx.className = 'ach-fx'; fx.setAttribute('aria-hidden', 'true');
+    fx.innerHTML = '<div class="ach-rays"></div><canvas class="ach-cv"></canvas>';
+    sheet.prepend(fx);
+    const flip = $('.flip', sheet), cv = $('canvas', fx), ctx = cv.getContext('2d');
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    const size = () => { const r = fx.getBoundingClientRect(); cv.width = r.width * dpr; cv.height = r.height * dpr; return r; };
+    let R = size();
+    const col = getComputedStyle(sheet).getPropertyValue('--ach').trim() || '#3ddc97';
+    const cx = () => R.width / 2, cy = () => R.height * .42;
+    const P = Array.from({ length: 70 }, (_, i) => { const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 7; return { a, v, d: 0, s: 1 + Math.random() * 2.4, orb: i % 3 === 0, r0: 120 + Math.random() * 120, sp: (Math.random() < .5 ? -1 : 1) * (.004 + Math.random() * .006), w: Math.random() }; });
+    const t0 = performance.now(); let raf = 0;
+    const frame = now => {
+      if (!w.isConnected) return cancelAnimationFrame(raf);
+      const el = now - t0; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, R.width, R.height);
+      P.forEach(p => {
+        if (p.orb && el > 900) { p.a += p.sp; p.d += (p.r0 - p.d) * .03; } else { p.d += p.v; p.v *= .955; }
+        const x = cx() + Math.cos(p.a) * p.d, y = cy() + Math.sin(p.a) * p.d * .8;
+        const life = p.orb ? Math.min(1, el / 400) : Math.max(0, 1 - el / 1800);
+        if (life <= 0) return;
+        const tw = .55 + .45 * Math.sin(now / 180 + p.w * 9);
+        ctx.globalAlpha = life * tw; ctx.fillStyle = p.w > .6 ? '#fff' : col;
+        ctx.beginPath(); ctx.arc(x, y, p.s, 0, Math.PI * 2); ctx.fill();
+        if (p.s > 2.6) { ctx.fillRect(x - p.s * 2.2, y - .4, p.s * 4.4, .8); ctx.fillRect(x - .4, y - p.s * 2.2, .8, p.s * 4.4); }
+      });
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    addEventListener('resize', () => { R = size(); }, { once: true });
+    // Inclinación de la carta
+    if (flip) w.addEventListener('pointermove', e => {
+      const b = flip.getBoundingClientRect(); if (!b.width) return;
+      const dx = (e.clientX - (b.left + b.width / 2)) / b.width, dy = (e.clientY - (b.top + b.height / 2)) / b.height;
+      flip.style.setProperty('--ry', clamp(dx * 18, -12, 12) + 'deg'); flip.style.setProperty('--rx', clamp(-dy * 18, -12, 12) + 'deg');
+    });
+    if (flip) w.addEventListener('pointerleave', () => { flip.style.setProperty('--ry', '0deg'); flip.style.setProperty('--rx', '0deg'); });
+  }
+
   function openCard(h, i, celebrate = false) {
     const [r, th] = RANKS[i];
     const m = cardMeta(h, r), un = !!m;
@@ -3898,10 +4146,11 @@
       ? `<div class="flip ${celebrate ? 'unlock-burst' : ''}" id="flip"><div class="flip-inner">${cardFace(h, i, 'front')}${cardFace(h, i, 'back', 'rev')}</div></div>`
       : `<div class="flip" style="cursor:default"><div class="flip-inner">${cardLocked(i)}</div></div>`;
     const lockedTxt = h.perfect ? t('perfectNext', { n: Math.max(0, th - perfectRun().cur), rank: t('rank_' + r) }) : t('masteryReq', { n: th });
-    const cap = `<div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('masteryUnlocked'))}</div>` : ''}${esc(t('rank_' + r))} · ${esc(h.perfect ? t('perfectSeries') : h.name)}<small>${un ? esc(fmtDate(m.date) + ' · ' + t('masteryFlip')) : esc(lockedTxt)}</small></div>`;
+    const cap = `<div class="card-view-cap">${celebrate ? `<div class="ach-title" style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('masteryUnlocked'))}</div>` : ''}${esc(t('rank_' + r))} · ${esc(h.perfect ? t('perfectSeries') : h.name)}<small>${un ? esc(fmtDate(m.date) + ' · ' + t('masteryFlip')) : esc(lockedTxt)}</small></div>`;
     openModal({
       cls: 'card-view',
       body: inner + cap + `<div class="row" style="justify-content:center;margin-top:16px">${un ? `<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
+      onMount: w => { if (celebrate && un) achieveFx(w, (PACK_COLORS[r] || [])[1]); },
       onClick: (e, close, w) => {
         if (e.target.closest('[data-m="share"]')) {
           const side = $('#flip', w).classList.contains('back') ? 'back' : 'front';
@@ -4106,13 +4355,14 @@
     openModal({
       cls: 'card-view',
       body: `<div class="flip ${celebrate ? 'unlock-burst' : ''}" style="cursor:default"><div class="flip-inner">${contractCardHtml(cc)}</div></div>
-        <div class="card-view-cap">${celebrate ? `<div style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('contractDone'))}!</div><small>${esc(t('contractDoneMsg'))}</small>` : `${esc(t('tier_' + cc.tier))} · ${esc(fmtDate(cc.end))}`}</div>
+        <div class="card-view-cap">${celebrate ? `<div class="ach-title" style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('contractDone'))}!</div><small>${esc(t('contractDoneMsg'))}</small>` : `${esc(t('tier_' + cc.tier))} · ${esc(fmtDate(cc.end))}`}</div>
         <div class="row wrap" style="justify-content:center;margin-top:16px">${celebrate && ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}${c && c.witness ? `<button class="btn" data-m="witness">📧 ${esc(t('witnessSendResult'))}</button>` : ''}<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
       onClick: (e, close) => {
         if (e.target.closest('[data-m="witness"]')) witnessMail(state.contract, 'result', cc);
         if (e.target.closest('[data-m="share"]')) shareCanvas(() => contractCanvas(cc), `keepgoing-contrato-${cc.end}.png`, t('contractDone'));
         if (e.target.closest('[data-m="renew"]')) { close(); renewContract(); }
-      }
+      },
+      onMount: w => { if (celebrate) achieveFx(w); }
     });
     if (celebrate) vibrate([20, 40, 20]);
   }
@@ -4303,7 +4553,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.27', [['1.27.0', 6]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.28', [['1.28.0', 6]]], ['1.27', [['1.27.0', 9]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -8438,13 +8688,77 @@
   // Color de la nota: de rojo (0) a verde (10) pasando por ámbar
   const rateColor = n => `hsl(${Math.round(n * 12)}, 72%, 52%)`;
   const rateRowHtml = k => { const v = dayRateOf(k); return `<div class="rate-row day-rate" role="group" aria-label="${esc(t('rateTitle'))}">${Array.from({ length: 11 }, (_, n) => `<button type="button" class="rate-b ${v === n ? 'on' : ''}" data-drate="${n}" aria-pressed="${v === n}" style="--rc:${rateColor(n)}">${n}</button>`).join('')}</div>`; };
+  /* v1.27: valoración inmersiva. Una forma viva en el centro cambia con la nota: de 0 a 4 es una estrella de picos
+     afilados y colores fríos/rojos; en 5 casi un círculo tranquilo; de 6 a 10 se abre en pétalos redondos y verdes.
+     Detrás giran ecos de la misma forma (el «patrón») y el fondo toma el color de la nota. Un deslizador abajo. */
+  const RATE_WORDS = ['rw0', 'rw1', 'rw2', 'rw3', 'rw4', 'rw5', 'rw6', 'rw7', 'rw8', 'rw9', 'rw10'];
+  // Radio de la forma en el ángulo th para una nota v (0..10, admite decimales)
+  function rateR(v, th, tt = 0) {
+    const m = (v - 5) / 5, a = .04 + Math.abs(m) * .22;
+    if (m < 0) { const n = 9, c = Math.abs(Math.cos((n * th + tt) / 2)); return 1 - a + 2 * a * Math.pow(c, 7); } // picos
+    const n = 6 + Math.round(m * 2), c = Math.abs(Math.cos((n * th + tt) / 2)); return 1 - a + a * Math.pow(c, .55); // pétalos
+  }
+  function ratePath(v, R, cx, cy, tt = 0, steps = 120) {
+    let d = '';
+    for (let i = 0; i <= steps; i++) { const th = i / steps * Math.PI * 2, r = R * rateR(v, th, tt); d += (i ? 'L' : 'M') + (cx + r * Math.cos(th)).toFixed(1) + ' ' + (cy + r * Math.sin(th)).toFixed(1); }
+    return d + 'Z';
+  }
+  const rateShape = (v, size = 44) => `<svg class="rate-shape" viewBox="0 0 100 100" width="${size}" height="${size}" aria-hidden="true"><path d="${ratePath(v, 40, 50, 50)}" fill="${rateColor(v)}"/></svg>`;
   function openRateDay(k) {
-    openModal({ title: esc(t('rateDayTitle', { d: fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }) })), body: `<div id="rd">${rateRowHtml(k)}</div>`,
-      onClick: (e, close) => { const b = e.target.closest('[data-drate]'); if (b) { setDayRate(k, +b.dataset.drate); sfx('tap'); close(); render(); } } });
+    const cur = dayRateOf(k);
+    let v = cur == null ? 5 : cur, shown = v, raf = 0;
+    openModal({
+      cls: 'rate-imm', title: '',
+      body: `<div class="ri"><canvas class="ri-cv" aria-hidden="true"></canvas>
+        <div class="ri-top"><button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button><span class="ri-day">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span style="width:36px"></span></div>
+        <div class="ri-mid"><b class="ri-n" id="ri-n">${v}</b><span class="ri-w" id="ri-w">${esc(t(RATE_WORDS[v]))}</span></div>
+        <div class="ri-bot"><input type="range" class="ri-range" id="ri-range" min="0" max="10" step="1" value="${v}" aria-label="${esc(t('rateTitle'))}" aria-valuetext="${v} · ${esc(t(RATE_WORDS[v]))}">
+          <div class="ri-ends"><span>${esc(t('rw0'))}</span><span>${esc(t('rw10'))}</span></div>
+          <div class="row" style="gap:10px">${cur != null ? `<button class="btn grow" data-ri="clear">${ico('trash')} ${esc(t('riClear'))}</button>` : ''}<button class="btn primary grow" data-ri="save">${ico('check')} ${esc(t('save'))}</button></div></div></div>`,
+      onMount: (w, close) => {
+        const box = $('.ri', w), cv = $('.ri-cv', w), ctx = cv.getContext('2d'), rng = $('#ri-range', w), rm = reducedMotion();
+        const dpr = Math.min(2, devicePixelRatio || 1);
+        const fit = () => { cv.width = box.clientWidth * dpr; cv.height = box.clientHeight * dpr; };
+        fit(); addEventListener('resize', fit);
+        const paint = () => { box.style.setProperty('--rc', rateColor(Math.round(shown * 10) / 10)); };
+        const t0 = performance.now();
+        const frame = now => {
+          if (!w.isConnected) { removeEventListener('resize', fit); return; }
+          shown += (v - shown) * (rm ? 1 : .12); paint();
+          const W = cv.width / dpr, H = cv.height / dpr, cx = W / 2, cy = H * .42, R = Math.min(W, H) * .24, tm = rm ? 0 : (now - t0) / 1000;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+          const col = rateColor(Math.max(0, Math.min(10, shown))), calm = (shown - 5) / 5;
+          // Ecos (patrón) que giran en sentidos opuestos
+          for (let e = 4; e >= 1; e--) {
+            ctx.save(); ctx.translate(cx, cy); ctx.rotate((e % 2 ? 1 : -1) * tm * (.08 + e * .02) * (calm < 0 ? 2 : 1)); ctx.translate(-cx, -cy);
+            const p = new Path2D(ratePath(shown, R * (1 + e * .32 + Math.sin(tm * 1.2 + e) * .02), cx, cy, tm * .4 * e));
+            ctx.globalAlpha = .1 + (4 - e) * .04; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(p); ctx.restore();
+          }
+          // Forma principal que respira
+          ctx.save(); ctx.translate(cx, cy); ctx.rotate(tm * (calm < 0 ? .25 : .1)); const br = 1 + Math.sin(tm * (calm < 0 ? 3.2 : 1.6)) * (calm < 0 ? .025 : .04); ctx.scale(br, br); ctx.translate(-cx, -cy);
+          const p = new Path2D(ratePath(shown, R, cx, cy, tm * .2));
+          ctx.globalAlpha = 1; ctx.shadowColor = col; ctx.shadowBlur = 40; ctx.fillStyle = col; ctx.fill(p); ctx.shadowBlur = 0;
+          ctx.globalAlpha = .35; ctx.fillStyle = '#fff'; ctx.fill(new Path2D(ratePath(shown, R * .45, cx - R * .12, cy - R * .14, tm * .2))); ctx.restore();
+          raf = requestAnimationFrame(frame);
+        };
+        raf = requestAnimationFrame(frame);
+        rng.addEventListener('input', () => {
+          const n = +rng.value; if (n === v) return; v = n; vibrate(6); sfx('tap');
+          $('#ri-n', w).textContent = n; $('#ri-w', w).textContent = t(RATE_WORDS[n]); rng.setAttribute('aria-valuetext', n + ' · ' + t(RATE_WORDS[n]));
+          const nb = $('#ri-n', w); nb.classList.remove('bump'); void nb.offsetWidth; nb.classList.add('bump');
+        });
+      },
+      onClick: (e, close) => {
+        const b = e.target.closest('[data-ri]'); if (!b) return;
+        if (b.dataset.ri === 'clear') delete state.dayRate[k]; else state.dayRate[k] = { r: v };
+        save(); sfx(b.dataset.ri === 'clear' ? 'undo' : 'complete'); close(); render();
+      },
+      onClose: () => cancelAnimationFrame(raf)
+    });
   }
   function dayRateHtml() {
     const k = todayKey(), y = addDays(k, -1), v = dayRateOf(k), vy = dayRateOf(y);
-    return `<div class="clay card rate-card" data-w="dayrate"><div class="row"><b class="grow">${esc(t('rateToday'))}</b>${v != null ? `<span class="rate-big" style="--rc:${rateColor(v)}">${v}<small>/10</small></span>` : ''}</div>${rateRowHtml(k)}
+    return `<div class="clay card rate-card" data-w="dayrate"><button class="rate-open" data-act="rate-today">${v != null ? rateShape(v) : `<span class="rate-shape empty">${ico('sparkle')}</span>`}<span class="grow"><b>${esc(t('rateToday'))}</b><span class="muted small">${v != null ? esc(t(RATE_WORDS[v])) : esc(t('riTap'))}</span></span>${v != null ? `<span class="rate-big" style="--rc:${rateColor(v)}">${v}<small>/10</small></span>` : ico('right')}</button>
       ${vy == null ? `<button class="link-btn small" data-act="rate-yday">${esc(t('rateYesterday'))}</button>` : ''}</div>`;
   }
 
@@ -8770,9 +9084,10 @@
     openModal({
       cls: 'card-view',
       body: `<div class="flip unlock-burst" style="cursor:default"><div class="flip-inner">${cardHtml}</div></div>
-        <div class="card-view-cap"><div style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(title)}</div><small>${esc(msg)}</small></div>
+        <div class="card-view-cap"><div class="ach-title" style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(title)}</div><small>${esc(msg)}</small></div>
         <div class="row" style="justify-content:center;margin-top:16px">${canvasFn ? `<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
-      onClick: e => { if (canvasFn && e.target.closest('[data-m="share"]')) shareCanvas(canvasFn, 'keepgoing-trofeo.png', title); }
+      onClick: e => { if (canvasFn && e.target.closest('[data-m="share"]')) shareCanvas(canvasFn, 'keepgoing-trofeo.png', title); },
+      onMount: w => achieveFx(w)
     });
   }
   async function trophyCanvas(kind, d) {
@@ -9351,13 +9666,30 @@
       ${sec('🏅', t('repTotal'), `<div id="pf-rep">${repHtml()}</div>`)}
     </div>`;
   }
+  /* v1.27: el perfil «se despliega» desde el botón que lo abre (la píldora @, la tarjeta de perfil…): la hoja crece desde
+     ese rectángulo con esquinas de píldora, la foto cae a su sitio con rebote y cada bloque entra después, escalonado. */
+  let profOrigin = null;
+  document.addEventListener('pointerdown', e => { const b = e.target.closest && e.target.closest('[data-act="profile"]'); if (b) profOrigin = { r: b.getBoundingClientRect(), at: Date.now() }; }, { passive: true });
+  function profileMorph(w) {
+    const sheet = $('.sheet', w), o = profOrigin; profOrigin = null;
+    if (!sheet || reducedMotion() || !sheet.animate) return;
+    sheet.style.animation = 'none'; w.style.animation = 'none';
+    const S = sheet.getBoundingClientRect();
+    const r = o && Date.now() - o.at < 3000 ? o.r : { left: innerWidth / 2 - 30, top: 20, width: 60, height: 36 };
+    const ins = `inset(${Math.max(0, r.top - S.top)}px ${Math.max(0, S.right - r.right)}px ${Math.max(0, S.bottom - r.bottom)}px ${Math.max(0, r.left - S.left)}px round 999px)`;
+    sheet.animate([{ clipPath: ins, filter: 'brightness(1.6)' }, { clipPath: 'inset(0 0 0 0 round 32px 32px 0 0)', filter: 'none' }], { duration: 560, easing: 'cubic-bezier(.65, 0, .2, 1)' });
+    w.animate([{ backgroundColor: 'rgba(0,0,0,0)', backdropFilter: 'blur(0px)' }, { backgroundColor: 'rgba(0,0,0,.55)', backdropFilter: 'blur(6px)' }], { duration: 500, easing: 'ease-out' });
+    const av = $('.prof-head .avatar-pick', sheet);
+    if (av) av.animate([{ transform: `translate(${r.left + r.width / 2 - (S.left + 90)}px, ${r.top - (S.top + 120)}px) scale(.25)`, opacity: 0 }, { opacity: 1, offset: .5 }, { transform: 'translate(0, 6px) scale(1.06)', offset: .8 }, { transform: 'none' }], { duration: 760, easing: 'cubic-bezier(.3, 1.2, .4, 1)' });
+    $$('#pf > .stack > *, .sheet-head', sheet).forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(26px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 160 + Math.min(i, 8) * 55, easing: 'cubic-bezier(.2, .9, .3, 1.1)', fill: 'backwards' }));
+  }
   function openProfile() {
     achAll = false;
     openModal({
       title: esc(t('profileTitle')), cls: 'wide', body: '<div id="pf"></div>',
       onMount: w => {
         const draw = () => { $('#pf', w).innerHTML = profileHtml(); };
-        w._draw = draw; draw();
+        w._draw = draw; draw(); profileMorph(w);
         if (auth) loadRep().then(() => { const el = $('#pf-rep', w); if (el) el.innerHTML = repHtml(); const tb = $('#pf-tag-box', w); if (tb && !$('#pf-tag', w)?.matches(':focus')) tb.innerHTML = nametagHtml(); });
         w.addEventListener('change', e => {
           if (e.target.id === 'pf-bio') { state.profile = { ...profileOf(), bio: e.target.value.trim().slice(0, 140) }; save(); render(); toast(t('saved')); }
@@ -9947,7 +10279,7 @@
   }
   async function openGroup(gid, freshCode = null, tab = 'profile') {
     if (!auth) { toast(t('groupNeedLogin')); return; }
-    const G = { tab, info: null, code: freshCode, msgs: [], sig: '', gone: false, timers: [], seen: new Set(), seenFor: '', rates: {}, rec: null };
+    const G = { tab, info: null, code: freshCode, msgs: [], sig: '', gone: false, timers: [], seen: new Set(), seenFor: '', rates: {}, rec: null, reply: null, cup: { data: undefined, err: '' } };
     let wref = null;
     const me = () => G.info && G.info.members.find(m => m.user_id === auth.uid);
     const can = p => GG.can(me(), p);
@@ -10097,17 +10429,142 @@
         inner = src ? `<img class="sticker" src="${src}" alt="Sticker" draggable="false">` : '🙂';
       } else inner = `<span class="msg-text">${esc(m.body)}</span>`;
       const bare = m.kind === 'sticker' && !m.deleted;
-      return `<div class="msg ${mine ? 'mine' : ''}">${mine || isDm() ? '' : `<span class="msg-who small">${esc(memberName(m.user_id))}</span>`}<div class="msg-bubble ${bare ? 'bare' : ''}">${inner}</div><span class="msg-meta small muted">${esc(fmtTime(m.created_at))}${bare && !mine ? ` · <button class="link-btn" data-gc-stk="${m.id}">${esc(t('stkSave'))}</button>` : ''}${canDel ? ` · <button class="link-btn" data-gc-del="${m.id}">${esc(t('chatDelete'))}</button>` : ''}</span></div>`;
+      // v1.27: cita del mensaje al que responde (se toca para saltar a él)
+      const rq = !m.deleted && m.payload && m.payload.reply, quote = rq && rq.id ? `<button type="button" class="msg-quote" data-gc-jump="${+rq.id || 0}"><b>${esc(memberName(rq.u))}</b><span>${esc(String(rq.b || '').slice(0, 140))}</span></button>` : '';
+      return `<div class="msg ${mine ? 'mine' : ''}" ${m.deleted ? '' : `data-mid="${+m.id || 0}"`}><span class="msg-swipe" aria-hidden="true">${ico('reply')}</span>${mine || isDm() ? '' : `<span class="msg-who small">${esc(memberName(m.user_id))}</span>`}<div class="msg-bubble ${bare ? 'bare' : ''}">${quote}${inner}</div><span class="msg-meta small muted">${esc(fmtTime(m.created_at))}${bare && !mine ? ` · <button class="link-btn" data-gc-stk="${m.id}">${esc(t('stkSave'))}</button>` : ''}${canDel ? ` · <button class="link-btn" data-gc-del="${m.id}">${esc(t('chatDelete'))}</button>` : ''}</span></div>`;
     };
     const chatTab = () => `<div class="chat">${isChat() ? '' : localBanner()}
         <div class="chat-list" id="chat-list" role="log" aria-live="polite">${G.msgs.length ? G.msgs.map(msgHtml).join('') : `<p class="muted center">${esc(t('chatEmpty'))}</p>`}</div>
+        <div class="reply-bar" id="reply-bar" ${G.reply ? '' : 'hidden'}>${replyBarHtml()}</div>
         <form class="chat-compose ${G.rec ? 'recording' : ''}" id="chat-form">${can('share') ? `<button type="button" class="icon-btn" data-g="chat-more" aria-label="${esc(t('chatMore'))}">${ico('plus')}</button>` : ''}<button type="button" class="icon-btn" data-g="stk" aria-label="Stickers" title="Stickers">${ico('smile')}</button><input class="input grow" id="chat-in" maxlength="1000" autocomplete="off" placeholder="${esc(t('chatPh'))}" aria-label="${esc(t('chatPh'))}">
           <span class="rec-info grow" aria-live="polite"><span class="rec-dot"></span><span id="rec-t">0:00</span> <span class="muted small">${esc(t('recHint'))}</span></span>
           <label class="icon-btn photo-btn-chat" title="${esc(t('photoOnceSend'))}">${ico('camera')}<input type="file" accept="image/*" class="sr-only" data-g-photo aria-label="${esc(t('photoOnceSend'))}"></label><button type="button" class="icon-btn rec-cancel" data-g="rec-cancel" aria-label="${esc(t('cancel'))}">${ico('x')}</button><button type="button" class="icon-btn mic-btn" data-g="mic" aria-label="${esc(t('recStart'))}" title="${esc(t('recStart'))}">${ico('mic')}</button><button class="btn primary send-btn" type="submit" aria-label="${esc(t('chatSend'))}">${ico('send')}</button></form>
       </div>`;
     const scrollChat = () => { const l = wref && $('#chat-list', wref); if (l) l.scrollTop = l.scrollHeight; };
+    /* v1.27: deslizar un mensaje hacia la derecha para responderlo (como en las apps de mensajería). La cita viaja en
+       payload.reply = { id, u, b } (b = un trozo del texto o el tipo de mensaje); el servidor la limpia y la limita. */
+    function replySnippet(m) {
+      if (m.kind === 'text') return String(m.body || '').replace(/\s+/g, ' ').slice(0, 120);
+      if (m.kind === 'photo') return t('rpPhoto'); if (m.kind === 'audio') return t('rpAudio'); if (m.kind === 'sticker') return t('rpSticker');
+      if (m.kind === 'file') return String((m.payload || {}).name || 'PDF').slice(0, 120);
+      return t('rpShare');
+    }
+    function replyBarHtml() {
+      const r = G.reply; if (!r) return '';
+      return `<span class="reply-ico">${ico('reply')}</span><span class="grow"><b>${esc(t('rpTo', { name: memberName(r.u) }))}</b><span class="muted small ellipsis">${esc(r.b)}</span></span><button type="button" class="icon-btn sm" data-g="reply-x" aria-label="${esc(t('rpCancel'))}">${ico('x')}</button>`;
+    }
+    function setReply(m) {
+      G.reply = m ? { id: +m.id, u: m.user_id, b: replySnippet(m) } : null;
+      const bar = wref && $('#reply-bar', wref); if (!bar) return;
+      bar.innerHTML = replyBarHtml(); bar.hidden = !G.reply;
+      if (G.reply) { bar.classList.remove('in'); void bar.offsetWidth; bar.classList.add('in'); const i = $('#chat-in', wref); if (i) i.focus(); }
+    }
+    function bindSwipeReply(w) {
+      let S = null;
+      w.addEventListener('pointerdown', e => {
+        const msg = e.target.closest('#chat-list .msg[data-mid]'); if (!msg || e.button > 0 || e.target.closest('audio, button, a, input')) return;
+        S = { msg, id: msg.dataset.mid, x: e.clientX, y: e.clientY, dx: 0, lock: null, armed: false, pid: e.pointerId };
+      });
+      w.addEventListener('pointermove', e => {
+        if (!S || e.pointerId !== S.pid) return;
+        const dx = e.clientX - S.x, dy = e.clientY - S.y;
+        if (S.lock == null) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; S.lock = Math.abs(dx) > Math.abs(dy) * 1.2 && dx > 0 ? 'x' : 'y'; if (S.lock === 'x') { S.msg.classList.add('swiping'); try { S.msg.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ } } }
+        if (S.lock !== 'x') return;
+        e.preventDefault();
+        const d = Math.max(0, dx), eased = d < 60 ? d : 60 + (d - 60) * .25; S.dx = eased;
+        S.msg.style.setProperty('--sw', Math.min(eased, 96) + 'px'); S.msg.style.setProperty('--swp', Math.min(1, eased / 60));
+        const arm = eased >= 60; if (arm !== S.armed) { S.armed = arm; S.msg.classList.toggle('armed', arm); if (arm) vibrate(10); }
+      });
+      const end = () => {
+        if (!S) return; const s0 = S; S = null;
+        if (s0.lock !== 'x') return;
+        s0.msg.classList.remove('swiping', 'armed'); s0.msg.style.setProperty('--sw', '0px'); s0.msg.style.setProperty('--swp', 0);
+        if (s0.armed) { const m = G.msgs.find(x => String(x.id) === s0.id); if (m) setReply(m); }
+      };
+      w.addEventListener('pointerup', end); w.addEventListener('pointercancel', end);
+    }
+    function jumpTo(id) {
+      const el = wref && $(`#chat-list .msg[data-mid="${+id}"]`, wref);
+      if (!el) { toast(t('rpGone')); return; }
+      el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    }
 
     /* --- retos en vivo y votaciones --- */
+    /* ---------- v1.27: Torneos (cuadro eliminatorio) ----------
+       El servidor calcula el cuadro (kg_tourney_get). Gana quien más cumple en la ronda; si empatan, los votos de los
+       demás. Las rondas son columnas que se desplazan en horizontal: al avanzar, las rondas ya jugadas se encogen y la
+       siguiente se acerca; las líneas que unen los cruces se dibujan solas y el camino de cada ganador va en color. */
+    const loadCup = async () => {
+      try { G.cup.data = await rpc('kg_tourney_get', { p_group: gid }); G.cup.err = ''; }
+      catch (e) { G.cup.data = null; G.cup.err = /kg_tourney_get|function|404|PGRST202/i.test(e.message) ? 'server' : e.message; }
+      if (G.tab === 'cup') { draw(); cupMount(); }
+    };
+    const cupRoundName = (i, n) => i === n - 1 ? t('cupFinal') : i === n - 2 ? t('cupSemi') : i === n - 3 ? t('cupQuarter') : t('cupRound', { n: i + 1 });
+    const cupPlayer = (u, sc, win, lose, votes) => u ? `<div class="cup-p ${win ? 'win' : ''} ${lose ? 'lose' : ''}">${avatarHtml(G.info.members.find(m => m.user_id === u) || { display_name: '?' }, 'sm')}<span class="grow ellipsis">${esc(memberName(u))}</span>${votes ? `<span class="cup-v" title="${esc(t('cupVotes'))}">${ico('users', 'xs')}${votes}</span>` : ''}<b class="cup-s">${sc == null ? '' : fmtNum(+sc)}</b></div>` : `<div class="cup-p bye"><span class="grow muted small">${esc(t('cupBye'))}</span></div>`;
+    const cupTab = () => {
+      const C = G.cup;
+      if (C.data === undefined) return `<p class="muted center">${esc(t('loading'))}</p>`;
+      if (C.err === 'server') return `<section class="clay card"><p class="muted" style="margin:0">${esc(t('cupNoServer'))}</p></section>`;
+      if (C.err) return `<section class="clay card"><p class="muted" style="margin:0">${esc(t('groupError', { e: C.err }))}</p></section>`;
+      const T = C.data, canLaunch = can('launch');
+      if (!T) return `<section class="clay card cup-empty"><span class="cup-big">${ico('trophy')}</span><h3>${esc(t('cupEmptyT'))}</h3><p class="muted">${esc(t('cupEmptyS'))}</p>${canLaunch ? `<button class="btn primary" data-cup="new">${ico('plus')} ${esc(t('cupNew'))}</button>` : `<p class="muted small">${esc(t('cupNoPerm'))}</p>`}</section>`;
+      const R = T.rounds || [], n = R.length, done = R.length && R.every(r => r.state === 'done');
+      const champ = done && T.champion;
+      const head = `<section class="cup-head"><div class="grow"><h3 style="margin:0">${esc(T.title)}</h3><span class="muted small">${esc(t('cupRules', { d: T.round_days }))}</span></div>${(T.created_by === auth.uid || can('moderate')) && !done ? `<button class="link-btn small" data-cup="cancel">${esc(t('cupCancel'))}</button>` : ''}${done && canLaunch ? `<button class="btn sm" data-cup="new">${ico('plus')} ${esc(t('cupNew'))}</button>` : ''}</section>`;
+      const champHtml = champ ? `<section class="cup-champ">${avatarHtml(G.info.members.find(m => m.user_id === champ) || {}, '')}<span class="cup-crown">${ico('crown')}</span><b>${esc(t('cupChampion', { name: memberName(champ) }))}</b></section>` : '';
+      const cols = R.map((r, i) => `<div class="br-col" data-st="${r.state}" style="--r:${i}"><div class="br-h"><b>${esc(cupRoundName(i, n))}</b><span class="muted small">${esc(fmtShort(r.from))}${r.to !== r.from ? ' – ' + esc(fmtShort(r.to)) : ''}</span><span class="chip sm br-st">${esc(t('cupSt_' + r.state))}</span></div>
+        <div class="br-ms">${r.matches.map((m, j) => {
+          const tie = r.state === 'live' && m.a && m.b && +m.sa === +m.sb, amPlayer = auth.uid === m.a || auth.uid === m.b;
+          const vote = r.state === 'live' && m.a && m.b && !amPlayer ? `<div class="cup-vote"><span class="muted small">${esc(tie ? t('cupTieVote') : t('cupVoteHint'))}</span>${[m.a, m.b].map(u => `<button class="chip sm ${m.my_vote === u ? 'on' : ''}" data-cup-vote="${u}" data-r="${i}" data-m="${j}">${esc(memberName(u))}</button>`).join('')}</div>` : '';
+          return `<div class="br-m ${r.state}" style="--j:${j}" data-k="${i}-${j}">${cupPlayer(m.a, m.sa, m.w && m.w === m.a, m.w && m.w !== m.a, m.va)}${cupPlayer(m.b, m.sb, m.w && m.w === m.b && m.a, m.w && m.w !== m.b && m.b, m.vb)}${vote}</div>`;
+        }).join('')}</div></div>`).join('');
+      return head + champHtml + `<div class="br-wrap"><div class="br" id="cup-br">${cols}<svg class="br-lines" aria-hidden="true"></svg></div></div><p class="muted small center">${esc(t('cupHint'))}</p>`;
+    };
+    // Líneas entre cruces y efecto de «acercar» la ronda siguiente al desplazarse
+    function cupMount() {
+      const br = wref && $('#cup-br', wref); if (!br || !G.cup.data) return;
+      const svg = $('.br-lines', br), R = G.cup.data.rounds || [];
+      const draw = () => {
+        svg.setAttribute('width', br.scrollWidth); svg.setAttribute('height', br.scrollHeight);
+        const B = br.getBoundingClientRect(), pt = (el, side) => { const r = el.getBoundingClientRect(); return [(side ? r.right : r.left) - B.left + br.scrollLeft, r.top + r.height / 2 - B.top + br.scrollTop]; };
+        let d = '', dw = '';
+        R.forEach((r, i) => { if (i === R.length - 1) return; r.matches.forEach((m, j) => {
+          const a = $(`[data-k="${i}-${j}"]`, br), b = $(`[data-k="${i + 1}-${j >> 1}"]`, br); if (!a || !b) return;
+          const [x1, y1] = pt(a, 1), [x2, y2] = pt(b, 0), mx = (x1 + x2) / 2, path = `M${x1} ${y1}H${mx}V${y2}H${x2}`;
+          if (m.w && r.state === 'done') dw += path; else d += path;
+        }); });
+        if (!svg.firstChild) svg.innerHTML = '<path class="l" pathLength="1"/><path class="lw" pathLength="1"/>';
+        svg.children[0].setAttribute('d', d || 'M0 0'); svg.children[1].setAttribute('d', dw || 'M0 0');
+      };
+      const zoom = () => {
+        const B = br.getBoundingClientRect();
+        $$('.br-col', br).forEach(c => { const r = c.getBoundingClientRect(), p = clamp((r.right - B.left) / r.width, 0, 1); c.style.setProperty('--k', p.toFixed(3)); });
+      };
+      requestAnimationFrame(() => { zoom(); draw(); }); setTimeout(draw, 900); // tras la entrada de los cruces
+      let raf = 0; br.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { zoom(); draw(); }); }, { passive: true });
+      // Se abre mirando la ronda en curso
+      const live = $('.br-col[data-st="live"]', br); if (live) br.scrollLeft = Math.max(0, live.offsetLeft - 12);
+    }
+    function cupNew() {
+      const ms = G.info.members; let sel = new Set(ms.map(m => m.user_id)), days = 1;
+      openModal({
+        title: esc(t('cupNew')),
+        body: `<div class="stack" style="gap:14px"><label class="field"><span>${esc(t('cupName'))}</span><input class="input" id="cup-t" maxlength="60" placeholder="${esc(t('cupNamePh'))}"></label>
+          <div class="field"><span>${esc(t('cupRoundLen'))}</span><div class="seg" id="cup-d">${[1, 3, 7].map(d => `<button type="button" data-cd="${d}" class="${d === days ? 'on' : ''}">${esc(t('cupDays_' + d))}</button>`).join('')}</div></div>
+          <div class="field"><span>${esc(t('cupPlayers'))}</span><div class="row wrap" style="gap:6px" id="cup-pl">${ms.map(m => `<button type="button" class="chip ${sel.has(m.user_id) ? 'on' : ''}" data-cpl="${m.user_id}" aria-pressed="${sel.has(m.user_id)}">${esc(m.display_name)}</button>`).join('')}</div><p class="muted small" style="margin:6px 0 0">${esc(t('cupPlayersHint'))}</p></div></div>`,
+        foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-cup-go>${ico('trophy')} ${esc(t('cupStart'))}</button>`,
+        onClick: async (e, close, w) => {
+          const d = e.target.closest('[data-cd]'); if (d) { days = +d.dataset.cd; $$('[data-cd]', w).forEach(b => b.classList.toggle('on', b === d)); return; }
+          const pl = e.target.closest('[data-cpl]'); if (pl) { const u = pl.dataset.cpl; sel.has(u) ? sel.delete(u) : sel.add(u); pl.classList.toggle('on', sel.has(u)); pl.setAttribute('aria-pressed', sel.has(u)); return; }
+          if (e.target.closest('[data-cup-go]')) {
+            if (sel.size < 2 || sel.size > 16) { toast(t('cupPlayersHint')); return; }
+            try { await rpc('kg_tourney_create', { p_group: gid, p_title: $('#cup-t', w).value.trim() || t('cupDefault'), p_round_days: days, p_players: [...sel] }); sfx('unlock'); vibrate([20, 40, 20]); close(); await loadCup(); }
+            catch (err) { toast(/running/.test(err.message) ? t('cupRunning') : t('groupError', { e: err.message })); }
+          }
+        }
+      });
+    }
     const liveTab = () => {
       const { active: a, challenges, group: g } = G.info;
       let cur;
@@ -10221,9 +10678,9 @@
       }).join('')}</section>${isChat() && can('invite') ? `<div class="center" style="margin-top:12px"><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button></div>` : ''}${isLeader() ? `<p class="muted small center">${esc(t('gPermsLeader'))}</p>` : ''}`;
     };
 
-    const ALL_TABS = [['profile', '🪪', 'gTabProfile'], ['chat', '💬', 'gTabChat'], ['live', '🔴', 'gTabLive'], ['rank', '🏅', 'gTabRank'], ['members', '👥', 'gTabMembers']];
+    const ALL_TABS = [['profile', '🪪', 'gTabProfile'], ['chat', '💬', 'gTabChat'], ['live', '🔴', 'gTabLive'], ['rank', '🏅', 'gTabRank'], ['cup', ico('trophy'), 'cupTab'], ['members', '👥', 'gTabMembers']];
     // Conversación privada: solo el chat. Grupo de chat: chat, miembros (roles y permisos) y perfil
-    const tabsFor = () => isDm() ? ALL_TABS.filter(x => x[0] === 'chat') : isChat() ? [ALL_TABS[1], ALL_TABS[4], ALL_TABS[0]] : ALL_TABS;
+    const tabsFor = () => isDm() ? ALL_TABS.filter(x => x[0] === 'chat') : isChat() ? ['chat', 'members', 'profile'].map(k => ALL_TABS.find(x => x[0] === k)) : ALL_TABS;
     const setTitle = () => {
       const h = wref && $('.sheet-head h2', wref); if (!h || !G.info) return;
       const g = G.info.group, p = peer();
@@ -10242,7 +10699,7 @@
       }
       const draft = $('#chat-in', el) ? $('#chat-in', el).value : '';
       el.innerHTML = `${TABS.length < 2 ? '' : `<div class="seg g-tabs" role="tablist">${TABS.map(([k, e, l]) => `<button role="tab" aria-selected="${G.tab === k}" class="${G.tab === k ? 'on' : ''}" data-gt="${k}"><span aria-hidden="true">${e}</span> <span class="g-tab-l">${esc(t(l))}</span></button>`).join('')}</div>`}
-        <div class="g-pane" role="tabpanel">${G.tab === 'chat' ? chatTab() : G.tab === 'live' ? liveTab() : G.tab === 'rank' ? rankTab() : G.tab === 'members' ? membersTab() : profileTab()}</div>`;
+        <div class="g-pane" role="tabpanel">${G.tab === 'chat' ? chatTab() : G.tab === 'live' ? liveTab() : G.tab === 'rank' ? rankTab() : G.tab === 'cup' ? cupTab() : G.tab === 'members' ? membersTab() : profileTab()}</div>`;
       if (G.tab === 'chat') { const i = $('#chat-in', el); if (draft) { i.value = draft; i.form.classList.add('has-text'); } loadRates(); scrollChat(); }
     };
     const refresh = async (info = true) => { if (info) await loadInfo(); if (G.tab === 'chat') await loadMsgs(); draw(); };
@@ -10484,6 +10941,7 @@
             }
           } catch (err) { toast(t('groupError', { e: err.message })); await refresh(); }
         });
+        bindSwipeReply(w);
         // Como en WhatsApp: con texto aparece «Enviar»; sin texto, la cámara y el micro
         w.addEventListener('input', e => { if (e.target.id === 'chat-in') e.target.form.classList.toggle('has-text', !!e.target.value.trim()); });
         w.addEventListener('submit', async e => {
@@ -10491,15 +10949,22 @@
           if (G.rec) { stopRec(); return; }
           const i = $('#chat-in', w), text = i.value.trim(); if (!text) return;
           i.value = ''; e.target.classList.remove('has-text');
-          try { await rpc('kg_post', { p_group: gid, p_kind: 'text', p_body: text, p_payload: {} }); sfx('tap'); await loadMsgs(); draw(true); scrollChat(); }
+          const reply = G.reply; setReply(null);
+          try { await rpc('kg_post', { p_group: gid, p_kind: 'text', p_body: text, p_payload: reply ? { reply } : {} }); sfx('tap'); await loadMsgs(); draw(true); scrollChat(); }
           catch (err) { i.value = text; e.target.classList.add('has-text'); toast(t('groupError', { e: err.message })); }
           i.focus();
         });
       },
       onClose: () => { stopRec(true); G.timers.forEach(clearInterval); myGroups.at = 0; if (state.ui.tab === 'chat') { render(); refreshMyGroups(true); } },
       onClick: async (e, close) => {
+        const jb = e.target.closest('[data-gc-jump]'); if (jb) { jumpTo(jb.dataset.gcJump); return; }
+        const cb = e.target.closest('[data-cup]');
+        if (cb) { if (cb.dataset.cup === 'new') cupNew(); else if (cb.dataset.cup === 'cancel' && await confirmDialog(t('cupCancelQ'))) { try { await rpc('kg_tourney_cancel', { p_tourney: G.cup.data.id }); await loadCup(); } catch (err) { toast(t('groupError', { e: err.message })); } } return; }
+        const cv = e.target.closest('[data-cup-vote]');
+        if (cv) { cv.disabled = true; try { await rpc('kg_tourney_vote', { p_tourney: G.cup.data.id, p_round: +cv.dataset.r, p_match: +cv.dataset.m, p_pick: cv.dataset.cupVote }); vibrate(8); await loadCup(); } catch (err) { cv.disabled = false; toast(t('groupError', { e: err.message })); } return; }
+        if (e.target.closest('[data-g="reply-x"]')) { setReply(null); return; }
         const tabB = e.target.closest('[data-gt]');
-        if (tabB) { G.tab = tabB.dataset.gt; draw(); if (G.tab === 'chat') { try { await loadMsgs(); } catch (err) { /* nada */ } draw(); $('#chat-in', body()) && $('#chat-in', body()).focus(); } return; }
+        if (tabB) { G.tab = tabB.dataset.gt; draw(); if (G.tab === 'cup') { loadCup(); return; } if (G.tab === 'chat') { try { await loadMsgs(); } catch (err) { /* nada */ } draw(); $('#chat-in', body()) && $('#chat-in', body()).focus(); } return; }
         const fr = e.target.closest('[data-rk-freq]');
         if (fr) { body().querySelectorAll('[data-rk-freq]').forEach(b => { b.classList.toggle('on', b === fr); b.setAttribute('aria-checked', b === fr); }); return; }
         const b = e.target.closest('[data-g],[data-g-kick],[data-gv],[data-gc-join],[data-gc-peek],[data-gc-add],[data-gc-view],[data-gc-del],[data-gc-photo],[data-gc-audio],[data-gc-file],[data-gc-img],[data-gc-stk],[data-rate],[data-jr-yes],[data-jr-no]'); if (!b || !G.info) return;
@@ -11081,7 +11546,7 @@
       if (act === 'timer') openTimer(h);
       else if (act === 'slip') { if (cnt(h, k)) { setCount(h, k, 0); render(); } else confirmDialog(t('quitConfirm', { name: h.name })).then(ok => { if (ok) { setCount(h, k, 1); vibrate(30); render(); } }); }
       else if (isAmount(h)) openAmount(h, k);
-      else { const before = dayInfo(k).perfect; tapDay(h, k); render(); if (!before && dayInfo(k).perfect) toast('🎉 ' + t('perfectToday')); }
+      else { tapDay(h, k); render(); } // v1.27: el día perfecto lo celebra perfectFx (desde habitFeedback)
       return;
     }
     if ((el = e.target.closest('[data-drate]')) && !el.closest('#modal-root')) { setDayRate(todayKey(), +el.dataset.drate); vibrate(8); render(); return; }
@@ -11136,6 +11601,8 @@
       case 'vault-wipe': confirmVaultWipe(); break;
       case 'ledger-add': if (!ledgerOpen()) { state.ui.tab = 'ledger'; render(); break; } openEntry(null, a.dataset.d || state.ui.ledgerDay || todayKey()); break;
       case 'rate-yday': openRateDay(addDays(todayKey(), -1)); break;
+      case 'rate-today': openRateDay(todayKey()); break;
+      case 'journal': openJournal(); break;
       case 'ledger-dayshift': { const k = addDays(state.ui.ledgerDay && state.ui.ledgerDay.startsWith(ledgerMonth()) ? state.ui.ledgerDay : todayKey(), +a.dataset.d); state.ui.ledgerDay = k; state.ui.ledgerMonth = k.slice(0, 7); save(); render(); break; }
       case 'ledger-month': { const [yy, mm] = ledgerMonth().split('-').map(Number), d = new Date(yy, mm - 1 + +a.dataset.d, 1); state.ui.ledgerMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; save(); render(); break; }
       case 'ledger-cats': openLedgerCats(); break;
@@ -11184,7 +11651,7 @@
   });
   // Rebote al tocar botones (funciona con ratón, dedo y teclado; nada depende solo de hover)
   document.addEventListener('click', e => {
-    const b = e.target.closest && e.target.closest('.btn, .chip, .icon-btn, .lvl-pill, .nav button, .seg button, .cal-cell:not(.empty), .ledger-item');
+    const b = e.target.closest && e.target.closest('.btn, .chip, .icon-btn, .lvl-pill, .moon, .seg button, .cal-cell:not(.empty), .ledger-item');
     if (!b || !b.isConnected) return;
     b.classList.remove('tap-pop'); void b.offsetWidth; b.classList.add('tap-pop');
     b.addEventListener('animationend', () => b.classList.remove('tap-pop'), { once: true });
