@@ -30,7 +30,7 @@
     pr_obsidianWeekly: '¿Exportar a Obsidian?',
     prd_obsidianWeekly: 'Al guardar la revisión semanal del domingo, te propone actualizar tus datos en Obsidian.',
     obsWeeklyHint: 'Actualiza el resumen de tus datos en tu bóveda con lo de esta semana.',
-    wn_1_27_3_1: 'Exportar a Obsidian|En Ajustes → Tus datos: escribe en tu bóveda un resumen en Markdown de tus hábitos, proyectos, Organización y Libreta (con la comparativa de tus proyecciones), el CSV de movimientos y una copia sin la Libreta. En Safari y iPhone, como .zip para compartir.'
+    wn_1_30_1_1: 'Exportar a Obsidian|En Ajustes → Tus datos: escribe en tu bóveda un resumen en Markdown de tus hábitos, proyectos, Organización y Libreta (con la comparativa de tus proyecciones), el CSV de movimientos y una copia sin la Libreta. En Safari y iPhone, como .zip para compartir.'
   };
   const en = {
     obsBtn: 'Export to Obsidian',
@@ -62,7 +62,7 @@
     pr_obsidianWeekly: 'Export to Obsidian?',
     prd_obsidianWeekly: 'When you save Sunday’s weekly review, it offers to update your data in Obsidian.',
     obsWeeklyHint: 'Update the summary of your data in your vault with this week.',
-    wn_1_27_3_1: 'Export to Obsidian|In Settings → Your data: writes a Markdown summary of your habits, projects, Organisation and Ledger (with the comparison against your projections), the entries CSV and a copy without the Ledger into your vault. On Safari and iPhone, as a .zip to share.'
+    wn_1_30_1_1: 'Export to Obsidian|In Settings → Your data: writes a Markdown summary of your habits, projects, Organisation and Ledger (with the comparison against your projections), the entries CSV and a copy without the Ledger into your vault. On Safari and iPhone, as a .zip to share.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);

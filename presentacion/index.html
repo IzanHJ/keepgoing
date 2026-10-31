@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>KeepGoing · Tus días, en órbita</title>
+  <meta name="description" content="KeepGoing junta hábitos y proyectos, turnos y organización, un diario semanal, una libreta de gastos cifrada, chats con grupos y torneos, y maestrías. Una app que se instala en el móvil y funciona sin conexión.">
+  <meta name="theme-color" content="#fbf6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0c0807" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="KeepGoing · Tus días, en órbita">
+  <meta property="og:description" content="Hábitos, turnos, dinero y amigos en una sola app. Cumples, sumas puntos, subes de nivel.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://izanhj.github.io/keepgoing/icons/icon-512.png">
+  <link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="presentacion.css">
+  <script>
+    document.documentElement.classList.add('js');
+    /* Tema guardado antes de pintar, para que no parpadee */
+    try { var t = localStorage.getItem('kg-web-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"KeepGoing","applicationCategory":"LifestyleApplication","operatingSystem":"iOS, Android, Windows, macOS (web app)","url":"https://izanhj.github.io/keepgoing/","inLanguage":["es","en"],
+   "offers":[{"@type":"Offer","price":"0","priceCurrency":"EUR","name":"Free"},{"@type":"Offer","price":"29.99","priceCurrency":"EUR","name":"Usuario KeepGoing · pago único"}]}
+  </script>
+</head>
+<body>
+<a class="skip" href="#main">Saltar al contenido</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="logo" viewBox="0 0 512 512">
+      <g transform="translate(44 30) scale(.828)">
+        <g fill="currentColor" class="logo-flames">
+          <path d="M239 384 250 114 233 122 243.1 82.9 256 40 268.9 82.9 279 122 262 114 273 384Z"/>
+          <path d="M155 371.2 176.3 165.6 158.9 172.7 171 134.2 186 92 196.7 135.5 204.9 175 188.3 166.2 189 372.8Z"/>
+          <path d="M323 372.8 323.7 166.2 307.1 175 315.3 135.5 326 92 341 134.2 353.1 172.7 335.7 165.6 357 371.2Z"/>
+          <path d="M87.2 348.6 79.3 224.1 63.7 234.5 67.8 194.4 74 150 93.2 190.5 109.1 227.6 91.1 222.2 120.8 343.4Z"/>
+          <path d="M391.2 343.4 420.9 222.2 402.9 227.6 418.8 190.5 438 150 444.2 194.4 448.3 234.5 432.7 224.1 424.8 348.6Z"/>
+        </g>
+        <g fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" class="logo-curves">
+          <path d="M250 150C250 330 192 330 190 196"/><path d="M176 210C172 340 110 330 100 250"/>
+          <g transform="translate(512 0) scale(-1 1)"><path d="M250 150C250 330 192 330 190 196"/><path d="M176 210C172 340 110 330 100 250"/></g>
+        </g>
+        <g class="logo-hi" fill="none" stroke-linecap="round">
+          <path stroke-width="5" d="M250 150C250 330 192 330 190 196"/><path stroke-width="5" d="M176 210C172 340 110 330 100 250"/>
+          <g transform="translate(512 0) scale(-1 1)"><path stroke-width="5" d="M250 150C250 330 192 330 190 196"/><path stroke-width="5" d="M176 210C172 340 110 330 100 250"/></g>
+        </g>
+        <g class="logo-ribbon">
+          <path fill="currentColor" d="M62 318Q256 430 450 318L456 374Q256 490 56 374Z"/>
+          <path fill="currentColor" d="M92 392Q256 494 420 392L408 432Q340 486 282 470L256 498 230 470Q172 486 104 432Z"/>
+          <g class="logo-hi" fill="none"><path stroke-width="7" d="M66 341Q256 455 446 341"/><path stroke-width="3" d="M60 362Q256 477 452 362"/></g>
+          <g class="logo-dot"><circle cx="256" cy="402" r="11"/><circle cx="172" cy="388" r="8"/><circle cx="340" cy="388" r="8"/><circle cx="104" cy="358" r="6"/><circle cx="408" cy="358" r="6"/></g>
+        </g>
+      </g>
+    </symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><path d="M12 14.5v2"/></g></symbol>
+    <symbol id="i-reply" viewBox="0 0 24 24"><path d="M10 8 5 12.5l5 4.5M5.5 12.5H14a5 5 0 0 1 5 5V19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 21c3.9 0 6.5-2.6 6.5-6.2 0-3.6-2.6-5.9-4-8.8-.5 2-1.4 3-2.6 3.6.2-2.6-.8-5.2-3.1-6.6.2 3.4-3.3 5.7-3.3 10C5.5 18.4 8.1 21 12 21Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24"><path d="M4 17.5 3 8l5 4 4-6 4 6 5-4-1 9.5Z M4.5 20.5h15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="nav" data-nav>
+  <div class="nav-in glass">
+    <a class="brand" href="#inicio" aria-label="KeepGoing, inicio"><svg class="brand-mark" aria-hidden="true"><use href="#logo"/></svg><span>KeepGoing</span></a>
+    <nav class="nav-links" id="nav-links" aria-label="Secciones">
+      <a href="#lunas">Lunas</a>
+      <a href="#habitos">Hábitos</a>
+      <a href="#organizacion">Organización</a>
+      <a href="#libreta">Libreta</a>
+      <a href="#grupos">Grupos</a>
+      <a href="#precios">Precios</a>
+    </nav>
+    <div class="nav-end">
+      <button class="icon-btn" type="button" data-theme-toggle aria-label="Cambiar entre tema claro y oscuro">
+        <svg class="ico ico-sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="ico ico-moon" aria-hidden="true"><use href="#i-moon"/></svg>
+      </button>
+      <a class="btn btn-primary btn-sm" href="../">Abrir la app</a>
+      <button class="icon-btn nav-burger" type="button" aria-expanded="false" aria-controls="nav-links" aria-label="Abrir el menú" data-burger><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="inicio">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow load" style="--i:0">Hábitos · Turnos · Dinero · Amigos</p>
+      <h1 class="display load" style="--i:1">Tus días,<br>en <em>órbita.</em></h1>
+      <p class="lead load" style="--i:2">KeepGoing junta lo que haces cada día en una sola app: los hábitos que quieres mantener, tus turnos de trabajo, tu dinero y la gente con la que compites. Cumples, sumas puntos y subes de nivel.</p>
+      <div class="hero-cta load" style="--i:3">
+        <a class="btn btn-primary" href="../">Empezar gratis <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a class="btn btn-ghost" href="#lunas">Ver qué hay dentro</a>
+      </div>
+      <p class="fine load" style="--i:4">Se instala desde el navegador en iPhone, Android y ordenador. Funciona sin conexión.</p>
+    </div>
+
+    <div class="hero-visual load" style="--i:2" aria-hidden="true">
+      <div class="halo"></div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ph-top"><span class="ph-time">9:41</span><span class="ph-title" data-ph-title>Hoy</span><span class="ph-badge"><svg class="ico"><use href="#i-flame"/></svg> 23</span></div>
+          <div class="ph-views">
+            <div class="ph-view is-on" data-ph-view="0">
+              <div class="ph-habit"><span class="ring done"><svg class="ico"><use href="#i-check"/></svg></span><span><b>Leer 20 páginas</b><small>Racha de 23 días</small></span></div>
+              <div class="ph-habit"><span class="ring done"><svg class="ico"><use href="#i-check"/></svg></span><span><b>Entrenar</b><small>3 de 4 esta semana</small></span></div>
+              <div class="ph-habit"><span class="ring half"></span><span><b>Beber 2 litros</b><small>1,2 de 2 L</small></span></div>
+              <div class="ph-habit"><span class="ring"></span><span><b>Sin redes antes de las 10</b><small>Para dejar algo</small></span></div>
+              <div class="ph-points"><span>Hoy</span><b>7,5 / 10 pts</b></div>
+            </div>
+            <div class="ph-view" data-ph-view="1">
+              <div class="ph-cal">
+                <i></i><i class="c1"></i><i class="c1"></i><i class="c2"></i><i class="c2"></i><i class="c0"></i><i class="c0"></i>
+                <i class="c1"></i><i class="c1"></i><i class="c2"></i><i class="c2"></i><i class="c3"></i><i class="c0"></i><i class="c0"></i>
+                <i class="c1 today"></i><i class="c1"></i><i class="c2"></i><i class="c2"></i><i class="c3"></i><i class="c0"></i><i class="c0"></i>
+                <i class="c3"></i><i class="c1"></i><i class="c1"></i><i class="c2"></i><i class="c2"></i><i class="c0"></i><i class="c0"></i>
+              </div>
+              <div class="ph-points"><span>Octubre</span><b>142 h · 1.380 €</b></div>
+            </div>
+            <div class="ph-view" data-ph-view="2">
+              <div class="ph-ledger">
+                <div><span>Supermercado</span><b>−42,30 €</b></div>
+                <div><span>Nómina</span><b class="pos">+1.420,00 €</b></div>
+                <div><span>Gimnasio</span><b>−29,90 €</b></div>
+                <div><span>Cena con Fermín</span><b>−18,00 €</b></div>
+              </div>
+              <div class="ph-points"><span>Patrimonio</span><b>8.214 €</b></div>
+            </div>
+          </div>
+          <div class="ph-orb">
+            <span class="ph-moon m0"></span><span class="ph-moon m1"></span><span class="ph-moon m2"></span>
+            <span class="ph-core"><svg><use href="#logo"/></svg></span>
+          </div>
+        </div>
+      </div>
+      <div class="float-chip glass fc1"><svg class="ico"><use href="#i-flame"/></svg> Día perfecto · +10 pts</div>
+      <div class="float-chip glass fc2"><svg class="ico"><use href="#i-lock"/></svg> Libreta cifrada</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LUNAS ============ -->
+<section class="sec" id="lunas">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="eyebrow">La navegación</p>
+      <h2 class="h-xl">Un orbe y <em>seis lunas.</em></h2>
+      <p class="lead">En KeepGoing no hay barra de pestañas. Abajo flota un orbe con el logo; mantenlo pulsado y salen las lunas en arco. Arrastra hasta una, suelta y entras. Pruébalo aquí: toca una luna o usa las flechas del teclado.</p>
+    </div>
+
+    <div class="orbit reveal" data-orbit>
+      <div class="orbit-stage">
+        <div class="orbit-ring" aria-hidden="true"></div>
+        <div class="orbit-ring r2" aria-hidden="true"></div>
+        <div class="orbit-core" aria-hidden="true"><svg><use href="#logo"/></svg></div>
+        <div class="orbit-moons" role="tablist" aria-label="Las seis lunas de KeepGoing">
+          <button role="tab" class="moon" style="--a:-165deg;--c:var(--c-hab)" data-moon="habitos" aria-selected="true">Hábitos</button>
+          <button role="tab" class="moon" style="--a:-135deg;--c:var(--c-org)" data-moon="organizacion" aria-selected="false" tabindex="-1">Organización</button>
+          <button role="tab" class="moon" style="--a:-105deg;--c:var(--c-dia)" data-moon="diario" aria-selected="false" tabindex="-1">Diario</button>
+          <button role="tab" class="moon" style="--a:-75deg;--c:var(--c-lib)" data-moon="libreta" aria-selected="false" tabindex="-1">Libreta</button>
+          <button role="tab" class="moon" style="--a:-45deg;--c:var(--c-chat)" data-moon="grupos" aria-selected="false" tabindex="-1">Chat</button>
+          <button role="tab" class="moon" style="--a:-15deg;--c:var(--c-mae)" data-moon="maestrias" aria-selected="false" tabindex="-1">Maestrías</button>
+        </div>
+      </div>
+      <div class="orbit-panel glass" role="tabpanel" aria-live="polite" data-orbit-panel>
+        <p class="eyebrow" data-op-k>01 · Hábitos y Proyectos</p>
+        <h3 class="h-md" data-op-t>Lo que quieres hacer cada día</h3>
+        <p data-op-d>Hábitos diarios, semanales o mensuales, de contar, de cantidad o para dejar algo. Los proyectos son carpetas con una meta.</p>
+        <a class="link" href="#habitos" data-op-a>Ver Hábitos <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HÁBITOS ============ -->
+<section class="sec feature" id="habitos" style="--c:var(--c-hab)">
+  <div class="wrap split">
+    <div class="split-copy reveal">
+      <p class="eyebrow"><span class="dot"></span>01 · Hábitos y Proyectos</p>
+      <h2 class="h-xl">Marca el anillo. <em>Suma el día.</em></h2>
+      <p class="lead">Cada hábito es un anillo. Lo tocas cuando lo cumples y, si es de cantidad, apuntas cuánto llevas. Cuando cumples todos, el día es perfecto y la pantalla entera lo celebra.</p>
+      <ul class="ticks">
+        <li>Diarios, semanales o mensuales; de contar, de cantidad (litros, páginas) o para dejar algo.</li>
+        <li>Días de la semana, momento del día, temporizador y recordatorios.</li>
+        <li>Rachas con escudos para no perderlas, y días de descanso o vacaciones.</li>
+        <li>Retos de N días y proyectos como carpetas: meta, fecha límite, hitos y fotos de antes y después.</li>
+        <li>Un día perfecto vale 10 puntos con 2 hábitos, y uno más por cada hábito extra, hasta 15.</li>
+        <li>Tú decides qué hace perfecto un día: todos los hábitos, solo algunos, un turno o un movimiento en la Libreta.</li>
+      </ul>
+    </div>
+    <div class="demo glass reveal" data-habits>
+      <div class="demo-bar"><span>Hoy</span><span class="demo-pts"><b data-pts>0</b> / 10 pts</span></div>
+      <button class="habit" type="button" data-habit><span class="ring"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span><span class="habit-t"><b>Leer 20 páginas</b><small>Racha de 23 días</small></span><span class="plus" aria-hidden="true">+1</span></button>
+      <button class="habit" type="button" data-habit><span class="ring"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span><span class="habit-t"><b>Entrenar</b><small>3 de 4 esta semana</small></span><span class="plus" aria-hidden="true">+1</span></button>
+      <button class="habit" type="button" data-habit><span class="ring"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span><span class="habit-t"><b>Meditar 10 minutos</b><small>Por la mañana</small></span><span class="plus" aria-hidden="true">+1</span></button>
+      <p class="demo-hint">Toca los tres anillos.</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="levels reveal">
+      <div class="level"><span class="lv-k">2-3 hábitos</span><span class="lv-n">Chill</span></div>
+      <div class="level"><span class="lv-k">4-6 hábitos</span><span class="lv-n">Serio</span></div>
+      <div class="level"><span class="lv-k">7 o más</span><span class="lv-n">Locked-In</span></div>
+      <p class="levels-note">Tu nivel de compromiso sale solo de cuántos hábitos tienes, y queda escrito en tu contrato personal. Los puntos te suben de nivel y se convierten en <b>Dinero Caprichable</b>: una cifra visual en la Libreta (por defecto el 0,5 % de tus ingresos por cada 10 puntos) para darte un capricho con la conciencia tranquila.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Pantalla completa del día perfecto -->
+<div class="perfect" data-perfect hidden>
+  <div class="perfect-in">
+    <svg class="perfect-logo" aria-hidden="true"><use href="#logo"/></svg>
+    <p class="perfect-t">¡Día perfecto!</p>
+    <p class="perfect-s"><b data-perfect-pts>+0</b> pts · <b data-perfect-streak>0</b> días seguidos</p>
+    <p class="perfect-close">Toca para cerrar</p>
+  </div>
+</div>
+
+<!-- ============ ORGANIZACIÓN ============ -->
+<section class="sec feature" id="organizacion" style="--c:var(--c-org)">
+  <div class="wrap split rev">
+    <div class="split-copy reveal">
+      <p class="eyebrow"><span class="dot"></span>02 · Organización</p>
+      <h2 class="h-xl">Pinta tu mes <em>de un trazo.</em></h2>
+      <p class="lead">Tus turnos, tus rutinas y los colores de cada día. Elige algo con el pincel y desliza el dedo por los días: las casillas laten una tras otra desde donde empezaste.</p>
+      <ul class="ticks">
+        <li>Año, Mes, Semana y Día. Pellizca para acercarte o alejarte, como en el calendario del móvil.</li>
+        <li>Turnos con precio por hora, tarifas y pluses; rotaciones (4×4, 2-2-3, Panamá, DuPont…) para rellenar meses de golpe.</li>
+        <li>Hasta tres colores por día: Laboral, Libre, Festivo, Vacaciones o los tuyos.</li>
+        <li>Toca un hueco vacío para un turno puntual o una nota. Plantillas para Leer, Entreno, Estudio o Cita, con progreso.</li>
+        <li>Lugares con mapa, «Fichar entrada» y «Fichar salida» al minuto.</li>
+        <li>Informes de horas y paga, PDF de fecha a fecha, importar .ics y compartir tu calendario (solo para ver).</li>
+      </ul>
+    </div>
+    <div class="demo glass reveal" data-paint>
+      <div class="demo-bar"><span>Noviembre</span><span class="paint-sum"><b data-paint-h>0</b> h</span></div>
+      <div class="chips" role="radiogroup" aria-label="Qué pintar">
+        <button type="button" class="chip is-on" role="radio" aria-checked="true" data-brush="m" style="--b:var(--c-org)">Mañana</button>
+        <button type="button" class="chip" role="radio" aria-checked="false" data-brush="t" style="--b:var(--c-hab)">Tarde</button>
+        <button type="button" class="chip" role="radio" aria-checked="false" data-brush="n" style="--b:var(--c-mae)">Noche</button>
+        <button type="button" class="chip" role="radio" aria-checked="false" data-brush="l" style="--b:var(--c-lib)">Libre</button>
+      </div>
+      <div class="month-h" aria-hidden="true"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+      <div class="month" data-month aria-label="Noviembre: toca o desliza por los días para pintarlos"></div>
+      <p class="demo-hint">Desliza por los días. Si el primero ya lo tenía, se va quitando.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIARIO ============ -->
+<section class="sec feature dark-band" id="diario" style="--c:var(--c-dia)">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="eyebrow"><span class="dot"></span>03 · Diario semanal</p>
+      <h2 class="h-xl">Cada semana, <em>un marco.</em></h2>
+      <p class="lead">El Diario pone tus semanas en fila, como un pasillo: la más reciente delante. Viajas con la rueda, deslizando o con las flechas, y cada marco te cuenta cómo te fue.</p>
+    </div>
+    <div class="tess reveal" data-tess tabindex="0" aria-label="Semanas del diario. Usa las flechas para viajar.">
+      <div class="tess-stage" data-tess-stage></div>
+      <div class="tess-ctrl">
+        <button type="button" class="icon-btn" data-tess-prev aria-label="Semana más reciente"><svg class="ico" style="transform:rotate(180deg)" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <span class="tess-label" data-tess-label aria-live="polite"></span>
+        <button type="button" class="icon-btn" data-tess-next aria-label="Semana anterior"><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+      </div>
+    </div>
+
+    <div class="rate split reveal" data-rate>
+      <div class="split-copy">
+        <h3 class="h-lg">¿Qué tal <em>tu día?</em></h3>
+        <p>Del 0 al 10. La forma del centro cambia contigo: picos rojos en un mal día, casi un círculo en un 5, pétalos verdes en uno bueno. La media de la semana va a su marco del Diario y cada nota se ve en Organización.</p>
+        <label class="rate-l" for="rate">Tu valoración: <b data-rate-n>7</b> · <span data-rate-w>Bien</span></label>
+        <input id="rate" type="range" min="0" max="10" step="1" value="7" data-rate-in>
+      </div>
+      <div class="rate-vis" aria-hidden="true">
+        <svg viewBox="-110 -110 220 220"><path class="echo e2" data-rate-echo2/><path class="echo e1" data-rate-echo1/><path class="blob" data-rate-blob/></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LIBRETA ============ -->
+<section class="sec feature" id="libreta" style="--c:var(--c-lib)">
+  <div class="wrap split">
+    <div class="split-copy reveal">
+      <p class="eyebrow"><span class="dot"></span>04 · Libreta</p>
+      <h2 class="h-xl">Tu dinero, <em>bajo llave.</em></h2>
+      <p class="lead">Gastos, ingresos, inversiones y deudas, cifrados con tu contraseña en tu propio móvil antes de subir a la nube. Ni nosotros podemos leerlos.</p>
+    </div>
+    <div class="demo glass chart reveal" data-chart>
+      <div class="demo-bar"><span>Patrimonio proyectado · 10 años</span><span class="pos" data-chart-pct>+0 %</span></div>
+      <p class="chart-n"><span data-chart-n>0</span> €</p>
+      <svg viewBox="0 0 320 140" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="g-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".28"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>
+        <path class="chart-area" d="M0 128 C40 124 70 118 100 108 S160 88 190 74 S250 44 320 12 V140 H0Z" fill="url(#g-area)"/>
+        <path class="chart-line" d="M0 128 C40 124 70 118 100 108 S160 88 190 74 S250 44 320 12" fill="none" stroke="currentColor" stroke-width="2.5" pathLength="1"/>
+      </svg>
+      <div class="chart-legend"><span>Hoy</span><span>2031</span><span>2036</span></div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <ol class="index reveal">
+      <li><span class="ix">01</span><b>Movimientos</b><span>Gasto o ingreso con categoría, nota y método de pago. Repeticiones semanales, mensuales o anuales.</span></li>
+      <li><span class="ix">02</span><b>Presupuesto</b><span>Uno global y, si quieres, por categorías. La diferencia acumulada se suma a tu Dinero Caprichable.</span></li>
+      <li><span class="ix">03</span><b>CSV del banco</b><span>Importa el extracto de Trading 212, contesta qué es cada tipo de movimiento y revisa cada importación en Registros.</span></li>
+      <li><span class="ix">04</span><b>Varias monedas</b><span>Apunta en cualquier moneda con el cambio del Banco Central Europeo o uno fijado a mano.</span></li>
+      <li><span class="ix">05</span><b>Deudas y contactos</b><span>Pendiente de aportación (lo que te deben) y pendiente de devolver (lo que debes), por persona.</span></li>
+      <li><span class="ix">06</span><b>Inversiones y patrimonio</b><span>Depositado, valor actual, ganancia y rentabilidad anual. Tu patrimonio de hoy, con su historial.</span></li>
+      <li><span class="ix">07</span><b>Calculadora</b><span>Sueldo, gastos, cuentas remuneradas, aportaciones, pagas extra y cambios futuros. Guarda proyecciones y compáralas con tu ritmo real.</span></li>
+      <li><span class="ix">08</span><b>Compartir y exportar</b><span>Libreta o proyección compartida y cifrada, solo para ver. PDF propio y exportación a Obsidian.</span></li>
+      <li><span class="ix">09</span><b>Privacidad</b><span>Abre con PIN o huella en tu dispositivo, y el modo privacidad tapa los importes cuando hay gente delante.</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ GRUPOS ============ -->
+<section class="sec feature" id="grupos" style="--c:var(--c-chat)">
+  <div class="wrap split rev">
+    <div class="split-copy reveal">
+      <p class="eyebrow"><span class="dot"></span>05 · Chat y grupos</p>
+      <h2 class="h-xl">Compite con <em>tu gente.</em></h2>
+      <p class="lead">Comparte un hábito o un proyecto y se crea un grupo: chat, ranking, retos en vivo con votación y torneos por eliminatorias. Gana quien más cumple.</p>
+      <ul class="ticks">
+        <li>Chats con amigos por @nametag y grupos de hábito o proyecto.</li>
+        <li>Ranking semanal, mensual, anual o de siempre, y reputación para el podio.</li>
+        <li>Retos en vivo que se aprueban por votación.</li>
+        <li>Torneos de 2 a 16 jugadores, con rondas de 1, 3 o 7 días. Si hay empate, votan los demás.</li>
+        <li>Roles con permisos: invitar, lanzar retos, compartir o borrar mensajes.</li>
+        <li>Desliza un mensaje a la derecha para responderlo. Prueba con el de abajo.</li>
+      </ul>
+    </div>
+    <div class="demo glass chatdemo reveal">
+      <div class="bracket" data-bracket aria-hidden="true">
+        <svg viewBox="0 0 300 150">
+          <g class="br-lines" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path pathLength="1" class="win" d="M70 15H90V35H110"/><path pathLength="1" d="M70 55H90V35H110"/>
+            <path pathLength="1" d="M70 95H90V115H110"/><path pathLength="1" d="M70 135H90V115H110"/>
+            <path pathLength="1" class="win" d="M180 35H200V75H220"/><path pathLength="1" d="M180 115H200V75H220"/>
+          </g>
+        </svg>
+        <span class="br p win" style="--x:0;--y:4">Izan</span><span class="br p" style="--x:0;--y:44">Fermín</span>
+        <span class="br p" style="--x:0;--y:84">Lucía</span><span class="br p" style="--x:0;--y:124">Marco</span>
+        <span class="br p win" style="--x:110;--y:24">Izan</span><span class="br p" style="--x:110;--y:104">Lucía</span>
+        <span class="br champ" style="--x:218;--y:63"><svg class="ico"><use href="#i-crown"/></svg><span>Izan</span></span>
+      </div>
+      <div class="bubbles">
+        <div class="bubble them" data-swipe>
+          <span class="reply-ico" aria-hidden="true"><svg class="ico"><use href="#i-reply"/></svg></span>
+          <span class="bubble-in"><b>@fermin</b>¿Quién se apunta al torneo de lectura? Rondas de 3 días.</span>
+        </div>
+        <div class="replying glass" data-replying hidden><svg class="ico" aria-hidden="true"><use href="#i-reply"/></svg> Respondiendo a <b>@fermin</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MAESTRÍAS ============ -->
+<section class="sec feature" id="maestrias" style="--c:var(--c-mae)">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="eyebrow"><span class="dot"></span>06 · Maestrías</p>
+      <h2 class="h-xl">Diez cartas. <em>Una racha.</em></h2>
+      <p class="lead">Las maestrías se ganan con días perfectos seguidos. Cada rango tiene su carta, de Iniciado a Trascendente; al desbloquearla, gira entre rayos de luz y se inclina siguiendo tu dedo. Luego la puedes enviar a un chat.</p>
+    </div>
+  </div>
+  <div class="cards reveal" data-cards>
+    <figure class="card" tabindex="0"><img src="img/iniciado.webp" alt="Carta Iniciado" loading="lazy" width="420" height="594"><figcaption>Iniciado</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/aprendiz.webp" alt="Carta Aprendiz" loading="lazy" width="420" height="594"><figcaption>Aprendiz</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/discipulo.webp" alt="Carta Discípulo" loading="lazy" width="420" height="594"><figcaption>Discípulo</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/experto.webp" alt="Carta Experto" loading="lazy" width="420" height="594"><figcaption>Experto</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/elite.webp" alt="Carta Élite" loading="lazy" width="420" height="594"><figcaption>Élite</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/maestro.webp" alt="Carta Maestro" loading="lazy" width="420" height="594"><figcaption>Maestro</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/ascendente.webp" alt="Carta Ascendente" loading="lazy" width="420" height="594"><figcaption>Ascendente</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/supremo.webp" alt="Carta Supremo" loading="lazy" width="420" height="594"><figcaption>Supremo</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/mitico.webp" alt="Carta Mítico" loading="lazy" width="420" height="594"><figcaption>Mítico</figcaption></figure>
+    <figure class="card" tabindex="0"><img src="img/trascendente.webp" alt="Carta Trascendente" loading="lazy" width="420" height="594"><figcaption>Trascendente</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============ CÓMO ENCAJA ============ -->
+<section class="sec" id="ciclo">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Cómo encaja todo</p>
+      <h2 class="h-xl">Cada parte <em>empuja a la siguiente.</em></h2>
+    </div>
+    <ol class="loop reveal">
+      <li style="--c:var(--c-hab)"><span class="ix">01</span><b>Cumples</b><span>Marcas tus hábitos, un turno o un movimiento: lo que hayas elegido para tu día perfecto.</span></li>
+      <li style="--c:var(--c-dia)"><span class="ix">02</span><b>Sumas</b><span>Un día perfecto da de 10 a 15 puntos y alarga tu racha.</span></li>
+      <li style="--c:var(--c-mae)"><span class="ix">03</span><b>Subes</b><span>Los puntos te suben de nivel y la racha desbloquea cartas.</span></li>
+      <li style="--c:var(--c-lib)"><span class="ix">04</span><b>Te lo das</b><span>Los puntos se vuelven Dinero Caprichable en la Libreta.</span></li>
+      <li style="--c:var(--c-chat)"><span class="ix">05</span><b>Lo compartes</b><span>En tu grupo cuenta para el ranking y los torneos.</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ PRIVACIDAD ============ -->
+<section class="sec" id="privacidad">
+  <div class="wrap priv reveal">
+    <div class="priv-lock" aria-hidden="true"><svg class="ico"><use href="#i-lock"/></svg></div>
+    <div>
+      <h2 class="h-lg">Lo tuyo <em>es tuyo.</em></h2>
+      <div class="priv-cols">
+        <p><b>Sin cuenta, todo se queda en tu móvil.</b> Con cuenta se sincroniza entre tus dispositivos y puedes usar chats y grupos.</p>
+        <p><b>La Libreta va cifrada</b> con tu contraseña antes de salir del dispositivo. Si la olvidas, no se puede recuperar: así de en serio.</p>
+        <p><b>Sin anuncios y sin vender datos.</b> Pagas, si quieres, por las funciones avanzadas. Y nada más.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRECIOS ============ -->
+<section class="sec" id="precios">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Precios</p>
+      <h2 class="h-xl">Gratis para empezar. <em>Tuyo para siempre</em> si quieres.</h2>
+    </div>
+    <div class="plans reveal">
+      <article class="plan">
+        <h3>Free</h3>
+        <p class="price">0 €</p>
+        <ul class="ticks sm">
+          <li>Hasta 5 hábitos y 1 proyecto</li>
+          <li>Libreta, presupuesto global y PDF</li>
+          <li>Turnos sin límite en Organización</li>
+          <li>Chat, maestrías y 1 grupo propio</li>
+          <li>Gráficos de los últimos 90 días</li>
+        </ul>
+        <a class="btn btn-ghost" href="../">Abrir la app</a>
+      </article>
+      <article class="plan best glass" data-plan>
+        <h3>Usuario KeepGoing</h3>
+        <div class="seg" role="radiogroup" aria-label="Forma de pago">
+          <button type="button" role="radio" aria-checked="false" data-term="month">Mensual</button>
+          <button type="button" role="radio" aria-checked="true" class="is-on" data-term="year">Anual</button>
+          <button type="button" role="radio" aria-checked="false" data-term="forever">Para siempre</button>
+          <span class="seg-pill" aria-hidden="true"></span>
+        </div>
+        <p class="price"><span data-price>14,99 €</span> <small data-per>al año</small></p>
+        <ul class="ticks sm">
+          <li>Hábitos y proyectos sin límite</li>
+          <li>Calculadora de patrimonio y proyecciones</li>
+          <li>CSV del banco y Comparar</li>
+          <li>Varias monedas, presupuesto por categorías e inversiones</li>
+          <li>Rutinas en Organización</li>
+          <li>Compartir libretas, proyecciones y calendario</li>
+          <li>Todos los temas y colores, y el historial completo</li>
+        </ul>
+        <a class="btn btn-primary" href="../web/">Ver planes <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <p class="fine">14 días de reembolso voluntario. Las suscripciones se contratan desde la app, con tu cuenta.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PREGUNTAS ============ -->
+<section class="sec" id="faq">
+  <div class="wrap faq reveal">
+    <h2 class="h-lg">Preguntas <em>rápidas.</em></h2>
+    <div class="faq-list">
+      <details><summary>¿Cómo la instalo?</summary><p>Abre la app en el navegador. En iPhone: Compartir → «Añadir a pantalla de inicio». En Android y en el ordenador, el navegador te ofrece instalarla. Se abre como cualquier otra app y funciona sin conexión.</p></details>
+      <details><summary>¿Necesito cuenta?</summary><p>No. Sin cuenta, todo se guarda en tu dispositivo. La cuenta sirve para sincronizar entre dispositivos y para chats, grupos y torneos.</p></details>
+      <details><summary>¿En qué idiomas está?</summary><p>En español y en inglés.</p></details>
+      <details><summary>¿Y si no me gustan tantas animaciones?</summary><p>Ajustes → Animaciones: según el sistema, siempre o reducidas. Con «reducidas» todo pasa a fundidos suaves.</p></details>
+      <details><summary>¿Me avisa de mis hábitos y turnos?</summary><p>Sí. Recordatorios de cada hábito, un resumen de lo pendiente por la mañana, retos que están a punto de acabar, mensajes nuevos y avisos antes de cada turno. Cada uno tiene su interruptor en Ajustes → Notificaciones.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA FINAL ============ -->
+<section class="final" id="empezar">
+  <div class="wrap final-in reveal">
+    <svg class="final-mark" aria-hidden="true"><use href="#logo"/></svg>
+    <h2 class="display">Marca el primero.<br><em>El resto viene solo.</em></h2>
+    <a class="btn btn-primary btn-lg" href="../">Abrir KeepGoing <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <a class="brand" href="#inicio"><svg class="brand-mark" aria-hidden="true"><use href="#logo"/></svg><span>KeepGoing</span></a>
+    <nav aria-label="Enlaces legales">
+      <a href="../web/">Planes</a>
+      <a href="../legal/terminos.html">Términos</a>
+      <a href="../legal/privacidad.html">Privacidad</a>
+      <a href="../legal/reembolsos.html">Reembolsos</a>
+      <a href="../legal/aviso-legal.html">Aviso legal</a>
+    </nav>
+    <p class="fine">© 2026 KeepGoing</p>
+  </div>
+</footer>
+
+<script src="presentacion.js" defer></script>
+</body>
+</html>
