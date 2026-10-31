@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.26.1';
+  const VERSION = '1.27.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -958,12 +958,12 @@
     if (cv === 'day' && u.d === tk && !tfClock()) html += `<div class="row" style="margin:0 2px 10px"><button class="btn sm" data-tf="clock-in">${ico('clock')} ${esc(t('tfClockInBtn'))}</button></div>`;
     let range;
     const LY = tfLayers();
-    html += `<div class="tf-zoom ${TFS.quick && !year ? 'painting' : ''} ${LY.shifts ? '' : 'ly-noshift'} ${LY.text ? '' : 'ly-notext'}">`;
+    html += `<div class="tf-zclip"><div class="tf-zoom ${TFS.quick && !year ? 'painting' : ''} ${LY.shifts ? '' : 'ly-noshift'} ${LY.text ? '' : 'ly-notext'}">`;
     if (year) { html += tfYearGrid(y); range = [y + '-01-01', y + '-12-31']; }
     else if (cv === 'month') { html += `<div class="tf-cal"><div class="tf-dow">${tfDow().map(n => `<span>${esc(n)}</span>`).join('')}</div>${tfMonthGrid(y, mo)}</div>`; range = [TF.iso(new Date(y, mo, 1)), TF.iso(new Date(y, mo + 1, 0))]; }
     else if (cv === 'week') { const ks = tfWeekKeys(u.d); html += tfWeekView(ks); range = [ks[0], ks[6]]; }
     else { html += tfDayView(u.d); range = [u.d, u.d]; }
-    html += '</div>';
+    html += '</div></div>';
     if (state.calPrefs.summary !== false) html += tfSummary(range);
     html += tfFab(year);
     return html;
@@ -1012,7 +1012,7 @@
     const h = (it.b - it.a) * ph / 60, w = 100 / lanes, c = tfColor(it.s.color);
     const pl = tfLayers().places ? tfPlaceOf(it.s, it.e) : null;
     const label = `${it.s.emoji ? esc(it.s.emoji) + ' ' : ''}${esc(it.s.name)}${tfPlBadge(pl)}`;
-    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
+    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
   };
   function tfTimeline(keys, big) {
     const L = keys.map(tfDayItems), ph = tfPh(big), tk = todayKey(), now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
@@ -1053,21 +1053,81 @@
   function tfDayView(k) {
     const y = +k.slice(0, 4), tot = tfDoy(y + '-12-31'), it = tfDayItems(k), shown = tfShown(), ext = tfData().ext.filter(e => e.date === k);
     const mates = shown.map(f => ({ f, ids: f.days[k] || [] })).filter(c => c.ids.length);
-    const dks = tfDksOf(k), evs = tfEvDays('org')[k] || [], LY = tfLayers(), note = LY.notes ? tfDayNote(k) : '', rv = LY.rates ? dayRateOf(k) : null;
+    const dks = tfDksOf(k), evs = tfEvDays('org')[k] || [], LY = tfLayers(), rv = LY.rates ? dayRateOf(k) : null;
     return `<div class="tf-count"><b>${esc(t('tfDayCount', { n: tfDoy(k), t: tot }))}</b><span class="muted small">${esc(tfLong(k))}</span>${rv != null ? ` <b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b>` : ''}</div>
-      ${note ? `<div class="tf-all-note" style="margin:0 2px 8px">${ico('doc', 'xs')} <span>${esc(note)}</span></div>` : ''}
       ${dks.length || evs.length ? `<div class="row wrap" style="gap:6px;margin:0 2px 8px">${dks.map(d => tfDkTag(d)).join('')}${evs.map(v => `<span class="tf-tag" style="--c:${tfColor(v.paint.color)};--fg-c:${tfFg(tfColor(v.paint.color))}">${esc(v.name)}</span>`).join('')}</div>` : ''}
       <div class="tf-week tf-day clay">${tfTimeline([k], true)}</div>
       ${mates.length ? `<section class="clay card stack" style="gap:8px;margin-bottom:12px"><h3 class="section-title" style="margin:0">${esc(t('tfMates'))}</h3>${mates.map(({ f, ids }) => `<div class="tf-item"><b>${esc(f.name)}</b><div class="row wrap grow" style="gap:6px">${ids.map(id => { const s = f.shifts.find(x => x.id === id); return s ? tfTag(s) : ''; }).join('')}</div></div>`).join('')}</section>` : ''}
       ${ext.length ? `<section class="clay card stack" style="gap:8px;margin-bottom:12px"><h3 class="section-title" style="margin:0">${esc(t('tfExtEvents'))}</h3>${ext.map(e => `<div class="tf-item">${ico('calendar')} ${tfExtHtml(e)}</div>`).join('')}</section>` : ''}`;
   }
-  function tfSetCv(cv) {
-    const u = tfUi(); if (!TF_CV.includes(cv) || cv === u.cv) return;
+  /* v1.27: cambiar de vista con zoom, como Apple Calendar. Al alejar (Día → Mes → Año) la vista de antes se encoge hasta su
+     casilla en la nueva (el día en el Mes, el mes en el Año) mientras la nueva llega desde cerca. Al acercar pasa lo contrario:
+     la nueva crece desde la casilla que tocaste. mut(u) cambia la fecha antes de pintar (tocar un mes del Año, un día de la Semana). */
+  function tfSetCv(cv, mut) {
+    const u = tfUi(); if (!TF_CV.includes(cv) || (cv === u.cv && !mut)) return;
+    const from = u.cv, oldZ = $('.tf-zoom'), oldR = oldZ && oldZ.getBoundingClientRect();
+    if (mut) mut(u);
     if (cv === 'month' || cv === 'year') u.ym = u.d.slice(0, 7);
     u.cv = cv; if (cv === 'year') TFS.quick = null;
+    const out = TF_CV.indexOf(cv) > TF_CV.indexOf(from), outer = out ? cv : from;
+    const pre = !out && oldZ ? tfZoomAnchor(oldZ, from, cv, u) : null;
+    const ghost = oldZ && oldR && oldR.width && !reduceMotion() ? oldZ.cloneNode(true) : null;
     save(); render();
-    const z = $('.tf-zoom'); if (z) { z.classList.remove('zoom-in', 'zoom-out'); void z.offsetWidth; z.classList.add(TF_CV.indexOf(cv) > TF_CV.indexOf(TFS.lastCv || cv) ? 'zoom-out' : 'zoom-in'); }
     TFS.lastCv = cv;
+    const z = $('.tf-zoom'); if (!z || !ghost) return;
+    const nr = z.getBoundingClientRect();
+    const anchor = out ? tfZoomAnchor(z, outer, from, u) : pre;
+    // Todo pasa dentro de la caja del calendario (no tapa la cabecera ni la barra de abajo)
+    const clip = z.parentElement, box = document.createElement('div'), cr = clip.getBoundingClientRect();
+    clip.classList.add('zooming');
+    Object.assign(box.style, { position: 'fixed', left: cr.left + 'px', top: cr.top + 'px', width: cr.width + 'px', height: cr.height + 'px', overflow: 'hidden', pointerEvents: 'none', zIndex: 5 });
+    Object.assign(ghost.style, { position: 'absolute', left: (oldR.left - cr.left) + 'px', top: (oldR.top - cr.top) + 'px', width: oldR.width + 'px', height: oldR.height + 'px', margin: '0', pointerEvents: 'none', zIndex: 5, transformOrigin: '0 0', overflow: 'hidden' });
+    ghost.classList.remove('zoom-in', 'zoom-out'); ghost.setAttribute('aria-hidden', 'true'); ghost.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    box.appendChild(ghost); document.body.appendChild(box);
+    const done = () => { box.remove(); clip.classList.remove('zooming'); z.style.transformOrigin = ''; };
+    if (!anchor) { const g = ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-out' }); g.onfinish = g.oncancel = done; z.animate([{ opacity: 0, transform: 'scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' }); return; }
+    const E = 'cubic-bezier(.32,.72,0,1)', D = 420;
+    // Rectángulo r1 llevado a r2 con origen arriba a la izquierda
+    const map = (r1, r2) => `translate(${r2.left - r1.left}px, ${r2.top - r1.top}px) scale(${r2.width / r1.width}, ${r2.height / r1.height})`;
+    const k = clamp(Math.max(nr.width / anchor.width, 1), 1, 6), ox = anchor.left + anchor.width / 2 - nr.left, oy = anchor.top + anchor.height / 2 - nr.top;
+    z.style.transformOrigin = `${ox}px ${oy}px`;
+    let a;
+    if (out) {
+      // La vista de antes se mete en su casilla; la nueva llega desde cerca de esa casilla
+      a = ghost.animate([{ transform: 'none', opacity: 1, borderRadius: '0' }, { transform: map(oldR, anchor), opacity: 0, borderRadius: '24px' }], { duration: D, easing: E });
+      z.animate([{ transform: `scale(${k})`, opacity: 0 }, { opacity: 1, offset: .55 }, { transform: 'none', opacity: 1 }], { duration: D, easing: E });
+    } else {
+      // La nueva sale de la casilla que tocaste; la de antes se acerca y se desvanece
+      ghost.style.transformOrigin = `${anchor.left + anchor.width / 2 - oldR.left}px ${anchor.top + anchor.height / 2 - oldR.top}px`;
+      a = ghost.animate([{ transform: 'none', opacity: 1 }, { transform: `scale(${clamp(oldR.width / anchor.width, 1, 6)})`, opacity: 0 }], { duration: D, easing: E });
+      z.style.transformOrigin = '0 0';
+      z.animate([{ transform: map(nr, anchor), opacity: 0, borderRadius: '24px' }, { opacity: 1, offset: .5 }, { transform: 'none', opacity: 1, borderRadius: '0' }], { duration: D, easing: E });
+    }
+    a.onfinish = a.oncancel = done;
+  }
+  const reduceMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+  // Dónde está, en la vista «outer» (la más alejada), lo que enseña la vista «inner»: el día, la semana o el mes
+  function tfZoomAnchor(root, outer, inner, u) {
+    const union = els => { els = els.filter(Boolean); if (!els.length) return null; const rs = els.map(e => e.getBoundingClientRect()); const l = Math.min(...rs.map(r => r.left)), t = Math.min(...rs.map(r => r.top)), r = Math.max(...rs.map(r => r.right)), b = Math.max(...rs.map(r => r.bottom)); return r > l && b > t ? { left: l, top: t, width: r - l, height: b - t } : null; };
+    if (outer === 'year') { const m = root.querySelector(`[data-tf-month="${+u.ym.slice(5, 7) - 1}"]`); return union([m && m.closest('.tf-mini')]); }
+    if (outer === 'month') return union((inner === 'week' ? tfWeekKeys(u.d) : [u.d]).map(k => root.querySelector(`.tf-cell[data-tf-day="${k}"]`)));
+    if (outer === 'week') return union([root.querySelector(`.tf-tl-col[data-tf-tl="${u.d}"]`), root.querySelector(`.tf-wk-d[data-tf-open="${u.d}"]`)]);
+    return null;
+  }
+  /* v1.27: onda al pintar, inspirada en el crucigrama de Particle: desde la casilla tocada, las demás laten una tras otra
+     según su distancia (en Mes por filas y columnas; en Semana, por columnas). */
+  function tfRipple(k) {
+    if (!k || reduceMotion()) return;
+    const cells = $$('.tf-grid .tf-cell'), cols = $$('.tf-tl-col');
+    const list = cells.length ? cells : cols, per = cells.length ? 7 : Math.max(1, cols.length);
+    const i0 = list.findIndex(el => el.dataset.tfDay === k); if (i0 < 0) return;
+    const r0 = Math.floor(i0 / per), c0 = i0 % per;
+    list.forEach((el, i) => {
+      const d = Math.hypot(Math.floor(i / per) - r0, i % per - c0); if (d > 6) return;
+      const f = 1 - d / 7, sh = getComputedStyle(el).boxShadow, base = sh && sh !== 'none' ? sh + ', ' : '';
+      const ring = `${base}0 0 0 ${(2 * f + .5).toFixed(1)}px color-mix(in srgb, var(--accent) ${Math.round(70 * f)}%, transparent)`;
+      el.animate([{ transform: 'scale(1)', filter: 'brightness(1)', boxShadow: sh }, { transform: `scale(${(1 - .07 * f).toFixed(3)})`, filter: `brightness(${(1 + .45 * f).toFixed(2)})`, boxShadow: ring, offset: .35 }, { transform: 'scale(1)', filter: 'brightness(1)', boxShadow: sh }], { duration: 480, delay: d * 55, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    });
   }
   /* v1.24: pellizcar en el calendario, como en Google Calendar y Apple: abrir los dedos acerca (Año → Mes → Semana → Día)
      y cerrarlos aleja (Día → Semana → Mes → Año). En el ordenador, Ctrl + rueda (o pellizcar en el trackpad) hace lo mismo. */
@@ -1132,7 +1192,7 @@
     const tmp = document.createElement('div'); tmp.innerHTML = viewCal();
     $$(`[data-tf-day="${k}"]`).forEach(el => { const n = tmp.querySelector(`.${el.classList[0]}[data-tf-day="${k}"]`); if (n) el.innerHTML = n.innerHTML; el.classList.add('painted'); });
   }
-  function tfPaintEnd(commit = true) { const p = tfPaintS; tfPaintS = null; if (p && commit && p.seen.size) tfSave(); }
+  function tfPaintEnd(commit = true) { const p = tfPaintS; tfPaintS = null; if (p && commit && p.seen.size) { tfSave(); tfRipple([...p.seen][0]); } }
   document.addEventListener('pointerdown', e => {
     if (state.ui.tab !== 'cal' || !TFS.quick || e.button || tfUi().cv === 'year') return;
     const c = e.target.closest('.tf-zoom [data-tf-day]'); if (!c || e.target.closest('[data-tf-more]')) return;
@@ -1172,8 +1232,8 @@
       const aria = tfLong(k) + (items.length ? ': ' + items.map(it => it.r ? it.r.name : (it.who ? it.who + ' · ' : '') + it.s.name).join(', ') : '');
       const dks = tfDksOf(k), evs = evd[k] || []; if (inMonth) dks.forEach(d => usedDk.add(d));
       // v1.25: tipos de día y eventos comparten los colores de la casilla (1 entero, 2 en diagonal, 3 como una tarta)
-      const cs = LY.days ? tfDayColors(k) : [], note = LY.notes ? tfDayNote(k) : '', rv = LY.rates ? dayRateOf(k) : null;
-      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''} ${cs.length ? 'dk' : ''} ${cs.length > 1 ? 'dk-multi' : ''}" data-tf-day="${k}" ${cs.length ? `style="${tfTintStyle(cs)}"` : ''} aria-label="${esc(dks.map(d => tfDkName(d) + ' · ').join('') + aria + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}"><span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}${rv != null ? `<b class="tf-rate" style="--rc:${rateColor(rv)}">${rv}</b>` : ''}</span><span class="tf-items">${LY.shifts ? items.map((it, j) => it.r ? tfRtTag(it.r) : it.who ? tfGhost(it.s, it.who) : tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < items.length - 1 ? 'jb' : ''} ${LY.notes && it.note ? 'has-note' : ''}`, undefined, it.e)).join('') : ''}${note ? `<span class="tf-dnote">${esc(note)}</span>` : ''}</span></button>`;
+      const cs = LY.days ? tfDayColors(k) : [], notes = LY.notes ? tfCellNotes(k, items) : [], rv = LY.rates ? dayRateOf(k) : null;
+      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''} ${cs.length ? 'dk' : ''} ${cs.length > 1 ? 'dk-multi' : ''}" data-tf-day="${k}" ${cs.length ? `style="${tfTintStyle(cs)}"` : ''} aria-label="${esc(dks.map(d => tfDkName(d) + ' · ').join('') + aria + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}"><span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}${notes.length ? `<i class="tf-nn" title="${esc(notes.join('\n'))}">${ico('doc', 'xs')}${notes.length > 1 ? notes.length : ''}</i>` : ''}${rv != null ? `<b class="tf-rate" style="--rc:${rateColor(rv)}">${rv}</b>` : ''}</span><span class="tf-items">${LY.shifts ? items.map((it, j) => it.r ? tfRtTag(it.r) : it.who ? tfGhost(it.s, it.who) : tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < items.length - 1 ? 'jb' : ''} ${LY.notes && it.note ? 'has-note' : ''}`, undefined, it.e)).join('') : ''}${notes.map(n => `<span class="tf-dnote">${esc(n)}</span>`).join('')}</span></button>`;
     }
     html += '</div>';
     if (usedDk.size) html += `<div class="tf-dk-legend">${[...usedDk].map(d => `<span><i style="--c:${tfColor(d.color)}"></i>${esc(tfDkName(d))}</span>`).join('')}</div>`;
@@ -1203,8 +1263,7 @@
     for (const f of shown) for (const id of f.days[k] || []) { const s = f.shifts.find(x => x.id === id); if (s) rows.push(row(tfGhost(s, f.name), f.name)); }
     for (const e of ext) rows.push(row(`<span class="tf-tag" style="--c:#888">${ico('calendar', 'xs')} <span class="tn">${esc(e.title)}</span>${(p => p && p.id ? tfPlBadge(p) : '')(tfExtPl(e))}</span>`, [tfExtTime(e), (tfExtPl(e) || {}).addr].filter(Boolean).join(' · ')));
     for (const g of tfGaps(k)) rows.push(`<div class="tf-all-note">${ico('doc', 'xs')} <span><b>${esc(g.a)}–${esc(g.b)}</b> ${esc(g.t)}</span></div>`);
-    const note = tfDayNote(k), rv = dayRateOf(k);
-    if (note) rows.push(`<div class="tf-all-note">${ico('doc', 'xs')} <span>${esc(note)}</span></div>`);
+    const rv = dayRateOf(k);
     if (rv != null) rows.push(`<div class="row" style="gap:8px"><span class="muted small">${esc(t('rateTitle'))}</span><b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b></div>`);
     openModal({
       title: esc(tfLong(k)),
@@ -1332,13 +1391,13 @@
   function tfRtTag(r, cls = '') {
     const cs = (r.day || []).map(e => tfShift(e.sid)).filter(Boolean).map(s => tfColor(s.color));
     const bg = cs.length > 1 ? `linear-gradient(90deg, ${cs.map((c, i) => `${c} ${i * 100 / cs.length}% ${(i + 1) * 100 / cs.length}%`).join(', ')})` : (cs[0] || '#888');
-    return `<span class="tf-tag tf-rt ${cls}" style="--c:${cs[0] || '#888'};background:${bg};--fg-c:${tfFg(cs[0] || '#888888')}">${ico('layers', 'xs')} <span class="tn">${esc(r.name)}</span></span>`;
+    return `<span class="tf-tag tf-rt ${cls}" style="--c:${cs[0] || '#888'};background:${bg};--fg-c:${tfFg(cs[0] || '#888888')}"><span class="tn">${esc(r.name)}</span></span>`;
   }
   // Edición rápida: tocar un día pone (o quita) el turno elegido
   function tfOnDay(k) {
     if (!TFS.quick || tfUi().cv === 'year') return tfOpenDay(k);
     if (TFS.quick === 'erase') { delete state.calDays[k]; delete state.calDayK[k]; }
-    else if (TFS.quick.startsWith('rt:') || TFS.quick.startsWith('dk:')) { tfPaintS = { seen: new Set(), mode: null }; tfPaintCell(k); tfPaintS = null; }
+    else if (TFS.quick.startsWith('rt:') || TFS.quick.startsWith('dk:')) { tfPaintS = { seen: new Set(), mode: null }; tfPaintCell(k); tfPaintS = null; requestAnimationFrame(() => tfRipple(k)); }
     else {
       const list = state.calDays[k] ? [...state.calDays[k]] : [], i = list.findIndex(e => e.sid === TFS.quick);
       if (i >= 0) list.splice(i, 1); else if (list.length < TF.LIMITS.perDay) list.push({ sid: TFS.quick, note: '', start: '', end: '' });
@@ -1365,8 +1424,9 @@
     });
   }
   /* v1.25: nota del día (state.calNotes[fecha] = texto) */
-  const TF_NOTE_MAX = 500;
-  const tfDayNote = k => typeof state.calNotes[k] === 'string' ? state.calNotes[k] : '';
+    /* v1.27: la «nota del día» se quita de la vista (lo guardado no se borra). Las notas que se ven son las de cada turno y las de
+     los huecos. En el Mes: tfCellNotes da sus textos (los de los turnos primero, luego los de los huecos por hora). */
+  const tfCellNotes = (k, items) => [...items.filter(it => it.e && it.note).map(it => it.note), ...tfGaps(k).map(g => `${g.a} ${g.t}`)];
   /* v1.26: notas en los huecos entre turnos: state.calGaps[k] = [{ a, b, t }]. La nota se queda en su hora (de a a b) aunque
      luego cambien los turnos. Se ve en Día, Semana, «Ver más» y en el PDF con Detalle. */
   const TF_GAP_MAX = 12;
@@ -1379,7 +1439,7 @@
     return out;
   }
   const tfHm = m => pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60);
-  function tfGapNote(k, i, pre) {
+  function tfGapNote(k, i, pre, after) {
     const cur = i >= 0 ? tfGaps(k)[i] : null, g = cur ? { ...cur } : { a: '', b: '', t: '', ...(pre || {}) };
     openModal({
       title: `${ico('doc')} ${esc(t(cur ? 'tfGapEdit' : 'tfGapNew'))}`, cls: 'tf-sheet',
@@ -1399,7 +1459,7 @@
           if (i < 0 && l.length >= TF_GAP_MAX) { toast(t('tfRtFull')); return; }
           const n = { a, b: z, t: txt }; if (i >= 0) l[i] = n; else l.push(n);
         }
-        tfSetGaps(k, l); tfSave(); sfx('tap'); close();
+        tfSetGaps(k, l); tfSave(); sfx('tap'); close(); after && after();
       }
     });
   }
@@ -1464,8 +1524,16 @@
     });
   }
   // Tocar un hueco entre dos turnos: turno puntual o nota en ese hueco
+  /* v1.27: franja libre desde el minuto m: hasta una hora después, sin pasar del siguiente turno ni de las 23:59.
+     mins = true la da en minutos (para tfGapMenu); si no, como { a, b } en 'HH:MM' (para tfGapNote). */
+  function tfFreeSlot(k, m, mins) {
+    m = clamp(Math.round(m / 30) * 30, 0, 1410);
+    const next = tfDayItems(k).timed.filter(it => it.a > m).reduce((x, it) => Math.min(x, it.a), 1439);
+    const r = { a: m, b: Math.max(m + 15, Math.min(m + 60, next, 1439)) };
+    return mins ? r : { a: tfHm(r.a), b: tfHm(r.b) };
+  }
   function tfGapMenu(k, gap) {
-    const a = tfHm(gap.a), b = tfHm(gap.b);
+    const a = tfHm(gap.a), b = gap.b >= 1439 ? '23:59' : tfHm(gap.b);
     openModal({
       title: esc(`${a}–${b}`), cls: 'tf-sheet',
       body: `<div class="stack" style="gap:10px"><button class="btn block" data-tfgm="once">${ico('plus')} ${esc(t('tfOnceNew'))}</button><button class="btn block" data-tfgm="note">${ico('doc')} ${esc(t('tfGapNew'))}</button></div>`,
@@ -1477,7 +1545,6 @@
       }
     });
   }
-  const tfSetDayNote = (k, v) => { v = String(v || '').slice(0, TF_NOTE_MAX); if (v.trim()) state.calNotes[k] = v; else delete state.calNotes[k]; };
   // Turno puntual: nuevo (i = -1) o editar el de la posición i del día
   function tfOnceEditor(k, i, after, pre) {
     const list = state.calDays[k] || [], cur = i >= 0 ? list[i] : null, o = cur && cur.once ? { ...cur.once } : { name: '', emoji: '', color: HABIT_COLORS[1], start: '', end: '', jobId: '', ...(pre || {}) };
@@ -1525,7 +1592,7 @@
           <input class="input" type="text" data-tfd-note maxlength="${TF.LIMITS.note}" value="${esc(e.note || '')}" placeholder="${esc(t('tfNotePh'))}" aria-label="${esc(t('tfNote'))}"></div>`; }).join('')}
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfDkTitle'))}</h3><div class="row wrap" style="gap:6px">${tfDayKinds().map(d => `<button class="tf-pal" data-tfd-dk="${esc(d.id)}" aria-pressed="${tfDkIds(k).includes(d.id)}">${tfDkTag(d, 'big')}</button>`).join('')}</div>
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button class="tf-pal" data-tfd-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}<button class="chip" data-tfd="once-new">${ico('plus')} ${esc(t('tfOnceNew'))}</button></div>
-        <h3 class="section-title" style="margin:4px 0 0">${ico('doc', 'xs')} ${esc(t('tfDayNote'))}</h3><textarea class="input" id="tfd-dnote" maxlength="${TF_NOTE_MAX}" rows="2" placeholder="${esc(t('tfDayNotePh'))}">${esc(tfDayNote(k))}</textarea>
+        <h3 class="section-title" style="margin:4px 0 0">${ico('doc', 'xs')} ${esc(t('tfNotes27'))}</h3><div class="stack" style="gap:6px">${tfGaps(k).map((g, j) => `<button type="button" class="tf-all-note tf-note-row" data-tfd-gap="${j}">${ico('doc', 'xs')} <span class="grow"><b>${esc(g.a)}–${esc(g.b)}</b> ${esc(g.t)}</span>${ico('edit', 'xs')}</button>`).join('')}<div><button class="chip" data-tfd="gap-new">${ico('plus')} ${esc(t('tfGapNew'))}</button></div></div>
         <h3 class="section-title" style="margin:4px 0 0">${ico('sparkle', 'xs')} ${esc(t('rateTitle'))}</h3>${rateRowHtml(k)}
         ${state.calRoutines.some(r => r.kind === 'day') ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('tfRtQuick'))}</h3><div class="tf-rt-quick">${state.calRoutines.filter(r => r.kind === 'day').map(r => `<button class="chip" data-tfd-rt="${esc(r.id)}">${ico('layers')} ${esc(r.name)}</button>`).join('')}</div>` : ''}
         ${comp.length ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('tfMates'))}</h3><div class="stack" style="gap:8px">${comp.map(({ f, ids }) => `<div class="tf-item"><b>${esc(f.name)}</b><div class="row wrap grow" style="gap:6px">${ids.map(id => { const s = f.shifts.find(x => x.id === id); return s ? tfTag(s) : ''; }).join('')}</div></div>`).join('')}</div>` : ''}
@@ -1535,7 +1602,6 @@
       title: esc(tfLong(k)), body: '<div id="tfd"></div>', cls: 'tf-sheet',
       onMount: w => {
         wref = w; draw(); tfPlSelWire(w);
-        w.addEventListener('input', e => { if (e.target.id === 'tfd-dnote') { tfSetDayNote(k, e.target.value); save(); } });
         w.addEventListener('change', e => {
           const row = e.target.closest('[data-i]'); if (!row) return;
           const list = [...(state.calDays[k] || [])], i = +row.dataset.i, en = list[i] && { ...list[i] }, s = en && tfShift(en.sid); if (!s) return;
@@ -1555,6 +1621,9 @@
         const rb = e.target.closest('[data-drate]');
         if (rb) { setDayRate(k, +rb.dataset.drate); sfx('tap'); draw(); return; }
         if (e.target.closest('[data-tfd="once-new"]')) { tfOnceEditor(k, -1, draw); return; }
+        if (e.target.closest('[data-tfd="gap-new"]')) { tfGapNote(k, -1, tfFreeSlot(k, new Date().getHours() * 60 + 60), draw); return; }
+        const gn = e.target.closest('[data-tfd-gap]');
+        if (gn) { tfGapNote(k, +gn.dataset.tfdGap, null, draw); return; }
         const oe = e.target.closest('[data-tfd="once-edit"]');
         if (oe) { tfOnceEditor(k, +oe.closest('[data-i]').dataset.i, draw); return; }
         const rx = e.target.closest('[data-tfd-rtx]');
@@ -1586,7 +1655,6 @@
     }
     const notes = {}, rates = {}, gaps = {};
     for (const [k, v] of Object.entries(state.calGaps)) if (k >= from && k <= to && Array.isArray(v) && v.length) gaps[k] = v;
-    for (const [k, v] of Object.entries(state.calNotes)) if (k >= from && k <= to && typeof v === 'string' && v.trim()) notes[k] = v;
     for (const k of Object.keys(state.dayRate)) if (k >= from && k <= to) { const r = dayRateOf(k); if (r != null) rates[k] = r; }
     const used = new Map();
     const colors = k => { const ds = tfDksOf(k); ds.forEach(d => used.set(d.id, d)); return tfDayColors(k); };
@@ -2210,11 +2278,11 @@
     if (el.dataset.tfTl && !TFS.quick && !e.target.closest('.tf-blk') && e.detail !== 0) {
       const ph = parseFloat(getComputedStyle(el.closest('.tf-tl')).getPropertyValue('--ph')) || 40, at = (e.clientY - el.getBoundingClientRect().top) / ph * 60;
       const gap = tfGapsOf(tfDayItems(el.dataset.tfTl).timed).find(g => at >= g.a && at < g.b);
-      if (gap) { tfGapMenu(el.dataset.tfTl, gap); return true; }
-      const m = tfTlMinute(el, e.clientY), hm = x => pad(Math.floor(x / 60) % 24) + ':' + pad(x % 60); tfOnceEditor(el.dataset.tfTl, -1, () => tfSave(), { start: hm(m), end: hm(Math.min(m + 60, 1439)) }); return true; }
+      // v1.27: también en un hueco sin turnos alrededor (o en un día vacío) se puede elegir nota
+      tfGapMenu(el.dataset.tfTl, gap || tfFreeSlot(el.dataset.tfTl, tfTlMinute(el, e.clientY), true)); return true; }
     if (el.dataset.tfDay) { if (TFS.quick && e.detail !== 0 && u.cv !== 'year') return true; /* con el dedo o el ratón pinta tfPaint */ tfOnDay(el.dataset.tfDay); return true; }
-    if (el.dataset.tfOpen) { u.d = el.dataset.tfOpen; u.ym = u.d.slice(0, 7); u.cv = 'day'; TFS.quick = null; save(); render(); return true; }
-    if (el.dataset.tfMonth) { u.ym = `${y}-${pad(+el.dataset.tfMonth + 1)}`; u.d = u.ym + '-01'; u.cv = 'month'; save(); render(); return true; }
+    if (el.dataset.tfOpen) { const d = el.dataset.tfOpen; TFS.quick = null; tfSetCv('day', v => { v.d = d; v.ym = d.slice(0, 7); }); return true; }
+    if (el.dataset.tfMonth) { const ym2 = `${y}-${pad(+el.dataset.tfMonth + 1)}`; tfSetCv('month', v => { v.ym = ym2; v.d = todayKey().startsWith(ym2) ? todayKey() : ym2 + '-01'; }); return true; }
     if (el.dataset.tfQ) { TFS.quick = el.dataset.tfQ; TFS.sheet = false; if (u.cv === 'year') { u.cv = 'month'; save(); } const sy = window.scrollY; render(); window.scrollTo(0, sy); return true; }
     if (el.dataset.tfQtab) { TFS.qTab = el.dataset.tfQtab; render(); return true; }
     if (el.dataset.tfRm) { const r = TFS.rep; if (el.dataset.tfRm === 'custom') { const [a, b] = tfRepRange(); r.from = a; r.to = b; } r.mode = el.dataset.tfRm; render(); return true; }
@@ -4063,7 +4131,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.27', [['1.27.0', 5]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);

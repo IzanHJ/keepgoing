@@ -2113,3 +2113,14 @@ input[type="color"].tf-swatch.sm { width: 34px; height: 34px; flex: none; }
 .tf-qfoot { flex-wrap: wrap; }
 .tf-clock b { white-space: nowrap; }
 .tf-clock-blk { background: repeating-linear-gradient(135deg, rgba(255, 59, 48, .22) 0 8px, rgba(255, 59, 48, .1) 8px 16px) !important; color: var(--fg) !important; border: 1.5px dashed #ff3b30; border-radius: 8px; pointer-events: none; }
+
+/* v1.27: Organización — «Nombres» apagado también en Día y Semana, notas a la vista */
+.ly-notext .tf-blk > b { display: none; }
+.tf-blk-note { display: flex !important; gap: 3px; align-items: flex-start; white-space: normal !important; line-height: 1.25; overflow: hidden; }
+.tf-blk-note svg.i { width: 10px; height: 10px; flex: none; margin-top: 1px; }
+.tf-tl:not(.big) .tf-blk-note svg.i { display: none; }
+.tf-cell .n .tf-nn { display: inline-flex; align-items: center; gap: 1px; color: var(--muted); margin-left: auto; margin-right: 2px; }
+.tf-cell .n .tf-nn svg.i { width: 10px; height: 10px; }
+@media (max-width: 520px) { .tf-cell .tf-dnote { display: none; } }
+.tf-note-row { width: 100%; border: 0; text-align: left; cursor: pointer; font: inherit; }
+.tf-zclip.zooming { overflow: hidden; }
