@@ -596,7 +596,16 @@
   }
   /* ---------- respuesta al marcar: sonido, «+puntos» y subida de nivel ---------- */
   const sfx = name => { if (window.KGSound) { KGSound.setEnabled(state.soundOn !== false); KGSound.play(name); } };
-  const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // v1.27.2: ajuste «Animaciones» por dispositivo: 'auto' (según el sistema), 'on' (siempre) u 'off' (reducidas).
+  // Con 'auto' y Reducir movimiento activado en el sistema, la app usa fundidos suaves (data-motion="soft").
+  const MOTION_KEY = 'keepgoing.motion', sysMotionMq = matchMedia('(prefers-reduced-motion: reduce)');
+  const motionPref = () => { try { const v = localStorage.getItem(MOTION_KEY); return v === 'on' || v === 'off' ? v : 'auto'; } catch (e) { return 'auto'; } };
+  const motionMode = () => { const p = motionPref(); return p === 'off' ? 'off' : p === 'on' || !sysMotionMq.matches ? 'full' : 'soft'; };
+  const reducedMotion = () => motionMode() !== 'full';
+  const applyMotion = () => { document.documentElement.dataset.motion = motionMode(); };
+  const setMotionPref = v => { try { if (v === 'auto') localStorage.removeItem(MOTION_KEY); else localStorage.setItem(MOTION_KEY, v); } catch (e) {} applyMotion(); };
+  applyMotion();
+  if (sysMotionMq.addEventListener) sysMotionMq.addEventListener('change', applyMotion);
   // v1.27: micro animación de los iconos al pasar el cursor (ratón) o al tocarlos (dedo). Cada icono tiene la suya (css .imx)
   function icoPlay(host) {
     if (!host || reducedMotion()) return;
@@ -4315,7 +4324,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.3', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1], ['1.27.3', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -4919,6 +4928,7 @@
           acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
           acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
           acc('sound', '🔊', t('soundTitle'), state.soundOn !== false ? t('soundOn') : t('soundOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-sound ${state.soundOn !== false ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('soundLabel'))}</b><br><span class="muted small">${esc(t('soundHint'))}</span></span></label><div class="row wrap" style="margin-top:12px"><button class="chip" data-s-sound-test>▶ ${esc(t('soundTest'))}</button></div>`),
+          acc('anim', ico('sparkle'), t('anTitle'), t('anOpt_' + motionPref()), `<div class="seg" role="group" id="st-anim">${['auto', 'on', 'off'].map(v => `<button type="button" data-s-anim="${v}" class="${motionPref() === v ? 'on' : ''}">${esc(t('anOpt_' + v))}</button>`).join('')}</div><p class="muted small" id="st-anim-hint" style="margin:10px 0 0">${esc(t('anHint_' + motionPref()))}</p><div class="anim-prev"><button class="chip" data-s-anim-test="perfect">${ico('play')} ${esc(t('anTestPerfect'))}</button><button class="chip" data-s-anim-test="ach">${ico('play')} ${esc(t('anTestAch'))}</button></div>`),
           acc('look', ico('palette'), t('setLook'), `${fontFamily(state.theme.font)} · ${preset ? presetName(preset) : t('themeCustom')}`, `<div id="st-theme">${themeEditorHtml()}</div>`)
         ])}
         ${group(t('setGroupCommit'), [
@@ -4976,6 +4986,18 @@
         const q = s => e.target.closest(s); let el;
         if ((el = q('[data-s-lang]'))) { state.lang = el.dataset.sLang; save(); render(); draw(); $('.sheet-head h2', w).textContent = t('settings'); return; }
         if ((el = q('[data-commit]'))) { setCommitment(el.dataset.commit); $('#st-commit', w).innerHTML = commitSegHtml(); render(); sfx('toggle'); return; }
+        if ((el = q('[data-s-anim]'))) {
+          setMotionPref(el.dataset.sAnim); const v = motionPref();
+          $$('[data-s-anim]', w).forEach(b => b.classList.toggle('on', b.dataset.sAnim === v));
+          const hn = $('#st-anim-hint', w); if (hn) hn.textContent = t('anHint_' + v);
+          const sm = el.closest('details') && $('summary small', el.closest('details')); if (sm) sm.textContent = t('anOpt_' + v);
+          sfx('toggle'); return;
+        }
+        if ((el = q('[data-s-anim-test]'))) {
+          if (el.dataset.sAnimTest === 'perfect') perfectFx(todayKey());
+          else openTrophy(`<div class="kcard-face anim-demo">${KG_LOGO()}</div>`, t('masteryUnlocked'), t('anTestMsg'));
+          return;
+        }
         if (q('[data-s-sound-test]')) { const seq = ['complete', 'points', 'perfect', 'levelup']; seq.forEach((n, i) => setTimeout(() => sfx(n), i * 900)); return; }
         if (petSettingsClick(e, w)) return;
         if (!(el = q('[data-s]'))) return;
@@ -11460,7 +11482,7 @@
     if (state.ui.tab === 'chat' && chatClick(e)) return;
     if (state.ui.tab === 'ledger' && (calcClick(e) || worthClick(e))) return;
     if (state.ui.tab === 'cal' && tfClick(e)) return;
-    if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
+    if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); return; }
     if ((el = e.target.closest('[data-pin]'))) { pinKey(el.dataset.pin); return; }
     if (swipeClick(e)) return;
     if ((el = e.target.closest('[data-ev-open]'))) { openEvent(el.dataset.evOpen); return; }
