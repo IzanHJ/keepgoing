@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.27.2';
+  const VERSION = '1.30.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -93,6 +93,7 @@
 
   /* ---------- iconos (SVG en línea) ---------- */
   const ICONS = {
+    dumbbell: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
     brush: '<path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/>',
     reply: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
     trophy: '<path d="M8 4h8v6a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 14v3M8.5 20h7M10 17h4v3h-4z"/>',
@@ -218,6 +219,7 @@
       calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, calGaps: {}, cgmt: {}, // v1.26: notas en los huecos entre turnos
       // v1.25: nota de cada día del Calendario y valoración del día ({ r: 0..10 }) // v1.24: requisitos del día perfecto (historial por fecha) y días con movimientos
       // v1.24: tipo de día de cada fecha (Laboral, Libre, Festivo…) → id de calPrefs.dayKinds
+      gymWorkouts: [], gymRoutines: [], gymEx: [], gymPrefs: {}, // v1.30: Gimnasio (entrenamientos, rutinas, ejercicios propios y ajustes)
       calRoutines: [], calPlaces: [], // v1.26: lugares del Calendario { id, name, icon, color, addr, lat, lon }; v1.23: rutinas del Calendario (grupos de turnos de un día o semana tipo) // v1.23: punto de partida real de la Libreta (saldos a una fecha) para «Patrimonio actual», cifrado
       ledgerImports: [], // v1.22: registros de lo importado con «Registrar» (cifrados como el resto de la Libreta)
       // v1.20: Calendario de turnos (trabajos, plantillas, días, calendario externo y ajustes)
@@ -233,7 +235,7 @@
   }
   // Listas por id y mapas que se fusionan entre dispositivos (ver stampChanges / mergeStates)
   const ORDER_LISTS = ['projects', 'routines'];
-  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces'];
+  const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'gymWorkouts', 'gymRoutines', 'gymEx'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt'], ['sublogs', 'slmt']]; // hábito → día → valor (v1.23: sublogs = objetivos o maneras hechos ese día)
   const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt'], ['calGaps', 'cgmt']];             // clave → valor
   function normalize(s) {
@@ -248,7 +250,7 @@
     if (out.ui.tab === 'projects') { out.ui.tab = 'habits'; out.ui.habitsView = 'all'; }
     if (out.ui.tab === 'charts') out.ui.tab = 'habits';
     if (['charts', 'shared'].includes(out.ui.habitsView)) out.ui.habitsView = 'all'; // v1.13: Gráficos va en «Ver más» y Grupos en Chat
-    if (!['habits', 'cal', 'ledger', 'mastery'].includes(out.ui.tab)) out.ui.tab = 'habits';
+    if (!['habits', 'cal', 'ledger', 'mastery', 'gym', 'journal'].includes(out.ui.tab)) out.ui.tab = 'habits';
     out.habits = Array.isArray(s.habits) ? s.habits : [];
     out.logs = s.logs && typeof s.logs === 'object' ? s.logs : {};
     out.projects = Array.isArray(s.projects) ? s.projects : [];
@@ -258,7 +260,10 @@
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
     for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'cgmt', 'calGaps', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
-    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'perfectRules']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'perfectRules', 'gymRoutines', 'gymEx']) out[k] = Array.isArray(s[k]) ? s[k] : [];
+    // v1.30: entrenamientos limpios (llegan de la nube o de una copia); ajustes del Gimnasio
+    out.gymWorkouts = Array.isArray(s.gymWorkouts) && window.KGGym ? s.gymWorkouts.map(KGGym.cleanWorkout).filter(Boolean) : [];
+    out.gymPrefs = s.gymPrefs && typeof s.gymPrefs === 'object' && !Array.isArray(s.gymPrefs) ? s.gymPrefs : {};
     out.calDays = s.calDays && typeof s.calDays === 'object' && !Array.isArray(s.calDays) ? s.calDays : {};
     out.calExt = s.calExt && Array.isArray(s.calExt.list) ? s.calExt : { list: [] };
     const cp0 = s.calPrefs && typeof s.calPrefs === 'object' ? s.calPrefs : {};
@@ -299,7 +304,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif, s.perfectRules];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif, s.perfectRules, s.gymPrefs];
   // La caja fuerte de la Libreta y el par de claves para compartir van aparte, con su propia marca (vmt)
   const vaultOf = s => [s.ledgerVault, s.kx];
   function stampChanges(prev, cur) {
@@ -383,7 +388,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif, out.perfectRules] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif, out.perfectRules, out.gymPrefs] = settingsOf(R); out.smt = R.smt; }
     // Caja fuerte: gana la más reciente, pero una vacía (o sin marca) nunca borra a otra salvo que venga de «Borrar la Libreta»
     {
       const lv = L.ledgerVault, rv = R.ledgerVault, wipe = Math.max(L.vaultWipe || 0, R.vaultWipe || 0);
@@ -1041,7 +1046,7 @@
     try { return new Intl.DateTimeFormat(state.lang, o).formatRange(da, db); } catch (e) { return fmtDate(a, o) + ' – ' + fmtDate(b, o); }
   };
   function jrWeeks() {
-    const tk = todayKey(), keys = [...Object.keys(state.calDays || {}), ...Object.keys(state.dayRate || {}), ...Object.keys(state.calGaps || {}), ...Object.keys(state.calDayK || {}), ...state.habits.map(firstKey)].filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= tk);
+    const tk = todayKey(), keys = [...Object.keys(state.calDays || {}), ...Object.keys(state.dayRate || {}), ...Object.keys(state.calGaps || {}), ...Object.keys(state.calDayK || {}), ...state.habits.map(firstKey), ...(state.gymWorkouts || []).filter(w => w.status === 'done').map(w => w.date)].filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= tk);
     let first = keys.length ? keys.reduce((a, b) => a < b ? a : b) : tk;
     const minK = addDays(tk, -6 * 366); if (first < minK) first = minK;
     const out = []; let w = tfWeekKeys(tk)[0];
@@ -1067,11 +1072,14 @@
     };
     const detail = () => {
       const S = jrWeek(weeks[f]), pv = privacyOn(), stat = (v, l) => `<div class="jr-st"><b>${v}</b><span>${esc(l)}</span></div>`;
+      // v1.30: Gimnasio de la semana (días entrenados y músculos trabajados)
+      const G = window.KGGym ? KGGym.weekSummary(state.gymWorkouts, S.ks, state.gymEx) : null, gm = m => (KGGym.MUSCLE_NAME[state.lang] || KGGym.MUSCLE_NAME.es)[m] || m;
       return `<div class="jr-d-h"><b>${esc(jrFmtRange(S.ks[0], S.ks[6]))}</b>${S.partial ? `<span class="chip sm">${esc(t('jrNow'))}</span>` : ''}</div>
-        <div class="jr-stats">${stat(tfH(S.r.hours) + ' h', t('tfHours'))}${stat(S.r.count, t('tfShiftsN'))}${S.r.pay > 0 ? stat(pv ? '••••' : esc(money(S.r.pay)), t('tfPayEst')) : ''}${S.perfect != null ? stat(S.perfect + '/7', t('perfectDays')) : ''}${stat(S.avg == null ? '—' : fmtNum(Math.round(S.avg * 10) / 10) + '/10', t('rateTitle'))}</div>
+        <div class="jr-stats">${stat(tfH(S.r.hours) + ' h', t('tfHours'))}${stat(S.r.count, t('tfShiftsN'))}${S.r.pay > 0 ? stat(pv ? '••••' : esc(money(S.r.pay)), t('tfPayEst')) : ''}${S.perfect != null ? stat(S.perfect + '/7', t('perfectDays')) : ''}${G && G.sessions ? stat(G.days.length + '/7', t('gyDaysTrained')) : ''}${stat(S.avg == null ? '—' : fmtNum(Math.round(S.avg * 10) / 10) + '/10', t('rateTitle'))}</div>
         ${S.dk.length ? `<div class="row wrap" style="gap:6px">${S.dk.map(x => `${tfDkTag(x.d)}<span class="muted small" style="align-self:center">×${x.n}</span>`).join('')}</div>` : ''}
+        ${G && G.sessions ? `<div class="jr-gym"><span class="muted small">${ico('dumbbell', 'xs')} ${esc(t('gyJrLine', { s: G.sessions, sets: G.sets }))}</span><div class="gy-mchips">${G.muscles.slice(0, 6).map(x => `<span class="gy-mchip">${esc(gm(x.m))}<b>${fmtNum(x.n)}</b></span>`).join('')}</div></div>` : ''}
         ${S.notes.length ? `<ul class="jr-notes">${S.notes.map(n => `<li><span class="muted small">${esc(fmtDate(n.k, { weekday: 'short', day: 'numeric' }))} · ${esc(n.a)}</span> ${esc(n.t)}</li>`).join('')}</ul>` : ''}
-        ${!S.r.count && S.avg == null && !S.dk.length && !S.notes.length ? `<p class="muted small" style="margin:0">${esc(t('jrEmpty'))}</p>` : ''}`;
+        ${!S.r.count && S.avg == null && !S.dk.length && !S.notes.length && !(G && G.sessions) ? `<p class="muted small" style="margin:0">${esc(t('jrEmpty'))}</p>` : ''}`;
     };
     const place = () => {
       if (!wref) return;
@@ -1115,6 +1123,442 @@
   // v1.27: el Diario es una pestaña propia (sexta luna del orbe)
   let JR = null;
   function viewJournal() { tfEnsure(); JR = makeJournal(); return topBar() + JR.html; }
+  /* ---------- v1.30: GIMNASIO (séptima luna del orbe) ----------
+     Registro de entrenamientos inspirado en openGym, escrito para KeepGoing (lógica en js/gym.js → KGGym).
+     Rutinas, entrenamiento en directo con series (kg × reps, segundos o km), descanso con cuenta atrás, récords,
+     historial por ejercicio y un mapa del cuerpo que se ilumina con los músculos de la semana.
+     Cada día entrenado suma +1 al hábito vinculado (y así a su proyecto); el diario semanal muestra días y músculos. */
+  const GYM = window.KGGym;
+  const GY = { tick: 0, rest: null, group: '', q: '', db: 0, steps: null };
+  // Catálogo ampliado (ExerciseDB): se carga una vez, en segundo plano, y luego se repinta si hace falta
+  function gyLoadDb() {
+    if (!GYM || GY.db) return Promise.resolve();
+    GY.db = 1;
+    return fetch('data/gym-exdb.json').then(r => r.ok ? r.json() : []).then(rows => { GYM.addCatalogue(rows); GY.db = 2; if (state.ui.tab === 'gym') render(); const pk = $('#gy-picks'); if (pk) pk.dispatchEvent(new Event('gy-refresh')); }).catch(() => { GY.db = 0; });
+  }
+  setTimeout(gyLoadDb, 2500);
+  const gyStepsOf = id => (GY.steps ? Promise.resolve(GY.steps) : fetch('data/gym-exdb-steps.json').then(r => r.ok ? r.json() : {}).then(j => (GY.steps = j))).then(j => ((j[id] || {})[state.lang] || (j[id] || {}).es || []));
+  const gyPrefs = () => ({ rest: 90, goal: 3, habitId: '', ...(state.gymPrefs || {}) });
+  const gyEx = id => GYM.exercise(id, state.gymEx);
+  const gyName = id => GYM.exName(gyEx(id), state.lang);
+  const gyMus = m => (GYM.MUSCLE_NAME[state.lang] || GYM.MUSCLE_NAME.es)[m] || m;
+  const gyLive = () => state.gymWorkouts.find(w => w.status === 'live');
+  const gyDone = () => state.gymWorkouts.filter(w => w.status === 'done');
+  const gyHabit = () => { const id = gyPrefs().habitId; return id ? state.habits.find(h => h.id === id && !h.archived) : null; };
+  const gyProject = h => h && state.projects.find(p => p.habitIds.includes(h.id) && !projectStats(p).achieved);
+  // Objetivo de días por semana: el del hábito vinculado si es semanal; si no, el del ajuste (3 por defecto)
+  const gyGoal = () => { const h = gyHabit(); if (h && h.freq === 'weekly') return tgtAt(h, todayKey()); if (h && h.freq === 'daily') { const d = ruleAt(h, todayKey()).days; return Array.isArray(d) && d.length < 7 ? d.length : gyPrefs().goal; } return gyPrefs().goal; };
+  const gyKg = v => fmtNum(Math.round((+v || 0) * 100) / 100) + ' kg';
+  const gyVol = v => v >= 1000 ? fmtNum(Math.round(v / 100) / 10) + ' t' : fmtNum(Math.round(v)) + ' kg';
+  const gyDur = min => min >= 60 ? `${Math.floor(min / 60)} h ${pad(min % 60)}` : `${min} min`;
+  const gyClock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60); };
+
+  /* Mapa del cuerpo (dibujo propio, delante y detrás). La intensidad de cada músculo va de 0 a 1. */
+  const GY_FRONT = {
+    traps: '<path d="M42 29 50 27 58 29 56 34 44 34z"/>',
+    shoulders: '<ellipse cx="33" cy="40" rx="7" ry="7"/><ellipse cx="67" cy="40" rx="7" ry="7"/>',
+    chest: '<path d="M50 38c-4-2-12-2-15 2-2 4-1 10 3 12 4 2 10 1 12-2z"/><path d="M50 38c4-2 12-2 15 2 2 4 1 10-3 12-4 2-10 1-12-2z"/>',
+    biceps: '<ellipse cx="28" cy="56" rx="4.5" ry="9"/><ellipse cx="72" cy="56" rx="4.5" ry="9"/>',
+    forearms: '<ellipse cx="24.5" cy="79" rx="4" ry="11" transform="rotate(8 24.5 79)"/><ellipse cx="75.5" cy="79" rx="4" ry="11" transform="rotate(-8 75.5 79)"/>',
+    abs: '<rect x="44" y="55" width="12" height="29" rx="4"/>',
+    obliques: '<ellipse cx="39" cy="69" rx="4" ry="11"/><ellipse cx="61" cy="69" rx="4" ry="11"/>',
+    adductors: '<ellipse cx="47" cy="106" rx="2.6" ry="11"/><ellipse cx="53" cy="106" rx="2.6" ry="11"/>',
+    quads: '<ellipse cx="41.5" cy="114" rx="6.5" ry="20"/><ellipse cx="58.5" cy="114" rx="6.5" ry="20"/>',
+    calves: '<ellipse cx="41.5" cy="155" rx="4.5" ry="14"/><ellipse cx="58.5" cy="155" rx="4.5" ry="14"/>'
+  };
+  const GY_BACK = {
+    traps: '<path d="M50 27 61 36 50 50 39 36z"/>',
+    shoulders: '<ellipse cx="33" cy="40" rx="7" ry="7"/><ellipse cx="67" cy="40" rx="7" ry="7"/>',
+    upperback: '<ellipse cx="50" cy="51" rx="8" ry="5"/>',
+    lats: '<path d="M40 44c-3 6-3 16 2 26l6-8-1-14z"/><path d="M60 44c3 6 3 16-2 26l-6-8 1-14z"/>',
+    triceps: '<ellipse cx="28" cy="56" rx="4.5" ry="9"/><ellipse cx="72" cy="56" rx="4.5" ry="9"/>',
+    forearms: '<ellipse cx="24.5" cy="79" rx="4" ry="11" transform="rotate(8 24.5 79)"/><ellipse cx="75.5" cy="79" rx="4" ry="11" transform="rotate(-8 75.5 79)"/>',
+    lowerback: '<rect x="45" y="70" width="10" height="16" rx="4"/>',
+    glutes: '<ellipse cx="43" cy="97" rx="8" ry="8"/><ellipse cx="57" cy="97" rx="8" ry="8"/>',
+    hamstrings: '<ellipse cx="42" cy="122" rx="6.5" ry="16"/><ellipse cx="58" cy="122" rx="6.5" ry="16"/>',
+    calves: '<ellipse cx="41.5" cy="155" rx="5.5" ry="13"/><ellipse cx="58.5" cy="155" rx="5.5" ry="13"/>'
+  };
+  const GY_SIL = '<circle cx="50" cy="15" r="9"/><path d="M44 24h12v6H44z"/><path d="M34 32h32c4 0 7 3 7 7l-2 50H29l-2-50c0-4 3-7 7-7z"/><path d="M27 36c-6 2-7 8-7 14l-1 42 8 1 4-40z"/><path d="M73 36c6 2 7 8 7 14l1 42-8 1-4-40z"/><path d="M33 88h34l-4 82h-9l-4-60-4 60h-9z"/>';
+  function gyBody(mus, opts = {}) {
+    const max = Math.max(1, ...Object.values(mus || {}));
+    const side = (map, label) => `<svg class="gy-body-s" viewBox="10 4 80 172" role="img" aria-label="${esc(label)}"><g class="gy-sil">${GY_SIL}</g>${Object.entries(map).map(([m, d], i) => {
+      const v = (mus || {})[m] || 0, a = v ? .28 + .72 * Math.min(1, v / max) : 0;
+      return `<g class="gy-m ${v ? 'on' : ''}" data-m="${m}" style="--a:${a.toFixed(2)};--d:${i}">${d}</g>`;
+    }).join('')}</svg>`;
+    return `<div class="gy-body ${opts.big ? 'big' : ''}">${side(GY_FRONT, t('gyFront'))}${side(GY_BACK, t('gyBack'))}</div>`;
+  }
+  const gyMusChips = (list, n = 6) => list.slice(0, n).map(x => `<span class="gy-mchip">${esc(gyMus(x.m))}<b>${fmtNum(x.n)}</b></span>`).join('');
+
+  function viewGym() {
+    if (!GYM) return topBar() + emptyState('alert', 'KGGym', '');
+    const live = gyLive();
+    if (live && state.ui.gyOpen !== false) return topBar() + gyLiveView(live);
+    const v = state.ui.gyView || '';
+    if (v.startsWith('ex:')) return topBar() + gyExView(v.slice(3));
+    if (v === 'hist') return topBar() + gyHistView();
+    const tk = todayKey(), ks = tfWeekKeys(tk), S = GYM.weekSummary(state.gymWorkouts, ks, state.gymEx), goal = gyGoal();
+    const n = S.days.length, pct = clamp(n / Math.max(1, goal), 0, 1), h = gyHabit(), p = gyProject(h);
+    const streak = GYM.weekStreak(state.gymWorkouts, tfWeekKeys, tk, Math.max(1, goal));
+    const dow = tfDow();
+    let html = `<div class="gy">`;
+    html += `<div class="gy-top"><h1 class="page-title grow" style="margin:0">${esc(t('gyTab'))}</h1><button class="icon-btn" data-gy="hist" aria-label="${esc(t('gyHistory'))}" title="${esc(t('gyHistory'))}">${ico('clock')}</button><button class="icon-btn" data-gy="lib" aria-label="${esc(t('gyLibrary'))}" title="${esc(t('gyLibrary'))}">${ico('search')}</button></div>`;
+    if (live) html += `<button class="gy-livebar clay" data-gy="resume"><span class="gy-pulse"></span><span class="grow"><b>${esc(live.name || t('gyFree'))}</b><span class="muted small" data-gy-clock="${live.start || 0}">${gyClock(Date.now() - (live.start || Date.now()))}</span></span>${ico('right')}</button>`;
+    // Semana: anillo de días entrenados, tira de 7 días y cifras
+    html += `<section class="gy-hero clay"><div class="gy-ring" style="--p:${pct}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="gy-ring-bg" cx="60" cy="60" r="52"/><circle class="gy-ring-fg" cx="60" cy="60" r="52" pathLength="100"/></svg><div class="gy-ring-in"><b class="gy-count" data-gy-cnt="${n}">${n}</b><span>/ ${goal} ${esc(t('gyDaysShort'))}</span></div></div>
+      <div class="gy-hero-r"><div class="gy-wk">${ks.map((k, i) => `<i class="${S.days.includes(k) ? 'on' : ''} ${k === tk ? 'today' : ''} ${k > tk ? 'fut' : ''}" style="--d:${i}"><span>${esc(dow[i].slice(0, 1))}</span></i>`).join('')}</div>
+      <div class="gy-nums"><div><b>${S.sessions}</b><span>${esc(t('gySessions'))}</span></div><div><b>${S.sets}</b><span>${esc(t('gySets'))}</span></div><div><b>${gyVol(S.volume)}</b><span>${esc(t('gyVolume'))}</span></div></div>
+      ${streak > 1 ? `<span class="chip sm gy-streak">${ico('flame')} ${esc(t('gyStreak', { n: streak }))}</span>` : ''}</div></section>`;
+    // Vínculo con el hábito / proyecto
+    html += h ? `<button class="gy-link clay" data-gy="link"><span class="habit-ico" style="--hc:${esc(hColor(h))}">${esc(h.icon || '#')}</span><span class="grow"><span class="muted small">${esc(t('gyCountsFor'))}</span><b>${esc(h.name)}${p ? ` · ${esc(p.name)}` : ''}</b></span>${ico('link')}</button>`
+      : `<button class="gy-link clay gy-link-empty" data-gy="link">${ico('link')}<span class="grow">${esc(t('gyLinkHint'))}</span>${ico('right')}</button>`;
+    html += `<button class="btn accent block gy-start" data-gy="start-free">${ico('play')} ${esc(t('gyStartFree'))}</button>`;
+    // Músculos de la semana
+    html += `<section class="clay card gy-mus"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${esc(t('gyMusclesWeek'))}</h2></div>${gyBody(Object.fromEntries(S.muscles.map(x => [x.m, x.n])))}${S.muscles.length ? `<div class="gy-mchips">${gyMusChips(S.muscles, 8)}</div>` : `<p class="muted small center" style="margin:6px 0 0">${esc(t('gyMusclesEmpty'))}</p>`}</section>`;
+    // Rutinas
+    const wd = (new Date().getDay() + 6) % 7;
+    html += `<section class="gy-sec"><div class="row" style="justify-content:space-between;align-items:center"><h2 class="section-title" style="margin:0">${esc(t('gyRoutines'))}</h2><div class="row" style="gap:6px"><button class="chip sm" data-gy="starters">${ico('sparkle')} ${esc(t('gyStarters'))}</button><button class="icon-btn sm" data-gy="r-new" aria-label="${esc(t('gyNewRoutine'))}">${ico('plus')}</button></div></div>`;
+    html += state.gymRoutines.length ? `<div class="gy-rlist">${state.gymRoutines.map((r, i) => {
+      const mus = {}; r.ex.forEach(x => { const e = gyEx(x.eid); if (e) e.p.forEach(m => { mus[m] = (mus[m] || 0) + x.sets; }); });
+      const top = Object.entries(mus).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([m]) => gyMus(m));
+      const today = Array.isArray(r.days) && r.days.includes(wd);
+      return `<div class="gy-r clay ${today ? 'today' : ''}" style="--d:${i}"><button class="gy-r-main" data-gy="r-edit" data-id="${esc(r.id)}"><b>${esc(r.name)}</b><span class="muted small">${esc(t('gyNEx', { n: r.ex.length }))}${top.length ? ' · ' + esc(top.join(', ')) : ''}</span>${today ? `<span class="chip sm on">${esc(t('gyToday'))}</span>` : ''}</button><button class="icon-btn sm accent-ico" data-gy="r-start" data-id="${esc(r.id)}" aria-label="${esc(t('gyStart'))}">${ico('play')}</button></div>`;
+    }).join('')}</div>` : `<div class="gy-empty clay"><p class="muted small" style="margin:0">${esc(t('gyRoutinesEmpty'))}</p></div>`;
+    html += `</section>`;
+    // Últimos entrenamientos
+    const last = gyDone().sort((a, b) => (b.date + (b.end || 0)) > (a.date + (a.end || 0)) ? 1 : -1).slice(0, 5);
+    if (last.length) html += `<section class="gy-sec"><div class="row" style="justify-content:space-between;align-items:center"><h2 class="section-title" style="margin:0">${esc(t('gyRecent'))}</h2><button class="chip sm" data-gy="hist">${esc(t('gySeeAll'))}</button></div>${last.map(gyCard).join('')}</section>`;
+    return topBar() + html + '</div>';
+  }
+  function gyCard(w, i = 0) {
+    const s = GYM.workoutStats(w, state.gymEx), top = Object.entries(s.muscles).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([m]) => gyMus(m));
+    return `<button class="gy-w clay" data-gy="w-open" data-id="${esc(w.id)}" style="--d:${i}"><span class="gy-w-d"><b>${esc(fmtDate(w.date, { day: 'numeric' }))}</b><span>${esc(fmtDate(w.date, { month: 'short' }))}</span></span><span class="grow"><b>${esc(w.name || t('gyFree'))}</b><span class="muted small">${s.minutes ? esc(gyDur(s.minutes)) + ' · ' : ''}${esc(t('gyNSets', { n: s.sets }))}${s.volume ? ' · ' + esc(gyVol(s.volume)) : ''}</span>${top.length ? `<span class="muted small">${esc(top.join(' · '))}</span>` : ''}</span>${w.prs ? `<span class="gy-pr">${ico('trophy')}${w.prs}</span>` : ''}</button>`;
+  }
+  function gyHistView() {
+    const list = gyDone().sort((a, b) => (b.date + (b.end || 0)) > (a.date + (a.end || 0)) ? 1 : -1);
+    let html = `<div class="gy"><div class="gy-top"><button class="icon-btn" data-gy="home" aria-label="${esc(t('back'))}">${ico('left')}</button><h1 class="page-title grow" style="margin:0">${esc(t('gyHistory'))}</h1></div>`;
+    if (!list.length) return html + emptyState('clock', t('gyHistEmptyT'), t('gyHistEmptyS')) + '</div>';
+    let month = '';
+    list.forEach((w, i) => { const m = w.date.slice(0, 7); if (m !== month) { month = m; html += `<h3 class="gy-month">${esc(fmtDate(m + '-01', { month: 'long', year: 'numeric' }))}</h3>`; } html += gyCard(w, Math.min(i, 8)); });
+    return html + '</div>';
+  }
+  function gyExView(eid) {
+    const e = gyEx(eid); if (!e) { state.ui.gyView = ''; return viewGym(); }
+    const hist = GYM.history(state.gymWorkouts, eid, state.gymEx), b = GYM.bests(state.gymWorkouts, state.gymEx)[eid] || {};
+    const unit = e.kind === 'w' ? 'kg' : e.kind === 'bw' ? t('gyReps') : e.kind === 'h' ? 's' : 'km';
+    const best = e.kind === 'w' ? b.w : e.kind === 'bw' ? b.r : e.kind === 'h' ? b.s : b.d;
+    let html = `<div class="gy"><div class="gy-top"><button class="icon-btn" data-gy="home" aria-label="${esc(t('back'))}">${ico('left')}</button><h1 class="page-title grow" style="margin:0;font-size:clamp(24px,6vw,34px)">${esc(GYM.exName(e, state.lang))}</h1></div>`;
+    html += `<section class="clay card gy-exhead">${gyBody(Object.fromEntries([...e.p.map(m => [m, 2]), ...e.s.map(m => [m, 1])]))}<div class="gy-mchips">${e.p.map(m => `<span class="gy-mchip on">${esc(gyMus(m))}</span>`).join('')}${e.s.map(m => `<span class="gy-mchip">${esc(gyMus(m))}</span>`).join('')}</div></section>`;
+    html += `<section class="gy-nums gy-exnums clay"><div><b>${best ? fmtNum(best) + ' ' + esc(unit) : '—'}</b><span>${esc(t('gyBest'))}</span></div>${e.kind === 'w' ? `<div><b>${b.e1 ? fmtNum(b.e1) + ' kg' : '—'}</b><span>${esc(t('gyE1rm'))}</span></div>` : ''}<div><b>${hist.length}</b><span>${esc(t('gySessions'))}</span></div></section>`;
+    if (hist.length) {
+      // Progreso: cada sesión es una barra que crece con su mejor marca (+ marca cuando es récord)
+      const max = Math.max(...hist.map(x => e.kind === 'w' ? x.e1 || x.best : x.best)) || 1; let run = 0;
+      html += `<section class="clay card"><h2 class="section-title">${esc(t('gyProgress'))}</h2><div class="gy-prog">${hist.slice(-24).map((x, i) => { const v = e.kind === 'w' ? x.e1 || x.best : x.best, pr = v > run; run = Math.max(run, v); return `<i class="${pr && i ? 'pr' : ''}" style="--h:${Math.max(.06, v / max)};--d:${i}" title="${esc(fmtDate(x.date, { day: 'numeric', month: 'short' }))}: ${fmtNum(x.best)} ${esc(unit)}"></i>`; }).join('')}</div>
+        <ul class="gy-hl">${hist.slice(-8).reverse().map(x => `<li><span class="muted small">${esc(fmtDate(x.date, { day: 'numeric', month: 'short', year: 'numeric' }))}</span><b>${fmtNum(x.best)} ${esc(unit)}</b><span class="muted small">${esc(t('gyNSets', { n: x.sets }))}${x.vol ? ' · ' + esc(gyVol(x.vol)) : ''}</span></li>`).join('')}</ul></section>`;
+    } else html += `<p class="muted small center">${esc(t('gyExNoHist'))}</p>`;
+    if (e.db) { html += `<section class="clay card"><h2 class="section-title">${esc(t('gyHowTo'))}</h2><ol class="gy-steps" id="gy-steps"><li class="muted small">…</li></ol><p class="muted small" style="margin:8px 0 0">${esc(t('gyDbCredit'))}</p></section>`; gyStepsOf(eid).then(st => { const ol = $('#gy-steps'); if (ol) ol.innerHTML = st.length ? st.map(x => `<li>${esc(x)}</li>`).join('') : `<li class="muted small">—</li>`; }).catch(() => {}); }
+    return html + '</div>';
+  }
+
+  /* Entrenamiento en directo */
+  function gyLiveView(w) {
+    let html = `<div class="gy gy-live"><div class="gy-top"><button class="icon-btn" data-gy="minimize" aria-label="${esc(t('gyMinimize'))}" title="${esc(t('gyMinimize'))}">${ico('down')}</button>
+      <div class="grow gy-live-h"><input class="gy-title-in" data-gy-name value="${esc(w.name)}" placeholder="${esc(t('gyFree'))}" maxlength="60" aria-label="${esc(t('gyName'))}"><span class="gy-live-clock" data-gy-clock="${w.start || 0}">${gyClock(Date.now() - (w.start || Date.now()))}</span></div>
+      <button class="btn accent gy-finish" data-gy="finish">${ico('check')} ${esc(t('gyFinish'))}</button></div>`;
+    const s = GYM.workoutStats(w, state.gymEx);
+    html += `<div class="gy-live-bar"><span>${esc(t('gyNSets', { n: s.sets }))}</span><span>${esc(gyVol(s.volume))}</span><span class="grow"></span>${gyBody(s.muscles)}</div>`;
+    html += w.ex.map((x, xi) => gyExBlock(w, x, xi)).join('');
+    html += `<button class="btn block gy-addex" data-gy="add-ex">${ico('plus')} ${esc(t('gyAddEx'))}</button>
+      <button class="btn ghost block danger-text" data-gy="discard">${ico('trash')} ${esc(t('gyDiscard'))}</button>`;
+    html += GY.rest ? gyRestBar() : '';
+    return html + '</div>';
+  }
+  function gyExBlock(w, x, xi) {
+    const e = gyEx(x.eid), kind = e ? e.kind : 'w', last = GYM.lastSets(state.gymWorkouts, x.eid, w.id);
+    const cols = kind === 'w' ? ['kg', t('gyReps')] : kind === 'bw' ? [t('gyExtraKg'), t('gyReps')] : kind === 'h' ? [t('gySec')] : [t('gyMin'), 'km'];
+    const fields = kind === 'w' || kind === 'bw' ? ['w', 'r'] : kind === 'h' ? ['s'] : ['m', 'd'];
+    const prevOf = i => { const l = last && (last[i] || null); if (!l) return '—'; return kind === 'w' ? `${fmtNum(l.w || 0)}×${l.r || 0}` : kind === 'bw' ? `${l.w ? '+' + fmtNum(l.w) + '×' : ''}${l.r || 0}` : kind === 'h' ? `${l.s || 0}s` : `${Math.round((l.s || 0) / 60)}′${l.d ? ' ' + fmtNum(l.d) + 'km' : ''}`; };
+    const val = (st, f) => f === 'm' ? (st.s ? Math.round(st.s / 60) : '') : (st[f] ?? '');
+    return `<section class="gy-ex clay" style="--d:${xi}"><div class="gy-ex-h"><button class="gy-ex-n" data-gy="ex" data-id="${esc(x.eid)}"><b>${esc(gyName(x.eid))}</b><span class="muted small">${e ? esc(e.p.map(gyMus).join(', ')) : ''}</span></button><button class="icon-btn sm" data-gy="ex-menu" data-i="${xi}" aria-label="${esc(t('more'))}">${ico('grid')}</button></div>
+      <div class="gy-sets" style="--cols:${fields.length}"><div class="gy-set gy-set-h"><span>#</span><span>${esc(t('gyPrev'))}</span>${cols.map(c => `<span>${esc(c)}</span>`).join('')}<span></span></div>
+      ${x.sets.map((st, si) => `<div class="gy-set ${st.done ? 'done' : ''} ${st.warm ? 'warm' : ''}" data-row="${xi}:${si}"><button class="gy-si" data-gy="warm" data-x="${xi}" data-s="${si}" title="${esc(t('gyWarmHint'))}">${st.warm ? 'W' : si + 1 - x.sets.slice(0, si).filter(z => z.warm).length}</button><span class="gy-prev">${esc(prevOf(si))}</span>${fields.map(f => `<input class="gy-in" inputmode="decimal" data-gy-in="${xi}:${si}:${f}" value="${esc(val(st, f))}" placeholder="${esc(f === 'w' && kind === 'bw' ? '0' : '')}" aria-label="${esc(f)}">`).join('')}<button class="gy-tick ${st.done ? 'on' : ''}" data-gy="tick" data-x="${xi}" data-s="${si}" aria-pressed="${!!st.done}" aria-label="${esc(t('gySetDone'))}">${ico('check')}</button></div>`).join('')}</div>
+      <div class="row gy-ex-f"><button class="chip sm" data-gy="set-add" data-x="${xi}">${ico('plus')} ${esc(t('gyAddSet'))}</button>${x.sets.length > 1 ? `<button class="chip sm" data-gy="set-del" data-x="${xi}">${ico('minus')}</button>` : ''}<span class="grow"></span><span class="muted small">${ico('timer', 'xs')} ${gyClock((x.rest || gyPrefs().rest) * 1000)}</span></div></section>`;
+  }
+  function gyRestBar() {
+    const R = GY.rest, left = Math.max(0, R.until - Date.now()), p = R.total ? left / R.total : 0;
+    return `<div class="gy-rest clay" id="gy-rest" style="--p:${p.toFixed(3)}"><span class="gy-rest-fill"></span><span class="grow"><span class="muted small">${esc(t('gyRest'))}</span><b data-gy-rest>${gyClock(left)}</b></span><button class="chip sm" data-gy="rest-add">+15 s</button><button class="chip sm" data-gy="rest-skip">${esc(t('gySkip'))}</button></div>`;
+  }
+  // Reloj del entrenamiento y del descanso (sin repintar la pantalla)
+  function gyTick() {
+    $$('[data-gy-clock]').forEach(el => { const s = +el.dataset.gyClock; if (s) el.textContent = gyClock(Date.now() - s); });
+    if (GY.rest) {
+      const left = GY.rest.until - Date.now(), bar = $('#gy-rest');
+      if (left <= 0) { GY.rest = null; if (bar) bar.remove(); vibrate([40, 60, 40]); sfx('complete'); toast(t('gyRestDone')); }
+      else if (bar) { bar.style.setProperty('--p', (left / GY.rest.total).toFixed(3)); const b = $('[data-gy-rest]', bar); if (b) b.textContent = gyClock(left); }
+    }
+  }
+  setInterval(() => { if (state.ui.tab === 'gym' || GY.rest) gyTick(); }, 1000);
+
+  function gySaveQuiet() { clearTimeout(GY.saveT); GY.saveT = setTimeout(save, 400); }
+  function gyStart(w) {
+    if (gyLive()) { state.ui.gyOpen = true; save(); render(); toast(t('gyAlreadyLive')); return; }
+    state.gymWorkouts.push(w); state.ui.gyOpen = true; state.ui.gyView = ''; save(); render(); window.scrollTo(0, 0); vibrate(15); sfx('toggle');
+  }
+  const gyNewFree = () => ({ id: uid(), date: todayKey(), name: '', status: 'live', start: Date.now(), note: '', ex: [] });
+  function gyStartRoutine(r) { gyStart(GYM.fromRoutine(r, state.gymWorkouts, state.gymEx, uid(), todayKey(), Date.now())); }
+
+  // Selector de ejercicios (buscar + filtrar por grupo). onPick(eid)
+  function gyPicker(onPick, title = t('gyAddEx')) {
+    const groups = Object.keys(GYM.GROUPS);
+    gyLoadDb();
+    const alt = e => e.db && e.name.en !== e.name.es ? (state.lang === 'en' ? e.name.es : e.name.en) : '';
+    const list = () => { const all = GYM.search(GY.q, state.lang, state.gymEx, GY.group); return all.slice(0, 150).map(e => `<button class="gy-pick" data-pick="${esc(e.id)}"><b>${esc(GYM.exName(e, state.lang))}</b><span class="muted small">${esc(e.p.map(gyMus).join(', '))}${e.custom ? ' · ' + esc(t('gyCustom')) : ''}${alt(e) ? ' · <i>' + esc(alt(e)) + '</i>' : ''}</span></button>`).join('') + (all.length > 150 ? `<p class="muted small center">${esc(t('gyMoreRes', { n: all.length - 150 }))}</p>` : '') || `<p class="muted small center">${esc(t('gyNoMatch'))}</p>`; };
+    openModal({
+      title: esc(title), cls: 'gy-picker',
+      body: `<input class="input" data-gy-q placeholder="${esc(t('gySearch'))}" value="${esc(GY.q)}" autocomplete="off"><div class="gy-groups">${['', ...groups].map(g => `<button class="chip sm ${GY.group === g ? 'on' : ''}" data-grp="${g}">${esc(g ? t('gyG_' + g) : t('gyAll'))}</button>`).join('')}</div><div class="gy-picks" id="gy-picks">${list()}</div>`,
+      foot: `<button class="btn" data-gy-custom>${ico('plus')} ${esc(t('gyNewEx'))}</button>`,
+      onMount: w => { $('#gy-picks', w).addEventListener('gy-refresh', () => { $('#gy-picks', w).innerHTML = list(); }); },
+      onInput: (e, w) => { if (e.target.matches('[data-gy-q]')) { GY.q = e.target.value; $('#gy-picks', w).innerHTML = list(); } },
+      onClick: (e, close, w) => {
+        const g = e.target.closest('[data-grp]'); if (g) { GY.group = g.dataset.grp; $$('[data-grp]', w).forEach(b => b.classList.toggle('on', b === g)); $('#gy-picks', w).innerHTML = list(); return; }
+        const p = e.target.closest('[data-pick]'); if (p) { close(); onPick(p.dataset.pick); return; }
+        if (e.target.closest('[data-gy-custom]')) { close(); gyCustomEx(onPick); }
+      }
+    });
+  }
+  function gyCustomEx(onPick) {
+    const f = { name: GY.q || '', kind: 'w', p: [] };
+    openModal({
+      title: esc(t('gyNewEx')),
+      body: `<label class="field"><span>${esc(t('gyName'))}</span><input class="input" data-f="name" maxlength="60" value="${esc(f.name)}"></label>
+        <div class="field"><span>${esc(t('gyKind'))}</span><div class="seg">${GYM.KINDS.map(k => `<button type="button" data-kind="${k}" class="${f.kind === k ? 'on' : ''}">${esc(t('gyK_' + k))}</button>`).join('')}</div></div>
+        <div class="field"><span>${esc(t('gyMuscles'))}</span><div class="gy-groups">${GYM.MUSCLES.map(m => `<button type="button" class="chip sm" data-mu="${m}">${esc(gyMus(m))}</button>`).join('')}</div></div>`,
+      foot: `<button class="btn primary" data-m="save">${ico('check')} ${esc(t('save'))}</button>`,
+      onClick: (e, close, w) => {
+        const k = e.target.closest('[data-kind]'); if (k) { f.kind = k.dataset.kind; $$('[data-kind]', w).forEach(b => b.classList.toggle('on', b === k)); return; }
+        const m = e.target.closest('[data-mu]'); if (m) { const i = f.p.indexOf(m.dataset.mu); if (i >= 0) f.p.splice(i, 1); else f.p.push(m.dataset.mu); m.classList.toggle('on', i < 0); return; }
+        if (e.target.closest('[data-m="save"]')) {
+          const name = $('[data-f="name"]', w).value.trim(); if (!name) { toast(t('gyNameNeeded')); return; }
+          if (state.gymEx.length >= GYM.LIMITS.custom) { toast(t('gyTooMany')); return; }
+          const x = { id: 'c' + uid(), name: name.slice(0, 60), kind: f.kind, p: f.p.slice(0, 4), s: [] }; state.gymEx.push(x); save(); close(); onPick(x.id);
+        }
+      }
+    });
+  }
+  function gyAddExercise(w, eid) {
+    const e = gyEx(eid), kind = e ? e.kind : 'w', last = GYM.lastSets(state.gymWorkouts, eid, w.id) || [];
+    const n = Math.max(3, Math.min(last.length, 6));
+    w.ex.push({ eid, sets: Array.from({ length: n }, (_, i) => { const l = last[i] || last[last.length - 1] || {}; return kind === 'h' ? { s: l.s || 30 } : kind === 'c' ? { s: l.s || 1200, d: l.d } : { w: l.w, r: l.r || 10 }; }) });
+    save(); render(); requestAnimationFrame(() => { const b = $$('.gy-ex').pop(); if (b) b.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); });
+  }
+
+  // Terminar: se guarda, se calcula lo nuevo (récords, músculos) y se celebra a pantalla completa
+  async function gyFinish(w) {
+    const any = w.ex.some(x => x.sets.some(s => s.done));
+    if (!any) { if (await confirmDialog(t('gyFinishEmpty'))) gyDiscard(w, true); return; }
+    // Las series sin marcar se quitan; los ejercicios vacíos también
+    w.ex = w.ex.map(x => ({ ...x, sets: x.sets.filter(s => s.done) })).filter(x => x.sets.length);
+    w.end = Date.now(); w.status = 'done';
+    const prs = GYM.newRecords(state.gymWorkouts, w, state.gymEx); if (prs.length) w.prs = prs.length; else delete w.prs;
+    GY.rest = null; state.ui.gyOpen = true; state.ui.gyView = '';
+    const firstToday = !state.gymWorkouts.some(x => x.id !== w.id && x.status === 'done' && x.date === w.date);
+    // Si la rutina era nueva, se ofrece guardarla después
+    save(); render();
+    gyCelebrate(w, prs, () => { gyApplyHabit(w, firstToday); if (!w.rid && w.ex.length) gyOfferRoutine(w); });
+  }
+  // +1 al hábito vinculado, una vez por día entrenado (así cuenta también para su proyecto)
+  function gyApplyHabit(w, firstToday) {
+    const h = gyHabit(); if (!h || !firstToday) return;
+    w.hab = h.id;
+    const k = w.date, c = cnt(h, k);
+    if (subModeAt(h, k) || isAmount(h)) { save(); return; }
+    setCount(h, k, isMulti(h) || h.freq !== 'daily' ? c + 1 : 1);
+    render();
+  }
+  function gyUnapplyHabit(w) {
+    if (!w.hab) return; const h = getHabit(w.hab); if (!h) return;
+    const other = state.gymWorkouts.some(x => x.id !== w.id && x.status === 'done' && x.date === w.date);
+    if (other) { const o = state.gymWorkouts.find(x => x.id !== w.id && x.status === 'done' && x.date === w.date); o.hab = h.id; return; }
+    const c = cnt(h, w.date); if (c > 0) setCount(h, w.date, c - 1);
+  }
+  async function gyDiscard(w, sure) {
+    if (!sure && !(await confirmDialog(t('gyDiscardQ')))) return;
+    state.gymWorkouts = state.gymWorkouts.filter(x => x.id !== w.id); GY.rest = null; save(); render();
+  }
+  function gyOfferRoutine(w) {
+    whenFree(() => openModal({
+      body: `<div class="center"><span class="tool-ico" style="margin:4px auto 12px">${ico('layers')}</span><p style="font-size:17px;font-weight:var(--fw-subtitle);margin:0">${esc(t('gySaveAsRoutineQ'))}</p><p class="muted small" style="margin:6px 0 0">${esc(t('gySaveAsRoutineS'))}</p></div>`,
+      foot: `<button class="btn" data-m="x">${esc(t('gyNo'))}</button><button class="btn primary" data-r="1">${ico('check')} ${esc(t('gySaveRoutine'))}</button>`,
+      onClick: (e, close) => { if (e.target.closest('[data-r]')) { const r = { id: uid(), name: w.name || t('gyRoutineN', { n: state.gymRoutines.length + 1 }), ex: w.ex.map(x => ({ eid: x.eid, sets: x.sets.length, reps: x.sets[0].r || Math.round((x.sets[0].s || 600) / (gyEx(x.eid) && gyEx(x.eid).kind === 'c' ? 60 : 1)) || 10, ...(x.sets[0].w ? { w: x.sets[0].w } : {}) })) }; state.gymRoutines.push(r); w.rid = r.id; save(); close(); render(); toast(t('gyRoutineSaved')); } }
+    }));
+  }
+  /* Celebración a pantalla completa (como el día perfecto): onda del Color de Acento desde el botón, el cuerpo se ilumina
+     músculo a músculo, los números cuentan y los récords caen uno tras otro. Toca para seguir. */
+  function gyCelebrate(w, prs, after) {
+    const s = GYM.workoutStats(w, state.gymEx), wk = GYM.weekSummary(state.gymWorkouts, tfWeekKeys(w.date), state.gymEx);
+    const o = lastTap && Date.now() - lastTap.at < 4000 ? lastTap : { x: innerWidth / 2, y: innerHeight / 2 };
+    const el = document.createElement('div'); el.className = 'pfx gfx'; el.setAttribute('role', 'status');
+    el.style.setProperty('--ox', o.x + 'px'); el.style.setProperty('--oy', o.y + 'px');
+    el.innerHTML = `<div class="pfx-bg"></div><div class="pfx-ring"></div><div class="pfx-in gfx-in">${gyBody(s.muscles, { big: true })}<h2 class="pfx-t">${esc(t('gyDoneT'))}</h2>
+      <div class="pfx-stats"><div><b data-cnt="${wk.days.length}">0</b><span>${esc(t('gyDaysWeek'))}</span></div><div><b data-cnt="${s.sets}">0</b><span>${esc(t('gySets'))}</span></div><div><b data-cnt="${Math.round(s.volume)}" data-vol="1">0</b><span>${esc(t('gyVolume'))}</span></div></div>
+      ${prs.length ? `<ul class="gfx-prs">${prs.slice(0, 4).map((p, i) => `<li style="--d:${i}">${ico('trophy')} <b>${esc(gyName(p.eid))}</b> <span>${fmtNum(p.v)}${p.type === 'w' || p.type === 'e1' ? ' kg' : p.type === 's' ? ' s' : p.type === 'd' ? ' km' : ''}</span></li>`).join('')}</ul>` : ''}
+      <p class="pfx-hint">${esc(t('pfxTap'))}</p></div>`;
+    document.body.appendChild(el); vibrate([15, 50, 15, 50, 30]); sfx(prs.length ? 'levelup' : 'complete');
+    const rm = reducedMotion();
+    $$('[data-cnt]', el).forEach(b => {
+      const to = +b.dataset.cnt, vol = !!b.dataset.vol, t0 = performance.now(), dur = rm ? 0 : 900;
+      const step = now => { const p = dur ? Math.min(1, (now - t0 - 900) / dur) : 1; const v = p <= 0 ? 0 : to * (1 - Math.pow(1 - p, 3)); b.textContent = vol ? gyVol(v) : Math.round(v); if (p < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    let gone = false;
+    const end = () => { if (gone) return; gone = true; el.classList.add('out'); setTimeout(() => { el.remove(); after && after(); }, rm ? 150 : 650); };
+    el.addEventListener('click', end); setTimeout(end, rm ? 2600 : 4600);
+  }
+
+  // Detalle de un entrenamiento hecho
+  function gyOpenWorkout(w) {
+    const s = GYM.workoutStats(w, state.gymEx);
+    openModal({
+      title: esc(w.name || t('gyFree')), cls: 'gy-wsheet',
+      body: `<p class="muted small" style="margin:-4px 0 10px">${esc(fmtDate(w.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}${s.minutes ? ' · ' + esc(gyDur(s.minutes)) : ''}</p>
+        ${gyBody(s.muscles)}
+        <div class="gy-nums" style="margin:10px 0"><div><b>${s.sets}</b><span>${esc(t('gySets'))}</span></div><div><b>${gyVol(s.volume)}</b><span>${esc(t('gyVolume'))}</span></div>${s.km ? `<div><b>${fmtNum(s.km)} km</b><span>${esc(t('gyDistance'))}</span></div>` : ''}</div>
+        ${w.ex.map(x => { const e = gyEx(x.eid), kind = e ? e.kind : 'w'; return `<div class="gy-wx"><b>${esc(gyName(x.eid))}</b><span class="muted small">${x.sets.map(st => kind === 'w' ? `${fmtNum(st.w || 0)}×${st.r || 0}` : kind === 'bw' ? `${st.w ? '+' + fmtNum(st.w) + 'kg×' : ''}${st.r || 0}` : kind === 'h' ? `${st.s || 0}s` : `${Math.round((st.s || 0) / 60)}′${st.d ? ' ' + fmtNum(st.d) + 'km' : ''}`).join(' · ')}</span></div>`; }).join('')}
+        ${w.hab && getHabit(w.hab) ? `<p class="muted small" style="margin:10px 0 0">${ico('link', 'xs')} ${esc(t('gyCountedFor', { h: getHabit(w.hab).name }))}</p>` : ''}`,
+      foot: `<button class="btn danger-text" data-w="del">${ico('trash')} ${esc(t('delete'))}</button><button class="btn" data-w="again">${ico('repeat')} ${esc(t('gyRepeat'))}</button>`,
+      onClick: async (e, close) => {
+        const b = e.target.closest('[data-w]'); if (!b) return;
+        if (b.dataset.w === 'del') { close(); if (await confirmDialog(t('gyDeleteQ'))) { gyUnapplyHabit(w); state.gymWorkouts = state.gymWorkouts.filter(x => x.id !== w.id); save(); render(); } }
+        if (b.dataset.w === 'again') { close(); const r = { id: w.rid || '', name: w.name, ex: w.ex.map(x => ({ eid: x.eid, sets: x.sets.length, reps: x.sets[0].r || x.sets[0].s || 10, w: x.sets[0].w })) }; const nw = GYM.fromRoutine(r, state.gymWorkouts, state.gymEx, uid(), todayKey(), Date.now()); if (!w.rid) delete nw.rid; gyStart(nw); }
+      }
+    });
+  }
+  // Editor de rutinas: nombre, días de la semana (se marca «Hoy») y ejercicios con series × repeticiones
+  function gyRoutineEditor(r0) {
+    const f = r0 ? JSON.parse(JSON.stringify(r0)) : { id: uid(), name: '', ex: [], days: [] };
+    f.days = f.days || [];
+    const dow = tfDow();
+    const rows = () => f.ex.map((x, i) => { const e = gyEx(x.eid), kind = e ? e.kind : 'w'; return `<div class="gy-rx"><b class="grow">${esc(gyName(x.eid))}</b><input class="input gy-num" inputmode="numeric" data-rx="${i}:sets" value="${x.sets}" aria-label="${esc(t('gySets'))}"><span>×</span><input class="input gy-num" inputmode="numeric" data-rx="${i}:reps" value="${x.reps}" aria-label="${esc(kind === 'h' ? t('gySec') : kind === 'c' ? t('gyMin') : t('gyReps'))}"><span class="muted small">${esc(kind === 'h' ? 's' : kind === 'c' ? 'min' : '')}</span><button class="icon-btn sm" data-rx-up="${i}" aria-label="${esc(t('moveUp'))}">${ico('up')}</button><button class="icon-btn sm" data-rx-del="${i}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`; }).join('') || `<p class="muted small">${esc(t('gyRoutineNoEx'))}</p>`;
+    openModal({
+      title: esc(r0 ? t('gyEditRoutine') : t('gyNewRoutine')),
+      body: `<label class="field"><span>${esc(t('gyName'))}</span><input class="input" data-f="name" maxlength="60" value="${esc(f.name)}" placeholder="${esc(t('gyRoutinePh'))}"></label>
+        <div class="field"><span>${esc(t('gyRoutineDays'))}</span><div class="gy-groups">${dow.map((d, i) => `<button type="button" class="chip sm ${f.days.includes(i) ? 'on' : ''}" data-day="${i}">${esc(d)}</button>`).join('')}</div></div>
+        <div class="field"><span>${esc(t('gyExercises'))}</span><div id="gy-rx">${rows()}</div><button type="button" class="chip" data-rx-add style="align-self:flex-start">${ico('plus')} ${esc(t('gyAddEx'))}</button></div>`,
+      foot: `${r0 ? `<button class="btn danger-text" data-r="del">${ico('trash')}</button>` : ''}<button class="btn primary" data-m="save">${ico('check')} ${esc(t('save'))}</button>`,
+      onInput: (e) => { const m = e.target.dataset.rx; if (m) { const [i, k] = m.split(':'); f.ex[+i][k] = Math.max(1, Math.min(k === 'sets' ? 30 : 1000, parseInt(e.target.value, 10) || 1)); } if (e.target.dataset.f === 'name') f.name = e.target.value; },
+      onClick: async (e, close, w) => {
+        const d = e.target.closest('[data-day]'); if (d) { const i = +d.dataset.day, j = f.days.indexOf(i); if (j >= 0) f.days.splice(j, 1); else f.days.push(i); d.classList.toggle('on', j < 0); return; }
+        const up = e.target.closest('[data-rx-up]'); if (up) { const i = +up.dataset.rxUp; if (i > 0) { [f.ex[i - 1], f.ex[i]] = [f.ex[i], f.ex[i - 1]]; $('#gy-rx', w).innerHTML = rows(); } return; }
+        const del = e.target.closest('[data-rx-del]'); if (del) { f.ex.splice(+del.dataset.rxDel, 1); $('#gy-rx', w).innerHTML = rows(); return; }
+        if (e.target.closest('[data-rx-add]')) { w.style.display = 'none'; gyPicker(eid => { const e2 = gyEx(eid); f.ex.push({ eid, sets: 3, reps: e2 && e2.kind === 'h' ? 30 : e2 && e2.kind === 'c' ? 20 : 10 }); w.style.display = ''; $('#gy-rx', w).innerHTML = rows(); }); const back = () => { if (!$('.gy-picker')) { w.style.display = ''; } else setTimeout(back, 300); }; setTimeout(back, 300); return; }
+        const b = e.target.closest('[data-r]'); if (b && b.dataset.r === 'del') { close(); if (await confirmDialog(t('gyDeleteRoutineQ'))) { state.gymRoutines = state.gymRoutines.filter(x => x.id !== f.id); save(); render(); } return; }
+        if (e.target.closest('[data-m="save"]')) {
+          f.name = (f.name || '').trim() || t('gyRoutineN', { n: state.gymRoutines.length + 1 });
+          const clean = GYM.cleanRoutine(f); const i = state.gymRoutines.findIndex(x => x.id === f.id);
+          if (i >= 0) state.gymRoutines[i] = clean; else { if (state.gymRoutines.length >= GYM.LIMITS.routines) { toast(t('gyTooMany')); return; } state.gymRoutines.push(clean); }
+          save(); close(); render();
+        }
+      }
+    });
+  }
+  function gyStarters() {
+    openModal({
+      title: esc(t('gyStarters')),
+      body: `<p class="muted small" style="margin:-4px 0 10px">${esc(t('gyStartersHint'))}</p>${GYM.STARTERS.map(s => `<button class="gy-pick" data-st="${s.key}"><b>${esc(s.name[state.lang] || s.name.es)}</b><span class="muted small">${esc(s.ex.map(([eid]) => gyName(eid)).join(' · '))}</span></button>`).join('')}`,
+      onClick: (e, close) => { const b = e.target.closest('[data-st]'); if (!b) return; const r = GYM.starterRoutine(b.dataset.st, state.lang, uid()); state.gymRoutines.push(r); save(); close(); render(); toast(t('gyRoutineSaved')); }
+    });
+  }
+  // Vincular con un hábito (y su proyecto) + objetivo de días por semana y descanso por defecto
+  function gyLinkSheet() {
+    const P = gyPrefs(), sug = GYM.suggestHabit(state.habits), hs = state.habits.filter(h => !h.archived && !isQuit(h) && !isAmount(h));
+    openModal({
+      title: esc(t('gyLinkTitle')),
+      body: `<p class="muted small" style="margin:-4px 0 12px">${esc(t('gyLinkSub'))}</p>
+        <div class="gy-hlist"><button class="gy-pick ${!P.habitId ? 'on' : ''}" data-hab=""><b>${esc(t('gyNoLink'))}</b></button>${hs.map(h => { const p = gyProject(h); return `<button class="gy-pick ${P.habitId === h.id ? 'on' : ''}" data-hab="${esc(h.id)}"><b>${esc((h.icon || '') + ' ' + h.name)}</b><span class="muted small">${esc(t(h.freq === 'weekly' ? 'freqWeekly' : h.freq === 'monthly' ? 'freqMonthly' : 'freqDaily'))}${p ? ' · ' + esc(p.name) : ''}${sug && sug.id === h.id ? ' · ' + esc(t('gySuggested')) : ''}</span></button>`; }).join('')}</div>
+        <div class="field" style="margin-top:14px"><span>${esc(t('gyGoalDays'))}</span><div class="seg">${[1, 2, 3, 4, 5, 6, 7].map(n => `<button type="button" data-goal="${n}" class="${P.goal === n ? 'on' : ''}">${n}</button>`).join('')}</div><span class="muted small" style="text-transform:none;letter-spacing:0">${esc(t('gyGoalHint'))}</span></div>
+        <div class="field" style="margin-top:14px"><span>${esc(t('gyRestDefault'))}</span><div class="seg">${[60, 90, 120, 180].map(n => `<button type="button" data-rest="${n}" class="${P.rest === n ? 'on' : ''}">${gyClock(n * 1000)}</button>`).join('')}</div></div>`,
+      onClick: (e, close, w) => {
+        const set = (k, v) => { state.gymPrefs = { ...gyPrefs(), [k]: v }; save(); };
+        const h = e.target.closest('[data-hab]'); if (h) { set('habitId', h.dataset.hab); $$('[data-hab]', w).forEach(b => b.classList.toggle('on', b === h)); render(); return; }
+        const g = e.target.closest('[data-goal]'); if (g) { set('goal', +g.dataset.goal); $$('[data-goal]', w).forEach(b => b.classList.toggle('on', b === g)); render(); return; }
+        const r = e.target.closest('[data-rest]'); if (r) { set('rest', +r.dataset.rest); $$('[data-rest]', w).forEach(b => b.classList.toggle('on', b === r)); }
+      }
+    });
+  }
+  function gyExMenu(w, xi) {
+    const x = w.ex[xi]; if (!x) return;
+    openModal({
+      title: esc(gyName(x.eid)),
+      body: `<div class="gy-menu"><button class="gy-pick" data-em="swap">${ico('swap')} <b>${esc(t('gySwap'))}</b></button><button class="gy-pick" data-em="up">${ico('up')} <b>${esc(t('moveUp'))}</b></button><button class="gy-pick" data-em="info">${ico('chart')} <b>${esc(t('gyProgress'))}</b></button>
+        <div class="field" style="margin:10px 0"><span>${esc(t('gyRestThis'))}</span><div class="seg">${[45, 60, 90, 120, 180].map(n => `<button type="button" data-em-rest="${n}" class="${(x.rest || gyPrefs().rest) === n ? 'on' : ''}">${gyClock(n * 1000)}</button>`).join('')}</div></div>
+        <button class="gy-pick danger-text" data-em="del">${ico('trash')} <b>${esc(t('gyRemoveEx'))}</b></button></div>`,
+      onClick: (e, close) => {
+        const r = e.target.closest('[data-em-rest]'); if (r) { x.rest = +r.dataset.emRest; save(); close(); render(); return; }
+        const b = e.target.closest('[data-em]'); if (!b) return; close();
+        if (b.dataset.em === 'swap') { const e0 = gyEx(x.eid); GY.group = (Object.entries(GYM.GROUPS).find(([, ms]) => e0 && e0.p.some(m => ms.includes(m))) || [''])[0]; GY.q = ''; gyPicker(eid => { x.eid = eid; save(); render(); }, t('gySwap')); }
+        if (b.dataset.em === 'up' && xi > 0) { [w.ex[xi - 1], w.ex[xi]] = [w.ex[xi], w.ex[xi - 1]]; save(); render(); }
+        if (b.dataset.em === 'info') { state.ui.gyOpen = false; state.ui.gyView = 'ex:' + x.eid; save(); render(); window.scrollTo(0, 0); }
+        if (b.dataset.em === 'del') { w.ex.splice(xi, 1); save(); render(); }
+      }
+    });
+  }
+  function gyLibrary() { GY.q = ''; gyPicker(eid => { state.ui.gyView = 'ex:' + eid; save(); render(); window.scrollTo(0, 0); }, t('gyLibrary')); }
+
+  // Clics de la pestaña Gimnasio
+  function gymClick(e) {
+    const b = e.target.closest('[data-gy]'); if (!b) return false;
+    const w = gyLive(), id = b.dataset.id;
+    switch (b.dataset.gy) {
+      case 'home': state.ui.gyView = ''; save(); render(); window.scrollTo(0, 0); break;
+      case 'hist': state.ui.gyView = 'hist'; save(); render(); window.scrollTo(0, 0); break;
+      case 'lib': gyLibrary(); break;
+      case 'link': gyLinkSheet(); break;
+      case 'starters': gyStarters(); break;
+      case 'r-new': gyRoutineEditor(null); break;
+      case 'r-edit': { const r = state.gymRoutines.find(x => x.id === id); if (r) gyRoutineEditor(r); break; }
+      case 'r-start': { const r = state.gymRoutines.find(x => x.id === id); if (r) gyStartRoutine(r); break; }
+      case 'start-free': gyStart(gyNewFree()); break;
+      case 'resume': state.ui.gyOpen = true; save(); render(); window.scrollTo(0, 0); break;
+      case 'minimize': state.ui.gyOpen = false; save(); render(); break;
+      case 'w-open': { const x = state.gymWorkouts.find(z => z.id === id); if (x) gyOpenWorkout(x); break; }
+      case 'ex': state.ui.gyOpen = false; state.ui.gyView = 'ex:' + id; save(); render(); window.scrollTo(0, 0); break;
+      case 'add-ex': if (w) { GY.q = ''; gyPicker(eid => gyAddExercise(w, eid)); } break;
+      case 'ex-menu': if (w) gyExMenu(w, +b.dataset.i); break;
+      case 'finish': if (w) gyFinish(w); break;
+      case 'discard': if (w) gyDiscard(w); break;
+      case 'rest-add': if (GY.rest) { GY.rest.until += 15000; GY.rest.total += 15000; gyTick(); } break;
+      case 'rest-skip': GY.rest = null; { const r = $('#gy-rest'); if (r) r.remove(); } break;
+      case 'set-add': if (w) { const x = w.ex[+b.dataset.x]; const l = x.sets[x.sets.length - 1] || {}; x.sets.push({ w: l.w, r: l.r, s: l.s, d: l.d }); save(); render(); } break;
+      case 'set-del': if (w) { const x = w.ex[+b.dataset.x]; if (x.sets.length > 1) x.sets.pop(); save(); render(); } break;
+      case 'warm': if (w) { const st = w.ex[+b.dataset.x].sets[+b.dataset.s]; st.warm = !st.warm; if (!st.warm) delete st.warm; save(); render(); } break;
+      case 'tick': if (w) {
+        const x = w.ex[+b.dataset.x], st = x.sets[+b.dataset.s]; st.done = !st.done; if (!st.done) delete st.done;
+        const row = b.closest('.gy-set'); row.classList.toggle('done', !!st.done); b.classList.toggle('on', !!st.done); b.setAttribute('aria-pressed', !!st.done);
+        if (st.done) {
+          vibrate(10); sfx('toggle');
+          if (!reducedMotion()) { row.classList.remove('pop'); void row.offsetWidth; row.classList.add('pop'); }
+          const sec = (x.rest || gyPrefs().rest) * 1000; GY.rest = { until: Date.now() + sec, total: sec };
+          const old = $('#gy-rest'); if (old) old.remove(); const live = $('.gy-live'); if (live) live.insertAdjacentHTML('beforeend', gyRestBar());
+        }
+        // Barra de arriba: series, volumen y músculos al momento
+        const s = GYM.workoutStats(w, state.gymEx), bar = $('.gy-live-bar'); if (bar) bar.innerHTML = `<span>${esc(t('gyNSets', { n: s.sets }))}</span><span>${esc(gyVol(s.volume))}</span><span class="grow"></span>${gyBody(s.muscles)}`;
+        save();
+      } break;
+      default: return false;
+    }
+    return true;
+  }
+  // Escribir pesos y repeticiones sin repintar (para no perder el foco)
+  document.addEventListener('input', e => {
+    const el = e.target; if (!el.matches || state.ui.tab !== 'gym') return;
+    const w = gyLive(); if (!w) return;
+    if (el.matches('[data-gy-name]')) { w.name = el.value.slice(0, 60); gySaveQuiet(); return; }
+    const m = el.dataset.gyIn; if (!m) return;
+    const [xi, si, f] = m.split(':'), st = w.ex[+xi] && w.ex[+xi].sets[+si]; if (!st) return;
+    const v = parseFloat(String(el.value).replace(',', '.'));
+    if (f === 'm') { if (v > 0) st.s = Math.round(v * 60); else delete st.s; }
+    else if (v > 0) st[f] = f === 'r' || f === 's' ? Math.round(v) : Math.round(v * 100) / 100; else delete st[f];
+    gySaveQuiet();
+  });
   // Resumen de horas, turnos y paga del periodo a la vista (v1.24: se puede quitar en Ajustes)
   function tfSummary(range) {
     const r = TF.report(tfData(), range[0], range[1], tfWs(), () => true, null);
@@ -2449,7 +2893,7 @@
      ========================================================= */
   let lastView = null, lastTabIdx = -1;
   // Pestañas: Hábitos y Proyectos (con Gráficos dentro), Libreta y Maestrías
-  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['cal', 'calendar', 'tabCalendar'], ['journal', 'book', 'jrTab'], ['ledger', 'wallet', 'tabLedger'], ['chat', 'chat', 'tabChat'], ['mastery', 'crown', 'tabMastery']];
+  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['cal', 'calendar', 'tabCalendar'], ['journal', 'book', 'jrTab'], ['gym', 'dumbbell', 'gyTab'], ['ledger', 'wallet', 'tabLedger'], ['chat', 'chat', 'tabChat'], ['mastery', 'crown', 'tabMastery']];
   const HVIEWS = [['today', '☀️', 'viewToday'], ['all', '📋', 'viewAll'], ['challenges', '🏁', 'viewChallenges']];
   const habitsView = () => HVIEWS.some(v => v[0] === state.ui.habitsView) ? state.ui.habitsView : 'all';
   const openFolder = () => { const p = state.ui.folder && state.projects.find(x => x.id === state.ui.folder); return p && habitsView() === 'all' ? p : null; };
@@ -2578,6 +3022,7 @@
       case 'chat': return viewChat();
       case 'cal': return viewCal();
       case 'journal': return viewJournal();
+      case 'gym': return viewGym();
       default: return viewHabits();
     }
   }
@@ -4324,7 +4769,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -11344,6 +11789,7 @@
     if (state.ui.tab === 'chat' && chatClick(e)) return;
     if (state.ui.tab === 'ledger' && (calcClick(e) || worthClick(e))) return;
     if (state.ui.tab === 'cal' && tfClick(e)) return;
+    if (state.ui.tab === 'gym' && gymClick(e)) return;
     if ((el = e.target.closest('[data-ledger-day]'))) { state.ui.ledgerDay = el.dataset.ledgerDay; save(); render(); const f = $(`[data-ledger-day="${el.dataset.ledgerDay}"]`); if (f) f.focus(); const p = $('.ledger-day'); if (p && p.getBoundingClientRect().top > innerHeight) p.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); return; }
     if ((el = e.target.closest('[data-pin]'))) { pinKey(el.dataset.pin); return; }
     if (swipeClick(e)) return;
