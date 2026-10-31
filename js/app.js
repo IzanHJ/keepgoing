@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.26.1';
+  const VERSION = '1.27.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -4063,7 +4063,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.27', [['1.27.0', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -4687,6 +4687,8 @@
           acc('data', ico('download'), t('setData'), '', `<p class="muted small" style="margin-top:0">${esc(t('dataHint'))}</p>
             <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button><button class="btn" data-s="report">📄 ${esc(t('reportTitle'))}</button></div>
             <input type="file" id="st-file" accept=".json,application/json" class="hidden">
+            <div class="row wrap" style="margin-top:12px"><button class="btn" data-s="obsidian">${ico('doc')} ${esc(t(state.ledgerVault && !ledgerOpen() ? 'obsBtnNoLedger' : 'obsBtn'))}</button></div>
+            <p class="muted small" style="margin:6px 0 0">${esc(t('obsHint'))}${state.ledgerVault && !ledgerOpen() ? ' ' + esc(t('obsLockedHint')) : ''}</p>
             <div class="row wrap" style="margin-top:14px"><button class="chip" data-s="replay">${ico('refresh')} ${esc(t('replayOnboarding'))}</button><button class="chip" data-s="reset" style="color:#e5484d">${ico('trash')} ${esc(t('resetData'))}</button></div>`)
         ])}
         <p class="muted small center" style="margin:0">KeepGoing · ${esc(t('version', { v: VERSION }))}</p>
@@ -4745,6 +4747,7 @@
           case 'plan-key': close(); openRedeem(); break;
           case 'staff': close(); openStaff(); break;
           case 'export': exportData(); break;
+          case 'obsidian': openObsidianExport(); break;
           case 'report': close(); openReport(); break;
           case 'import': $('#st-file', w).click(); break;
           case 'hw-restore': state.hiddenW = (state.hiddenW || []).filter(k => k !== el.dataset.v); save(); render(); draw(); toast(t('hwRestored')); break;
@@ -4769,6 +4772,140 @@
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     toast(t('exportedOk'));
   }
+  /* ---------- v1.27: «Exportar a Obsidian» (Ajustes → Tus datos) ----------
+     La app prepara los datos (con la Libreta ya descifrada en memoria si está abierta: no se pide la contraseña) y
+     js/obsidian-export.js genera las notas, el CSV y el estado sin la Libreta. Chrome/Edge de escritorio escriben en la
+     bóveda elegida una vez; el resto descarga o comparte un .zip. El texto en claro no se guarda en ningún sitio: solo el
+     identificador de la carpeta y el nombre de la bóveda, en IndexedDB de este dispositivo (no viajan en la sincronización). */
+  const OBS = window.KGObsidian;
+  const obsDrop = () => ['ledgerVault', 'kx', ...LKINDS.map(([, sk]) => sk)];
+  function obsData() {
+    const today = todayKey(), w = OBS.monthWindow(today, 12);
+    const mark = s => (s == null ? 'off' : s >= 1 ? 'done' : s > 0 ? 'part' : 'miss');
+    const habits = state.habits.map(h => {
+      const fk = firstKey(h) || today;
+      return { name: h.name, quit: isQuit(h), freq: h.freq, created: fk, archived: !!h.archived, done: successDays(h), pct: rate(h, Math.max(1, diffDays(fk, today) + 1)), streak: currentStreak(h), best: bestStreak(h), last7: Array.from({ length: 7 }, (_, i) => mark(dayScore(h, addDays(today, i - 6)))) };
+    });
+    const projects = state.projects.map(p => {
+      const s = projectStats(p), g = p.goal || {}, items = g.items || [];
+      return { name: p.name, archived: !!p.archived, goal: { type: g.type, cur: s.cur, target: g.target, unit: g.unit, done: items.filter(i => i.done).length, n: items.length, pct: s.measurable ? s.G : null }, deadline: p.deadline || null, achieved: s.achieved, prob: p.deadline ? s.P : null, score: s.achieved ? 10 : projStatus(p, s), retoLog: p.retoLog || [] };
+    });
+    const jobName = id => (state.calJobs.find(j => j.id === id) || {}).name || '';
+    const work = [...w.full, w.current].map(ym => { const end = ym === w.current ? today : ym + '-' + String(new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate()).padStart(2, '0'), r = TF.report(tfData(), ym + '-01', end, tfWs(), () => true, null); return { ym, hours: r.hours, count: r.count, pay: r.pay }; });
+    const dayKinds = {};
+    for (const k of Object.keys(state.calDayK || {})) { const n = tfDksOf(k).map(tfDkName); if (n.length) dayKinds[k] = n; }
+    const c = state.contract;
+    return {
+      lang: state.lang, today, generatedAt: new Date().toISOString(), cur: ledgerMain(), habits, projects,
+      jobs: state.calJobs.map(j => ({ name: j.name, rate: j.rate, paid: j.paid })), places: state.calPlaces.map(p => ({ name: p.name, addr: p.addr })),
+      shifts: state.calShifts.map(s => ({ name: s.name, start: s.start, end: s.end, job: jobName(s.jobId) })), routines: state.calRoutines.map(r => ({ name: r.name, kind: r.kind, n: tfRtCount(r) })),
+      work, dayKinds, dayRate: state.dayRate, energy: state.energy, reviews: state.reviews,
+      contract: c ? { name: c.name, signedAt: c.signedAt, endsAt: c.endsAt, level: t('commit_' + (c.level || state.commitment)), renewals: c.renewals || 0 } : null
+    };
+  }
+  function obsLedger(open) {
+    const base = { lang: state.lang, today: todayKey(), generatedAt: new Date().toISOString(), cur: ledgerMain(), salaryIds: ['salary'], extraIds: ['extra'] };
+    if (!open) return { ...base, locked: !!state.ledgerVault, entries: [], rawEntries: [], cats: [] };
+    const wd = worthData(), b = wd.base, now = wd.now;
+    const worth = b.set && now ? { set: true, date: now.key, digital: now.digital, cash: now.cash, value: now.value, patrimony: now.patrimony, rates: wd.rates,
+      cur: Object.fromEntries(Object.entries(now.cur || {}).map(([k, x]) => [k, { digital: x.digital, cash: x.cash, off: !!(b.curs[k] || {}).off }])) } : null;
+    const gb = LV.budgets.find(x => x.id === BUD_GLOBAL), nowYm = todayKey().slice(0, 7);
+    let budget = null;
+    if (gb) { const ba = capBudgetAcc(); budget = { from: ba.from, rows: ba.from <= nowYm ? LED.budgetRows(gb, NET(LV.entries), ba.from, nowYm) : [] }; }
+    const eur = ledgerMain() === 'EUR' ? 1 : fxRateNow('EUR');
+    const start = LV.calc.find(x => x.kind === 'start');
+    return {
+      ...base, cats: LV.cats.map(c => ({ id: c.id, name: catName(c) })), entries: NET(LV.entries), rawEntries: LV.entries, eurRate: eur > 0 ? 1 / eur : null,
+      worth, budget,
+      debts: DEBT.list(LV.entries).filter(d => d.status === 'open').map(d => ({ side: d.side, who: whoLabel(d.who), date: d.date, note: d.note, expected: d.expected, paid: d.paid, left: d.left })),
+      projections: [...LV.projs.map(p => ({ name: p.name, items: calcConv(p.items || []) })), ...(start ? [{ name: t('obsCurCalc'), items: calcConv(LV.calc) }] : [])]
+    };
+  }
+  function obsConfirm(open) {
+    const locked = !!state.ledgerVault && !open;
+    return new Promise(res => {
+      let answered = false;
+      openModal({
+        title: `${ico('doc')} ${esc(t('obsBtn'))}`,
+        body: `<p style="margin-top:0">${esc(t(locked ? 'obsConfirmNoLedger' : 'obsConfirm'))}</p>${locked ? `<p class="muted small">${ico('lock', 'xs')} ${esc(t('obsLockedHint'))}</p>` : ''}`,
+        foot: `<button class="btn" data-c="0">${esc(t('cancel'))}</button><button class="btn primary" data-c="1">${ico('download')} ${esc(t('obsExport'))}</button>`,
+        onClick: (e, close) => { const b = e.target.closest('[data-c]'); if (b) { answered = true; close(); res(b.dataset.c === '1'); } },
+        onClose: () => { if (!answered) res(false); }
+      });
+    });
+  }
+  // Primera vez (o tras «Cambiar carpeta»): hay que pulsar un botón para abrir el selector (necesita un gesto)
+  function obsChooseDir() {
+    return new Promise(res => {
+      let done = false;
+      openModal({
+        title: `${ico('folder')} ${esc(t('obsBtn'))}`,
+        body: `<p style="margin-top:0">${esc(t('obsPickHint'))}</p><p class="small" id="obs-err" style="color:#e5484d" hidden></p>`,
+        foot: `<button class="btn" data-o="0">${esc(t('cancel'))}</button><button class="btn primary" data-o="1">${ico('folder')} ${esc(t('obsPick'))}</button>`,
+        onClick: async (e, close, w) => {
+          const b = e.target.closest('[data-o]'); if (!b) return;
+          if (b.dataset.o === '0') { close(); return; }
+          try { const dir = await OBS.pickVault(); done = true; close(); res(dir); }
+          catch (err) { if (err && err.message === 'notVault') { const p = $('#obs-err', w); p.textContent = t('obsNotVault'); p.hidden = false; } }
+        },
+        onClose: () => { if (!done) res(null); }
+      });
+    });
+  }
+  async function obsFinish(n, isZip, list, dirName) {
+    const vault = (await OBS.savedVault()) || dirName || '';
+    let zipUrl = null;
+    const zipName = `keepgoing-obsidian-${todayKey()}.zip`, zipBlob = isZip ? new Blob([OBS.zip(list)], { type: 'application/zip' }) : null;
+    const canShare = () => { try { return isZip && navigator.canShare && navigator.canShare({ files: [new File([zipBlob], zipName, { type: 'application/zip' })] }); } catch (e) { return false; } };
+    openModal({
+      title: `${ico(isZip ? 'download' : 'check')} ${esc(isZip ? t('obsZipTitle') : t('obsDone', { n }))}`,
+      body: `<p style="margin-top:0">${esc(isZip ? t('obsZipFiles', { n }) : t('obsDoneHint'))}</p>${isZip ? `<p><b>${esc(t('obsZipHint'))}</b></p>` : dirName ? `<p class="muted small">${esc(t('obsFolder', { name: dirName }))}</p>` : ''}
+        <label class="field"><span>${esc(t('obsVaultQ'))}</span><input class="input" id="obs-vault" maxlength="120" value="${esc(vault)}" autocomplete="off"></label><p class="muted small" style="margin:6px 0 0">${esc(t('obsVaultHint'))}</p>
+        ${isZip ? `<div class="row wrap" style="margin-top:14px">${canShare() ? `<button class="btn" data-ob="share">${ico('share')} ${esc(t('obsShare'))}</button>` : ''}<button class="btn" data-ob="dl">${ico('download')} ${esc(t('obsDownload'))}</button></div>` : `<div class="row wrap" style="margin-top:14px"><button class="chip" data-ob="change">${ico('folder')} ${esc(t('obsChangeFolder'))}</button></div>`}`,
+      foot: `<button class="btn" data-ob="close">${esc(t('close'))}</button><button class="btn primary" data-ob="open">${ico('link')} ${esc(t('obsOpen'))}</button>`,
+      onClick: async (e, close, w) => {
+        const b = e.target.closest('[data-ob]'); if (!b) return;
+        const a = b.dataset.ob;
+        if (a === 'close') { close(); return; }
+        if (a === 'change') { await OBS.forgetDir(); toast(t('saved')); close(); return; }
+        if (a === 'dl') { if (!zipUrl) zipUrl = URL.createObjectURL(zipBlob); const x = document.createElement('a'); x.href = zipUrl; x.download = zipName; document.body.appendChild(x); x.click(); x.remove(); return; }
+        if (a === 'share') { try { await navigator.share({ files: [new File([zipBlob], zipName, { type: 'application/zip' })], title: 'KeepGoing' }); } catch (err) { /* cancelado */ } return; }
+        if (a === 'open') {
+          const v = $('#obs-vault', w).value.trim();
+          if (!OBS.vaultOk(v)) { $('#obs-vault', w).focus(); return; }
+          await OBS.saveVault(v);
+          const x = document.createElement('a'); x.href = OBS.openUrl(v); x.rel = 'noopener'; document.body.appendChild(x); x.click(); x.remove();
+        }
+      },
+      onClose: () => { if (zipUrl) setTimeout(() => URL.revokeObjectURL(zipUrl), 4000); }
+    });
+  }
+  async function openObsidianExport() {
+    const open = ledgerOpen();
+    if (!(await obsConfirm(open))) return;
+    // Con la carpeta ya guardada, el permiso se pide justo tras pulsar «Exportar» (sigue siendo un gesto del usuario)
+    let dir = null;
+    if (OBS.canPick()) {
+      dir = await OBS.savedDir();
+      if (dir && !(await OBS.permit(dir))) { toast(t('obsNoPerm')); return; }
+    }
+    let list;
+    try { list = OBS.files({ data: obsData(), ledger: obsLedger(open), state, drop: obsDrop() }); }
+    catch (err) { toast(t(err && err.message === 'tooBig' ? 'obsTooBig' : 'obsError')); return; }
+    if (!OBS.canPick()) { obsFinish(list.length, true, list); return; }
+    if (!dir) { dir = await obsChooseDir(); if (!dir) return; }
+    try { const n = await OBS.writeFiles(dir, list); sfx('pop'); obsFinish(n, false, list, dir.name); }
+    catch (err) { toast(t(err && err.message === 'notVault' ? 'obsNotVault' : 'obsError')); }
+  }
+  // Tras guardar la revisión semanal (aviso con «No recordármelo», como los demás)
+  function obsWeeklyAsk() {
+    openModal({
+      title: `${ico('doc')} ${esc(t('pr_obsidianWeekly'))}`,
+      body: `<p style="margin-top:0">${esc(t('obsWeeklyHint'))}</p>${ledgerOpen() || !state.ledgerVault ? '' : `<p class="muted small">${esc(t('obsLockedHint'))}</p>`}${dontRemindHtml()}`,
+      foot: `<button class="btn" data-ow="0">${esc(t('skip'))}</button><button class="btn primary" data-ow="1">${esc(t('obsExport'))}</button>`,
+      onClick: (e, close, w) => { const b = e.target.closest('[data-ow]'); if (!b) return; readDontRemind(w, 'obsidianWeekly'); close(); if (b.dataset.ow === '1') openObsidianExport(); }
+    });
+  }
   function importFile(file, w) {
     const rd = new FileReader();
     rd.onload = async () => {
@@ -4792,7 +4929,7 @@
   const dayLabel = k => { const s = k === todayKey() ? t('today') : k === addDays(todayKey(), -1) ? t('yesterday') : fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }); return s.charAt(0).toUpperCase() + s.slice(1); };
 
   /* ---------- avisos con «No recordármelo» (se gestionan en Ajustes → Avisos y mensajes) ---------- */
-  const PROMPTS = [{ id: 'shieldOffer', icon: '🛡️' }, { id: 'weeklyReview', icon: '📝' }, { id: 'afterPhoto', icon: '📸' }];
+  const PROMPTS = [{ id: 'shieldOffer', icon: '🛡️' }, { id: 'weeklyReview', icon: '📝' }, { id: 'afterPhoto', icon: '📸' }, { id: 'obsidianWeekly', get icon() { return ico('doc'); } }];
   const promptOn = id => !(state.prompts[id] && state.prompts[id].off);
   const dontRemindHtml = () => `<label class="check small" style="margin-top:16px;justify-content:center"><input type="checkbox" id="pr-off"> ${esc(t('dontRemind'))}</label>`;
   function readDontRemind(w, id) {
@@ -8627,6 +8764,7 @@
         if (b.dataset.rv === 'skip') { if (auto) { state.ui.reviewSkip = week; save(); } close(); return; }
         state.reviews[week] = { good: $('#rv-good', w).value.trim(), adjust: $('#rv-adj', w).value.trim(), score: +$('#rv-score', w).value, date: todayKey() };
         save(); close(); toast(t('saved')); if (state.ui.tab === 'habits' && habitsView() === 'today') render();
+        if (auto && promptOn('obsidianWeekly')) setTimeout(obsWeeklyAsk, 450); // v1.27
       }
     });
   }
