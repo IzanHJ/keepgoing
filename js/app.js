@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.33.0';
+  const VERSION = '1.34.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -181,7 +181,23 @@
     compare: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/><path d="M14 6l3-2 3 2" stroke-dasharray="2 2"/>',
     split: '<path d="M6 3v6a6 6 0 0 0 6 6h0a6 6 0 0 1 6 6M18 3v6a6 6 0 0 1-3 5.2M6 21v0"/><path d="M3 6l3-3 3 3M15 6l3-3 3 3"/>',
     branch: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/>',
-    link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1-1"/>'
+    link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1-1"/>',
+    // v1.34: iconos que sustituyen a los emoji de la interfaz
+    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+    star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
+    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/>',
+    bolt: '<path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z"/>',
+    box: '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5zM3.5 7.5L12 12l8.5-4.5M12 12v9"/>',
+    beach: '<path d="M4 20h16M12 20l-3-11"/><path d="M3.5 10.5C5 5 12 3 16.5 7.5c-3-.5-5.5.5-7.5 2-2-1.5-3.8-1.6-5.5 1z"/>',
+    medal: '<circle cx="12" cy="15" r="5.5"/><path d="M8.5 10.5L5.5 3h4l2.5 6M15.5 10.5l3-7.5h-4L12 9"/>',
+    bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+    inbox: '<path d="M3 13l2.5-8h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM3 13h5l1.5 2.5h5L16 13h5"/>',
+    vote: '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V5l6-2 2 8M8 15h8"/>',
+    live: '<circle cx="12" cy="12" r="3.5" fill="currentColor"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/>',
+    party: '<path d="M4 20l4.5-12.5 8 8z"/><path d="M14 4v2M19 9h2M17.5 5.5l1.5-1.5M11 6.5c1-1 1-2.5 0-3.5M17.5 13c1-1 2.5-1 3.5 0"/>',
   };
   // v1.27: data-i = nombre del icono, para su micro animación propia al pasar el cursor o tocarlo
   const ico = (n, cls = '') => `<svg class="i ${cls}" data-i="${n}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -3008,7 +3024,7 @@
   let lastView = null, lastTabIdx = -1;
   // Pestañas: Hábitos y Proyectos (con Gráficos dentro), Libreta y Maestrías
   const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['cal', 'calendar', 'tabCalendar'], ['journal', 'book', 'jrTab'], ['gym', 'dumbbell', 'gyTab'], ['ledger', 'wallet', 'tabLedger'], ['chat', 'chat', 'tabChat'], ['mastery', 'crown', 'tabMastery']];
-  const HVIEWS = [['today', '☀️', 'viewToday'], ['all', '📋', 'viewAll'], ['challenges', '🏁', 'viewChallenges']];
+  const HVIEWS = [['today', 'sun', 'viewToday'], ['all', 'checklist', 'viewAll'], ['challenges', 'flag', 'viewChallenges']];
   const habitsView = () => HVIEWS.some(v => v[0] === state.ui.habitsView) ? state.ui.habitsView : 'all';
   const openFolder = () => { const p = state.ui.folder && state.projects.find(x => x.id === state.ui.folder); return p && habitsView() === 'all' ? p : null; };
   // Posición de la vista (pestaña y subvista) para saber hacia qué lado se desliza al cambiar
@@ -3060,6 +3076,7 @@
       <div class="orb-veil" data-orb="veil" aria-hidden="true"></div><div class="orb-arc" aria-hidden="true"></div>
       ${TABS.map(([id, ic, key], i) => `<button class="moon ${i === cur ? 'cur' : ''}" data-act="go" data-tab="${id}" style="--i:${i}" tabindex="${ORB.open ? 0 : -1}" ${i === cur ? 'aria-current="page"' : ''} aria-label="${esc(t(key))}">${ico(ic)}<span class="moon-l">${esc(t(key))}</span></button>`).join('')}
       <span class="orb-mini" aria-hidden="true"><i>${ico(TABS[cur][1])}</i></span>
+      <div class="orb-talk" id="orb-talk" role="status" aria-live="polite" data-orb="talk"></div>
       <button class="orb" id="orb" aria-expanded="${ORB.open}" aria-haspopup="true" aria-label="${esc(t('orbAria', { tab: t(TABS[cur][2]) }))}" title="${esc(t('orbAria', { tab: t(TABS[cur][2]) }))}">${KG_LOGO()}</button>
     </nav>`;
   }
@@ -3069,6 +3086,61 @@
     n.classList.toggle('open', open); $('#orb', n).setAttribute('aria-expanded', open);
     $$('.moon', n).forEach((m, i) => { m.tabIndex = open ? 0 : -1; m.classList.toggle('hot', i === ORB.hot); });
     document.body.classList.toggle('orb-open', open);
+    orbTalk(open);
+  }
+  /* v1.34: «todo en un toque». Al abrirse, el orbe sube al centro, crece y habla: un bocadillo que va pasando por
+     el resumen de hoy, un poco de ánimo y un «¿sabías que?» sacado de tus datos. Tocar el bocadillo pasa al siguiente. */
+  const ORBT = { i: 0, list: [], timer: null };
+  function orbTalkList() {
+    const out = [], today = todayKey(), di = dayInfo(today);
+    const H = state.habits.filter(h => !h.archived && !isQuit(h));
+    const due = H.filter(h => todayStatus(h).due), done = due.filter(h => todayStatus(h).done);
+    if (due.length) out.push(['today', t(done.length === due.length ? 'orbAllDone' : 'orbTodaySum', { d: done.length, t: due.length })]);
+    orbMessages().slice(0, 3).forEach(m => out.push(['today', m]));
+    const mot = String(t('orbMotiv')).split('|').filter(Boolean);
+    if (mot.length) out.push(['go', mot[Math.floor(Math.random() * mot.length)]]);
+    const know = orbKnow();
+    if (know.length) out.push(['know', know[Math.floor(Math.random() * know.length)]]);
+    // Orden: resumen, ánimo, dato; si hay más de hoy se intercalan
+    const pick = k => out.filter(x => x[0] === k);
+    const T = pick('today'), G = pick('go'), K = pick('know'), res = [];
+    if (T[0]) res.push(T[0]); if (G[0]) res.push(G[0]); if (K[0]) res.push(K[0]); res.push(...T.slice(1));
+    if (di.perfect && di.due) res.unshift(['today', t('petPerfect')]);
+    return res.length ? res : [['go', mot[0] || '']];
+  }
+  // Datos curiosos con tus propios registros (solo los que tienen sentido con lo que hay)
+  function orbKnow() {
+    const out = [], today = todayKey(), H = state.habits.filter(h => !isQuit(h));
+    const from = addDays(today, -89), wd = [0, 0, 0, 0, 0, 0, 0], wdN = [0, 0, 0, 0, 0, 0, 0];
+    for (let i = 0; i < 90; i++) { const k = addDays(from, i); if (k >= today) break; H.filter(h => h.freq === 'daily').forEach(h => { const sc = dayScore(h, k); if (sc != null) { wdN[wdOf(k)]++; wd[wdOf(k)] += sc; } }); }
+    let bi = -1, bv = 0; wd.forEach((v, i) => { if (wdN[i] >= 3 && v / wdN[i] > bv) { bv = v / wdN[i]; bi = i; } });
+    if (bi >= 0 && bv > 0) out.push(t('knowWeekday', { d: String(t('weekdaysLong')).split(',')[bi], p: Math.round(bv * 100) }));
+    const ls = lifeStats();
+    if (ls.entries >= 5) out.push(t('knowEntries', { n: ls.entries, d: fmtDate(ls.since, { day: 'numeric', month: 'long' }) }));
+    const best = H.map(h => [h, bestStreak(h)]).sort((a, b) => b[1] - a[1])[0];
+    if (best && best[1] >= 3) out.push(t('knowBest', { n: best[1], h: best[0].name }));
+    if (ls.perfect >= 1) out.push(t('knowPerfect', { n: ls.perfect }));
+    if (ls.activeDays >= 7) out.push(t('knowActive', { n: ls.activeDays }));
+    const rs = []; for (let i = 1; i <= 7; i++) { const v = dayRateOf(addDays(today, -i)); if (v != null) rs.push(v); }
+    if (rs.length >= 2) out.push(t('knowRate', { v: fmtNum(Math.round(rs.reduce((a, b) => a + b, 0) / rs.length * 10) / 10) }));
+    const gm = (state.gymWorkouts || []).filter(w => w.status === 'done' && w.date && w.date.slice(0, 7) === today.slice(0, 7)).length;
+    if (gm >= 1) out.push(t('knowGym', { n: gm }));
+    return out;
+  }
+  function orbTalkShow(i) {
+    const b = $('#orb-talk'); if (!b || !ORBT.list.length) return;
+    ORBT.i = (i + ORBT.list.length) % ORBT.list.length;
+    const [k, txt] = ORBT.list[ORBT.i], ic = { today: 'calendar', go: 'flame', know: 'sparkle' }[k] || 'sparkle';
+    b.innerHTML = `<div class="ot-in" data-k="${k}"><span class="ot-k">${ico(ic)}${esc(t({ today: 'orbKToday', go: 'orbKGo', know: 'orbKKnow' }[k]))}</span><p>${esc(txt)}</p>
+      <span class="ot-dots">${ORBT.list.map((_, j) => `<i class="${j === ORBT.i ? 'on' : ''}"></i>`).join('')}</span></div>`;
+  }
+  function orbTalk(open) {
+    clearInterval(ORBT.timer); ORBT.timer = null;
+    const b = $('#orb-talk'); if (!b) return;
+    if (!open) return;
+    try { ORBT.list = orbTalkList(); } catch (err) { ORBT.list = []; }
+    orbTalkShow(0);
+    ORBT.timer = setInterval(() => { if (!ORB.open) { clearInterval(ORBT.timer); return; } orbTalkShow(ORBT.i + 1); }, 5200);
   }
   function orbGo(i) {
     const tab = TABS[i]; if (!tab) return;
@@ -3110,6 +3182,7 @@
     };
     document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
     document.addEventListener('click', e => {
+      if (e.target.closest && e.target.closest('[data-orb="talk"]')) { if (ORB.open) { clearInterval(ORBT.timer); ORBT.timer = setInterval(() => ORB.open ? orbTalkShow(ORBT.i + 1) : clearInterval(ORBT.timer), 5200); orbTalkShow(ORBT.i + 1); vibrate(6); } return; }
       if (e.target.closest && e.target.closest('[data-orb="veil"]')) { orbSet(false); return; }
       if (ORB.open && e.target.closest && e.target.closest('#orb-nav .moon')) { ORB.open = false; document.body.classList.remove('orb-open'); }
     }, true);
@@ -3184,29 +3257,29 @@
     if (!folder && state.ui.folder) state.ui.folder = null;
     html += `<h1 class="page-title">${esc(t('tabHabitsProjects'))}</h1>`;
     if (!active.length && !arch.length && !state.projects.length) {
-      return html + contractBanner() + emptyState('checklist', t('habitsEmptyTitle'), t('habitsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button><button class="btn" data-act="packs">📦 ${esc(t('fromTemplate'))}</button><button class="btn" data-act="proj-new">${ico('target')} ${esc(t('newProject'))}</button></div>`);
+      return html + contractBanner() + emptyState('checklist', t('habitsEmptyTitle'), t('habitsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button><button class="btn" data-act="packs">${ico('box')} ${esc(t('fromTemplate'))}</button><button class="btn" data-act="proj-new">${ico('target')} ${esc(t('newProject'))}</button></div>`);
     }
     const view = habitsView();
-    html += `<div class="seg view-seg" role="tablist">${HVIEWS.map(([v, e, k]) => `<button data-act="hview" data-v="${v}" role="tab" aria-selected="${view === v}" class="${view === v ? 'on' : ''}"><span class="vi">${e}</span> ${esc(t(k))}</button>`).join('')}</div>`;
+    html += `<div class="seg view-seg" role="tablist">${HVIEWS.map(([v, e, k]) => `<button data-act="hview" data-v="${v}" role="tab" aria-selected="${view === v}" class="${view === v ? 'on' : ''}"><span class="vi">${ico(e)}</span> ${esc(t(k))}</button>`).join('')}</div>`;
     if (view === 'today') return html + contractBanner() + viewToday(active);
     const grid = list => `<div class="habit-grid" id="habit-grid">${list.map(habitCard).join('')}</div>${list.length > 1 ? `<p class="grid-hint">${esc(t('dragHint'))}</p>` : ''}`;
     if (view === 'challenges') {
       const on = active.filter(h => h.challenge && !h.challenge.done), done = active.filter(h => h.challenge && h.challenge.done);
       const pr = activeProjects().filter(p => p.deadline);
-      if (pr.length) html += `<h2 class="section-title" style="margin:0 0 14px">🎯 ${esc(t('retoProjects'))}</h2><div class="habit-grid" style="margin-bottom:24px">${pr.map(folderCard).join('')}</div>`;
-      if (pr.length && on.length) html += `<h2 class="section-title" style="margin:0 0 14px">📋 ${esc(t('retoHabits'))}</h2>`;
+      if (pr.length) html += `<h2 class="section-title" style="margin:0 0 14px">${ico('target')} ${esc(t('retoProjects'))}</h2><div class="habit-grid" style="margin-bottom:24px">${pr.map(folderCard).join('')}</div>`;
+      if (pr.length && on.length) html += `<h2 class="section-title" style="margin:0 0 14px">${ico('checklist')} ${esc(t('retoHabits'))}</h2>`;
       html += on.length ? grid(on) : pr.length ? '' : emptyState('target', t('challengesEmpty'), t('challengesEmptySub'), '');
-      if (done.length) html += `<h2 class="section-title" style="margin-top:24px">🏆 ${esc(t('challengesDone'))}</h2><div class="habit-grid">${done.map(habitCard).join('')}</div>`;
+      if (done.length) html += `<h2 class="section-title" style="margin-top:24px">${ico('trophy')} ${esc(t('challengesDone'))}</h2><div class="habit-grid">${done.map(habitCard).join('')}</div>`;
       return html;
     }
     if (folder) return html + folderViewHtml(folder);
     html += contractBanner();
-    if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span><button class="chip" data-act="vacations">${esc(t('edit'))}</button></div>`;
+    if (activeVacation()) html += `<div class="banner clay">${ico('beach')}<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span><button class="chip" data-act="vacations">${esc(t('edit'))}</button></div>`;
     const inF = folderedIds(), folders = activeProjects(), loose = active.filter(h => !inF.has(h.id));
     html += `<div class="habit-grid" id="habit-grid">${folders.map(folderCard).join('')}${loose.map(habitCard).join('')}</div>`;
     if (loose.length || folders.length) html += `<p class="grid-hint">${esc(t('tapHint'))}<br>${esc(t('folderHint'))}</p>`;
     const finished = state.projects.filter(p => !folders.includes(p));
-    if (finished.length) html += `<h2 class="section-title" style="margin:28px 0 14px;font-size:22px">🏆 ${esc(t('finishedProjects'))}</h2><div class="proj-grid">${finished.map(finishedCard).join('')}</div>`;
+    if (finished.length) html += `<h2 class="section-title" style="margin:28px 0 14px;font-size:22px">${ico('trophy')} ${esc(t('finishedProjects'))}</h2><div class="proj-grid">${finished.map(finishedCard).join('')}</div>`;
     if (arch.length) {
       html += `<div class="center" style="margin-top:22px"><button class="chip" data-act="toggle-archived">${ico('archive')} ${esc(state.ui.showArchived ? t('hideArchived') : t('showArchived', { n: arch.length }))}</button></div>`;
       if (state.ui.showArchived) html += `<div class="habit-grid archived-list" style="margin-top:18px">${arch.map(habitCard).join('')}</div>`;
@@ -3246,7 +3319,7 @@
       <button class="folder-main" data-act="folder-open" data-id="${p.id}" aria-label="${esc(t('folderOpen', { name: p.name }))}">
         <span class="folder-tab" aria-hidden="true"></span>
         <span class="folder-head"><span class="folder-ico">${esc(p.icon || '📁')}</span>${statusBadge(p, s)}</span>
-        <h3>${esc(p.name)}${p.groupId ? ' 👥' : ''}</h3>
+        <h3>${esc(p.name)}${p.groupId ? ' ' + ico('users') : ''}</h3>
         <span class="muted small folder-sub">${esc(s.achieved ? t('achieved') : deadlineText(p, s))}${hs.length ? ' · ' + esc(t('folderCount', { n: hs.length })) : ''}${due.length ? ' · ' + esc(t('folderToday', { a: done, b: due.length })) : ''}</span>
       </button>
       <div class="folder-minis">${minis || `<span class="muted small">${esc(t('folderEmpty'))}</span>`}</div>
@@ -3293,8 +3366,8 @@
       meta.push(`<span class="tag-quit">${esc(t('kindQuit'))}</span>`);
       meta.push(esc(streak === 1 ? t('quitDay1') : t('quitDays', { n: streak })));
       if (best > streak) meta.push(esc(t('bestStreak')) + ' ' + best);
-      if (h.challenge && !h.challenge.done) meta.push(`🏁 ${challengeProgress(h)}/${h.challenge.days}`);
-      if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">👥</span>`);
+      if (h.challenge && !h.challenge.done) meta.push(`${ico('flag')} ${challengeProgress(h)}/${h.challenge.days}`);
+      if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">${ico('users')}</span>`);
       const ring = `<button class="ring quit ${slip ? 'slipped' : 'full'}" data-ring="${h.id}" aria-label="${esc(t('relapse'))}"><svg viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="23" fill="none" stroke="var(--h)" stroke-opacity=".4" stroke-width="3.5"/></svg><span class="ring-in">${slip ? ico('x') : streak}</span></button>`;
       return cardShell(h, c, meta, ring);
     }
@@ -3306,11 +3379,11 @@
       if (h.freq === 'monthly') meta.push(esc(t('thisMonth', { a: sum, b: h.target })));
     }
     if (streak) meta.push(`<span class="flame">${ico('flame')}</span>${streak}`);
-    const sh = shieldInfo(h).available; if (sh) meta.push(`🛡️${sh}`);
-    if (h.challenge && !h.challenge.done) meta.push(`🏁 ${challengeProgress(h)}/${h.challenge.days}`);
-    if (h.reminder && h.reminder.on) meta.push(`🔔${esc(h.reminder.time)}`);
-    if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">👥</span>`);
-    if (inFolders > 1) meta.push(`📁${inFolders}`);
+    const sh = shieldInfo(h).available; if (sh) meta.push(`${ico('shield')}${sh}`);
+    if (h.challenge && !h.challenge.done) meta.push(`${ico('flag')} ${challengeProgress(h)}/${h.challenge.days}`);
+    if (h.reminder && h.reminder.on) meta.push(`${ico('bell')}${esc(h.reminder.time)}`);
+    if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">${ico('users')}</span>`);
+    if (inFolders > 1) meta.push(`${ico('folder')}${inFolders}`);
     // En hábitos con cantidad, el anillo muestra el porcentaje del objetivo
     const ring = isAmount(h)
       ? ringHtml(Math.min(sum, h.target), h.target, `data-ring="${h.id}" aria-label="${esc(t('today'))}: ${fmtNum(sum)}/${fmtNum(h.target)}"`).replace(/<span class="ring-in">.*<\/span><\/button>$/, `<span class="ring-in" style="font-size:12px">${sum >= h.target ? ico('check') : Math.round(sum / h.target * 100) + '%'}</span></button>`)
@@ -3566,13 +3639,13 @@
         <label class="field"><span>⏱ ${esc(t('habitDuration'))}</span><input class="input" id="hf-dur" type="number" min="0" max="600" inputmode="numeric" value="${f.duration || ''}" placeholder="${esc(t('habitDurationPh'))}" style="max-width:200px"></label>
         </div>
         <div class="field"><span>${esc(t('timeOfDay'))}</span><div class="seg" style="flex-wrap:wrap">${TOD.map(x => `<button type="button" data-tod="${x}" class="${f.timeOfDay === x ? 'on' : ''}">${TOD_ICON[x]} ${esc(t('tod_' + x))}</button>`).join('')}</div></div>
-        <label class="field"><span>🏁 ${esc(t('habitChallenge'))}</span><input class="input" id="hf-ch" type="number" min="0" max="1000" inputmode="numeric" value="${f.chDays || ''}" placeholder="${esc(t('habitChallengePh'))}" style="max-width:200px">
+        <label class="field"><span>${ico('flag')} ${esc(t('habitChallenge'))}</span><input class="input" id="hf-ch" type="number" min="0" max="1000" inputmode="numeric" value="${f.chDays || ''}" placeholder="${esc(t('habitChallengePh'))}" style="max-width:200px">
           ${h && h.challenge && !h.challenge.done ? `<span class="muted small">${esc(t('challengeProgressTxt', { a: challengeProgress(h), b: h.challenge.days, d: fmtShort(h.challenge.start) }))}</span>` : ''}</label>
-        ${!quit ? `<div class="field"><span>🔔 ${esc(t('remindTitle'))}</span>
+        ${!quit ? `<div class="field"><span>${ico('bell')} ${esc(t('remindTitle'))}</span>
           <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-rem" ${f.remOn ? 'checked' : ''}><span></span></span><span class="grow muted small">${esc(t('remindHint'))}</span></label>
           <input class="input ${f.remOn ? '' : 'hidden'}" id="hf-rem-time" type="time" value="${esc(f.remTime)}" style="max-width:160px"></div>` : ''}
-        ${h && h.groupId ? `<button type="button" class="chip" data-hm="group">👥 ${esc(t('groupOpen'))}</button>`
-          : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareWithFriendsHint' : 'groupNeedLogin'))}</span></span></label>`}
+        ${h && h.groupId ? `<button type="button" class="chip" data-hm="group">${ico('users')} ${esc(t('groupOpen'))}</button>`
+          : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>${ico('users')} ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareWithFriendsHint' : 'groupNeedLogin'))}</span></span></label>`}
         ${projList().length ? `<div class="field"><span>${ico('folder', 'xs')} ${esc(t('hProjects'))}</span><div class="row wrap" style="gap:6px">${projList().map(p => `<button type="button" class="calc-toggle ${f.projs.includes(p.id) ? 'on' : ''}" data-hproj="${esc(p.id)}" aria-pressed="${f.projs.includes(p.id)}">${esc(p.icon || '')} ${esc(p.name)}</button>`).join('')}</div><div class="muted small">${esc(t('hProjectsHint'))}</div></div>` : ''}
         <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-hidecal" ${f.hideCal ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('hideCal'))}</b><br><span class="muted small">${esc(t('hideCalHint'))}</span></span></label>
         ${!isNew && !quit ? `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-cont" ${f.cont ? 'checked' : ''}><span></span></span><span class="grow"><b>${ico('branch', 'xs')} ${esc(t('contTitle'))}</b><br><span class="muted small">${esc(t('contHint'))}</span></span></label>` : ''}
@@ -3581,7 +3654,7 @@
           <button type="button" class="chip" data-hm="up">${ico('up')} ${esc(t('moveUp'))}</button>
           <button type="button" class="chip" data-hm="down">${ico('down')} ${esc(t('moveDown'))}</button>
           <button type="button" class="chip" data-hm="archive">${ico('archive')} ${esc(h.archived ? t('unarchive') : t('archive'))}</button>
-          ${!quit ? `<button type="button" class="chip" data-hm="link">🔗 ${esc(t('shortcutLink'))}</button>` : ''}
+          ${!quit ? `<button type="button" class="chip" data-hm="link">${ico('link')} ${esc(t('shortcutLink'))}</button>` : ''}
           <button type="button" class="chip" data-hm="delete" style="color:#e5484d">${ico('trash')} ${esc(t('delete'))}</button>
         </div>` : ''}
       </div>`;
@@ -3647,7 +3720,7 @@
           if (act === 'link') {
             const url = `${APP_URL}?check=${h.id}`;
             openModal({
-              title: `🔗 ${esc(t('shortcutLink'))}`,
+              title: `${ico('link')} ${esc(t('shortcutLink'))}`,
               body: `<p class="muted" style="margin-top:0">${esc(t('shortcutHelp'))}</p><input class="input" readonly value="${esc(url)}" id="sc-url"><ol class="small muted" style="padding-left:18px;line-height:1.6">${t('shortcutSteps').split('|').map(s => `<li>${esc(s)}</li>`).join('')}</ol>`,
               foot: `<button class="btn primary block" data-m="copy">${esc(t('copy'))}</button>`,
               onClick: async (ev, cl, ww) => { if (ev.target.closest('[data-m="copy"]')) { try { await navigator.clipboard.writeText(url); toast(t('copied')); } catch (err) { $('#sc-url', ww).select(); } } }
@@ -3802,7 +3875,7 @@
       const sh = shieldInfo(h), shielded = isShielded(h, k);
       const canShield = shielded || (k < todayKey() && periodState(h, k) === 'miss' && sh.available > 0);
       return `<div class="row wrap" style="justify-content:center;margin-top:16px"><button class="chip ${isRest(h, k) ? 'on' : ''}" data-m="rest">${ico('calendar')} ${esc(isRest(h, k) ? t('restDayOn') : t('restDay'))}</button>
-        ${canShield ? `<button class="chip ${shielded ? 'on' : ''}" data-m="shield">🛡️ ${esc(shielded ? t('shieldRemove') : t('shieldUseN', { n: sh.available }))}</button>` : ''}</div>
+        ${canShield ? `<button class="chip ${shielded ? 'on' : ''}" data-m="shield">${ico('shield')} ${esc(shielded ? t('shieldRemove') : t('shieldUseN', { n: sh.available }))}</button>` : ''}</div>
         <div class="muted small" style="margin-top:6px">${esc(t('restHint'))}</div>`;
     };
     const body = () => `<div class="center" style="--h:${hColor(h)}">
@@ -3916,17 +3989,17 @@
     retoAsking = true;
     const from = p.retoFrom || p.createdAt || today, to = p.deadline, days = Math.max(1, diffDays(from, to));
     whenFree(() => openModal({
-      title: `🏁 ${esc(t('retoEndTitle'))}`, dismissable: false,
+      title: `${ico('flag')} ${esc(t('retoEndTitle'))}`, dismissable: false,
       body: `<div class="center"><div style="font-size:52px">${esc(p.icon || '🎯')}</div><h2 style="margin:6px 0">${esc(p.name)}</h2>
         <p class="muted" style="margin:0 0 14px">${esc(t('retoEndSub', { from: fmtDate(from), to: fmtDate(to) }))}</p><p style="margin:0"><b>${esc(t('retoEndQ'))}</b></p></div>`,
-      foot: `<button class="btn" data-r="0">❌ ${esc(t('retoNo'))}</button><button class="btn primary" data-r="1">🏆 ${esc(t('retoYes'))}</button>`,
+      foot: `<button class="btn" data-r="0">${ico('x')} ${esc(t('retoNo'))}</button><button class="btn primary" data-r="1">🏆 ${esc(t('retoYes'))}</button>`,
       onClick: (e, close) => {
         const b = e.target.closest('[data-r]'); if (!b) return;
         const ok = b.dataset.r === '1';
         p.retoLog = [...(p.retoLog || []), { from, to, ok, at: today }]; p.deadline = null; p.retoFrom = null; save(); close();
         sfx(ok ? 'levelup' : 'undo'); vibrate(ok ? [20, 40, 20] : 15);
         setTimeout(() => openModal({
-          title: `🔁 ${esc(t('retoRepeatQ'))}`,
+          title: `${ico('repeat')} ${esc(t('retoRepeatQ'))}`,
           body: `<p class="muted" style="margin-top:0">${esc(t(ok ? 'retoWellDone' : 'retoNextTime'))} ${esc(t('retoRepeatSub', { n: days }))}</p>`,
           foot: `<button class="btn" data-x="0">${esc(t('retoRepeatNo'))}</button><button class="btn primary" data-x="1">${esc(t('retoRepeatYes', { n: days }))}</button>`,
           onClick: (e2, close2) => { const x = e2.target.closest('[data-x]'); if (!x) return; if (x.dataset.x === '1') { p.retoFrom = today; p.deadline = addDays(today, days); save(); toast(t('retoRepeated', { date: fmtDate(p.deadline) })); } close2(); },
@@ -3980,11 +4053,11 @@
           <div class="row"><input class="input" id="pf-item" maxlength="80" placeholder="${esc(t('goalItemPh'))}"><button type="button" class="btn" data-add-item>${esc(t('addItem'))}</button></div>
         </div>` : ''}
         <div class="field reto-field ${f.deadline ? 'on' : ''}">
-          <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-dl ${f.deadline ? 'checked' : ''}><span></span></span><span class="grow"><b>🏁 ${esc(t('retoMake'))}</b><br><span class="muted small">${esc(t('retoMakeHint'))}</span></span></label>
+          <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-dl ${f.deadline ? 'checked' : ''}><span></span></span><span class="grow"><b>${ico('flag')} ${esc(t('retoMake'))}</b><br><span class="muted small">${esc(t('retoMakeHint'))}</span></span></label>
           ${f.deadline ? `<div class="row wrap" style="gap:8px;margin-top:10px">${[[7, 'retoWeek'], [30, 'retoMonth'], [90, 'reto3Months']].map(([d, k]) => `<button type="button" class="chip ${f.deadline === addDays(f.retoFrom || todayKey(), d) ? 'on' : ''}" data-reto-days="${d}">${esc(t(k))}</button>`).join('')}</div>
             <label class="field" style="margin-top:10px"><span>${esc(t('retoEnds'))}</span><input class="input" id="pf-deadline" type="date" min="${addDays(todayKey(), 1)}" value="${f.deadline}"></label>` : ''}
         </div>
-        <div class="field"><span>🚩 ${esc(t('milestones'))}</span>
+        <div class="field"><span>${ico('flag')} ${esc(t('milestones'))}</span>
           <div class="muted small">${esc(t('milestonesHint'))}</div>
           <div>${[...f.milestones].sort((a, b) => (a.date || '9999') < (b.date || '9999') ? -1 : 1).map(m => `<div class="check-item"><span class="grow">${esc(m.text)} <span class="muted small">${m.date ? '· ' + esc(fmtShort(m.date)) : ''}</span></span><button type="button" class="icon-btn sm" data-del-ms="${m.id}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('')}</div>
           <div class="row wrap"><input class="input" id="pf-ms" maxlength="80" placeholder="${esc(t('milestonePh'))}" style="flex:1 1 180px"><input class="input" id="pf-ms-date" type="date" style="width:170px"><button type="button" class="btn" data-add-ms>${esc(t('addItem'))}</button></div>
@@ -3994,7 +4067,7 @@
           <div class="sug-list" style="margin-top:6px">${avail.length ? avail.map(h => `<button type="button" class="chip ${f.habitIds.includes(h.id) ? 'on' : ''}" data-link="${h.id}">${esc(h.icon)} ${esc(h.name)}</button>`).join('') : `<span class="muted small">${esc(t('noHabitsYet'))}</span>`}</div>
         </div>
         <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-hidecal" ${f.hideCal ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('hideCal'))}</b><br><span class="muted small">${esc(t('hideCalHintP'))}</span></span></label>
-        ${f.groupId ? '' : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>👥 ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareProjectHint' : 'groupNeedLogin'))}</span></span></label>`}
+        ${f.groupId ? '' : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-share" ${f.share ? 'checked' : ''}><span></span></span><span class="grow"><b>${ico('users')} ${esc(t('shareWithFriends'))}</b><br><span class="muted small">${esc(t(auth ? 'shareProjectHint' : 'groupNeedLogin'))}</span></span></label>`}
       </div>`;
     };
     const readInputs = w => {
@@ -4060,7 +4133,7 @@
           </div>
           <div class="bar ${s.G ? '' : 'zero'}" style="margin:14px 0"><i style="width:${Math.round(s.G * 100)}%"></i></div>
           <div class="row"><input class="input" id="pd-val" type="number" step="any" inputmode="decimal" placeholder="${esc(t('logValue'))}"><button class="btn primary" data-pd="log">${esc(t('add'))}</button></div>
-          ${g.entries.length ? `<div style="margin-top:16px">${lineChart([{ k: p.createdAt, v: g.start }, ...g.entries.map(e => ({ k: e.d, v: e.v }))].map(e => ({ label: fmtDate(e.k, { day: 'numeric', month: 'short' }), v: e.v, tip: `${fmtNum(e.v)} ${g.unit}`, sub: fmtDate(e.k) })), { min: null, max: null, target: g.target, fmt: v => fmtNum(v), markers: true })}</div>` : ''}
+          ${g.entries.length ? `<div style="margin-top:16px">${goalTrail(g, p.createdAt)}</div>` : ''}
           <h4 style="margin:16px 0 6px">${esc(t('history'))}</h4>
           ${entries.length ? entries.slice(0, 8).map(e => `<div class="entry"><span class="muted">${esc(fmtDate(e.d))}</span><span><b>${fmtNum(e.v)} ${esc(g.unit)}</b> <button class="icon-btn sm" style="width:30px;height:30px;margin-left:8px" data-pd="del-entry" data-d="${e.d}" aria-label="${esc(t('delete'))}">${ico('x')}</button></span></div>`).join('') : `<div class="muted small">${esc(t('noEntries'))}</div>`}`;
       } else if (g.type === 'checklist') {
@@ -4072,11 +4145,11 @@
       const factor = (label, v, txt) => `<div class="factor"><span>${esc(label)}</span><b>${txt ?? (v == null ? '—' : Math.round(v * 100) + '%')}</b><div class="bar ${v ? '' : 'zero'}"><i style="width:${v == null ? 0 : Math.round(clamp(v, 0, 1) * 100)}%"></i></div></div>`;
       const body = `<div class="stack" style="gap:16px">
         ${p.desc ? `<p class="muted" style="margin:0">${esc(p.desc)}</p>` : ''}
-        <div class="row wrap small" style="font-weight:var(--fw-label)">🏁 <span>${esc(p.deadline ? t('retoUntil', { date: fmtDate(p.deadline) }) + ' · ' + deadlineText(p, s) : t('noReto'))}</span>${(p.retoLog || []).length ? `<span class="muted">· ${esc(t('retoRecord', { ok: p.retoLog.filter(r => r.ok).length, n: p.retoLog.length }))}</span>` : ''}</div>
+        <div class="row wrap small" style="font-weight:var(--fw-label)">${ico('flag')} <span>${esc(p.deadline ? t('retoUntil', { date: fmtDate(p.deadline) }) + ' · ' + deadlineText(p, s) : t('noReto'))}</span>${(p.retoLog || []).length ? `<span class="muted">· ${esc(t('retoRecord', { ok: p.retoLog.filter(r => r.ok).length, n: p.retoLog.length }))}</span>` : ''}</div>
         <section class="clay card"><h3 class="section-title">${esc(t('goal'))}${g.type === 'numeric' && g.unit ? ` <span class="muted small">(${esc(g.unit)})</span>` : ''}</h3>${goalHtml}</section>
-        ${!p.deadline && !s.achieved ? `<section class="clay card"><h3 class="section-title">📊 ${esc(t('statusLabel'))}</h3>
+        ${!p.deadline && !s.achieved ? `<section class="clay card"><h3 class="section-title">${ico('chart')} ${esc(t('statusLabel'))}</h3>
           <div class="gauge">${donut(projStatus(p, s) * 10)}<div class="grow"><div class="gauge-num">${projStatus(p, s)}/10</div><div class="muted small" style="font-weight:var(--fw-label)">${esc(t('statusHint'))}</div></div></div>
-          <button class="btn block" data-pd="reto" style="margin-top:12px">🏁 ${esc(t('retoMake'))}</button></section>` : ''}
+          <button class="btn block" data-pd="reto" style="margin-top:12px">${ico('flag')} ${esc(t('retoMake'))}</button></section>` : ''}
         <section class="clay card" ${!p.deadline && !s.achieved ? 'hidden' : ''}>
           <h3 class="section-title">${esc(t('probCalc'))}</h3>
           <div class="gauge">${donut(s.P)}<div class="grow"><div class="gauge-num">${s.P}%</div><div class="muted small" style="font-weight:var(--fw-label)">${esc(t('probability'))}</div></div></div>
@@ -4093,8 +4166,8 @@
           ${whatIfHtml(p, s)}
           <p class="muted small" style="margin-bottom:0">${esc(t('probHelp'))}</p>
         </section>
-        ${p.milestones.length || p.deadline ? `<section class="clay card"><h3 class="section-title">🚩 ${esc(t('timeline'))}</h3>${timelineHtml(p)}</section>` : ''}
-        <section class="clay card"><h3 class="section-title">📸 ${esc(t('photosTitle'))}</h3>
+        ${p.milestones.length || p.deadline ? `<section class="clay card"><h3 class="section-title">${ico('flag')} ${esc(t('timeline'))}</h3>${timelineHtml(p)}</section>` : ''}
+        <section class="clay card"><h3 class="section-title">${ico('camera')} ${esc(t('photosTitle'))}</h3>
           <p class="muted small" style="margin-top:0">${esc(t(auth ? 'photosHint' : 'photoNeedLogin'))}</p>
           ${auth ? `<div class="photo-pair">${photoSlot(p, 'before')}${photoSlot(p, 'after')}</div>` : ''}
         </section>
@@ -4109,7 +4182,7 @@
       title: `${esc(p.icon || '🎯')} ${esc(p.name)}`,
       cls: 'wide',
       body: '<div id="pd"></div>',
-      foot: `<button class="btn" data-pd="delete">${ico('trash')} ${esc(t('delete'))}</button>${p.groupId ? `<button class="btn" data-pd="group">👥 ${esc(t('groupOpen'))}</button>` : ''}<button class="btn" data-pd="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
+      foot: `<button class="btn" data-pd="delete">${ico('trash')} ${esc(t('delete'))}</button>${p.groupId ? `<button class="btn" data-pd="group">${ico('users')} ${esc(t('groupOpen'))}</button>` : ''}<button class="btn" data-pd="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
       onMount: w => {
         wref = w; draw();
         w.addEventListener('input', e => {
@@ -4223,6 +4296,72 @@
     </svg></div>`;
   }
 
+  /* v1.34: RESUMEN VISUAL. Cada día del rango es una casilla, mes a mes y en orden; se van encendiendo una tras otra
+     y el contador suma +1 por cada meta cumplida. Debajo, cada meta (hábito) con su propio contador. */
+  function hsumHtml(H, days, color) {
+    const metOn = (h, k) => { const sc = dayScore(h, k); if (h.freq !== 'daily' && !isQuit(h)) return cnt(h, k) > 0 ? 1 : 0; return sc != null && sc >= 1 ? 1 : 0; };
+    const per = H.map(h => ({ h, n: 0 })); let total = 0, idx = 0;
+    const step = Math.max(4, Math.min(22, Math.round(1500 / Math.max(1, days.length))));
+    const months = [];
+    days.forEach(k => {
+      const mk = k.slice(0, 7); let m = months[months.length - 1];
+      if (!m || m.k !== mk) { m = { k: mk, first: k, cells: [] }; months.push(m); }
+      const sc = H.map(h => dayScore(h, k)).filter(v => v != null);
+      const met = per.reduce((a, p) => { const v = metOn(p.h, k); p.n += v; return a + v; }, 0);
+      total += met;
+      const lv = !sc.length ? -1 : Math.min(4, Math.ceil(sc.reduce((a, b) => a + b, 0) / sc.length * 4));
+      m.cells.push(`<i class="hs-c" data-lv="${lv}" data-m="${met}" style="--d:${idx++}" title="${esc(fmtDate(k))}${met ? ' · +' + met : ''}"></i>`);
+    });
+    const yr = new Set(months.map(m => m.k.slice(0, 4))).size > 1 || (months[0] && months[0].k.slice(0, 4) !== todayKey().slice(0, 4));
+    const mHtml = months.map(m => `<div class="hs-m"><span class="hs-ml">${esc(fmtDate(m.first, yr ? { month: 'short', year: '2-digit' } : { month: 'long' }))}</span><div class="hs-grid">${'<i class="hs-x"></i>'.repeat(wdOf(m.first))}${m.cells.join('')}</div></div>`).join('');
+    const goals = per.filter(p => !p.h.archived).map(p => `<div class="hs-g" style="--hc:${hColor(p.h)}"><span class="hs-gi">${esc(p.h.icon || '')}</span><span class="hs-gn">${esc(p.h.name)}</span><span class="hs-gc"><b data-hs="${p.n}">${p.n}</b><i class="hs-plus" aria-hidden="true">+1</i></span></div>`).join('');
+    return `<section class="hsum clay" style="--hc:${color};--st:${step}ms" data-hsum="${total}">
+      <div class="hs-top"><div class="hs-tot"><b data-hs="${total}">${total}</b><i class="hs-plus" aria-hidden="true">+1</i></div><span class="hs-tl">${esc(t('hsMet'))}</span></div>
+      <div class="hs-cal">${mHtml}</div>
+      <div class="hs-leg"><span>${esc(t('hsLess'))}</span>${[0, 1, 2, 3, 4].map(l => `<i class="hs-c" data-lv="${l}"></i>`).join('')}<span>${esc(t('hsMore'))}</span></div>
+      ${per.length > 1 || goals ? `<h4 class="hs-gh">${esc(t('hsGoals'))}</h4><div class="hs-goals">${goals}</div>` : ''}
+    </section>`;
+  }
+  // Pone en marcha el resumen: las casillas se encienden en orden y los contadores suben con un «+1» que salta
+  function hsumPlay(root) {
+    $$('.hsum', root).forEach(sec => {
+      if (reducedMotion()) return; // ya trae los números finales
+      sec.classList.add('hs-play');
+      const cells = $$('.hs-grid .hs-c', sec), st = parseFloat(getComputedStyle(sec).getPropertyValue('--st')) || 10;
+      const pre = []; let acc = 0; cells.forEach(c => { acc += +c.dataset.m || 0; pre.push(acc); });
+      const dur = cells.length * st + 250, t0 = performance.now();
+      const tot = $('.hs-tot b', sec), gs = $$('.hs-goals b', sec).map(b => ({ b, to: +b.dataset.hs, last: 0 }));
+      tot.textContent = '0'; gs.forEach(g => { g.b.textContent = '0'; });
+      let lastTot = 0, lastPop = 0;
+      const pop = el => { const p = el.parentNode.querySelector('.hs-plus'); if (!p) return; p.classList.remove('go'); void p.offsetWidth; p.classList.add('go'); };
+      const tick = now => {
+        if (!sec.isConnected) return;
+        const e = now - t0, i = Math.min(cells.length - 1, Math.floor(e / st)), v = i >= 0 ? pre[i] || 0 : 0;
+        if (v !== lastTot) { tot.textContent = v; lastTot = v; if (now - lastPop > 110) { pop(tot); lastPop = now; } }
+        const p = Math.min(1, e / dur);
+        gs.forEach(g => { const n = Math.round(g.to * (1 - Math.pow(1 - p, 2))); if (n !== g.last) { g.b.textContent = n; if (n - g.last >= 1 && (!g.lp || now - g.lp > 160)) { pop(g.b); g.lp = now; } g.last = n; } });
+        if (p < 1) requestAnimationFrame(tick); else { tot.textContent = pre[pre.length - 1] || 0; gs.forEach(g => { g.b.textContent = g.to; }); }
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+  // Meta numérica: camino del inicio a la meta; cada registro es un paso que aparece en orden
+  function goalTrail(g, createdAt) {
+    const pts = [{ d: createdAt, v: g.start }, ...g.entries];
+    const vals = [g.start, g.target, ...g.entries.map(e => e.v)], lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+    const dir = g.target >= g.start ? 1 : -1, x = v => ((dir > 0 ? v - lo : hi - v) / span * 100).toFixed(2); // el inicio siempre a la izquierda
+    const last = pts[pts.length - 1];
+    const got = Math.max(0, Math.min(1, (last.v - g.start) / ((g.target - g.start) || 1)));
+    return `<div class="gt" style="--p:${x(last.v)}%">
+      <div class="gt-track"><i class="gt-fill" style="left:${Math.min(+x(g.start), +x(last.v))}%;width:${Math.abs(x(last.v) - x(g.start))}%"></i>
+        <span class="gt-flag" style="left:${x(g.target)}%">${ico('target')}</span>
+        ${pts.map((e, i) => `<span class="gt-step ${i === pts.length - 1 ? 'cur' : ''}" style="left:${x(e.v)}%;--d:${i}" title="${esc(fmtDate(e.d))} · ${esc(fmtNum(e.v))} ${esc(g.unit)}"></span>`).join('')}
+      </div>
+      <div class="gt-lab"><span>${esc(fmtNum(g.start))}</span><b>${esc(fmtNum(last.v))} ${esc(g.unit)} · ${Math.round(got * 100)}%</b><span>${esc(fmtNum(g.target))}</span></div>
+      <div class="gt-steps">${g.entries.slice(-6).map((e, i, a) => { const prev = i ? a[i - 1].v : (g.entries.length > a.length ? g.entries[g.entries.length - a.length - 1].v : g.start), dlt = e.v - prev; return `<span class="chip gt-d ${dlt * dir > 0 ? 'up' : dlt ? 'down' : ''}" style="--d:${i}">${dlt > 0 ? '+' : ''}${esc(fmtNum(Math.round(dlt * 100) / 100))}</span>`; }).join('')}</div>
+    </div>`;
+  }
+
   // Gráficos de un hábito o de los hábitos de un proyecto («Ver más» bajo su calendario; antes, vista Gráficos)
   function chartsFor(H, range, o = {}) {
     let html = '';
@@ -4246,27 +4385,9 @@
     html += `<div class="kpis">${kpi(avgRate == null ? '—' : avgRate + '%', t('kpiRate'))}${kpi(curS, t('kpiStreak'))}${kpi(bestS, t('kpiBest'))}${kpi(total, t('kpiTotal'))}${kpi(activeDays.size, t('kpiActiveDays'))}${kpi(H.length, t('kpiHabits'))}</div>`;
 
     const days = []; for (let i = 0; i < n; i++) days.push(addDays(from, i));
-    const dShort = k => fmtDate(k, { day: 'numeric', month: 'short' });
-    const cards = [];
 
-    // 1) cumplimiento diario (hábitos diarios) o por período (si el hábito elegido es semanal/mensual)
-    const D = H.filter(h => h.freq === 'daily');
-    if (D.length) {
-      const pts = days.map(k => {
-        const sc = D.map(h => dayScore(h, k)).filter(v => v != null);
-        if (!sc.length) return { label: dShort(k), v: null };
-        const v = sc.reduce((a, b) => a + b, 0) / sc.length * 100;
-        return { label: dShort(k), v, tip: Math.round(v) + '%', sub: fmtDate(k) };
-      });
-      cards.push(`<section class="chart-card clay"><h3>${ico('sparkle')}<span class="grow">${esc(t('chartDaily'))}</span></h3>${lineChart(pts, { min: 0, max: 100, color, fmt: v => Math.round(v) + '%', aria: t('chartDaily') })}</section>`);
-    } else if (single) {
-      const ps = periodsBetween(single, from, today);
-      const pts = ps.map(p => { const v = Math.min(1, periodSum(single, p) / single.target) * 100; return { label: single.freq === 'monthly' ? fmtDate(p, { month: 'short' }) : dShort(p), v, tip: `${periodSum(single, p)}/${single.target}`, sub: fmtDate(p) }; });
-      cards.push(`<section class="chart-card clay"><h3>${ico('sparkle')}<span class="grow">${esc(t('chartPeriodRate'))}</span></h3>${lineChart(pts, { min: 0, max: 100, color, fmt: v => Math.round(v) + '%' })}</section>`);
-    }
-
-    // v1.16: «Ver más» se queda con una sola gráfica (cumplimiento); la energía diaria vive solo en «Hoy»
-    html += `<div class="chart-grid single">${cards.join('')}</div>`;
+    // v1.34: en vez de gráficas, el recorrido: todo el calendario en orden y un contador +1 por cada meta cumplida
+    html += hsumHtml(H, days, color);
 
     // 5) tabla por hábito
     const rows = (single ? [] : H).map(h => {
@@ -4278,14 +4399,9 @@
     }).join('');
     if (rows) html += `<section class="chart-card clay" style="margin-top:18px"><h3>${ico('table')}<span class="grow">${esc(t('chartTable'))}</span></h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>${esc(t('colHabit'))}</th><th>${esc(t('colFreq'))}</th><th class="num">${esc(t('col7'))}</th><th class="num">${esc(t('col30'))}</th><th class="num">${esc(t('colTotal'))}</th><th class="num">${esc(t('colStreak'))}</th><th class="num">${esc(t('colBest'))}</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 
-    // 6) progreso del proyecto (meta numérica)
-    const np = o.project && o.project.goal.type === 'numeric' && o.project.goal.entries.length ? [o.project] : [];
-    if (np.length) {
-      html += `<div class="chart-grid" style="margin-top:18px">${np.map(p => {
-        const g = p.goal; const pts = [{ k: p.createdAt, v: g.start }, ...g.entries.map(e => ({ k: e.d, v: e.v }))].map(e => ({ label: dShort(e.k), v: e.v, tip: `${fmtNum(e.v)} ${g.unit}`, sub: fmtDate(e.k) }));
-        return `<section class="chart-card clay"><h3>${esc(p.icon)} <span class="grow">${esc(p.name)}</span><span class="muted small">${esc(t('goal'))}: ${fmtNum(g.target)} ${esc(g.unit)}</span></h3>${lineChart(pts, { target: g.target, fmt: v => fmtNum(v), markers: true })}</section>`;
-      }).join('')}</div>`;
-    }
+    // 6) progreso del proyecto (meta numérica): un camino del inicio a la meta con cada registro como un paso
+    const np = o.project && o.project.goal.type === 'numeric' && o.project.goal.entries.length ? o.project : null;
+    if (np) html += `<section class="chart-card clay" style="margin-top:18px"><h3>${ico('target')}<span class="grow">${esc(np.name)}</span><span class="muted small">${esc(t('goal'))}: ${fmtNum(np.goal.target)} ${esc(np.goal.unit)}</span></h3>${goalTrail(np.goal, np.createdAt)}</section>`;
     return html;
   }
 
@@ -4295,9 +4411,9 @@
     const revs = Object.entries(state.reviews).sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 6);
     if (hidW('insights') && hidW('reviews')) return '';
     return `<div class="chart-grid" style="margin-top:18px">
-      ${hidW('insights') ? '' : `<section class="chart-card clay" data-w="insights"><h3>💡<span class="grow">${esc(t('insightsTitle'))}</span></h3>
+      ${hidW('insights') ? '' : `<section class="chart-card clay" data-w="insights"><h3>${ico('bulb')}<span class="grow">${esc(t('insightsTitle'))}</span></h3>
         ${ins.length ? ins.map(i => `<div class="insight"><span>${i.icon}</span><span>${esc(i.text)}</span></div>`).join('') : `<p class="muted small" style="margin:0">${esc(t('insightsEmpty'))}</p>`}</section>`}
-      ${hidW('reviews') ? '' : `<section class="chart-card clay" data-w="reviews"><h3>📝<span class="grow">${esc(t('reviewsTitle'))}</span><button class="chip" data-act="review-now">${ico('plus')} ${esc(t('reviewNow'))}</button></h3>
+      ${hidW('reviews') ? '' : `<section class="chart-card clay" data-w="reviews"><h3>${ico('doc')}<span class="grow">${esc(t('reviewsTitle'))}</span><button class="chip" data-act="review-now">${ico('plus')} ${esc(t('reviewNow'))}</button></h3>
         ${revs.length ? revs.map(([w, v]) => `<button class="review-row" data-act="review-open" data-v="${w}"><b>${esc(fmtDate(w, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(w, 6), { day: 'numeric', month: 'short' }))}</b><span class="muted small">${esc((v.good || v.adjust || '').slice(0, 80))}</span><span class="rv-score">${v.score}/10</span></button>`).join('') : `<p class="muted small" style="margin:0">${esc(t('reviewsEmpty'))}</p>`}</section>`}
     </div>`;
 
@@ -4308,7 +4424,7 @@
     if (!h && !p) return;
     let range = 30;
     const H = h ? [h] : p.habitIds.map(getHabit).filter(x => x && !x.archived);
-    const draw = w => { $('#more', w).innerHTML = chartsFor(H, range, { project: p, color: p && (p.color || 'var(--accent)') }); };
+    const draw = w => { $('#more', w).innerHTML = chartsFor(H, range, { project: p, color: p && (p.color || 'var(--accent)') }); hsumPlay($('#more', w)); };
     openModal({
       title: `${esc((h || p).icon || '')} ${esc((h || p).name)}`, cls: 'wide more-modal',
       body: '<div id="more"></div>',
@@ -4398,20 +4514,20 @@
     // Racha actual y próxima carta
     const ni = RANKS.findIndex(([r]) => !state.perfectMastery[r]), next = ni >= 0 ? RANKS[ni] : null;
     const pct = next ? clamp(pr.cur / next[1] * 100, 0, 100) : 100;
-    html += `<section class="streak-card clay"><div class="streak-flame" aria-hidden="true">🔥</div><div class="grow">
+    html += `<section class="streak-card clay"><div class="streak-flame" aria-hidden="true">${ico('flame')}</div><div class="grow">
       <span class="muted small">${esc(t('perfectStreakNow'))}</span><b class="streak-n">${esc(t(pr.cur === 1 ? 'perfectStreakDay1' : 'perfectStreakDays', { n: pr.cur }))}</b>
       <span class="muted small">${esc(t('perfectStreakBest', { n: pr.best }))}</span>
       ${next ? `<div class="bar ${pct ? '' : 'zero'}" style="height:10px;margin-top:10px"><i style="width:${pct}%"></i></div><span class="small streak-next">${esc(t('perfectNext', { n: Math.max(0, next[1] - pr.cur), rank: t('rank_' + next[0]) }))}</span>` : `<span class="small">${esc(t('masteryMax'))}</span>`}
       <button class="chip" data-act="perfect-rules" style="margin-top:10px;align-self:flex-start">${ico('gear')} ${esc(t('prTitle'))}${perfectRuleOn(todayKey()) ? ` · ${esc(t('prCustom'))}` : ''}</button>
       </div></section>`;
-    html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">👑</div><div class="grow"><h3>${esc(t('perfectSeries'))}</h3><div class="muted small">${esc(t('perfectHow2'))}</div></div><b style="font-size:20px">${got}/${RANKS.length}</b></div>
+    html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${ico('crown')}</div><div class="grow"><h3>${esc(t('perfectSeries'))}</h3><div class="muted small">${esc(t('perfectHow2'))}</div></div><b style="font-size:20px">${got}/${RANKS.length}</b></div>
       <div class="cards-row">${RANKS.map(([r, th], i) => { const m = state.perfectMastery[r]; return `<button class="kcard-btn" data-act="pcard-open" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${m ? cardFace(PSUBJ(), i, 'front') : cardLocked(i)}<span class="cap">${esc(t('rank_' + r))}<small>${m ? esc(fmtShort(m.date)) : esc(t('perfectReq', { n: th }))}</small></span></button>`; }).join('')}</div></section>`;
     if (state.challengeCards.length) {
-      html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">🏁</div><div class="grow"><h3>${esc(t('challengeCards'))}</h3></div><b style="font-size:20px">${state.challengeCards.length}</b></div>
+      html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${ico('flag')}</div><div class="grow"><h3>${esc(t('challengeCards'))}</h3></div><b style="font-size:20px">${state.challengeCards.length}</b></div>
         <div class="cards-row">${[...state.challengeCards].reverse().map(c => `<button class="kcard-btn" data-act="chal-open" data-id="${c.id}">${challengeCardHtml(c)}<span class="cap">${esc(c.name)}<small>${esc(fmtShort(c.end))}</small></span></button>`).join('')}</div></section>`;
     }
     if (state.contractCards.length) {
-      html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">📜</div><div class="grow"><h3>${esc(t('contractCards'))}</h3></div><b style="font-size:20px">${state.contractCards.length}</b></div>
+      html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${ico('doc')}</div><div class="grow"><h3>${esc(t('contractCards'))}</h3></div><b style="font-size:20px">${state.contractCards.length}</b></div>
         <div class="cards-row">${[...state.contractCards].reverse().map(cc => `<button class="kcard-btn" data-act="cc-open" data-id="${cc.id}">${contractCardHtml(cc)}<span class="cap">${esc(t('tier_' + cc.tier))}<small>${esc(fmtShort(cc.end))}</small></span></button>`).join('')}</div></section>`;
     }
     // Cartas antiguas (por hábito): se guardan, no se borran
@@ -4715,7 +4831,7 @@
       cls: 'card-view',
       body: `<div class="flip ${celebrate ? 'unlock-burst' : ''}" style="cursor:default"><div class="flip-inner">${contractCardHtml(cc)}</div></div>
         <div class="card-view-cap">${celebrate ? `<div class="ach-title" style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('contractDone'))}!</div><small>${esc(t('contractDoneMsg'))}</small>` : `${esc(t('tier_' + cc.tier))} · ${esc(fmtDate(cc.end))}`}</div>
-        <div class="row wrap" style="justify-content:center;margin-top:16px">${celebrate && ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}${c && c.witness ? `<button class="btn" data-m="witness">📧 ${esc(t('witnessSendResult'))}</button>` : ''}<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
+        <div class="row wrap" style="justify-content:center;margin-top:16px">${celebrate && ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}${c && c.witness ? `<button class="btn" data-m="witness">${ico('mail')} ${esc(t('witnessSendResult'))}</button>` : ''}<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
       onClick: (e, close) => {
         if (e.target.closest('[data-m="witness"]')) witnessMail(state.contract, 'result', cc);
         if (e.target.closest('[data-m="share"]')) shareCanvas(() => contractCanvas(cc), `keepgoing-contrato-${cc.end}.png`, t('contractDone'));
@@ -4753,7 +4869,7 @@
       <p class="ct-signed"><b>${esc(t('contractSigned', { date: fmtDate(o.signedAt) }))}.</b>${o.renewals ? `<br><span class="muted small">${esc(t('contractRenewals', { n: o.renewals }))}</span>` : ''}</p>
       <div class="sig-line"><span class="muted small">${esc(t('ct_sign'))}:</span><div class="center">${oSig ? `<img class="sig-img" src="${oSig}" alt="">` : ''}<div class="sig-name">${esc(o.name || '')}</div></div></div>
       ${wSig ? `<div class="sig-line"><span class="muted small">${esc(t('ct_witnessReal'))}:</span><div class="center"><img class="sig-img" src="${wSig}" alt=""><div class="sig-name">${esc(w.signedName || '')}</div><div class="muted small">${esc(t('contractSigned', { date: fmtDate(w.signedAt || o.signedAt) }))}</div></div></div>` : ''}
-      <p class="ct-witness">${esc(t('ct_witness'))}${w && !wSig && (w.name || w.email) ? `<br>👀 ${esc(t(w.token && wCur ? 'witnessPending' : 'witnessIs', { w: w.name || w.email }))}` : ''}</p>
+      <p class="ct-witness">${esc(t('ct_witness'))}${w && !wSig && (w.name || w.email) ? `<br>${ico('eye')} ${esc(t(w.token && wCur ? 'witnessPending' : 'witnessIs', { w: w.name || w.email }))}` : ''}</p>
       <p class="ct-quote">${esc(x.quote)}</p>
       <div class="center"><span class="role-chip">${esc(t('ct_level', { l: t('commit_' + x.lvl) }))}</span></div>`;
   }
@@ -4828,14 +4944,14 @@
     const ended = diffDays(todayKey(), c.endsAt) < 0;
     openModal({
       title: esc(t('setContract')), body: contractDoc(c),
-      foot: `${ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}<button class="btn" data-m="witness">👀 ${esc(t(c.witness ? 'witnessEdit' : 'witnessAdd'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button>`,
+      foot: `${ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}<button class="btn" data-m="witness">${ico('eye')} ${esc(t(c.witness ? 'witnessEdit' : 'witnessAdd'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button>`,
       onClick: (e, close) => {
         if (e.target.closest('[data-m="renew"]')) { close(); renewContract(); }
         if (e.target.closest('[data-m="witness"]')) {
           close();
           openModal({
-            title: `👀 ${esc(t('witnessTitle'))}`, body: witnessFormHtml(c.witness || { name: '', email: '' }),
-            foot: `<button class="btn primary block" data-m="wsave">📧 ${esc(t('witnessSaveSend'))}</button>`,
+            title: `${ico('eye')} ${esc(t('witnessTitle'))}`, body: witnessFormHtml(c.witness || { name: '', email: '' }),
+            foot: `<button class="btn primary block" data-m="wsave">${ico('mail')} ${esc(t('witnessSaveSend'))}</button>`,
             onMount: w => { const cb = $('#ct-wit', w); cb.addEventListener('change', () => $('#ct-wit-box', w).classList.toggle('hidden', !cb.checked)); },
             onClick: (ev, cl, w) => {
               if (!ev.target.closest('[data-m="wsave"]')) return;
@@ -4912,7 +5028,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -5036,7 +5152,7 @@
     } else if (at === 'tag') {
       title = t('obTagTitle'); lead = t('obTagSub'); next = auth && myTag() ? t('next') : t('obTagSkip');
       body = auth ? `<label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="ob-tag" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(myTag())}" placeholder="${esc(t('nametagPh'))}"></div></label><p class="muted small">${esc(t('nametagHint'))}</p>`
-        : `<div class="clay card center"><div style="font-size:40px">🏷️</div><p class="muted" style="margin:6px 0 14px">${esc(t('obTagNeedAccount'))}</p><button class="btn primary" data-ob-login>${ico('user')} ${esc(t('obTagCreate'))}</button></div>`;
+        : `<div class="clay card center"><div class="big-ico">${ico('tag')}</div><p class="muted" style="margin:6px 0 14px">${esc(t('obTagNeedAccount'))}</p><button class="btn primary" data-ob-login>${ico('user')} ${esc(t('obTagCreate'))}</button></div>`;
     } else {
       const n = obHabitList().size, lv = CAP.levelForCount(n), custom = obPending.filter(p => !p.key);
       title = t('obHabTitle'); lead = t('obHabSub');
@@ -5530,12 +5646,12 @@
           acc('prompts', '💬', t('promptsTitle'), nOff ? t('setOffN', { n: nOff }) : t('setAllOn'), `<p class="muted small" style="margin-top:0">${esc(t('promptsHint'))}</p>${promptsSettingsHtml()}`)
         ])}
         ${group(t('setGroupPrivacy'), [
-          acc('amounts', ico('eyeOff'), t('privacyMode'), privacyOn() ? t('privacyModeOn') : t('privacyModeOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-privacy ${privacyOn() ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('privacyModeLabel'))}</b><br><span class="muted small">${esc(t('privacyModeHint'))}</span></span></label>${flipSupported() ? `<label class="row" style="gap:14px;margin-top:14px"><span class="switch"><input type="checkbox" data-s-motion ${flipOn() ? 'checked' : ''}><span></span></span><span class="grow"><b>📱 ${esc(t('motionLabel'))}</b><br><span class="muted small">${esc(t('motionHint'))}</span></span></label>` : ''}`),
-          acc('vault', ico('lock'), t('vaultTitle'), !state.ledgerVault ? t('vaultNone') : ledgerOpen() ? t('vaultIsOpen') : t('vaultIsLocked'), state.ledgerVault ? `<p class="muted small" style="margin-top:0">${esc(t('vaultSettingsHint'))}</p><div class="row wrap">${ledgerOpen() ? `<button class="chip" data-s="vault-lock">${ico('lock')} ${esc(t('vaultLock'))}</button><button class="chip" data-s="vault-change">${esc(t('vaultChange'))}</button><button class="chip" data-s="vault-sec">🔐 ${esc(t('vaultSecurity'))}</button>` : ''}<button class="chip" data-s="vault-wipe" style="color:#e5484d">${ico('trash')} ${esc(t('vaultForgot'))}</button></div>` : `<p class="muted small" style="margin:0">${esc(t('vaultNoneHint'))}</p>`),
+          acc('amounts', ico('eyeOff'), t('privacyMode'), privacyOn() ? t('privacyModeOn') : t('privacyModeOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-privacy ${privacyOn() ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('privacyModeLabel'))}</b><br><span class="muted small">${esc(t('privacyModeHint'))}</span></span></label>${flipSupported() ? `<label class="row" style="gap:14px;margin-top:14px"><span class="switch"><input type="checkbox" data-s-motion ${flipOn() ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('motionLabel'))}</b><br><span class="muted small">${esc(t('motionHint'))}</span></span></label>` : ''}`),
+          acc('vault', ico('lock'), t('vaultTitle'), !state.ledgerVault ? t('vaultNone') : ledgerOpen() ? t('vaultIsOpen') : t('vaultIsLocked'), state.ledgerVault ? `<p class="muted small" style="margin-top:0">${esc(t('vaultSettingsHint'))}</p><div class="row wrap">${ledgerOpen() ? `<button class="chip" data-s="vault-lock">${ico('lock')} ${esc(t('vaultLock'))}</button><button class="chip" data-s="vault-change">${esc(t('vaultChange'))}</button><button class="chip" data-s="vault-sec">${ico('lock')} ${esc(t('vaultSecurity'))}</button>` : ''}<button class="chip" data-s="vault-wipe" style="color:#e5484d">${ico('trash')} ${esc(t('vaultForgot'))}</button></div>` : `<p class="muted small" style="margin:0">${esc(t('vaultNoneHint'))}</p>`),
           acc('priv', '🔒', t('privacyTitle'), profileOf().enabled ? t('setPublicOn') : t('setPublicOff'), `<div id="st-priv">${privacyHtml()}</div>`),
           acc('hiddenw', '🧩', t('hwTitle'), (state.hiddenW || []).length ? t('hwN', { n: state.hiddenW.length }) : '', `<p class="muted small" style="margin-top:0">${esc(t('hwHint'))}</p><div id="st-hw">${hiddenWHtml()}</div>`),
           acc('data', ico('download'), t('setData'), '', `<p class="muted small" style="margin-top:0">${esc(t('dataHint'))}</p>
-            <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button><button class="btn" data-s="report">📄 ${esc(t('reportTitle'))}</button></div>
+            <div class="row wrap"><button class="btn" data-s="export">${ico('download')} ${esc(t('exportData'))}</button><button class="btn" data-s="import">${ico('upload')} ${esc(t('importData'))}</button><button class="btn" data-s="report">${ico('doc')} ${esc(t('reportTitle'))}</button></div>
             <input type="file" id="st-file" accept=".json,application/json" class="hidden">
             <div class="row wrap" style="margin-top:14px"><button class="chip" data-s="replay">${ico('refresh')} ${esc(t('replayOnboarding'))}</button><button class="chip" data-s="reset" style="color:#e5484d">${ico('trash')} ${esc(t('resetData'))}</button></div>`)
         ])}
@@ -5754,7 +5870,7 @@
     let wref;
     const draw = () => {
       $('#vac', wref).innerHTML = `<p class="muted small" style="margin-top:0">${esc(t('vacHint'))}</p>
-        ${state.vacations.length ? [...state.vacations].sort((a, b) => a.from < b.from ? 1 : -1).map(v => `<div class="entry"><span>🏖️ ${esc(fmtShort(v.from))} – ${esc(fmtShort(v.to))}</span><button class="icon-btn sm" style="width:30px;height:30px" data-vac-del="${v.id}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('') : `<p class="muted small">${esc(t('vacNone'))}</p>`}
+        ${state.vacations.length ? [...state.vacations].sort((a, b) => a.from < b.from ? 1 : -1).map(v => `<div class="entry"><span>${ico('beach')} ${esc(fmtShort(v.from))} – ${esc(fmtShort(v.to))}</span><button class="icon-btn sm" style="width:30px;height:30px" data-vac-del="${v.id}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('') : `<p class="muted small">${esc(t('vacNone'))}</p>`}
         <div class="row wrap" style="margin-top:14px;align-items:flex-end">
           <label class="field grow"><span>${esc(t('from'))}</span><input class="input" type="date" id="vac-from" value="${todayKey()}"></label>
           <label class="field grow"><span>${esc(t('to'))}</span><input class="input" type="date" id="vac-to" value="${addDays(todayKey(), 6)}"></label>
@@ -5762,7 +5878,7 @@
         </div>`;
     };
     openModal({
-      title: `🏖️ ${esc(t('vacTitle'))}`, body: '<div id="vac"></div>',
+      title: `${ico('beach')} ${esc(t('vacTitle'))}`, body: '<div id="vac"></div>',
       onMount: w => { wref = w; draw(); },
       onClick: (e) => {
         let el;
@@ -5789,7 +5905,7 @@
         if (!promptOn('shieldOffer') || periodState(h, y) !== 'miss') return;
         const n = shieldInfo(h).available;
         openModal({
-          body: `<div class="center"><div style="font-size:54px">🛡️</div><h2 style="margin:6px 0">${esc(t('shieldTitle'))}</h2><p class="muted">${esc(t('shieldMsg', { name: h.name, n }))}</p>${dontRemindHtml()}</div>`,
+          body: `<div class="center"><div class="big-ico">${ico('shield')}</div><h2 style="margin:6px 0">${esc(t('shieldTitle'))}</h2><p class="muted">${esc(t('shieldMsg', { name: h.name, n }))}</p>${dontRemindHtml()}</div>`,
           foot: `<button class="btn" data-sh="no">${esc(t('noThanks'))}</button><button class="btn primary" data-sh="yes">${esc(t('shieldUse'))}</button>`,
           onClick: (e, close, w) => { const b = e.target.closest('[data-sh]'); if (!b) return; readDontRemind(w, 'shieldOffer'); if (b.dataset.sh === 'yes') useShield(h, y); close(); render(); }
         });
@@ -5938,7 +6054,7 @@
       <div class="cap-preview">
         <h4>${esc(t('capPreview'))}</h4>
         <label class="field"><span>${esc(t('capIncome'))}</span><span class="cap-input"><input class="input" data-cap-income inputmode="decimal" autocomplete="off" value="${esc(fmtPctIn(c.income))}"><b>${esc(curSym())}</b></span></label>
-        ${monthIncome() > 0 ? `<button type="button" class="chip" data-cap-use-income style="margin-top:8px">💼 ${esc(t('capUseIncome', { m: cents(monthIncome()) }))}</button>` : ''}
+        ${monthIncome() > 0 ? `<button type="button" class="chip" data-cap-use-income style="margin-top:8px">${ico('briefcase')} ${esc(t('capUseIncome', { m: cents(monthIncome()) }))}</button>` : ''}
         <p class="small" style="margin:10px 0 6px">${esc(t('capEquals'))}</p>
         <ul class="cap-prev-list"><li data-cap-prev class="on"><span><small data-cap-prev-pct></small></span><b data-cap-prev-val></b></li></ul>
       </div>
@@ -6023,7 +6139,7 @@
       </div>`;
     };
     openModal({
-      title: `⭐ ${esc(t('lvTitle'))}`, cls: 'wide', body: '<div id="lvl"></div>',
+      title: `${ico('star')} ${esc(t('lvTitle'))}`, cls: 'wide', body: '<div id="lvl"></div>',
       onMount: w => { wref = w; draw(); },
       onClick: (e) => {
         const el = e.target.closest('[data-commit]');
@@ -9172,7 +9288,7 @@
 
   /* ---------- vista «Hoy» ---------- */
   const TOD = ['morning', 'afternoon', 'night', 'any'];
-  const TOD_ICON = { morning: '☀️', afternoon: '🌤️', night: '🌙', any: '🕐' };
+  const TOD_ICON = { morning: ico('sun'), afternoon: ico('sparkle'), night: ico('moon'), any: ico('clock') };
   function todayStatus(h) {
     const k = todayKey();
     if (isQuit(h)) return { due: true, done: !cnt(h, k), quit: true };
@@ -9208,8 +9324,8 @@
     const done = items.filter(h => todayStatus(h).done && !isQuit(h));
     const di = dayInfo(todayKey());
     let html = hidW('dayrate') ? '' : dayRateHtml();
-    if (activeVacation()) html += `<div class="banner clay">🏖️<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span></div>`;
-    if (di.perfect && items.length) html += `<div class="perfect-banner clay">🎉 <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${fmtPts(di.cpts)} pts</span></div>`;
+    if (activeVacation()) html += `<div class="banner clay">${ico('beach')}<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span></div>`;
+    if (di.perfect && items.length) html += `<div class="perfect-banner clay">${ico('party')} <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${fmtPts(di.cpts)} pts</span></div>`;
     const routs = state.routines.filter(r => r.habitIds.some(id => { const h = getHabit(id); return h && !h.archived && todayStatus(h).due; }));
     const groups = TOD.map(tod => {
       const rs = routs.filter(r => (r.timeOfDay || 'any') === tod);
@@ -9218,9 +9334,9 @@
       return `<section class="today-group"><h3 class="today-h">${TOD_ICON[tod]} ${esc(t('tod_' + tod))}</h3>${rs.map(routineCard).join('')}${hs.map(todayRow).join('')}</section>`;
     }).join('');
     const quits = pending.filter(isQuit);
-    html += groups || (!quits.length ? `<div class="empty" style="padding:28px 10px"><div style="font-size:48px">✨</div><h2>${esc(t(items.length ? 'allDoneToday' : 'nothingToday'))}</h2></div>` : '');
-    if (quits.length) html += `<section class="today-group"><h3 class="today-h">🚫 ${esc(t('tod_avoid'))}</h3>${quits.map(todayRow).join('')}</section>`;
-    if (done.length) html += `<details class="today-group" ${pending.length ? '' : 'open'}><summary class="today-h">✅ ${esc(t('doneToday', { n: done.length }))}</summary>${done.map(todayRow).join('')}</details>`;
+    html += groups || (!quits.length ? `<div class="empty" style="padding:28px 10px"><div class="big-ico">${ico('sparkle')}</div><h2>${esc(t(items.length ? 'allDoneToday' : 'nothingToday'))}</h2></div>` : '');
+    if (quits.length) html += `<section class="today-group"><h3 class="today-h">${ico('shield')} ${esc(t('tod_avoid'))}</h3>${quits.map(todayRow).join('')}</section>`;
+    if (done.length) html += `<details class="today-group" ${pending.length ? '' : 'open'}><summary class="today-h">${ico('check')} ${esc(t('doneToday', { n: done.length }))}</summary>${done.map(todayRow).join('')}</details>`;
     html += insightsHtml();
     return html;
   }
@@ -9277,7 +9393,7 @@
     const draw = () => {
       if (i >= steps.length) {
         state.routineRuns[r.id] = (state.routineRuns[r.id] || 0) + 1; save(); checkSecrets();
-        $('#rr', wref).innerHTML = `<div class="center"><div style="font-size:60px">🎉</div><h2>${esc(t('routineDone'))}</h2><p class="muted">${esc(t('routineDoneMsg', { name: r.name }))}</p><button class="btn primary" data-m="x">${esc(t('close'))}</button></div>`;
+        $('#rr', wref).innerHTML = `<div class="center"><div class="big-ico">${ico('party')}</div><h2>${esc(t('routineDone'))}</h2><p class="muted">${esc(t('routineDoneMsg', { name: r.name }))}</p><button class="btn primary" data-m="x">${esc(t('close'))}</button></div>`;
         render(); return;
       }
       const h = steps[i], st = todayStatus(h);
@@ -9364,7 +9480,7 @@
         <div class="stack" style="gap:10px;margin-top:14px">${PACKS[pack].map(([es, en, icon, x], i) => { const id = pack + ':' + i; return `<label class="today-row clay" style="cursor:pointer"><span style="font-size:24px">${icon}</span><span class="grow"><b>${esc(L2(es, en))}</b><br><span class="muted small">${esc(packSub(x))}</span></span><input type="checkbox" data-pk-sel="${id}" ${sel.has(id) ? 'checked' : ''} style="width:24px;height:24px;accent-color:var(--accent)"></label>`; }).join('')}</div>`;
     };
     openModal({
-      title: `📦 ${esc(t('fromTemplate'))}`, body: '<div id="pk"></div>',
+      title: `${ico('box')} ${esc(t('fromTemplate'))}`, body: '<div id="pk"></div>',
       foot: `<button class="btn" data-pk-proj>${ico('target')} ${esc(t('projectTemplates'))}</button><button class="btn primary" data-pk-add>${ico('plus')} ${esc(t('addSelected'))}</button>`,
       onMount: w => { wref = w; draw(); },
       onClick: (e, close) => {
@@ -9383,7 +9499,7 @@
   }
   function openProjectTemplates() {
     openModal({
-      title: `🎯 ${esc(t('projectTemplates'))}`,
+      title: `${ico('target')} ${esc(t('projectTemplates'))}`,
       body: `<div class="stack" style="gap:10px">${PROJECT_TEMPLATES.map(([id, es, en, icon, g]) => `<button class="create-opt clay" data-ptpl="${id}"><span style="font-size:28px">${icon}</span><span class="grow"><b>${esc(L2(es, en))}</b><br><span class="muted small">${esc(g.type === 'numeric' ? `${fmtNum(g.start)} → ${fmtNum(g.target)} ${unitL(g.unit)}` : g.items.join(' · '))}</span></span>${ico('right')}</button>`).join('')}</div>`,
       onClick: (e, close) => {
         const b = e.target.closest('[data-ptpl]'); if (!b) return;
@@ -9395,7 +9511,7 @@
   }
   function openChallenges() {
     openModal({
-      title: `🏁 ${esc(t('newChallenge'))}`,
+      title: `${ico('flag')} ${esc(t('newChallenge'))}`,
       body: `<p class="muted small" style="margin-top:0">${esc(t('challengeHint'))}</p><div class="stack" style="gap:10px">${CHALLENGES.map(([id, es, en, icon, days, x]) => `<button class="create-opt clay" data-chal="${id}"><span style="font-size:28px">${icon}</span><span class="grow"><b>${esc(L2(es, en))}</b><br><span class="muted small">${esc((x.kind === 'quit' ? t('kindQuit') + ' · ' : '') + t('challengeDays', { n: days }))}</span></span>${ico('right')}</button>`).join('')}</div>`,
       onClick: (e, close) => {
         const b = e.target.closest('[data-chal]'); if (!b) return;
@@ -9576,7 +9692,7 @@
   function openReview(week, auto = false) {
     const prev = state.reviews[week] || {}, s = weekSummary(week);
     openModal({
-      title: `📝 ${esc(t('reviewTitle'))}`,
+      title: `${ico('doc')} ${esc(t('reviewTitle'))}`,
       body: `<p class="muted" style="margin-top:0">${esc(t('reviewWeek', { a: fmtDate(week, { day: 'numeric', month: 'short' }), b: fmtDate(addDays(week, 6), { day: 'numeric', month: 'short' }) }))}</p>
         <div class="kpis" style="margin-bottom:14px"><div class="kpi clay"><b>${s.rate == null ? '—' : s.rate + '%'}</b><span>${esc(t('kpiRate'))}</span></div><div class="kpi clay"><b>${s.perfect}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${fmtPts(s.pts)}</b><span>${esc(t('ptsEarned'))}</span></div></div>
         <div class="stack">
@@ -9600,7 +9716,7 @@
   function openReport() {
     const m0 = monthKey(todayKey()), m1 = monthKey(addMonths(todayKey(), -1));
     openModal({
-      title: `📄 ${esc(t('reportTitle'))}`,
+      title: `${ico('doc')} ${esc(t('reportTitle'))}`,
       body: `<p class="muted" style="margin-top:0">${esc(t('reportHint'))}</p><label class="field"><span>${esc(t('reportMonth'))}</span><input class="input" type="month" id="rp-m" value="${m0}" max="${m0}"></label>
         <div class="row wrap" style="margin-top:12px"><button class="chip" data-rp="${m0}">${esc(fmtDate(m0 + '-01', { month: 'long', year: 'numeric' }))}</button><button class="chip" data-rp="${m1}">${esc(fmtDate(m1 + '-01', { month: 'long', year: 'numeric' }))}</button></div>`,
       foot: `<button class="btn primary block" data-rp-go>${ico('download')} ${esc(t('reportCreate'))}</button>`,
@@ -9700,7 +9816,7 @@
     if (!s.achieved || !p.photos.before || p.photos.after || p.afterAsked || !promptOn('afterPhoto')) return;
     p.afterAsked = true; save();
     openModal({
-      body: `<div class="center"><div style="font-size:54px">📸</div><h2 style="margin:6px 0">${esc(t('afterTitle'))}</h2><p class="muted">${esc(t('afterMsg', { name: p.name }))}</p>
+      body: `<div class="center"><div class="big-ico">${ico('camera')}</div><h2 style="margin:6px 0">${esc(t('afterTitle'))}</h2><p class="muted">${esc(t('afterMsg', { name: p.name }))}</p>
         <label class="btn primary" style="margin-top:8px">${ico('upload')} ${esc(t('photoUpload'))}<input type="file" accept="image/*" id="after-up" class="hidden"></label>${dontRemindHtml()}</div>`,
       foot: `<button class="btn block" data-m="later">${esc(t('later'))}</button>`,
       onMount: (w, close) => w.addEventListener('change', async e => {
@@ -9772,9 +9888,9 @@
     const href = `mailto:${encodeURIComponent(w.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     // El correo se abre con un toque (en iPhone no se puede abrir solo tras esperar a la nube)
     openModal({
-      title: `📧 ${esc(t('witnessTitle'))}`,
+      title: `${ico('mail')} ${esc(t('witnessTitle'))}`,
       body: `<p style="margin-top:0">${esc(t(link ? 'witnessLinkReady' : auth ? 'witnessNoLink' : 'witnessLinkNeedLogin', { w: w.name || w.email }))}</p>${link ? `<input class="input" readonly value="${esc(link)}">` : ''}`,
-      foot: `<a class="btn primary" href="${esc(href)}" data-m="mail">📧 ${esc(t('witnessOpenMail'))}</a>${link ? `<button class="btn" data-m="copy">${esc(t('copy'))}</button>` : ''}`,
+      foot: `<a class="btn primary" href="${esc(href)}" data-m="mail">${ico('mail')} ${esc(t('witnessOpenMail'))}</a>${link ? `<button class="btn" data-m="copy">${esc(t('copy'))}</button>` : ''}`,
       onClick: async (e, close) => {
         if (e.target.closest('[data-m="copy"]')) { try { await navigator.clipboard.writeText(link); toast(t('copied')); } catch (err) { /* nada */ } }
         if (e.target.closest('[data-m="mail"]')) setTimeout(close, 400);
@@ -9809,11 +9925,11 @@
       app.innerHTML = `<div class="main wit-page">
         <div class="center" style="margin:10px 0 18px"><div class="muted small" style="letter-spacing:.15em;font-weight:var(--fw-label)">KEEPGOING</div><h1 class="page-title" style="margin:6px 0 8px">${esc(t('witPageTitle'))}</h1><p class="muted" style="margin:0">${esc(t(signed ? 'witPageSignedSub' : 'witPageSub', { name: doc.name }))}</p></div>
         <div class="contract clay">${contractInner(doc)}</div>
-        ${signed ? `<div class="center clay card" style="margin-top:18px"><div style="font-size:44px">✅</div><h2 style="margin:6px 0">${esc(t('witPageDone'))}</h2><p class="muted" style="margin:0">${esc(t('witPageDoneSub', { name: doc.name }))}</p></div>`
+        ${signed ? `<div class="center clay card" style="margin-top:18px"><div class="big-ico">${ico('check')}</div><h2 style="margin:6px 0">${esc(t('witPageDone'))}</h2><p class="muted" style="margin:0">${esc(t('witPageDoneSub', { name: doc.name }))}</p></div>`
           : `<div class="clay card stack" style="margin-top:18px">
             <label class="field"><span>${esc(t('witPageName'))}</span><input class="input" id="wp-name" maxlength="80" autocomplete="name" placeholder="${esc(t('contractNamePh'))}"></label>
             <div class="field"><span>${esc(t('witPageSign'))}</span><canvas class="sig-pad" id="wp-sig"></canvas><div><button type="button" class="chip" id="wp-clear">${esc(t('contractClear'))}</button></div></div>
-            <button class="btn primary block" id="wp-go">✍️ ${esc(t('witPageBtn'))}</button></div>`}
+            <button class="btn primary block" id="wp-go">${ico('edit')} ${esc(t('witPageBtn'))}</button></div>`}
         <div class="center" style="margin:28px 0"><a class="btn" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a></div></div>`;
       if (signed) return;
       const pad = sigPad($('#wp-sig'), $('#wp-clear'));
@@ -9838,7 +9954,7 @@
       : t('witnessBody', { w: w.name || '', name: c.name, start: fmtDate(c.signedAt), end: fmtDate(c.endsAt), text: stripHtml(contractText(c)), url: APP_URL });
     location.href = `mailto:${encodeURIComponent(w.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
-  const witnessFormHtml = (w = null) => `<label class="check" style="margin-top:4px"><input type="checkbox" id="ct-wit" ${w ? 'checked' : ''}> 👀 ${esc(t('witnessCheck'))}</label>
+  const witnessFormHtml = (w = null) => `<label class="check" style="margin-top:4px"><input type="checkbox" id="ct-wit" ${w ? 'checked' : ''}> ${ico('eye')} ${esc(t('witnessCheck'))}</label>
     <div id="ct-wit-box" class="stack ${w ? '' : 'hidden'}" style="gap:10px">
       <input class="input" id="ct-wit-name" maxlength="60" placeholder="${esc(t('witnessName'))}" value="${esc(w ? w.name : '')}">
       <input class="input" id="ct-wit-email" type="email" inputmode="email" maxlength="120" placeholder="${esc(t('witnessEmail'))}" value="${esc(w ? w.email : '')}">
@@ -9899,7 +10015,7 @@
     state.habits.forEach(h => { for (let i = RANKS.length - 1; i >= 0; i--) if ((state.mastery[h.id] || {})[RANKS[i][0]]) opts.push('m:' + h.id + ':' + i); });
     SECRETS.forEach(([id]) => { if (state.secrets[id]) opts.push('s:' + id); });
     openModal({
-      title: `🏆 ${esc(t('showcaseTitle'))}`, cls: 'wide',
+      title: `${ico('trophy')} ${esc(t('showcaseTitle'))}`, cls: 'wide',
       body: opts.length ? `<p class="muted small" style="margin-top:0">${esc(t('showcasePick'))}</p><div class="pick-grid">${opts.map(k => { const it = showcaseItem(k); return `<button class="kcard-btn" data-pick="${k}">${it.html}<span class="cap">${esc(it.label)}</span></button>`; }).join('')}</div>` : `<p class="muted">${esc(t('showcaseNone'))}</p>`,
       foot: showcaseKeys()[slot] ? `<button class="btn" data-pick="">${ico('trash')} ${esc(t('showcaseRemove'))}</button>` : '',
       onClick: (e, close) => {
@@ -9995,12 +10111,12 @@
       <section class="clay card prof-tag-box" id="pf-tag-box">${nametagHtml()}</section>
       <label class="field"><span>${esc(t('bioTitle'))}</span><textarea class="input" id="pf-bio" maxlength="140" rows="2" placeholder="${esc(t('ct_quote_' + (state.commitment || 'serio'), { perfecto: 'perfecto' }))}">${esc(pr.bio || '')}</textarea></label>
       <div class="row wrap"><button class="btn primary" data-pf="carnet">${ico('upload')} ${esc(t('carnetShare'))}</button>${pr.enabled && pr.slug ? `<a class="btn" href="${esc(profileUrl(pr.slug))}" target="_blank" rel="noopener">${ico('globe')} ${esc(t('profileOpen'))}</a>` : `<button class="btn" data-pf="public">${ico('globe')} ${esc(t('profilePublicSetup'))}</button>`}</div>
-      ${sec('🎖️', t('badgesTitle'), badgesHtml())}
-      ${sec('🏆', t('showcaseTitle'), `<div class="show-row">${[0, 1, 2].map(i => { const it = showcaseItem(sc[i]); return `<button class="kcard-btn show-slot" data-pf="slot" data-i="${i}">${it ? it.html : `<div class="slot-empty">${ico('plus')}</div>`}<span class="cap">${it ? esc(it.label) : esc(t('showcaseAdd'))}</span></button>`; }).join('')}</div>`)}
-      ${sec('📊', t('lifeStats'), `<div class="kpis prof-kpis">${kpi(fmtNum(st.activeDays), t('kpiActiveDays'))}${kpi(st.best, t('kpiBest'))}${kpi(fmtNum(st.entries), t('kpiTotal'))}${kpi(st.perfect, t('perfectDays'))}${kpi(st.cards, t('statCards'))}${kpi(st.mastered, t('perfectRun'))}${kpi(st.contracts, t('contractCards'))}${kpi(st.challenges, t('challengeCards'))}${kpi(st.projects, t('statProjects'))}${kpi(fmtNum(st.xp), 'XP')}</div>`)}
-      ${sec('🗓️', t('yearHeat'), yearHeatHtml())}
-      ${sec('✨', t('achTitle'), ach.length ? `<div class="ach-list">${(achAll ? ach : ach.slice(0, 12)).map(e => `<div class="ach"><span class="ach-ico">${esc(e.icon)}</span><span class="grow">${esc(e.txt)}</span><span class="muted small">${esc(fmtShort(e.d))}</span></div>`).join('')}</div>${ach.length > 12 ? `<div class="center" style="margin-top:10px"><button class="chip" data-pf="ach-more">${esc(t(achAll ? 'achLess' : 'achMore', { n: ach.length }))}</button></div>` : ''}` : `<p class="muted small">${esc(t('achNone'))}</p>`)}
-      ${sec('🏅', t('repTotal'), `<div id="pf-rep">${repHtml()}</div>`)}
+      ${sec(ico('medal'), t('badgesTitle'), badgesHtml())}
+      ${sec(ico('trophy'), t('showcaseTitle'), `<div class="show-row">${[0, 1, 2].map(i => { const it = showcaseItem(sc[i]); return `<button class="kcard-btn show-slot" data-pf="slot" data-i="${i}">${it ? it.html : `<div class="slot-empty">${ico('plus')}</div>`}<span class="cap">${it ? esc(it.label) : esc(t('showcaseAdd'))}</span></button>`; }).join('')}</div>`)}
+      ${sec(ico('chart'), t('lifeStats'), `<div class="kpis prof-kpis">${kpi(fmtNum(st.activeDays), t('kpiActiveDays'))}${kpi(st.best, t('kpiBest'))}${kpi(fmtNum(st.entries), t('kpiTotal'))}${kpi(st.perfect, t('perfectDays'))}${kpi(st.cards, t('statCards'))}${kpi(st.mastered, t('perfectRun'))}${kpi(st.contracts, t('contractCards'))}${kpi(st.challenges, t('challengeCards'))}${kpi(st.projects, t('statProjects'))}${kpi(fmtNum(st.xp), 'XP')}</div>`)}
+      ${sec(ico('calendar'), t('yearHeat'), yearHeatHtml())}
+      ${sec(ico('sparkle'), t('achTitle'), ach.length ? `<div class="ach-list">${(achAll ? ach : ach.slice(0, 12)).map(e => `<div class="ach"><span class="ach-ico">${esc(e.icon)}</span><span class="grow">${esc(e.txt)}</span><span class="muted small">${esc(fmtShort(e.d))}</span></div>`).join('')}</div>${ach.length > 12 ? `<div class="center" style="margin-top:10px"><button class="chip" data-pf="ach-more">${esc(t(achAll ? 'achLess' : 'achMore', { n: ach.length }))}</button></div>` : ''}` : `<p class="muted small">${esc(t('achNone'))}</p>`)}
+      ${sec(ico('medal'), t('repTotal'), `<div id="pf-rep">${repHtml()}</div>`)}
     </div>`;
   }
   /* v1.29: pantallas inmersivas. Como el día perfecto: desde donde tocaste se abre un círculo con el color de acento
@@ -10155,13 +10271,13 @@
     if (!row) { app.innerHTML = `<div class="main">${emptyState('crown', t('profileNotFound'), t('profileNotFoundSub'), `<a class="btn primary" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a>`)}</div>`; return; }
     const d = row.data;
     let html = `<div class="main"><div class="public-head clay"><div class="lvl-big">${d.level ? d.level.n : '★'}</div><div class="grow"><div class="muted small" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1 style="margin:2px 0;font-size:30px">${esc(d.name || 'KeepGoing')}</h1>${d.level ? `<div class="muted">${esc(d.level.title)} · ${fmtNum(d.level.xp)} XP</div>` : ''}${d.bio ? `<div class="prof-bio" style="margin-top:6px">${esc(d.bio)}</div>` : ''}</div>${safeImg(d.avatar) ? `<span class="me-avatar photo" style="--s:84px"><img src="${safeImg(d.avatar)}" alt=""></span>` : ''}</div>`;
-    if (d.showcase && d.showcase.length) html += `<h2 class="section-title" style="margin:24px 0 12px">🏆 ${esc(t('showcaseTitle'))}</h2><div class="show-row">${d.showcase.map(x => x.k === 'm'
+    if (d.showcase && d.showcase.length) html += `<h2 class="section-title" style="margin:24px 0 12px">${ico('trophy')} ${esc(t('showcaseTitle'))}</h2><div class="show-row">${d.showcase.map(x => x.k === 'm'
       ? `<div class="kcard-btn">${cardFace({ id: '_', name: x.name }, x.i, 'front', '', { date: x.date, serial: x.serial })}<span class="cap">${esc(t('rank_' + RANKS[x.i][0]))} · ${esc(x.name)}</span></div>`
       : `<div class="kcard-btn">${secretCardHtml(x.id, x.icon, x.date)}<span class="cap">${esc(t('sec_' + x.id))}</span></div>`).join('')}</div>`;
-    if (d.habits && d.habits.length) html += `<h2 class="section-title" style="margin:24px 0 12px">🔥 ${esc(t('publicHabits'))}</h2><div class="stack" style="gap:10px">${d.habits.map(h => `<div class="today-row clay" style="${habitVars(h.color || '#3ddc97')}"><div class="habit-ico sm">${esc(h.icon || '#')}</div><div class="grow"><b>${esc(h.name)}</b><div class="muted small">${esc(h.quit ? t('quitDays', { n: h.streak }) : t('streak', { n: h.streak }))} · ${esc(t('bestStreak'))} ${h.best}</div></div></div>`).join('')}</div>`;
-    if (d.cards && d.cards.length) html += `<h2 class="section-title" style="margin:24px 0 12px">👑 ${esc(t('tabMastery'))}</h2>${d.cards.map(c => `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${esc(c.icon || '#')}</div><div class="grow"><h3>${esc(c.name)}</h3></div><b>${c.ranks.length}/10</b></div><div class="cards-row">${c.ranks.map(([r, date, serial]) => { const i = RANKS.findIndex(x => x[0] === r); return `<div class="kcard-btn">${cardFace({ id: '_', name: c.name }, i, 'front', '', { date, serial })}<span class="cap">${esc(t('rank_' + r))}</span></div>`; }).join('')}</div></section>`).join('')}`;
-    if (d.challenges && d.challenges.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>🏁 ${esc(t('challengeCards'))}</h3></div></div><div class="cards-row">${d.challenges.map(c => `<div class="kcard-btn">${challengeCardHtml(c)}</div>`).join('')}</div></section>`;
-    if (d.contracts && d.contracts.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>📜 ${esc(t('contractCards'))}</h3></div></div><div class="cards-row">${d.contracts.map(cc => `<div class="kcard-btn">${contractCardHtml(cc)}<span class="cap">${esc(t('tier_' + cc.tier))}</span></div>`).join('')}</div></section>`;
+    if (d.habits && d.habits.length) html += `<h2 class="section-title" style="margin:24px 0 12px">${ico('flame')} ${esc(t('publicHabits'))}</h2><div class="stack" style="gap:10px">${d.habits.map(h => `<div class="today-row clay" style="${habitVars(h.color || '#3ddc97')}"><div class="habit-ico sm">${esc(h.icon || '#')}</div><div class="grow"><b>${esc(h.name)}</b><div class="muted small">${esc(h.quit ? t('quitDays', { n: h.streak }) : t('streak', { n: h.streak }))} · ${esc(t('bestStreak'))} ${h.best}</div></div></div>`).join('')}</div>`;
+    if (d.cards && d.cards.length) html += `<h2 class="section-title" style="margin:24px 0 12px">${ico('crown')} ${esc(t('tabMastery'))}</h2>${d.cards.map(c => `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${esc(c.icon || '#')}</div><div class="grow"><h3>${esc(c.name)}</h3></div><b>${c.ranks.length}/10</b></div><div class="cards-row">${c.ranks.map(([r, date, serial]) => { const i = RANKS.findIndex(x => x[0] === r); return `<div class="kcard-btn">${cardFace({ id: '_', name: c.name }, i, 'front', '', { date, serial })}<span class="cap">${esc(t('rank_' + r))}</span></div>`; }).join('')}</div></section>`).join('')}`;
+    if (d.challenges && d.challenges.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>${ico('flag')} ${esc(t('challengeCards'))}</h3></div></div><div class="cards-row">${d.challenges.map(c => `<div class="kcard-btn">${challengeCardHtml(c)}</div>`).join('')}</div></section>`;
+    if (d.contracts && d.contracts.length) html += `<section class="series clay"><div class="series-head"><div class="grow"><h3>${ico('doc')} ${esc(t('contractCards'))}</h3></div></div><div class="cards-row">${d.contracts.map(cc => `<div class="kcard-btn">${contractCardHtml(cc)}<span class="cap">${esc(t('tier_' + cc.tier))}</span></div>`).join('')}</div></section>`;
     html += `<div class="center" style="margin:30px 0"><p class="muted small">${esc(t('publicUpdated', { d: fmtDate(d.at || todayKey()) }))}</p><a class="btn primary" href="${APP_URL}">${esc(t('profileCreateOwn'))}</a></div></div>`;
     app.innerHTML = html;
   }
@@ -10369,7 +10485,7 @@
   }
   // Foto de perfil (si la hay) o la inicial del nombre
   const avatarHtml = (m, extra = '') => { const img = safeImg(m.avatar || (auth && m.user_id === auth.uid && state.profile && state.profile.avatar)); return `<span class="avatar ${extra} ${img ? 'photo' : ''}" title="${esc(m.display_name || '')}">${img ? `<img src="${img}" alt="">` : esc((m.display_name || m.nametag || '?').charAt(0).toUpperCase())}</span>`; };
-  const liveBadge = st => st === 'live' ? `<span class="live-chip">🔴 ${esc(t('gLiveNow'))}</span>` : st === 'voting' ? `<span class="vote-chip">🗳️ ${esc(t('gVotingNow'))}</span>` : '';
+  const liveBadge = st => st === 'live' ? `<span class="live-chip">${ico('live')} ${esc(t('gLiveNow'))}</span>` : st === 'voting' ? `<span class="vote-chip">🗳️ ${esc(t('gVotingNow'))}</span>` : '';
   /* ---------- pestaña Chat: amigos por @nametag, conversaciones (privadas y grupos) y libretas compartidas ---------- */
   const chatData = { friends: null, shares: null, at: 0, busy: false, error: false };
   const READ_KEY = 'keepgoing.chatRead';
@@ -10426,8 +10542,8 @@
     const inc = fr.filter(f => f.status === 'incoming'), acc = fr.filter(f => f.status === 'accepted'), out = fr.filter(f => f.status === 'outgoing');
     const row = (f, actions) => `<div class="chat-row static">${avatarHtml(f, 'lg')}<span class="chat-mid"><b class="ellipsis">${esc(personName(f))}</b><span class="muted small ellipsis">@${esc(f.nametag || '')}</span></span><span class="chat-end row" style="gap:6px">${actions}</span></div>`;
     let html = `<form class="clay card friend-add" id="friend-form"><label class="field" style="margin:0"><span>${esc(t('friendAdd'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="friend-tag" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('nametagPh'))}"><button class="btn primary" type="submit">${esc(t('friendSend'))}</button></div></label></form>`;
-    if (inc.length) html += `<h2 class="section-title">📨 ${esc(t('friendRequests'))}</h2><div class="chat-rows clay">${inc.map(f => row(f, `<button class="btn primary sm" data-fr-yes="${f.user_id}">${esc(t('friendAccept'))}</button><button class="chip sm" data-fr-no="${f.user_id}">${esc(t('friendDecline'))}</button>`)).join('')}</div>`;
-    html += `<h2 class="section-title">👋 ${esc(t('friendsTitle'))} · ${acc.length}</h2>`;
+    if (inc.length) html += `<h2 class="section-title">${ico('inbox')} ${esc(t('friendRequests'))}</h2><div class="chat-rows clay">${inc.map(f => row(f, `<button class="btn primary sm" data-fr-yes="${f.user_id}">${esc(t('friendAccept'))}</button><button class="chip sm" data-fr-no="${f.user_id}">${esc(t('friendDecline'))}</button>`)).join('')}</div>`;
+    html += `<h2 class="section-title">${ico('users')} ${esc(t('friendsTitle'))} · ${acc.length}</h2>`;
     html += acc.length ? `<div class="chat-rows clay">${acc.map(f => row(f, `<button class="icon-btn sm" data-fr-dm="${f.user_id}" aria-label="${esc(t('friendMessage'))}" title="${esc(t('friendMessage'))}">${ico('chat')}</button><button class="icon-btn sm" data-fr-rm="${f.user_id}" aria-label="${esc(t('friendRemove'))}" title="${esc(t('friendRemove'))}">${ico('x')}</button>`)).join('')}</div>` : `<p class="muted">${esc(t('friendsEmpty'))}</p>`;
     if (out.length) html += `<h2 class="section-title">⏳ ${esc(t('friendPending'))}</h2><div class="chat-rows clay">${out.map(f => row(f, `<button class="chip sm" data-fr-rm="${f.user_id}">${esc(t('cancel'))}</button>`)).join('')}</div>`;
     return html;
@@ -10439,16 +10555,16 @@
     if (!auth) return html + emptyState('chat', t('chatLoginTitle'), t('chatLoginSub'), `<button class="btn primary" data-act="chat-login">${esc(t('signIn'))}</button>`);
     refreshMyGroups(); refreshChat();
     const fr = chatData.friends || [], inc = fr.filter(f => f.status === 'incoming').length;
-    html += `<div class="seg view-seg" role="tablist">${[['chats', '💬', 'chatChats'], ['friends', '👋', 'chatFriends']].map(([k, e, l]) => `<button data-act="cview" data-v="${k}" role="tab" aria-selected="${v === k}" class="${v === k ? 'on' : ''}"><span class="vi">${e}</span> ${esc(t(l))}${k === 'friends' && inc ? ` <span class="count-dot">${inc}</span>` : ''}</button>`).join('')}</div>`;
-    if (!myTag()) html += `<div class="banner clay">🏷️<span class="grow">${esc(t('chatNeedTag'))}</span><button class="chip" data-act="profile">${esc(t('chatSetTag'))}</button></div>`;
+    html += `<div class="seg view-seg" role="tablist">${[['chats', '💬', 'chatChats'], ['friends', '👋', 'chatFriends']].map(([k, e, l]) => `<button data-act="cview" data-v="${k}" role="tab" aria-selected="${v === k}" class="${v === k ? 'on' : ''}"><span class="vi">${ico(e)}</span> ${esc(t(l))}${k === 'friends' && inc ? ` <span class="count-dot">${inc}</span>` : ''}</button>`).join('')}</div>`;
+    if (!myTag()) html += `<div class="banner clay">${ico('tag')}<span class="grow">${esc(t('chatNeedTag'))}</span><button class="chip" data-act="profile">${esc(t('chatSetTag'))}</button></div>`;
     if (v === 'friends') return html + (chatData.friends ? friendsHtml(fr) : `<p class="muted center">${esc(t(chatData.error ? 'groupsOffline' : 'groupsLoading'))}</p>`);
-    if (inc) html += `<button class="banner clay" data-act="cview" data-v="friends" style="width:100%;border:0;text-align:left;color:inherit">📨<span class="grow"><b>${esc(t('friendRequestsN', { n: inc }))}</b></span>${ico('right')}</button>`;
+    if (inc) html += `<button class="banner clay" data-act="cview" data-v="friends" style="width:100%;border:0;text-align:left;color:inherit">${ico('inbox')}<span class="grow"><b>${esc(t('friendRequestsN', { n: inc }))}</b></span>${ico('right')}</button>`;
     if (!myGroups.list) return html + `<p class="muted center">${esc(t(myGroups.error ? 'groupsOffline' : 'groupsLoading'))}</p>`;
     const shares = chatData.shares || [], convs = myGroups.list;
     if (!shares.length && !convs.length) return html + emptyState('chat', t('chatEmptyTitle'), t('chatEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="cview" data-v="friends">${ico('user')} ${esc(t('friendAdd'))}</button><button class="btn" data-act="chat-new">${ico('plus')} ${esc(t('chatNewGroup'))}</button></div>`);
     html += notesHtml();
-    if (shares.length) html += `<h2 class="section-title">👛 ${esc(t('lsShared'))}</h2><div class="chat-rows clay">${shares.map(shareRow).join('')}</div>`;
-    if (convs.length) html += `<h2 class="section-title">💬 ${esc(t('chatChats'))}</h2><div class="chat-rows clay">${convs.map(convRow).join('')}</div>`;
+    if (shares.length) html += `<h2 class="section-title">${ico('wallet')} ${esc(t('lsShared'))}</h2><div class="chat-rows clay">${shares.map(shareRow).join('')}</div>`;
+    if (convs.length) html += `<h2 class="section-title">${ico('chat')} ${esc(t('chatChats'))}</h2><div class="chat-rows clay">${convs.map(convRow).join('')}</div>`;
     return html;
   }
   /* ---- «Notas para ti»: lo que te han puntuado tus compañeros en los rankings ya publicados ---- */
@@ -10468,13 +10584,13 @@
   function notesHtml() {
     const list = visibleNotes(); if (!list.length) return '';
     const p = notesPrefs(), seen = p.seen || '', fresh = list.filter(n => !seen || n.created_at > seen).length;
-    return `<h2 class="section-title">📝 ${esc(t('notesTitle'))}${fresh ? ` <span class="count-dot">${fresh}</span>` : ''}</h2><div class="chat-rows clay notes-box">${list.slice(0, 3).map(n => noteCard(n, seen || '0')).join('')}
+    return `<h2 class="section-title">${ico('doc')} ${esc(t('notesTitle'))}${fresh ? ` <span class="count-dot">${fresh}</span>` : ''}</h2><div class="chat-rows clay notes-box">${list.slice(0, 3).map(n => noteCard(n, seen || '0')).join('')}
       ${list.length > 3 || fresh ? `<div class="row" style="justify-content:center;gap:8px;padding:6px 0 2px">${list.length > 3 ? `<button class="chip sm" data-act="notes-all">${esc(t('notesAll', { n: list.length }))}</button>` : ''}${fresh ? `<button class="chip sm" data-act="notes-seen">✓ ${esc(t('notesSeen'))}</button>` : ''}</div>` : ''}</div>`;
   }
   function openNotes() {
     const seen = notesPrefs().seen || '0';
     openModal({
-      title: `📝 ${esc(t('notesTitle'))}`, body: '<div id="notes-all"></div>',
+      title: `${ico('doc')} ${esc(t('notesTitle'))}`, body: '<div id="notes-all"></div>',
       onMount: w => { const draw = () => { const l = visibleNotes(); $('#notes-all', w).innerHTML = l.length ? `<div class="stack" style="gap:8px">${l.map(n => noteCard(n, seen)).join('')}</div>` : `<p class="muted center">${esc(t('notesNone'))}</p>`; }; w._draw = draw; draw(); },
       onClick: (e, close, w) => { const b = e.target.closest('[data-note-hide]'); if (b) { hideNote(b.dataset.noteHide); w._draw(); } },
       onClose: () => { markNotesSeen(); render(); }
@@ -10534,7 +10650,7 @@
     openModal({
       title: `${ico('plus')} ${esc(t('tabChat'))}`,
       body: `<div class="stack" style="gap:10px">
-        <button class="create-opt clay" data-cp="new"><span style="font-size:28px">👥</span><span class="grow"><b>${esc(t('chatNewGroup'))}</b><br><span class="muted small">${esc(t('chatGroupHint'))}</span></span>${ico('right')}</button>
+        <button class="create-opt clay" data-cp="new"><span class="big-ico sm">${ico('users')}</span><span class="grow"><b>${esc(t('chatNewGroup'))}</b><br><span class="muted small">${esc(t('chatGroupHint'))}</span></span>${ico('right')}</button>
         <button class="create-opt clay" data-cp="join"><span style="font-size:28px">🆔</span><span class="grow"><b>${esc(t('reqJoinTitle'))}</b><br><span class="muted small">${esc(t('reqJoinSub'))}</span></span>${ico('right')}</button></div>`,
       onClick: (e, close) => {
         const b = e.target.closest('[data-cp]'); if (!b) return;
@@ -10676,7 +10792,7 @@
       const g = G.info.group, o = findByGroup(gid);
       if (!o) return `<section class="clay card banner-cta"><span style="font-size:26px">${esc(g.icon || '🎯')}</span><span class="grow"><b>${esc(t(g.kind === 'habit' ? 'gLinkHabit' : 'gLinkProject', { name: (g.spec && g.spec.name) || g.name }))}</b><br><span class="muted small">${esc(t('gLinkSub'))}</span></span><button class="btn primary" data-g="link-local">${ico('plus')} ${esc(t('chatAdd'))}</button></section>`;
       const miss = g.kind === 'project' ? missingSpecHabits(o, g.spec) : [];
-      return miss.length ? `<section class="clay card banner-cta"><span style="font-size:26px">📋</span><span class="grow"><b>${esc(t('gLinkHabits', { n: miss.length }))}</b><br><span class="muted small">${esc(miss.map(x => `${x.icon || ''} ${x.name}`).join(' · '))}</span></span><button class="btn primary" data-g="link-habits">${ico('plus')} ${esc(t('chatAdd'))}</button></section>` : '';
+      return miss.length ? `<section class="clay card banner-cta"><span style="font-size:26px">${ico('checklist')}</span><span class="grow"><b>${esc(t('gLinkHabits', { n: miss.length }))}</b><br><span class="muted small">${esc(miss.map(x => `${x.icon || ''} ${x.name}`).join(' · '))}</span></span><button class="btn primary" data-g="link-habits">${ico('plus')} ${esc(t('chatAdd'))}</button></section>` : '';
     };
 
     /* --- perfil del grupo --- */
@@ -10685,8 +10801,8 @@
       return `<div class="stack" style="gap:16px">
         <section class="clay card g-profile"><div class="g-head">${groupPic(g)}<div class="grow" style="min-width:0"><h2 class="ellipsis" style="margin:0">${esc(g.name)}</h2><div class="muted">${esc(t('chatGroupKind'))} · ${members.length}${max ? `/${max}` : ''} ${esc(t('gMembersN')).toLowerCase()}</div>${g.code ? `<div class="row" style="gap:8px;margin-top:6px"><span class="muted small">${esc(t('gId'))}</span><b class="mono">${esc(g.code)}</b><button class="chip sm" data-g="copy-id">${esc(t('gCopyId'))}</button></div>` : ''}${picRm(g)}</div></div>
           <div class="g-people" style="margin-top:12px">${members.map(m => `<span class="g-person">${avatarHtml(m, 'sm')}<span class="small ellipsis">${esc(m.user_id === auth.uid ? t('gYou') : m.display_name)}</span></span>`).join('')}</div></section>
-        ${can('invite') ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button>${link ? `<div class="row wrap" style="margin-top:12px"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p>` : ''}</section>` : ''}
-        ${isLeader() ? `<section class="clay card banner-cta"><span style="font-size:26px">🏆</span><span class="grow"><b>${esc(t('gUpgrade'))}</b><br><span class="muted small">${esc(t('gUpgradeSub'))}</span></span><button class="btn primary" data-g="upgrade">${esc(t('gUpgradeBtn'))}</button></section>` : ''}
+        ${can('invite') ? `<section class="clay card"><h3 class="section-title">${ico('link')} ${esc(t('gInvite'))}</h3><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button>${link ? `<div class="row wrap" style="margin-top:12px"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p>` : ''}</section>` : ''}
+        ${isLeader() ? `<section class="clay card banner-cta"><span style="font-size:26px">${ico('trophy')}</span><span class="grow"><b>${esc(t('gUpgrade'))}</b><br><span class="muted small">${esc(t('gUpgradeSub'))}</span></span><button class="btn primary" data-g="upgrade">${esc(t('gUpgradeBtn'))}</button></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('chatLeave'))}</button></div>
       </div>`;
     };
@@ -10700,7 +10816,7 @@
         const d = Math.min(active.days, Math.max(1, Math.round((Date.parse(G.info.today) - Date.parse(active.starts_on)) / 864e5) + 1));
         live = `<button class="g-live on" data-gt="live"><span class="g-live-dot"></span><span class="grow"><b>${esc(t('gLiveNow'))}</b><span>${esc(active.title)}</span><span class="small">${esc(t('gLiveDay', { d, n: active.days, t: active.target }))}</span></span>${ico('right')}</button>`;
       } else if (active && active.status === 'voting') {
-        live = `<button class="g-live voting" data-gt="live"><span>🗳️</span><span class="grow"><b>${esc(t('gVotingNow'))}</b><span>${esc(active.title)}</span><span class="small">${esc(t('liveVoteEnds', { when: fmtWhen(active.vote_ends_at) }))}</span></span>${ico('right')}</button>`;
+        live = `<button class="g-live voting" data-gt="live"><span>${ico('vote')}</span><span class="grow"><b>${esc(t('gVotingNow'))}</b><span>${esc(active.title)}</span><span class="small">${esc(t('liveVoteEnds', { when: fmtWhen(active.vote_ends_at) }))}</span></span>${ico('right')}</button>`;
       } else live = `<div class="g-live off"><span>⚪</span><span class="grow"><b>${esc(t('gNoLive'))}</b></span></div>`;
       return `<div class="stack" style="gap:16px">
         ${localBanner()}
@@ -10716,7 +10832,7 @@
           ${live}
         </section>
         ${g.spec && Object.keys(g.spec).length ? `<section class="clay card g-spec"><h3 class="section-title">${ico('eye')} ${esc(t(g.kind === 'habit' ? 'gSpecHabit' : 'gSpecProject'))}</h3>${pvSpecHtml(g.kind === 'habit' ? 'habit' : 'project', g.spec)}</section>` : ''}
-        ${can('invite') && link ? `<section class="clay card"><h3 class="section-title">🔗 ${esc(t('gInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="btn" data-g="invite-chat">${ico('send')} ${esc(t('shareToChat'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p></section>` : ''}
+        ${can('invite') && link ? `<section class="clay card"><h3 class="section-title">${ico('link')} ${esc(t('gInvite'))}</h3><div class="row wrap"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn primary" data-g="share">${esc(t('share'))}</button><button class="btn" data-g="invite-chat">${ico('send')} ${esc(t('shareToChat'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('groupLeave'))}</button></div>
       </div>`;
     };
@@ -10728,7 +10844,7 @@
       const rows = G.rates[p.period];
       if (!rows) return `<div class="rate-pub"><span class="muted small">${esc(t('loading'))}</span></div>`;
       if (!rows.length) return '';
-      return `<div class="rate-pub clay"><b>⭐ ${esc(t('ratePubTitle'))}</b>${rows.map(r => `<div class="rate-row"><span class="grow">${esc(memberName(r.from_user))} → <b>${esc(memberName(r.to_user))}</b></span><b class="rate-pts">${r.points}/10</b>${r.note ? `<p class="small rate-note">«${esc(r.note)}»</p>` : ''}</div>`).join('')}</div>`;
+      return `<div class="rate-pub clay"><b>${ico('star')} ${esc(t('ratePubTitle'))}</b>${rows.map(r => `<div class="rate-row"><span class="grow">${esc(memberName(r.from_user))} → <b>${esc(memberName(r.to_user))}</b></span><b class="rate-pts">${r.points}/10</b>${r.note ? `<p class="small rate-note">«${esc(r.note)}»</p>` : ''}</div>`).join('')}</div>`;
     };
     const loadRates = () => {
       for (const m of G.msgs) {
@@ -10763,10 +10879,10 @@
       } else if (m.kind === 'photo') {
         // Foto de una sola vez: cada persona la abre una vez; quien la envía no puede volver a verla
         const p = m.payload || {};
-        inner = mine ? `<span class="media-chip">📷 ${esc(t('photoOnceSent'))}</span>` : G.seen.has(p.media) ? `<span class="media-chip muted">📷 ${esc(t('photoOpened'))}</span>` : `<button class="media-chip once" data-gc-photo="${esc(p.media)}">📷 ${esc(t('photoOnceOpen'))}</button>`;
+        inner = mine ? `<span class="media-chip">${ico('camera')} ${esc(t('photoOnceSent'))}</span>` : G.seen.has(p.media) ? `<span class="media-chip muted">📷 ${esc(t('photoOpened'))}</span>` : `<button class="media-chip once" data-gc-photo="${esc(p.media)}">📷 ${esc(t('photoOnceOpen'))}</button>`;
       } else if (m.kind === 'audio') {
         const p = m.payload || {}, url = AUDIO.get(p.media);
-        inner = url ? `<audio class="audio-msg" controls src="${url}"></audio>` : `<button class="media-chip" data-gc-audio="${esc(p.media)}">${ico('play')} 🎤 ${esc(fmtDur(+p.dur || 0))}</button>`;
+        inner = url ? `<audio class="audio-msg" controls src="${url}"></audio>` : `<button class="media-chip" data-gc-audio="${esc(p.media)}">${ico('play')} ${ico('mic')} ${esc(fmtDur(+p.dur || 0))}</button>`;
       } else if (m.kind === 'file') {
         // PDF de la calculadora: se abre (o descarga) las veces que se quiera
         const p = m.payload || {}, name = String(p.name || 'KeepGoing.pdf');
@@ -10918,7 +11034,7 @@
       if (a && a.status === 'voting') {
         const voters = a.voters || [], y = a.votes_yes || 0, n = a.votes_no || 0, blank = Math.max(0, voters.length - y - n);
         const r = GG.voteResult(voters.length, y, n), amVoter = voters.includes(auth.uid);
-        cur = `<section class="clay card live-card voting"><h3 class="section-title">🗳️ ${esc(t('liveVoting', { title: a.title }))}</h3>
+        cur = `<section class="clay card live-card voting"><h3 class="section-title">${ico('vote')} ${esc(t('liveVoting', { title: a.title }))}</h3>
           <p class="muted" style="margin-top:0">${esc(t('liveVoteSub2', { n: a.days, t: a.target }))}</p>
           <p class="small"><b>${esc(t('liveVoteEnds', { when: fmtWhen(a.vote_ends_at) }))}</b></p>
           <div class="vote-bar" aria-hidden="true"><i class="y" style="flex:${r.yesTotal}"></i><i class="n" style="flex:${r.noTotal || (r.yesTotal ? 0 : 1)}"></i></div>
@@ -10944,7 +11060,7 @@
     };
     function openLaunch() {
       openModal({
-        title: `🔴 ${esc(t('liveLaunch'))}`,
+        title: `${ico('live')} ${esc(t('liveLaunch'))}`,
         body: `<form class="stack" id="launch-f" style="gap:14px">
           <label class="field"><span>${esc(t('liveTitle'))}</span><input class="input" id="lc-title" maxlength="80" placeholder="${esc(t('liveTitlePh'))}"></label>
           <div class="row" style="gap:12px"><label class="field grow"><span>${esc(t('liveDays'))}</span><input class="input" id="lc-days" type="number" min="1" max="90" value="7" inputmode="numeric"></label>
@@ -10958,7 +11074,7 @@
             <option value="1440" selected>${esc(t('liveDaysOpt', { n: 1 }))}</option><option value="4320">${esc(t('liveDaysOpt', { n: 3 }))}</option><option value="10080">${esc(t('liveDaysOpt', { n: 7 }))}</option><option value="custom">${esc(t('liveCustom'))}</option></select></label>
             <label class="field" id="lc-custom-w" hidden><span>${esc(t('liveMinutes'))} (5-10080)</span><input class="input" id="lc-custom" type="number" min="5" max="10080" value="120" inputmode="numeric"></label></div>
         </form>`,
-        foot: `<button class="btn primary block" data-lc="go">🔴 ${esc(t('liveGo'))}</button>`,
+        foot: `<button class="btn primary block" data-lc="go">${ico('live')} ${esc(t('liveGo'))}</button>`,
         onMount: w => w.addEventListener('change', () => {
           $('#lc-vote', w).hidden = $('input[name="lc-mode"]:checked', w).value !== 'vote';
           $('#lc-custom-w', w).hidden = $('#lc-time', w).value !== 'custom';
@@ -10983,11 +11099,11 @@
       let html = '';
       if (g.ranking_on) {
         const mult = GG.REP_MULT[g.ranking_freq] || 0;
-        html += `<section class="clay card"><div class="row wrap" style="justify-content:space-between"><h3 class="section-title" style="margin:0">🏅 ${esc(t('freqLong_' + g.ranking_freq))} · ${esc(t('freq_' + g.ranking_freq))}</h3></div>
+        html += `<section class="clay card"><div class="row wrap" style="justify-content:space-between"><h3 class="section-title" style="margin:0">${ico('medal')} ${esc(t('freqLong_' + g.ranking_freq))} · ${esc(t('freq_' + g.ranking_freq))}</h3></div>
           <p class="muted small">${esc(g.ranking_freq === 'MAX' ? t('rankMax', { from: fmtDate(G.info.board_from) }) : t('rankPeriod', { from: fmtShort(G.info.board_from), to: fmtShort(G.info.board_to) }))}</p>
           ${board && board.some(b => +b.score > 0) ? `<ol class="rank-list">${board.map((b, i) => { const m = members.find(x => x.user_id === b.user_id) || { display_name: '—' }; const place = board.findIndex(x => +x.score === +b.score) + 1; return `<li class="${b.user_id === auth.uid ? 'me' : ''}"><span class="rank-pos">${+b.score > 0 ? (['🥇', '🥈', '🥉'][place - 1] || place) : '—'}</span>${avatarHtml(m, 'sm')}<span class="grow ellipsis"><b>${esc(m.display_name)}</b>${m.nametag ? ` <span class="muted small">@${esc(m.nametag)}</span>` : ''}<br><span class="muted small">${esc(t('repShort', { n: m.rep || 0 }))}</span></span><b>${esc(t(g.kind === 'habit' ? 'rankScoreHabit' : 'rankScoreProject', { n: fmtNum(+b.score) }))}</b></li>`; }).join('')}</ol>${g.ranking_freq !== 'MAX' ? `<p class="muted small">${esc(t('rankLiveHint'))}</p>` : ''}` : `<p class="muted">${esc(t('rankEmpty'))}</p>`}
           <p class="small" style="margin-bottom:0">${esc(mult ? t('rankPrizes', { a: GG.REP_PRIZES[0] * mult, b: GG.REP_PRIZES[1] * mult, c: GG.REP_PRIZES[2] * mult }) : t('rankPrizesNone'))}</p></section>`;
-      } else html += `<section class="clay card center"><div style="font-size:40px">🏅</div><h3 style="margin:6px 0">${esc(t('rankOffTitle'))}</h3><p class="muted small" style="margin:0">${esc(t('rankOffSub'))}</p></section>`;
+      } else html += `<section class="clay card center"><div class="big-ico">${ico('medal')}</div><h3 style="margin:6px 0">${esc(t('rankOffTitle'))}</h3><p class="muted small" style="margin:0">${esc(t('rankOffSub'))}</p></section>`;
       if (leader) {
         const tags = members.filter(m => (g.rank_users || []).includes(m.user_id) && m.nametag).map(m => '@' + m.nametag).join(', ');
         html += `<section class="clay card stack" style="gap:12px" id="rank-set">
@@ -10998,7 +11114,7 @@
       }
       if (g.ranking_on && g.ranking_freq !== 'MAX') {
         const others = members.filter(m => m.user_id !== auth.uid), done = new Set(G.info.my_rates || []);
-        html += `<section class="clay card"><h3 class="section-title" style="margin-top:0">⭐ ${esc(t('rateTitle'))}</h3><p class="muted small" style="margin-top:0">${esc(t('rateHint'))}</p>
+        html += `<section class="clay card"><h3 class="section-title" style="margin-top:0">${ico('star')} ${esc(t('rateTitle'))}</h3><p class="muted small" style="margin-top:0">${esc(t('rateHint'))}</p>
           ${others.length ? others.map(m => `<div class="member-row">${avatarHtml(m, 'sm')}<b class="grow ellipsis">${esc(m.display_name)}</b>${done.has(m.user_id) ? `<span class="ok-chip">✓ ${esc(t('rateDone'))}</span>` : `<button class="btn sm primary" data-rate="${m.user_id}">${esc(t('rateBtn'))}</button>`}</div>`).join('') : `<p class="muted small" style="margin:0">${esc(t('rateNobody'))}</p>`}</section>`;
       }
       html += `<p class="muted small center">${esc(t('rankRepNote'))}</p>`;
@@ -11015,10 +11131,10 @@
         const perms = m.role === 'lider' ? '' : leader && !self
           ? `<div class="perm-row" role="group" aria-label="${esc(t('gPerms'))}">${GG.PERMS.map(p => `<label class="check-chip sm"><input type="checkbox" data-perm-user="${m.user_id}" data-perm="${p}" ${(m.perms || []).includes(p) ? 'checked' : ''}><span>${esc(t('perm_' + p))}</span></label>`).join('')}</div>`
           : (m.perms || []).filter(p => GG.PERMS.includes(p)).length ? `<div class="perm-row">${m.perms.filter(p => GG.PERMS.includes(p)).map(p => `<span class="perm-chip">${esc(t('perm_' + p))}</span>`).join('')}</div>` : '';
-        const status = g.kind === 'habit' ? (m.done_today ? `<span class="ok-chip">✅ ${esc(t('gDoneToday'))}</span>` : `<span class="warn-chip">⏳ ${esc(t('gNotToday'))}</span>`) : '';
+        const status = g.kind === 'habit' ? (m.done_today ? `<span class="ok-chip">${ico('check')} ${esc(t('gDoneToday'))}</span>` : `<span class="warn-chip">⏳ ${esc(t('gNotToday'))}</span>`) : '';
         return `<div class="member-row">${avatarHtml(m)}
           <div class="grow" style="min-width:0"><b class="ellipsis">${esc(m.display_name)}${self ? ' · ' + esc(t('gYou')) : ''}</b>${m.nametag ? ` <span class="muted small">@${esc(m.nametag)}</span>` : ''}
-            <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${roleCtl}${status}<span class="rep-chip" title="${esc(t('repInGroup'))}">🏅 ${esc(t('repShort', { n: m.rep || 0 }))}</span></div>${perms}</div>
+            <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${roleCtl}${status}<span class="rep-chip" title="${esc(t('repInGroup'))}">${ico('medal')} ${esc(t('repShort', { n: m.rep || 0 }))}</span></div>${perms}</div>
           ${leader && !self ? `<button class="icon-btn sm" data-g-kick="${m.user_id}" aria-label="${esc(t('gKick'))}">${ico('x')}</button>` : ''}
         </div>`;
       }).join('')}</section>${isChat() && can('invite') ? `<div class="center" style="margin-top:12px"><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button></div>` : ''}${isLeader() ? `<p class="muted small center">${esc(t('gPermsLeader'))}</p>` : ''}`;
@@ -11132,7 +11248,7 @@
       catch (err) { if (/viewed|sender/.test(err.message)) { G.seen.add(id); draw(true); toast(t('photoAlready')); return; } throw err; }
       G.seen.add(id); draw(true);
       if (!/^image\/(jpeg|png|webp|gif)$/.test(r.mime || '') || !/^[A-Za-z0-9+/=]+$/.test(r.data || '')) return;
-      openModal({ title: `📷 ${esc(t('photoOnceOpen'))}`, cls: 'photo-view', body: `<img class="once-img" src="data:${r.mime};base64,${r.data}" alt=""><p class="muted small center" style="margin-bottom:0">${esc(t('photoOnceNote'))}</p>` });
+      openModal({ title: `${ico('camera')} ${esc(t('photoOnceOpen'))}`, cls: 'photo-view', body: `<img class="once-img" src="data:${r.mime};base64,${r.data}" alt=""><p class="muted small center" style="margin-bottom:0">${esc(t('photoOnceNote'))}</p>` });
     }
     async function loadAudio(id) {
       const r = await rpc('kg_media_get', { p_id: id });
@@ -11221,7 +11337,7 @@
       const m = G.info.members.find(x => x.user_id === to); if (!m) return;
       let pts = null;
       openModal({
-        title: `⭐ ${esc(m.display_name)}`,
+        title: `${ico('star')} ${esc(m.display_name)}`,
         body: `<div class="stack" style="gap:14px"><div class="field" style="margin:0"><span>${esc(t('ratePoints'))}</span><div class="rate-grid" role="radiogroup" aria-label="${esc(t('ratePoints'))}">${Array.from({ length: 11 }, (_, i) => `<button type="button" class="chip" role="radio" aria-checked="false" data-pts="${i}">${i}</button>`).join('')}</div></div>
           <label class="field" style="margin:0"><span>${esc(t('rateNote'))}</span><textarea class="input" id="rt-note" maxlength="200" rows="3" placeholder="${esc(t('rateNotePh'))}"></textarea></label>
           <p class="muted small" style="margin:0">${esc(t('rateHint'))}</p></div>`,
@@ -11240,7 +11356,7 @@
     function openUpgrade() {
       const items = [...state.projects.filter(p => !p.groupId && !p.archived).map(o => ['project', o]), ...state.habits.filter(h => !h.groupId && !h.archived).map(o => ['habit', o])];
       openModal({
-        title: `🏆 ${esc(t('gUpgrade'))}`,
+        title: `${ico('trophy')} ${esc(t('gUpgrade'))}`,
         body: `<p class="muted small" style="margin-top:0">${esc(t('gUpgradePick'))}</p>${items.length ? `<div class="stack" style="gap:8px">${items.map(([k, o]) => `<button class="btn block" style="justify-content:flex-start" data-up="${esc(o.id)}" data-up-kind="${k}">${esc(o.icon || '🎯')} ${esc(o.name)} <span class="muted small">· ${esc(t(k === 'project' ? 'gProject' : 'gHabit'))}</span></button>`).join('')}</div>` : `<p class="muted">${esc(t('gUpgradeNone'))}</p>`}`,
         onClick: async (e, close) => {
           const b = e.target.closest('[data-up]'); if (!b) return;
@@ -11258,7 +11374,7 @@
     }
 
     openModal({
-      title: `👥 ${esc(t('groupTitle'))}`, cls: `wide g-modal${tab === 'chat' ? ' chat-full' : ''}`, body: `<div id="grp"><p class="muted">${esc(t('loading'))}</p></div>`,
+      title: `${ico('users')} ${esc(t('groupTitle'))}`, cls: `wide g-modal${tab === 'chat' ? ' chat-full' : ''}`, body: `<div id="grp"><p class="muted">${esc(t('loading'))}</p></div>`,
       onMount: async w => {
         wref = w;
         // v1.25: en pantalla completa (móvil), flecha «Volver» a la izquierda y deslizar desde el borde izquierdo para salir
@@ -11403,7 +11519,7 @@
   function repHtml() {
     if (!auth) return `<p class="muted small" style="margin:0">${esc(t('nametagNeedLogin'))}</p>`;
     return `<div class="stack" style="gap:12px">
-      <div class="kpis" style="margin:0"><div class="kpi clay"><b>🏅 ${repState.total == null ? '…' : fmtNum(repState.total)}</b><span>${esc(t('repTotal'))}</span></div><div class="kpi clay"><b>🥇 ${repState.golds == null ? '…' : repState.golds}</b><span>1.º</span></div></div>
+      <div class="kpis" style="margin:0"><div class="kpi clay"><b>${ico('medal')} ${repState.total == null ? '…' : fmtNum(repState.total)}</b><span>${esc(t('repTotal'))}</span></div><div class="kpi clay"><b>🥇 ${repState.golds == null ? '…' : repState.golds}</b><span>1.º</span></div></div>
       <p class="muted small" style="margin:0">${esc(t('repTotalSub'))}</p></div>`;
   }
   // Crear o cambiar el @nametag (arriba del todo en el perfil y en el registro)
@@ -11428,7 +11544,7 @@
   async function processJoin() {
     let code = null; try { code = localStorage.getItem(JOIN_KEY); } catch (e) { /* nada */ }
     if (!code || !state.onboarded) return;
-    if (!auth) { whenFree(() => openModal({ body: `<div class="center"><div style="font-size:48px">👥</div><h2>${esc(t('joinTitle'))}</h2><p class="muted">${esc(t('joinNeedLogin'))}</p></div>`, foot: `<button class="btn primary block" data-m="login">${esc(t('signIn'))}</button>`, onClick: (e, close) => { if (e.target.closest('[data-m="login"]')) { close(); openLogin(); } } })); return; }
+    if (!auth) { whenFree(() => openModal({ body: `<div class="center"><div class="big-ico">${ico('users')}</div><h2>${esc(t('joinTitle'))}</h2><p class="muted">${esc(t('joinNeedLogin'))}</p></div>`, foot: `<button class="btn primary block" data-m="login">${esc(t('signIn'))}</button>`, onClick: (e, close) => { if (e.target.closest('[data-m="login"]')) { close(); openLogin(); } } })); return; }
     let info = null; try { info = await rpc('kg_peek_invite', { p_code: code }); } catch (e) { info = null; }
     if (!info) { try { localStorage.removeItem(JOIN_KEY); } catch (e) { /* nada */ } toast(t('joinInvalid')); return; }
     if (info.max_members && info.members >= info.max_members) { try { localStorage.removeItem(JOIN_KEY); } catch (e) { /* nada */ } toast(t('joinFull', { n: info.max_members })); return; }
