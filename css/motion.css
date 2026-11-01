@@ -157,3 +157,121 @@
 .jr-years { padding-top: 2px; }
 .crown .ri-day { text-transform: none; display: inline-block; }
 .crown .ri-day::first-letter { text-transform: uppercase; }
+
+/* =========================================================
+   v1.34: ORBE «todo en un toque». Al abrirse sube al centro, crece y habla; las lunas giran a su alrededor en un
+   círculo completo (el reparto se calcula con --n, así que caben más lunas sin tocar nada).
+   ========================================================= */
+.orb-nav { --lift: calc(47px + var(--safe-b) - 44vh); --lift: calc(47px + var(--safe-b) - 44dvh); }
+.orb-nav .moon { --a: calc(-90deg + var(--i) * 360deg / var(--n, 7)); }
+.orb-nav.open .orb-veil { background: radial-gradient(90% 60% at 50% 56%, color-mix(in srgb, var(--accent) 26%, rgba(0,0,0,.6)), rgba(0,0,0,.72)); }
+.orb-nav.open .orb { transform: translateY(var(--lift)) scale(1.55); transition: transform .6s cubic-bezier(.3, 1.35, .45, 1), box-shadow .3s; }
+.orb-nav.open .orb.press { transform: translateY(var(--lift)) scale(1.45); }
+.orb-nav.open .moon { transform: translateY(var(--lift)) rotate(var(--a)) translateX(var(--R)) rotate(calc(-1 * var(--a))); transition-delay: calc(80ms + var(--i) * 40ms), calc(80ms + var(--i) * 40ms), 0s, 0s, 0s, 0s; }
+.orb-nav.open .moon.hot { transform: translateY(var(--lift)) rotate(var(--a)) translateX(calc(var(--R) + 8px)) rotate(calc(-1 * var(--a))) scale(1.25); }
+.orb-nav .orb-arc { clip-path: none; }
+.orb-nav.open .orb-arc { transform: translateY(var(--lift)); animation: none; border-color: transparent; }
+.orb-nav .orb-arc::before { content: ""; position: absolute; inset: -1.5px; border-radius: 50%; border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+.orb-nav.open .orb-arc::before { animation: orbArcSpin 40s linear infinite; }
+.orb-nav.open .orb-arc::after { content: ""; position: absolute; inset: 18%; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); }
+/* Bocadillo del orbe */
+.orb-talk { position: absolute; z-index: 3; left: 50%; bottom: calc(50% + var(--R) + 56px); width: min(86vw, 340px); margin-left: calc(min(86vw, 340px) / -2);
+  opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(0) scale(.6); transform-origin: 50% 100%;
+  transition: opacity .25s, transform .55s cubic-bezier(.3, 1.4, .45, 1), visibility 0s .3s; }
+.orb-nav.open .orb-talk { opacity: 1; visibility: visible; pointer-events: auto; cursor: pointer; transform: translateY(var(--lift)) scale(1); transition-delay: .22s, .22s, 0s; }
+.ot-in { position: relative; padding: 12px 16px 10px; border-radius: 22px; color: #fff; text-align: center;
+  background: color-mix(in srgb, var(--accent) 16%, rgba(14, 16, 28, .72)); border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 18px 50px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.18), 0 0 40px color-mix(in srgb, var(--accent) 25%, transparent);
+  backdrop-filter: blur(18px) saturate(1.6); -webkit-backdrop-filter: blur(18px) saturate(1.6); animation: otIn .45s cubic-bezier(.3, 1.4, .45, 1); }
+.ot-in::after { content: ""; position: absolute; left: 50%; bottom: -7px; width: 14px; height: 14px; margin-left: -7px; transform: rotate(45deg);
+  background: inherit; border: inherit; border-top: 0; border-left: 0; border-radius: 0 0 4px 0; backdrop-filter: none; }
+.ot-k { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--accent) 70%, #fff); }
+.ot-k svg.i { width: 13px; height: 13px; }
+.ot-in p { margin: 4px 0 6px; font-size: 15px; line-height: 1.35; font-weight: 600; text-wrap: balance; }
+.ot-in p { animation: otText .5s ease both; }
+.ot-dots { display: flex; justify-content: center; gap: 4px; }
+.ot-dots i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.3); transition: width .3s, background .3s; }
+.ot-dots i.on { width: 14px; border-radius: 3px; background: var(--accent); }
+@keyframes otIn { from { opacity: .3; transform: scale(.92) translateY(6px); } }
+@keyframes otText { from { opacity: 0; filter: blur(4px); transform: translateY(4px); } }
+.orb-nav.open .orb .kg-logo { animation: orbTalkBob 2.6s ease-in-out infinite; }
+@keyframes orbTalkBob { 0%, 100% { transform: rotate(-8deg) scale(1.06); } 50% { transform: rotate(6deg) scale(1.1); } }
+@media (orientation: landscape) and (max-height: 540px) { .orb-talk { display: none; } .orb-nav { --lift: calc(47px + var(--safe-b) - 50dvh); } }
+:root:is([data-motion="soft"], [data-motion="off"]) :is(.ot-in, .ot-in p, .orb-nav.open .orb .kg-logo) { animation: none !important; }
+:root:is([data-motion="soft"], [data-motion="off"]) .orb-talk { transition: opacity .2s, visibility 0s; }
+:root[data-motion="off"] .orb-nav.open :is(.orb, .moon, .orb-arc) { transition: none !important; }
+:root:is([data-motion="soft"], [data-motion="off"]) .orb-nav.open .orb-arc::before { animation: none; }
+
+/* v1.34: RESUMEN VISUAL de hábitos y proyectos (sustituye a las gráficas) */
+.hsum { padding: 18px; border-radius: var(--r-lg); margin-top: 6px; }
+.hs-top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.hs-tot, .hs-gc { position: relative; display: inline-flex; align-items: baseline; }
+.hs-tot b { font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: -.02em; color: var(--hc); font-variant-numeric: tabular-nums; }
+.hs-tl { font-weight: 700; color: var(--muted); }
+.hs-plus { position: absolute; left: 100%; top: -4px; margin-left: 2px; font-style: normal; font-weight: 800; font-size: 13px; color: var(--hc); opacity: 0; pointer-events: none; }
+.hs-plus.go { animation: hsPlus .7s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes hsPlus { 0% { opacity: 0; transform: translateY(6px) scale(.6); } 25% { opacity: 1; transform: translateY(-2px) scale(1.15); } 100% { opacity: 0; transform: translateY(-18px) scale(1); } }
+.hs-cal { display: flex; flex-wrap: wrap; gap: 14px 16px; }
+.hs-m { display: flex; flex-direction: column; gap: 6px; }
+.hs-ml { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.hs-grid { display: grid; grid-template-columns: repeat(7, 14px); grid-auto-rows: 14px; gap: 3px; }
+.hs-c, .hs-x { display: block; width: 14px; height: 14px; border-radius: 4px; }
+.hs-c { background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.hs-c[data-lv="0"] { background: color-mix(in srgb, var(--hc) 10%, color-mix(in srgb, var(--fg) 8%, transparent)); }
+.hs-c[data-lv="1"] { background: color-mix(in srgb, var(--hc) 32%, transparent); }
+.hs-c[data-lv="2"] { background: color-mix(in srgb, var(--hc) 55%, transparent); }
+.hs-c[data-lv="3"] { background: color-mix(in srgb, var(--hc) 78%, transparent); }
+.hs-c[data-lv="4"] { background: var(--hc); box-shadow: 0 0 10px color-mix(in srgb, var(--hc) 45%, transparent); }
+.hs-play .hs-grid .hs-c { animation: hsCell .42s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--d) * var(--st)); }
+@keyframes hsCell { from { opacity: 0; transform: scale(.2); } }
+.hs-leg { display: flex; align-items: center; gap: 4px; margin-top: 12px; font-size: 11px; color: var(--muted); }
+.hs-leg span:first-child { margin-right: 4px; } .hs-leg span:last-child { margin-left: 4px; }
+.hs-leg .hs-c { width: 11px; height: 11px; border-radius: 3px; }
+.hs-gh { margin: 18px 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.hs-goals { display: grid; gap: 8px; }
+.hs-g { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--r-md); background: color-mix(in srgb, var(--hc) 10%, transparent); border: 1px solid color-mix(in srgb, var(--hc) 22%, transparent); }
+.hs-play .hs-g { animation: hsRow .5s cubic-bezier(.3, 1.3, .5, 1) both; }
+.hs-play .hs-g:nth-child(2) { animation-delay: .06s; } .hs-play .hs-g:nth-child(3) { animation-delay: .12s; } .hs-play .hs-g:nth-child(4) { animation-delay: .18s; } .hs-play .hs-g:nth-child(n+5) { animation-delay: .24s; }
+@keyframes hsRow { from { opacity: 0; transform: translateX(-12px); } }
+.hs-gi { font-size: 18px; } .hs-gn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.hs-gc b { font-size: 22px; font-weight: 800; color: var(--hc); font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+.hs-gc .hs-plus { left: auto; right: -2px; top: -14px; }
+/* Meta numérica: camino */
+.gt { padding: 6px 4px 2px; }
+.gt-track { position: relative; height: 10px; margin: 18px 10px 10px; border-radius: 6px; background: color-mix(in srgb, var(--fg) 9%, transparent); }
+.gt-fill { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: var(--accent); transform-origin: left; animation: gtFill .9s cubic-bezier(.3, 1, .4, 1) both; }
+@keyframes gtFill { from { transform: scaleX(0); } }
+.gt-step { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); animation: gtStep .4s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--d) * 70ms); }
+.gt-step.cur { width: 18px; height: 18px; margin: -9px 0 0 -9px; background: var(--accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent); }
+@keyframes gtStep { from { opacity: 0; transform: scale(0); } }
+.gt-flag { position: absolute; top: -22px; transform: translateX(-50%); color: var(--accent); }
+.gt-flag svg.i { width: 16px; height: 16px; }
+.gt-lab { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--muted); }
+.gt-lab b { color: var(--fg); font-size: 14px; }
+.gt-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.gt-d { font-weight: 800; animation: hsRow .4s ease both; animation-delay: calc(var(--d) * 60ms); }
+.gt-d.up { color: #1fbf75; } .gt-d.down { color: #e5484d; }
+:root:is([data-motion="soft"], [data-motion="off"]) :is(.hs-c, .hs-g, .hs-plus.go, .gt-fill, .gt-step, .gt-d) { animation: none !important; }
+
+/* v1.34: emoji de la interfaz → iconos de línea */
+.big-ico { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 6px; border-radius: 22px; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); }
+.big-ico svg.i { width: 32px; height: 32px; }
+.big-ico.sm { width: 44px; height: 44px; margin: 0; border-radius: 14px; flex: none; } .big-ico.sm svg.i { width: 22px; height: 22px; }
+.section-title > svg.i, .today-h > svg.i, .chart-card h3 > svg.i, .banner > svg.i, .perfect-banner > svg.i { color: var(--accent); flex: none; }
+.section-title svg.i, .today-h svg.i { width: 1.05em; height: 1.05em; vertical-align: -.15em; }
+.vi svg.i { width: 15px; height: 15px; vertical-align: -2px; }
+.streak-flame svg.i { width: 28px; height: 28px; color: #ff8a3d; }
+.streak-flame { animation: flameFlick 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes flameFlick { 0%, 100% { transform: scale(1) rotate(-2deg); } 50% { transform: scale(1.08, 1.12) rotate(3deg); } }
+.meta svg.i, .habit-meta svg.i { width: 13px; height: 13px; vertical-align: -2px; }
+/* Movimiento coherente en lo anterior a la v1.27: las listas entran en cascada */
+:root[data-motion="full"] .main:not(.no-anim) :is(.habit, .today-row, .folder, .series, .chart-card, .kpi) {
+  animation: kgRise .5s cubic-bezier(.2, .9, .3, 1.15) both; }
+:root[data-motion="full"] .main:not(.no-anim) :is(.habit, .today-row, .folder, .series, .kpi):nth-child(2) { animation-delay: .04s; }
+:root[data-motion="full"] .main:not(.no-anim) :is(.habit, .today-row, .folder, .series, .kpi):nth-child(3) { animation-delay: .08s; }
+:root[data-motion="full"] .main:not(.no-anim) :is(.habit, .today-row, .folder, .series, .kpi):nth-child(4) { animation-delay: .12s; }
+:root[data-motion="full"] .main:not(.no-anim) :is(.habit, .today-row, .folder, .series, .kpi):nth-child(5) { animation-delay: .16s; }
+:root[data-motion="full"] .main:not(.no-anim) :is(.habit, .today-row, .folder, .series, .kpi):nth-child(n+6) { animation-delay: .2s; }
+@keyframes kgRise { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+:root:is([data-motion="soft"], [data-motion="off"]) .streak-flame { animation: none; }
