@@ -235,3 +235,14 @@
 .lw-scpick { display: flex; flex-wrap: wrap; gap: 6px; }
 .lw-scpick .chip svg.i { width: 14px; height: 14px; vertical-align: -2px; }
 :root[data-motion="off"] .lw-stage canvas { transition: none; }
+
+/* =========================================================
+   v1.38: REPLAY. Una fila bajo la línea de tiempo: desde el principio, reproducir/pausa y velocidad.
+   ========================================================= */
+.tl-rp { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tl-rp-play { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.07); color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tl-rp-play svg.i { width: 15px; height: 15px; }
+.tl-rp-play.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent); }
+.tl-rp-sp { flex: none; }
+.tl-rp-sp button { padding: 0 10px; font-variant-numeric: tabular-nums; }
+.tl-rp-l { opacity: .55; margin-left: auto; }

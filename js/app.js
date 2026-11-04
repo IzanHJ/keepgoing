@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.37.0';
+  const VERSION = '1.38.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -215,6 +215,7 @@
     bike: '<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l2.5 7H6M14 6h2.5"/>',
     walk: '<circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2-6 2.5 2.5V21M12 15l1-6-3.5 1.5L8 14M13 9l2 3 3 1"/>',
     moto: '<circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M5.5 16.5h6l3-5h-5M14.5 11.5l4 5M13 7h3l1.5 4.5"/>',
+    rewind: '<path d="M11.5 6.5L5 12l6.5 5.5zM19.5 6.5L13 12l6.5 5.5z"/><path d="M4 6v12"/>',
     route: '<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/>',
   };
   // v1.27: data-i = nombre del icono, para su micro animación propia al pasar el cursor o tocarlo
@@ -1488,6 +1489,10 @@
     lwPlay(getList());
   }
 
+  /* ---- v1.38: Replay. Reproduce la línea de tiempo hacia delante: la vista, las estadísticas, Progreso y Mundo van a la vez ---- */
+  const RP = { on: false, sp: 1, tm: 0 }, RP_SPEEDS = [1, 5, 20], RP_MS = 1600;
+  const rpHalt = () => { clearTimeout(RP.tm); RP.tm = 0; RP.on = false; };
+
   /* ---- la pestaña ---- */
   function makeTimeline() {
     const u = tlUi(), weeks = jrWeeks(); let wref = null, wheelT = 0, ax = jrAxis(), saveT = 0, f = 0, dragging = false;
@@ -1725,6 +1730,12 @@
         ${mks.map(m => `<i class="tl-mk" data-k="${m.kind}" style="--x:${KGT.posOf(m.date, first, tk) * 100}%"></i>`).join('')}
         <span class="tl-win" style="--a:${p0 * 100}%;--b:${p1 * 100}%"></span><span class="tl-knob" style="--x:${(p0 + p1) / 2 * 100}%"></span></div>`;
     };
+    // Replay: la fila de controles (el resto, más abajo)
+    const rpBar = () => u.sc === 'all' ? '' : `<div class="tl-rp" role="group" aria-label="${esc(t('rpAria'))}">
+      <button class="icon-btn sm" data-rp="start" aria-label="${esc(t('rpStart'))}" title="${esc(t('rpStart'))}">${ico('rewind')}</button>
+      <button class="tl-rp-play ${RP.on ? 'on' : ''}" data-rp="play" aria-pressed="${RP.on}">${ico(RP.on ? 'pause' : 'play')}<span>${esc(t(RP.on ? 'rpPause' : 'rpPlay'))}</span></button>
+      <div class="seg seg-sm tl-rp-sp" role="group" aria-label="${esc(t('rpSpeed'))}">${RP_SPEEDS.map(s => `<button data-rp-sp="${s}" class="${RP.sp === s ? 'on' : ''}" aria-pressed="${RP.sp === s}">${s}×</button>`).join('')}</div>
+      <span class="tl-rp-l small">${esc(t(u.sc === 'day' && u.panel === 'world' ? 'rpByMoment' : 'rpBy_' + u.sc))}</span></div>`;
     const head = () => {
       const { from, to } = R(), tk = todayKey(), cur = from <= tk && tk <= to, mk = tlMarks(), prevM = KGT.nextMark(mk, from, to, -1), nextM = KGT.nextMark(mk, from, to, 1);
       return `<div class="tl-top"><div class="seg seg-sm tl-sc" role="group" aria-label="${esc(t('tlScaleAria'))}">${KGT.SCALES.map(s => `<button data-tl-sc="${s}" class="${u.sc === s ? 'on' : ''}" aria-pressed="${u.sc === s}">${esc(t('tlSc_' + s))}</button>`).join('')}</div>
@@ -1734,7 +1745,7 @@
           <button class="icon-btn sm" data-tl-step="1" ${u.sc === 'all' || to >= tk ? 'disabled' : ''} aria-label="${esc(t('tlNext'))}" title="${esc(t('tlNext'))}">${ico('right')}</button></div>
         <div class="tl-jumps">${cur || u.sc === 'all' ? '' : `<button class="chip sm" data-tl-today>${esc(t('tfToday'))}</button>`}${u.sc !== 'all' && prevM ? `<button class="chip sm ghost" data-tl-mk="${prevM}">${ico('left', 'xs')} ${esc(t('tlPrevMark'))}</button>` : ''}${u.sc !== 'all' && nextM ? `<button class="chip sm ghost" data-tl-mk="${nextM}">${esc(t('tlNextMark'))} ${ico('right', 'xs')}</button>` : ''}</div>`;
     };
-    const body = () => `<div id="tl-head">${head()}</div>${track()}<div class="tl-main" id="tl-main" data-sc="${u.sc}">${mainView()}</div><div id="tl-sbox">${statsBox()}</div>
+    const body = () => `<div id="tl-head">${head()}</div>${track()}<div id="tl-rp">${rpBar()}</div><div class="tl-main" id="tl-main" data-sc="${u.sc}">${mainView()}</div><div id="tl-sbox">${statsBox()}</div>
       <div class="seg tl-panels" role="tablist">${[['progress', 'chart', 'tlProgress'], ['world', 'globe', 'lwTab'], ['compare', 'compare', 'tlCompare']].map(([p, ic, k]) => `<button role="tab" data-tl-panel="${p}" class="${u.panel === p ? 'on' : ''}" aria-selected="${u.panel === p}">${ico(ic, 'xs')} ${esc(t(k))}</button>`).join('')}</div>
       <section class="tl-panel" id="tl-panel">${panel()}</section>`;
     const html = `<div class="jr tl" data-ax="${ax}" data-sc="${u.sc}"><div class="tl-bg" aria-hidden="true"><div class="jr-grid"></div></div><div class="tl-in" id="tl-in">${body()}</div></div>`;
@@ -1743,7 +1754,7 @@
     const redraw = (opt = {}) => {
       if (!wref) return;
       const root = $('.tl', wref); root.dataset.sc = u.sc;
-      $('#tl-head', wref).innerHTML = head();
+      $('#tl-head', wref).innerHTML = head(); rpPaint();
       const tr = $('#tl-track', wref);
       if (tr && opt.track !== 'full') { const tk = todayKey(), first = tlFirstKey(), { from, to } = R(), p0 = KGT.posOf(from < first ? first : from, first, tk), p1 = KGT.posOf(to > tk ? tk : to, first, tk); $('.tl-win', tr).style.cssText = `--a:${p0 * 100}%;--b:${p1 * 100}%`; $('.tl-knob', tr).style.cssText = `--x:${(p0 + p1) / 2 * 100}%`; tr.setAttribute('aria-valuetext', tlLabel(u.sc, from, to)); }
       else swap('#tl-track', track());
@@ -1755,13 +1766,40 @@
     };
     let rT = 0;
     const setAt = (k, opt = {}) => {
-      const tk = todayKey(); k = k > tk ? tk : k < tlFirstKey() && u.sc !== 'day' ? tlFirstKey() : k;
+      rpStop(); const tk = todayKey(); k = k > tk ? tk : k < tlFirstKey() && u.sc !== 'day' ? tlFirstKey() : k;
       if (k === u.at && !opt.force) return;
       flush(); u.at = k; f = weekIdx(k); save();
       if (opt.lazy) { cancelAnimationFrame(rT); rT = requestAnimationFrame(() => redraw()); } else redraw();
     };
     const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; vibrate(5); sfx('tap'); setAt(nf === 0 ? todayKey() : weeks[nf]); };
-    const setScale = sc => { if (sc === u.sc) return; const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx('tap'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
+    /* -- Replay: avanza solo un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
+    const rpPaint = () => { const el = wref && $('#tl-rp', wref); if (el) el.innerHTML = rpBar(); };
+    const rpStop = () => { if (!RP.on) return; rpHalt(); save(); rpPaint(); };
+    const rpNext = () => { clearTimeout(RP.tm); RP.tm = setTimeout(rpStep, RP_MS / RP.sp); };
+    const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); };
+    const rpWorldDay = () => u.sc === 'day' && u.panel === 'world';
+    // Un paso: en Día con Mundo, el siguiente momento (o el primero del siguiente día que tenga alguno); si no, el siguiente periodo
+    function rpStep() {
+      RP.tm = 0; if (!RP.on || !wref || !wref.isConnected) return;
+      const tk = todayKey();
+      if (rpWorldDay()) {
+        const D = lwData(), p = lwCur(D.ms), i = p && p.t === 'm' ? p.i : -1;
+        if (i + 1 < D.ms.length) { LW.pick = { t: 'm', i: i + 1 }; setPanel(); rpNext(); return; }
+        let k = u.at, n = 0; do { k = addDays(k, 1); n++; } while (k <= tk && n < 3700 && !lwItems(k, k).length);
+        if (k > tk || n >= 3700) { rpStop(); return; }
+        LW.rk = 'day' + k + k; LW.pick = { t: 'm', i: 0 }; rpGo(k); rpNext(); return;
+      }
+      if (R().to >= tk) { rpStop(); return; }
+      const nk = KGT.shift(u.sc, u.at, 1); rpGo(nk > tk ? tk : nk); rpNext();
+    }
+    const rpAtEnd = () => { const tk = todayKey(); if (!rpWorldDay()) return R().to >= tk; if (u.at < tk) return false; const D = lwData(), p = lwCur(D.ms); return !D.ms.length || !!(p && p.t === 'm' && p.i >= D.ms.length - 1); };
+    const rpPlay = () => {
+      if (RP.on) { rpStop(); return; }
+      flush(); TLS.edit = false; RP.on = true;
+      if (rpAtEnd()) { LW.pick = null; rpGo(tlFirstKey()); } // ya al final: vuelve a empezar desde el principio
+      rpPaint(); rpNext();
+    };
+    const setScale = sc => { if (sc === u.sc) return; rpStop(); const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx('tap'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
     const flush = () => { if (!saveT) return; clearTimeout(saveT); saveT = 0; const ta = wref && $('#jr-note', wref); if (ta) commit(ta.value); };
     const commit = v => {
       const w = tfWeekKeys(weeks[f])[0], had = Object.keys(state.jrNotes || {}).length; jrSetNote(w, v); save(); if (v.trim()) firstTime('journal', !had);
@@ -1795,6 +1833,7 @@
     const mount = w => {
       wref = w; if (u.sc === 'week') place();
       if (u.panel === 'world') worldInit();
+      if (RP.on) rpNext(); // se volvió a pintar la pestaña con Replay en marcha: sigue
       // instantáneas de las semanas cerradas, cuando el navegador esté libre
       (window.requestIdleCallback || (fn => setTimeout(fn, 800)))(() => { try { tlSnapWeeks(weeks); } catch (e) { /* nada */ } });
       const main = $('#tl-main', w);
@@ -1828,6 +1867,8 @@
         if (!e.target.closest('.tl')) return;
         if (e.target.closest('[data-jr-ax]')) { setAxis(ax === 'h' ? 'v' : 'h'); return; }
         const sc = e.target.closest('[data-tl-sc]'); if (sc) { setScale(sc.dataset.tlSc); return; }
+        const rp = e.target.closest('[data-rp]'); if (rp) { vibrate(5); sfx('tap'); if (rp.dataset.rp === 'play') rpPlay(); else { LW.pick = null; rpGo(tlFirstKey()); if (RP.on) rpNext(); else save(); } return; }
+        const rs = e.target.closest('[data-rp-sp]'); if (rs) { RP.sp = +rs.dataset.rpSp; sfx('tap'); rpPaint(); if (RP.on) rpNext(); return; }
         const st = e.target.closest('[data-tl-step]'); if (st) { vibrate(5); sfx('tap'); setAt(KGT.shift(u.sc, u.at, +st.dataset.tlStep)); return; }
         if (e.target.closest('[data-tl-today]')) { setAt(todayKey()); return; }
         const mk = e.target.closest('[data-tl-mk]'); if (mk) { sfx('tap'); setAt(mk.dataset.tlMk); return; }
@@ -3832,6 +3873,7 @@
     if (state.ui.tab === 'habits') loadPhotos($('#main'));
     applyWOrder($('#main'));
     if (LW.cv && !LW.cv.isConnected) lwStop(); // se fue de Mundo: se suelta el 3D
+    if (state.ui.tab !== 'journal') rpHalt();
     if (state.ui.tab === 'journal' && JR) JR.mount($('#main'));
     decorateJiggle();
   }
@@ -5640,7 +5682,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
