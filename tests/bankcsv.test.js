@@ -110,3 +110,25 @@ test('v1.23: convertir una moneda la guarda solo en la principal', () => {
   const conv = B.plan(d.rows, ans, { GBP: 1.2 }, [], 'EUR', { GBP: true }).create.find(x => x.extIds[0] === 'i2');
   assert.strictEqual(conv.fx, undefined); assert.strictEqual(conv.amountCents, 6);
 });
+
+test('v1.36: dividir una fila en dos y que no se vuelva a apuntar', () => {
+  const d = B.read(CSV), row = d.rows.find(r => r.kind === 'deposit');
+  assert.strictEqual(B.splitRow(row, [1000, 1000]), null); // no suma lo de la fila
+  const parts = B.splitRow(row, [row.cents - 1000, 1000]);
+  assert.strictEqual(parts.length, 2); assert.deepStrictEqual(parts.map(p => p.split), [row.key, row.key]);
+  const rows = d.rows.filter(r => r !== row).concat(parts);
+  const ans = { deposit: { type: 'income', categoryId: 'salary', group: 'none' }, ['row:' + parts[1].key]: { type: 'income', categoryId: 'gift', method: 'cash' } };
+  const p = B.plan(rows, ans, {}, [], 'EUR');
+  const mine = p.create.filter(x => x.extIds[0] === row.key);
+  assert.deepStrictEqual(mine.map(x => [x.amountCents, x.categoryId, x.method]).sort(), [[1000, 'gift', 'cash'], [row.cents - 1000, 'salary', 'transfer']].sort());
+  // Importar otra vez el mismo CSV: la fila original ya está
+  const again = B.plan(d.rows, ans, {}, mine, 'EUR');
+  assert.ok(!again.create.some(x => x.extIds[0] === row.key));
+});
+
+test('v1.36: las huellas cortas siguen evitando duplicados', () => {
+  const d = B.read(CSV), k = d.rows[0].key, h = B.shortKey(k);
+  assert.ok(h.length <= 10); assert.strictEqual(h, B.shortKey(k));
+  const p = B.plan(d.rows, { [B.groupId(d.rows[0])]: { type: 'expense', categoryId: 'food', group: 'none' } }, {}, [{ id: 'x', extH: [h] }], 'EUR');
+  assert.ok(p.dup >= 1);
+});
