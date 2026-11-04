@@ -2548,3 +2548,23 @@ body.orb-open { overflow: hidden; }
 @media (min-width: 900px) { .orb-nav { --R: 176px; } }
 @media (orientation: landscape) and (max-height: 540px) { .orb-nav { --R: 132px; } }
 .moon-l { white-space: normal; width: max-content; max-width: 78px; text-align: center; line-height: 1.1; font-size: 10.5px; }
+
+/* v1.36: movimientos de un evento (quitar / añadir de fuera de sus fechas) */
+.ev-row { display: flex; gap: 6px; align-items: center; }
+.ev-row > .swipe { flex: 1; min-width: 0; }
+.ev-row.extra > .swipe { box-shadow: inset 3px 0 0 var(--accent); border-radius: var(--r-md); }
+.ev-row.out > .swipe { opacity: .55; }
+.ev-out { flex: none; opacity: .7; }
+.ev-pick { width: 100%; text-align: left; }
+.ev-pick.on { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ev-pick.on .led-ico { background: var(--accent); color: var(--accent-ink); }
+
+/* v1.36: seleccionar y fusionar movimientos del día */
+.ledger-day .ledger-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.ledger-list.selecting li { transition: transform .15s; }
+.ledger-list.selecting li .swipe-front { outline: 1.5px dashed var(--line); outline-offset: -2px; }
+.ledger-list.selecting li.picked .swipe-front { outline: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.ledger-list.selecting li.picked .led-ico { background: var(--accent); color: var(--accent-ink); }
+.merge-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
+.acc-row strong { white-space: nowrap; }
+.rg-cut { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }

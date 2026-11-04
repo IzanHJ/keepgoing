@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.35.0';
+  const VERSION = '1.36.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -496,8 +496,8 @@
       '--app-bg': grad ? `linear-gradient(160deg, ${th.bg}, ${th.bg2})` : th.bg,
       '--surface': surface, '--surface-2': s2, '--surface-3': s3, '--surface-solid': mix(base, th.fg, light ? .04 : .12),
       '--muted': mix(th.fg, base, .45), '--line': rgba(th.fg, .1),
-      '--glass': glass ? 'blur(22px) saturate(1.7)' : grad ? 'blur(18px) saturate(1.3)' : 'none',
-      '--glass-blur': 'blur(22px) saturate(1.7)',
+      '--glass': glass ? 'blur(14px) saturate(1.6)' : grad ? 'blur(12px) saturate(1.3)' : 'none',
+      '--glass-blur': 'blur(14px) saturate(1.6)',
       '--glass-bg': light ? 'rgba(255,255,255,.46)' : rgba(th.fg, .06),
       '--glass-bg-2': light ? 'rgba(255,255,255,.66)' : rgba(th.fg, .11),
       '--glass-border': light ? 'rgba(255,255,255,.75)' : rgba(th.fg, .13),
@@ -531,9 +531,16 @@
   const subModeOf = (h, r) => !isQuit(h) && !isAmount(h) && ((r.mode === 'goals' && (r.goals || []).length) || (r.mode === 'ways' && (r.ways || []).length)) ? r.mode : '';
   const subMode = h => subModeOf(h, h);
   const subModeAt = (h, k) => subModeOf(h, ruleAt(h, k));
+  /* v1.36: el primer día de un hábito se recuerda hasta el siguiente guardado (antes se recorría todo su historial en
+     cada consulta, cientos de veces por pantalla: con años de registros la app se trababa) */
+  const fkMemo = new Map(); let fkVer = -1;
   function firstKey(h) {
-    let f = h.createdAt; const L = state.logs[h.id] || {};
+    if (fkVer !== calcVer) { fkMemo.clear(); fkVer = calcVer; }
+    const L = state.logs[h.id] || {}, mk = h.id + '|' + h.createdAt, hit = fkMemo.get(mk);
+    if (hit && hit.L === L) return hit.f;
+    let f = h.createdAt;
     for (const k in L) if (L[k] > 0 && k < f) f = k;
+    fkMemo.set(mk, { L, f });
     return f;
   }
   const periodStart = (h, k) => h.freq === 'weekly' ? weekStart(k) : h.freq === 'monthly' ? monthKey(k) + '-01' : k;
@@ -836,6 +843,7 @@
      n/días del mes) y cuenta lo cumplido de su periodo; el día vale ese % × el máximo según la carga (10 a 15).
      Día perfecto = todos los hábitos diarios del día hechos y sin recaídas (los semanales y mensuales no lo rompen). */
   const pointsV2On = k => !!state.pointsV2 && k >= state.pointsV2;
+  const PD_DAILY_FROM = '2026-11-04';
   function dayInfoV2(k, lvKey) {
     const today = todayKey();
     let weight = 0, got = 0, n = 0, due = 0, done = 0, slip = false, quitClean = 0, units = 0;
@@ -864,7 +872,9 @@
     }
     const ratio = weight > 0 ? got / weight : 0, cpts = CAP.dayPointsV2(ratio, n), c = capOn(k);
     const pct = c.p != null ? c.p : CAP.DEFAULT_P;
-    let perfect = !slip && (due > 0 ? done === due : quitClean > 0 || (weight > 0 && ratio >= 1 - 1e-9));
+    // v1.36: desde PD_DAILY_FROM, un día sin hábitos diarios que hacer ya no es perfecto por haber completado los semanales
+    // o mensuales: esos cuentan para la semana perfecta y el mes perfecto (los días anteriores no cambian)
+    let perfect = !slip && (due > 0 ? done === due : quitClean > 0 || (k < PD_DAILY_FROM && weight > 0 && ratio >= 1 - 1e-9));
     const rule = perfectRuleOn(k); if (rule) perfect = perfectByRule(rule, k, perfect);
     return { pts: cpts * 10, cpts, max: CAP.maxDayPoints(n), money: CAP.moneyFor(cpts, c.income, pct), perfect, level: lvKey, units, need: n, due, done, slip, ratio };
   }
@@ -932,6 +942,39 @@
       // starBalance: saldo ⭐ de la antigua tienda (solo tiene sentido antes de migrar)
       const spent = state.redemptions.reduce((a, r) => a + (r.cost || 0), 0);
       return { xp, points, money, starBalance: net - spent, perfectDays, bestPerfectRun };
+    });
+  }
+  /* v1.36: semana perfecta y mes perfecto (solo periodos ya terminados). Cada día con hábitos diarios fue perfecto (los
+     días sin nada diario que hacer no la rompen si no hubo recaídas) y además se cumplieron los hábitos semanales de
+     esa semana; el mes, también los semanales de cada semana que acaba dentro del mes y los mensuales. */
+  const dayOk = k => { const d = dayInfo(k); return d.perfect || (!d.slip && !d.due); };
+  const periodHabitsOk = (freq, p, end) => state.habits.every(h => h.freq !== freq || isQuit(h) || h.archived || firstKey(h) > end || periodState(h, p) !== 'miss');
+  function weekPerfect(ws) {
+    return cached('wp' + ws, () => {
+      const end = addDays(ws, 6), fd = firstDay(); if (end >= todayKey() || end < fd) return false;
+      let any = false;
+      for (let k = ws < fd ? fd : ws; k <= end; k = addDays(k, 1)) { if (!dayOk(k)) return false; if (dayInfo(k).perfect) any = true; }
+      const hasW = state.habits.some(h => h.freq === 'weekly' && !isQuit(h) && !h.archived && firstKey(h) <= end);
+      return periodHabitsOk('weekly', ws, end) && (any || hasW);
+    });
+  }
+  function monthPerfect(ym) {
+    return cached('mp' + ym, () => {
+      const first = ym + '-01', end = addDays(addMonths(first, 1), -1), fd = firstDay(); if (end >= todayKey() || end < fd) return false;
+      let any = false;
+      for (let k = first < fd ? fd : first; k <= end; k = addDays(k, 1)) {
+        if (!dayOk(k)) return false; if (dayInfo(k).perfect) any = true;
+        if (k === addDays(weekStart(k), 6) && !periodHabitsOk('weekly', weekStart(k), k)) return false;
+      }
+      return periodHabitsOk('monthly', first, end) && (any || state.habits.some(h => (h.freq === 'weekly' || h.freq === 'monthly') && !h.archived && firstKey(h) <= end));
+    });
+  }
+  function perfectPeriods() {
+    return cached('pperiods', () => {
+      const fd = firstDay(), today = todayKey(); let weeks = 0, months = 0;
+      for (let ws = weekStart(fd), g = 0; addDays(ws, 6) < today && g < 3000; ws = addDays(ws, 7), g++) if (weekPerfect(ws)) weeks++;
+      for (let m = monthKey(fd) + '-01', g = 0; addDays(addMonths(m, 1), -1) < today && g < 1000; m = addMonths(m, 1), g++) if (monthPerfect(m.slice(0, 7))) months++;
+      return { weeks, months };
     });
   }
   // Nivel L necesita 50·L·(L+1) XP acumulados
@@ -3435,6 +3478,7 @@
     migrateShop();
     if (LV.key && !vaultSame()) ledgerLock(); // la Libreta se ha vuelto a crear en otro dispositivo
     else if (ledgerOpen() && LV.sig !== ledgerSig() && !LV.busy) { LV.busy = true; ledgerLoad().then(() => { LV.busy = false; runRecurring(); render(); }).catch(() => { LV.busy = false; }); }
+    if (ledgerOpen() && !LV.busy) syncWorthGoals(); // v1.36: metas vinculadas al Patrimonio actual
     applyTheme();
     document.documentElement.lang = state.lang;
     hideTip();
@@ -3660,7 +3704,7 @@
     const grid = list => `<div class="habit-grid" id="habit-grid">${list.map(habitCard).join('')}</div>${list.length > 1 ? `<p class="grid-hint">${esc(t('dragHint'))}</p>` : ''}`;
     if (view === 'challenges') {
       const on = active.filter(h => h.challenge && !h.challenge.done), done = active.filter(h => h.challenge && h.challenge.done);
-      const pr = activeProjects().filter(p => p.deadline);
+      const pr = activeProjects().filter(p => p.deadline || (p.goal && p.goal.worth));
       if (pr.length) html += `<h2 class="section-title" style="margin:0 0 14px">${ico('target')} ${esc(t('retoProjects'))}</h2><div class="habit-grid" style="margin-bottom:24px">${pr.map(folderCard).join('')}</div>`;
       if (pr.length && on.length) html += `<h2 class="section-title" style="margin:0 0 14px">${ico('checklist')} ${esc(t('retoHabits'))}</h2>`;
       html += on.length ? grid(on) : pr.length ? '' : emptyState('target', t('challengesEmpty'), t('challengesEmptySub'), '');
@@ -4438,6 +4482,7 @@
           <div class="seg">${[['numeric', 'goalNumeric'], ['checklist', 'goalChecklist'], ['simple', 'goalSimple']].map(([v, k]) => `<button type="button" data-gtype="${v}" class="${g.type === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
           <div class="muted small">${esc(t(g.type === 'numeric' ? 'goalNumericHint' : g.type === 'checklist' ? 'goalChecklistHint' : 'goalSimpleHint'))}</div>
         </div>
+        ${g.type === 'numeric' ? `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="pf-worth" ${g.worth ? 'checked' : ''}><span></span></span><span class="grow"><b>${ico('wallet')} ${esc(t('wgLink'))}</b><br><span class="muted small">${esc(t(ledgerOpen() ? 'wgLinkHint' : 'wgLinkLocked'))}</span></span></label>` : ''}
         ${g.type === 'numeric' ? `<div class="row wrap" style="gap:12px;align-items:flex-end">
           <label class="field grow"><span>${esc(t('goalStart'))}</span><input class="input" id="pf-start" type="number" step="any" inputmode="decimal" value="${g.start}"></label>
           <label class="field grow"><span>${esc(t('goalTarget'))}</span><input class="input" id="pf-target" type="number" step="any" inputmode="decimal" value="${g.target}"></label>
@@ -4486,6 +4531,13 @@
         if ((el = q('[data-hproj]'))) { readInputs(w); const id = el.dataset.hproj; f.projs = f.projs.includes(id) ? f.projs.filter(x => x !== id) : [...f.projs, id]; draw(w); return; }
         if ((el = q('[data-emoji]'))) { readInputs(w); f.icon = el.dataset.emoji; draw(w); return; }
         if ((el = q('[data-gtype]'))) { readInputs(w); f.goal.type = el.dataset.gtype; draw(w); return; }
+        // v1.36: meta vinculada al Patrimonio actual: el inicio es el patrimonio de hoy y el progreso se actualiza solo
+        if ((el = q('#pf-worth'))) {
+          readInputs(w);
+          if (el.checked) { if (!ledgerOpen()) { el.checked = false; toast(t('wgLinkLocked')); return; } const v = worthNowEur(); f.goal.worth = true; f.goal.start = v; f.goal.unit = curSym(ledgerMain()); if (!(f.goal.target > v)) f.goal.target = Math.ceil((v + 1000) / 1000) * 1000; }
+          else delete f.goal.worth;
+          draw(w); return;
+        }
         if ((el = q('[data-dl]'))) { readInputs(w); if (el.checked) { f.retoFrom = todayKey(); f.deadline = addDays(todayKey(), 30); } else { f.deadline = null; f.retoFrom = null; } draw(w); return; }
         if ((el = q('[data-reto-days]'))) { readInputs(w); f.retoFrom = f.retoFrom || todayKey(); f.deadline = addDays(f.retoFrom, +el.dataset.retoDays); draw(w); return; }
         if ((el = q('[data-link]'))) { readInputs(w); const id = el.dataset.link; f.habitIds = f.habitIds.includes(id) ? f.habitIds.filter(x => x !== id) : [...f.habitIds, id]; draw(w); return; }
@@ -4527,7 +4579,7 @@
             <div><div class="muted small">${esc(t('goal'))}</div><b style="font-size:20px">${fmtNum(g.target)}</b></div>
           </div>
           <div class="bar ${s.G ? '' : 'zero'}" style="margin:14px 0"><i style="width:${Math.round(s.G * 100)}%"></i></div>
-          <div class="row"><input class="input" id="pd-val" type="number" step="any" inputmode="decimal" placeholder="${esc(t('logValue'))}"><button class="btn primary" data-pd="log">${esc(t('add'))}</button></div>
+          ${g.worth ? `<p class="muted small" style="margin:0">${ico('wallet', 'xs')} ${esc(t(ledgerOpen() ? 'wgAuto' : 'wgAutoLocked'))}</p>` : `<div class="row"><input class="input" id="pd-val" type="number" step="any" inputmode="decimal" placeholder="${esc(t('logValue'))}"><button class="btn primary" data-pd="log">${esc(t('add'))}</button></div>`}
           ${g.entries.length ? `<div style="margin-top:16px">${goalTrail(g, p.createdAt)}</div>` : ''}
           <h4 style="margin:16px 0 6px">${esc(t('history'))}</h4>
           ${entries.length ? entries.slice(0, 8).map(e => `<div class="entry"><span class="muted">${esc(fmtDate(e.d))}</span><span><b>${fmtNum(e.v)} ${esc(g.unit)}</b> <button class="icon-btn sm" style="width:30px;height:30px;margin-left:8px" data-pd="del-entry" data-d="${e.d}" aria-label="${esc(t('delete'))}">${ico('x')}</button></span></div>`).join('') : `<div class="muted small">${esc(t('noEntries'))}</div>`}`;
@@ -5423,7 +5475,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -5675,19 +5727,26 @@
     sync.busy = true; updateSyncBadge();
     try {
       await ensureToken();
-      const rows = await sbFetch(`/rest/v1/kg_state?select=data&user_id=eq.${auth.uid}`);
+      const rows = await sbFetch(`/rest/v1/kg_state?select=data,updated_at&user_id=eq.${auth.uid}`);
       const before = JSON.stringify(state);
       if (rows && rows[0] && rows[0].data) {
         const merged = normalize(mergeStates(state, rows[0].data));
         merged.ui = state.ui;
         state = merged;
       }
-      const changed = JSON.stringify(state) !== before;
+      const after = JSON.stringify(state), changed = after !== before;
       saveSilently();
-      await sbFetch('/rest/v1/kg_state?on_conflict=user_id', {
-        method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ user_id: auth.uid, data: { ...state, ui: undefined }, updated_at: new Date().toISOString() })
-      });
+      // v1.36: si nada ha cambiado aquí y nadie más ha escrito en la nube desde la última subida (misma hora de guardado),
+      // no se vuelve a subir todo el estado cada minuto
+      const payload = JSON.stringify({ ...state, ui: undefined }), remoteAt = rows && rows[0] && Date.parse(rows[0].updated_at);
+      if (payload !== sync.pushed || !remoteAt || remoteAt !== sync.pushedAt) {
+        const at = new Date().toISOString();
+        await sbFetch('/rest/v1/kg_state?on_conflict=user_id', {
+          method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ user_id: auth.uid, data: { ...state, ui: undefined }, updated_at: at })
+        });
+        sync.pushed = payload; sync.pushedAt = Date.parse(at);
+      }
       sync.last = Date.now(); sync.error = null;
       // Perfil público y progreso de retos compartidos (no bloquean la sincronización)
       publishProfile().catch(() => {});
@@ -6528,7 +6587,8 @@
       $('#lvl', wref).innerHTML = `<div class="stack" style="gap:18px">
         <div class="row" style="gap:16px"><div class="lvl-big">${lv.level}</div><div class="grow"><div style="font-size:22px;font-weight:var(--fw-title)">${esc(lv.title)}</div>
           <div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))}</div><div class="bar" style="margin-top:8px"><i style="width:${lv.pct}%"></i></div></div></div>
-        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtPts(d.cpts)}<small>/${d.max || 10}</small></b><span>${esc(t('ptsToday'))}</span></div><div class="kpi clay"><b>${fmtPts(pi.points)}</b><span>${esc(t('ptsTotal'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div></div>
+        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtPts(d.cpts)}<small>/${d.max || 10}</small></b><span>${esc(t('ptsToday'))}</span></div><div class="kpi clay"><b>${fmtPts(pi.points)}</b><span>${esc(t('ptsTotal'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div><div class="kpi clay"><b>${perfectPeriods().weeks}</b><span>${esc(t('perfectWeeks'))}</span></div><div class="kpi clay"><b>${perfectPeriods().months}</b><span>${esc(t('perfectMonths'))}</span></div></div>
+        <p class="muted small" style="margin:0">${esc(t('perfectHow35'))}</p>
         <section><h3 class="section-title">${esc(t('commitTitle'))}</h3>${commitSegHtml()}</section>
         <p class="muted small" style="margin:0">${esc(t('ptsHow', { since: fmtDate(state.pointsSince || todayKey()), since2: fmtDate(state.pointsV2 || todayKey()) }))}</p>
       </div>`;
@@ -6594,12 +6654,13 @@
     for (const [k, sk] of LKINDS) {
       const ids = new Set(LV[k].map(x => x.id));
       const next = state[sk].filter(x => ids.has(x.id) || (x.enc && !LV.known.has(x.id)));
+      // v1.36: índice por id (antes se buscaba en toda la lista por cada movimiento: con miles de movimientos, cada guardado tardaba)
+      const at = new Map(next.map((x, i) => [x.id, i]));
       for (const p of LV[k]) {
-        const js = JSON.stringify(p);
-        if (LV.plain.get(p.id) === js && next.some(x => x.id === p.id && x.enc)) continue;
+        const js = JSON.stringify(p), i0 = at.get(p.id);
+        if (LV.plain.get(p.id) === js && i0 != null && next[i0].enc) continue;
         const { id, ...rest } = p, enc = await VAULT.encrypt(LV.key, rest);
-        const i = next.findIndex(x => x.id === id);
-        if (i >= 0) next[i] = { id, enc }; else next.push({ id, enc });
+        if (i0 != null) next[i0] = { id, enc }; else { at.set(id, next.length); next.push({ id, enc }); }
         LV.plain.set(id, js); LV.known.add(id);
       }
       state[sk] = next;
@@ -6887,7 +6948,7 @@
       for (const d of LED.occurrences(r, r.from, today)) {
         const id = LED.recEntryId(r.id, d);
         if (have.has(id) || del[id]) continue;
-        LV.entries.push({ id, date: d, type: r.type, amountCents: r.amountCents, categoryId: r.categoryId, note: r.note || '', method: r.method || '', recurringId: r.id, createdAt: Date.now(), ...(r.fx ? { fx: { ...r.fx } } : {}) });
+        LV.entries.push({ id, date: d, type: r.type, amountCents: r.amountCents, categoryId: r.categoryId, note: r.note || '', method: r.method || '', ...(r.acc ? { acc: r.acc } : {}), recurringId: r.id, createdAt: Date.now(), ...(r.fx ? { fx: { ...r.fx } } : {}) });
         have.add(id); added++;
       }
     }
@@ -6932,7 +6993,7 @@
     html += sel ? ledgerDayHtml(sel) : `<p class="muted center">${esc(t('ledgerPickDay'))}</p>`;
     // Herramientas de la Libreta: icono de línea con su nombre debajo (mismo estilo que la calculadora)
     const nRec = LV.recurring.filter(r => !r.archived).length;
-    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-imports', 'doc', 'rgsTitle', LV.imports.length], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-contacts', 'users', 'ctTitle', DEBT.list(LV.entries).filter(d => d.status === 'open').length], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['ledger-fx', 'globe', 'fxTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
+    html += `<nav class="ledger-tools" aria-label="${esc(t('ledToolsAria'))}">${[['ledger-import', 'upload', 'rgTitle', 0], ['ledger-imports', 'doc', 'rgsTitle', realImports().length], ['ledger-cats', 'tag', 'ledgerCats', 0], ['ledger-budget', 'budget', 'budTitle', 0], ['ledger-contacts', 'users', 'ctTitle', DEBT.list(LV.entries).filter(d => d.status === 'open').length], ['ledger-accounts', 'card', 'accTitle', 0], ['ledger-recs', 'repeat', 'ledgerRecs', nRec], ['ledger-events', 'folder', 'evTitle', LV.events.length], ['ledger-share', 'share', 'lsTool', 0], ['ledger-fx', 'globe', 'fxTool', 0], ['vault-sec', 'shield', 'vaultSecurity', 0]]
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
@@ -6972,13 +7033,143 @@
     const wc = worthCurs();
     if (wc.length && !fxCache.latest) fxLatest().then(l => { if (l && state.ui.tab === 'ledger') render(); });
     const rates = Object.fromEntries(wc.map(c => [c, fxRateNow(c)]));
-    const key = JSON.stringify(rates) + ledgerMain() + LV.entries.filter(e => e.fx).map(e => e.fx.cur + e.fx.cents).join() + JSON.stringify(LV.worth) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + LV.entries.filter(e => e.link).map(e => e.id + e.link).join() + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
+    const key = JSON.stringify(rates) + ledgerMain() + LV.entries.filter(e => e.fx).map(e => e.fx.cur + e.fx.cents).join() + JSON.stringify(LV.worth) + '|' + LV.entries.length + '|' + LV.entries.reduce((a, e) => a + (e.amountCents || 0) * (e.type === 'income' ? 3 : e.type === 'invest' ? 7 : 1) + (e.method === 'cash' ? 1 : 0), 0) + '|' + LV.entries.filter(e => e.link).map(e => e.id + e.link).join() + '|' + LV.entries.filter(e => e.acc).map(e => e.id + e.acc).join() + '|' + todayKey() + '|' + LED.span(LV.entries)?.from;
     if (worthMemo.key !== key) {
       const b0 = worthBase(), sv = b0 && b0.curs ? { ...b0, curs: Object.fromEntries(wc.map(c => [c, b0.curs[c]])) } : b0;
-      const d = WORTH.series(sv, NET(LV.entries), todayKey(), worthVals(), rates);
+      const d = WORTH.series(sv, NET(LV.entries), todayKey(), worthVals(), rates, accOpts());
       worthMemo = { key, ...d, rates, now: d.rows[d.rows.length - 1], pace: WORTH.pace(NET(LV.entries), todayKey()) };
     }
     return worthMemo;
+  }
+  /* ---------- v1.36: Cuentas ----------
+     Cada tarjeta (y el efectivo) es una cuenta con nombre, nota y saldo propio. Se guardan en LV.worth como
+     { id: 'acc:<aid>', kind: 'acc', aid, type: 'card' | 'cash', name, note, start, archived } (cifradas, como el resto).
+     Siempre existen la tarjeta principal ('card') y el efectivo ('cash'); quedan con lo que falta hasta los saldos del
+     punto de partida. Un movimiento va a e.acc o, si no tiene, a la principal (o al efectivo si se pagó en efectivo).
+     Un traspaso entre cuentas son dos movimientos vinculados (e.link = e.xfer) que se anulan: no cambia el patrimonio. */
+  const ACC_MAIN = 'card', ACC_CASH = 'cash';
+  function accAll() {
+    const saved = LV.worth.filter(x => x.kind === 'acc'), by = new Map(saved.map(x => [x.aid, x]));
+    const mk = (aid, type, name) => ({ aid, type, name, note: '', start: 0, archived: false, ...(by.get(aid) || {}), aid, type });
+    return [mk(ACC_MAIN, 'card', t('accMain')), ...saved.filter(x => x.aid !== ACC_MAIN && x.aid !== ACC_CASH).map(x => ({ note: '', start: 0, ...x })), mk(ACC_CASH, 'cash', t('method_cash'))];
+  }
+  const accGet = aid => accAll().find(a => a.aid === aid) || null;
+  const accCardList = () => accAll().filter(a => a.type === 'card' && !a.archived);
+  const accLabel = a => (a ? a.name + (a.note ? ' · ' + a.note : '') : '');
+  const accKind = aid => (aid === ACC_CASH ? 'cash' : (accGet(aid) || {}).type || 'card');
+  const entryAcc = e => (e.acc && accGet(e.acc) ? e.acc : e.method === 'cash' ? ACC_CASH : ACC_MAIN);
+  const accDefaultCsv = () => { const a = (state.ledgerPrefs || {}).csvAcc; return a && accCardList().some(x => x.aid === a) ? a : ACC_MAIN; };
+  const accCustom = () => LV.worth.some(x => x.kind === 'acc');
+  function accOpts() {
+    if (!accCustom() && !LV.entries.some(e => e.acc)) return null; // sin cuentas propias, como antes
+    const all = accAll(), kinds = Object.fromEntries(all.map(a => [a.aid, a.type]));
+    return { accOf: entryAcc, kindOf: id => kinds[id] || 'card', starts: Object.fromEntries(all.map(a => [a.aid, +a.start || 0])), main: ACC_MAIN, cash: ACC_CASH };
+  }
+  function accSaveOne(a) {
+    const id = 'acc:' + a.aid, rec = { id, kind: 'acc', aid: a.aid, type: a.type, name: String(a.name || '').slice(0, 40), note: String(a.note || '').slice(0, 120), start: Math.round(+a.start || 0), archived: !!a.archived, ...(a.color ? { color: a.color } : {}) };
+    const i = LV.worth.findIndex(x => x.id === id); if (i >= 0) LV.worth[i] = rec; else LV.worth.push(rec);
+  }
+  // Saldos de hoy por cuenta (con la Libreta abierta)
+  const accBalances = () => { const n = worthData().now; if (n.acc && Object.keys(n.acc).length) return n.acc; return { [ACC_MAIN]: n.digital, [ACC_CASH]: n.cash }; };
+  // Campo «Cuenta» del editor de movimientos: tarjeta (si hay varias), destino de una transferencia u «otro»
+  function accFieldHtml(f) {
+    if (f.method === 'cash') return '';
+    const cards = accCardList(), all = accAll().filter(a => !a.archived || a.aid === f.acc);
+    const opts = f.method === 'card' ? cards : all;
+    if (f.method === 'card' && cards.length < 2) return '';
+    const cur = opts.some(a => a.aid === f.acc) ? f.acc : (f.method === 'card' ? ACC_MAIN : entryAcc(f));
+    return `<label class="field"><span>${ico(f.method === 'transfer' ? 'swap' : 'card', 'xs')} ${esc(t(f.method === 'transfer' ? (f.type === 'income' ? 'accDestIn' : 'accDestOut') : 'accPick'))}</span><select class="input" id="le-acc">${opts.map(a => `<option value="${esc(a.aid)}" ${cur === a.aid ? 'selected' : ''}>${esc(a.type === 'cash' ? '💶 ' : '💳 ')}${esc(accLabel(a))}</option>`).join('')}</select>${f.method === 'transfer' ? `<span class="muted small">${esc(t('accDestHint'))}</span>` : ''}</label>`;
+  }
+  function openAccounts() {
+    let wref;
+    const draw = () => {
+      const bal = accBalances(), priv = privacyOn(), all = accAll(), on = all.filter(a => !a.archived), off = all.filter(a => a.archived);
+      const row = a => `<button class="create-opt clay acc-row" data-acc-edit="${esc(a.aid)}"><span class="tool-ico">${ico(a.type === 'cash' ? 'coins' : 'card')}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(a.name)}</b>${a.note ? `<br><span class="muted small">${esc(a.note)}</span>` : ''}</span><strong>${priv ? '•••' : cents(bal[a.aid] || 0)}</strong></button>`;
+      $('#accs', wref).innerHTML = `<p class="muted small" style="margin-top:0">${esc(t('accIntro'))}</p><div class="stack" style="gap:8px">${on.map(row).join('')}</div>
+        ${off.length ? `<details class="ev-done" style="margin-top:10px"><summary class="muted small">${esc(t('accArchived', { n: off.length }))}</summary><div class="stack" style="gap:8px;margin-top:8px">${off.map(row).join('')}</div></details>` : ''}
+        <div class="row wrap" style="gap:8px;margin-top:14px"><button class="btn" data-acc="new">${ico('plus')} ${esc(t('accNew'))}</button><button class="btn" data-acc="xfer">${ico('swap')} ${esc(t('accXfer'))}</button></div>
+        <details class="calc-box" style="margin-top:14px"><summary><span class="calc-sum-t"><strong>${esc(t('accManyTitle'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary><p class="calc-fine">${esc(t('accManyTips'))}</p></details>`;
+    };
+    openModal({
+      title: `${ico('card')} ${esc(t('accTitle'))}`, cls: 'wide', body: '<div id="accs"></div>',
+      onMount: w => { wref = w; w._redraw = draw; draw(); },
+      onClick: (e, close) => {
+        let el;
+        if ((el = e.target.closest('[data-acc-edit]'))) { openAccEditor(accGet(el.dataset.accEdit), draw); return; }
+        if ((el = e.target.closest('[data-acc]'))) { if (el.dataset.acc === 'new') openAccEditor(null, draw); else openTransfer(null, draw); }
+      }
+    });
+  }
+  function openAccEditor(a, done) {
+    const isNew = !a, f = a ? { ...a } : { aid: uid(), type: 'card', name: '', note: '', start: 0, archived: false };
+    const b = worthBase();
+    openModal({
+      title: esc(t(isNew ? 'accNew' : 'accEdit')),
+      body: `<div class="stack" style="gap:14px">
+        <label class="field"><span>${esc(t('accName'))}</span><input class="input" id="ac-name" maxlength="40" value="${esc(f.name)}" placeholder="${esc(t('accNamePh'))}"></label>
+        <label class="field"><span>${esc(t('accNote'))}</span><input class="input" id="ac-note" maxlength="120" value="${esc(f.note || '')}" placeholder="${esc(t('accNotePh'))}"></label>
+        ${f.aid === ACC_MAIN || f.aid === ACC_CASH ? `<p class="muted small" style="margin:0">${esc(t(f.aid === ACC_MAIN ? 'accMainHint' : 'accCashHint'))}</p>` : `<label class="field"><span>${esc(t('accStart', { d: b && b.date ? fmtShort(b.date) : t('accStartNoBase') }))}</span><input class="input" id="ac-start" inputmode="decimal" autocomplete="off" value="${f.start ? esc(fmtPctIn(f.start / 100)) : ''}" placeholder="0,00"><span class="muted small">${esc(t('accStartHint'))}</span></label>`}
+        ${f.aid === ACC_MAIN || f.aid === ACC_CASH ? '' : `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="ac-arch" ${f.archived ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('accArchive'))}</b><br><span class="muted small">${esc(t('accArchiveHint'))}</span></span></label>`}</div>`,
+      foot: `<button class="btn primary block" data-ac="save">${esc(t(isNew ? 'create' : 'save'))}</button>`,
+      onClick: (e, close, w) => {
+        if (!e.target.closest('[data-ac="save"]')) return;
+        f.name = $('#ac-name', w).value.trim() || (f.aid === ACC_MAIN ? t('accMain') : f.aid === ACC_CASH ? t('method_cash') : '');
+        if (!f.name) { toast(t('accNeedName')); $('#ac-name', w).focus(); return; }
+        f.note = $('#ac-note', w).value.trim();
+        if ($('#ac-start', w)) { const v = String($('#ac-start', w).value).trim(); f.start = v ? (LED.parseCents(v) ?? 0) : 0; }
+        if ($('#ac-arch', w)) f.archived = $('#ac-arch', w).checked;
+        accSaveOne(f); ledgerSave(); close(); done && done(); render(); toast(t('saved'));
+      }
+    });
+  }
+  // Traspaso entre cuentas (p. ej. sacar del cajero: de la tarjeta al efectivo). Editar uno ya hecho: pasa su id
+  function openTransfer(xid, done) {
+    const pair = xid ? LV.entries.filter(e => e.xfer === xid) : [], out0 = pair.find(e => e.type === 'expense'), in0 = pair.find(e => e.type === 'income');
+    const all = accAll().filter(a => !a.archived || (out0 && out0.acc === a.aid) || (in0 && in0.acc === a.aid));
+    const f = { from: out0 ? entryAcc(out0) : ACC_MAIN, to: in0 ? entryAcc(in0) : ACC_CASH, amt: out0 ? out0.amountCents : 0, date: out0 ? out0.date : state.ui.ledgerDay || todayKey(), note: out0 ? out0.note.replace(/^.*?:\s*/, '') : '' };
+    const sel = (id, v) => `<select class="input" id="${id}">${all.map(a => `<option value="${esc(a.aid)}" ${v === a.aid ? 'selected' : ''}>${esc(a.type === 'cash' ? '💶 ' : '💳 ')}${esc(accLabel(a))}</option>`).join('')}</select>`;
+    openModal({
+      title: `${ico('swap')} ${esc(t('accXfer'))}`,
+      body: `<div class="stack" style="gap:14px"><p class="muted small" style="margin:0">${esc(t('accXferHint'))}</p>
+        <div class="row wrap" style="gap:10px"><label class="field grow"><span>${esc(t('accFrom'))}</span>${sel('xf-from', f.from)}</label><label class="field grow"><span>${esc(t('accTo'))}</span>${sel('xf-to', f.to)}</label></div>
+        <label class="field"><span>${esc(t('ledgerAmount'))}</span><input class="input amt-input" id="xf-amt" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${f.amt ? esc(fmtPctIn(f.amt / 100)) : ''}"></label>
+        <label class="field"><span>${esc(t('ledgerDate'))}</span><input class="input" type="date" id="xf-date" value="${esc(f.date)}"></label>
+        <label class="field"><span>${esc(t('ledgerNote'))}</span><input class="input" id="xf-note" maxlength="100" value="${esc(f.note)}" placeholder="${esc(t('accXferNotePh'))}"></label></div>`,
+      foot: `${xid ? `<button class="btn danger" data-xf="del">${ico('trash')}</button>` : ''}<button class="btn primary" data-xf="save">${esc(t('save'))}</button>`,
+      onClick: async (e, close, w) => {
+        const b = e.target.closest('[data-xf]'); if (!b) return;
+        if (b.dataset.xf === 'del') { if (!(await confirmDialog(t('accXferDelQ')))) return; LV.entries = LV.entries.filter(x => x.xfer !== xid); ledgerSave(); close(); done && done(); render(); return; }
+        const from = $('#xf-from', w).value, to = $('#xf-to', w).value, amt = LED.parseCents($('#xf-amt', w).value), date = $('#xf-date', w).value || todayKey(), note = $('#xf-note', w).value.trim();
+        if (from === to) { toast(t('accXferSame')); return; }
+        if (!amt) { toast(t('ledgerNeedAmount')); $('#xf-amt', w).focus(); return; }
+        const id = xid || uid(), lbl = `${accGet(from).name} → ${accGet(to).name}`, nt = (t('accXferShort') + ': ' + (note || lbl)).slice(0, 140);
+        const mk = (type, acc, old) => ({ id: old ? old.id : uid(), type, amountCents: amt, categoryId: 'other', note: nt, method: kindMethod(acc), acc, date, link: id, xfer: id, recurringId: '', createdAt: old ? old.createdAt : Date.now() });
+        LV.entries = LV.entries.filter(x => x.xfer !== id).concat([mk('expense', from, out0), mk('income', to, in0)]);
+        ledgerSave(); close(); done && done(); render(); sfx('money'); toast(t('accXferDone'));
+      }
+    });
+  }
+  const kindMethod = aid => (accKind(aid) === 'cash' ? 'cash' : 'transfer');
+  // v1.36: patrimonio actual en unidades de la moneda principal (para las metas vinculadas)
+  const worthNowEur = () => Math.round(worthData().now.patrimony) / 100;
+  /* Metas numéricas vinculadas al Patrimonio actual (p.goal.worth): con la Libreta abierta, el valor de hoy se apunta solo
+     (como si lo registraras a mano) y al llegar a la meta el proyecto o reto se cumple automáticamente. */
+  let wgBusy = false;
+  function syncWorthGoals() {
+    if (wgBusy || !ledgerOpen() || !state.projects.some(p => p.goal && p.goal.worth)) return;
+    wgBusy = true;
+    try {
+      const v = worthNowEur(), d = todayKey(); let changed = false;
+      for (const p of state.projects) {
+        const g = p.goal; if (!g || !g.worth || g.type !== 'numeric') continue;
+        const before = projectStats(p).achieved;
+        const last = g.entries[g.entries.length - 1];
+        if (before || (last && last.d === d && last.v === v)) continue;
+        g.entries = g.entries.filter(x => x.d !== d); g.entries.push({ d, v }); g.entries.sort((a, b) => a.d < b.d ? -1 : 1); changed = true;
+        if (projectStats(p).achieved) { g.worthDone = d; setTimeout(() => { sfx('levelup'); vibrate([20, 40, 20]); toast(t('wgDone', { name: p.name })); }, 300); }
+      }
+      if (changed) save();
+    } finally { wgBusy = false; }
   }
   function worthUi() {
     const u = state.ui.worth && typeof state.ui.worth === 'object' ? state.ui.worth : {};
@@ -7035,11 +7226,12 @@
       <div class="calc-hero"><div class="calc-eyebrow" id="wo-total-l">${esc(t('woEyebrow'))}</div><strong class="calc-total">${money(n.patrimony / 100)}</strong>
         <div class="calc-trend ${delta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('woSince', { d: fmtShort(b.date), v: csign(delta) }))}</span></div>
         ${b.set ? '' : `<p class="muted small">${esc(t('woNoBase'))}</p>`}
-        <button class="chip sm" data-wo="start">${ico('compass')} ${esc(t(b.set ? 'woEditBase' : 'woSetBase'))}</button></div>
+        <div class="row wrap" style="gap:6px;justify-content:center"><button class="chip sm" data-wo="start">${ico('compass')} ${esc(t(b.set ? 'woEditBase' : 'woSetBase'))}</button><button class="chip sm" data-wo="reto">${ico('flag')} ${esc(t('wgNew'))}</button></div></div>
       <details class="calc-box" data-cd="wo-proj" ${calcIsOpen('wo-proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(n.digital / 100)}</strong></div><div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(n.value / 100)}</strong>${n.gains ? `<div class="calc-hl-st ${n.gains < 0 ? 'amt-out' : 'amt-in'}">${esc(t('woDepGain', { d: money(n.invested / 100), g: csign(n.gains / 100) }))}</div>` : ''}</div></div>
         <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('cmCash'))}</span><strong>${money(n.cash / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${money((n.income - b.at.income) / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${money((n.expenses - b.at.expenses) / 100)}</strong></div><div class="calc-metric"><span>${esc(t('woStart'))}</span><strong>${money(start)}</strong></div></div>
         <p class="calc-fine">${esc(t('woPace', { net: csign(pc.net / 100), inv: money(pc.invest / 100), y: money(n.patrimony / 100 + pc.net * 12 / 100) }))}</p>
+        ${accCustom() && n.acc ? `<div class="calc-metrics acc-metrics">${accAll().filter(a => !a.archived || n.acc[a.aid]).map(a => `<div class="calc-metric"><span>${esc(a.name)}</span><strong>${money((n.acc[a.aid] || 0) / 100)}</strong></div>`).join('')}</div><button class="chip sm" data-act="ledger-accounts">${ico('card')} ${esc(t('accTitle'))}</button>` : ''}
         ${worthCursHtml(d)}
       </details>`;
     { const L = worthInvList();
@@ -7088,6 +7280,7 @@
     const u = worthUi(), k = el.dataset.wo;
     switch (k) {
       case 'start': openWorthStart(); return true;
+      case 'reto': { const v = worthNowEur(); openProjectEditor(null, { name: t('wgName'), icon: '💰', goal: { type: 'numeric', worth: true, start: v, target: Math.ceil((v + 1000) / 1000) * 1000, unit: curSym(ledgerMain()), entries: [], items: [], achieved: false } }); return true; }
       case 'val': openWorthValue(el.dataset.id); return true;
       case 'mode': u.mode = u.mode === 'investments' ? 'patrimony' : 'investments'; break;
       case 'graph': u.hideGraph = !u.hideGraph; break;
@@ -8393,8 +8586,9 @@
     const list = LV.entries.filter(e => e.date === k).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), tot = LED.totals(NET(list));
     // v1.25: flechas y deslizar a los lados para pasar de día sin volver al calendario
     return `<section class="ledger-day clay" aria-live="polite"><div class="row"><button class="icon-btn sm" data-act="ledger-dayshift" data-d="-1" aria-label="${esc(t('tfPrevDay'))}">${ico('left')}</button><h3 class="grow" style="margin:0">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3><button class="icon-btn sm" data-act="ledger-dayshift" data-d="1" aria-label="${esc(t('tfNextDay'))}">${ico('right')}</button><button class="btn sm" data-act="ledger-add" data-d="${k}">${ico('plus')} ${esc(t('add'))}</button></div>${ledgerDayKinds(k)}
-      ${list.length ? `<ul class="ledger-list">${list.map(e => `<li>${entryRow(e)}</li>`).join('')}</ul>
-        <div class="entry"><span class="muted">${esc(t('ledgerDayNet'))}</span><b>${cents(tot.net)}</b></div>` : `<p class="muted small" style="margin:10px 0 0">${esc(t('ledgerDayEmpty'))}</p>`}
+      ${list.length ? `<ul class="ledger-list ${LSEL.day === k ? 'selecting' : ''}">${list.map(e => `<li class="${LSEL.day === k && LSEL.ids.has(e.id) ? 'picked' : ''}">${entryRow(e)}</li>`).join('')}</ul>
+        ${LSEL.day === k ? `<div class="merge-bar"><span class="grow small"><b>${esc(t('mgSel', { n: LSEL.ids.size }))}</b><br><span class="muted">${esc(t('mgHint'))}</span></span><button class="btn sm" data-mg="cancel">${esc(t('cancel'))}</button><button class="btn sm primary" data-mg="go" ${LSEL.ids.size < 2 ? 'disabled' : ''}>${ico('layers')} ${esc(t('mgDo'))}</button></div>`
+          : `${list.length > 1 ? `<p class="muted small" style="margin:6px 0 0">${esc(t('mgTip'))}</p>` : ''}<div class="entry"><span class="muted">${esc(t('ledgerDayNet'))}</span><b>${cents(tot.net)}</b></div>`}` : `<p class="muted small" style="margin:10px 0 0">${esc(t('ledgerDayEmpty'))}</p>`}
     </section>`;
   }
   // v1.25: el tipo de día de Organización y los eventos del día, debajo del título del resumen
@@ -8414,11 +8608,13 @@
   /* Movimiento en una lista: al deslizarlo hacia la izquierda (dedo o ratón) aparecen Editar y Borrar */
   // v1.23.4: ¿está vinculado a algún otro movimiento que todavía exista?
   const linkedNow = e => !!(e.link && e.type !== 'invest' && LV.entries.some(x => x !== e && x.link === e.link && x.type !== 'invest'));
+  // v1.36: nombre de la cuenta en la fila, solo si tienes cuentas propias
+  const accRowTag = e => { if (e.method === 'cash' && !e.xfer) return ''; if (!accCustom()) return ''; const a = accGet(entryAcc(e)); return a ? ' · ' + esc(a.name) : ''; };
   function entryRow(e, withDate = false) {
     const c = catOf(e.categoryId), priv = privacyOn(), inc = e.type === 'income', inv = e.type === 'invest';
     const ac = inv ? 'amt-inv' : inc ? 'amt-in' : 'amt-out', sg = inv ? '' : inc ? '+' : '−';
     return `<div class="swipe" data-swipe="${esc(e.id)}"><div class="swipe-acts"><button class="sw-act edit" data-sw-edit="${esc(e.id)}" aria-label="${esc(t('edit'))}" title="${esc(t('edit'))}">${ico('edit')}</button><button class="sw-act del" data-sw-del="${esc(e.id)}" aria-label="${esc(t('delete'))}" title="${esc(t('delete'))}">${ico('trash')}</button></div>
-      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}${linkedNow(e) ? ` · <span class="led-link" title="${esc(t('lkLinked'))}">${ico('link', 'xs')}</span>` : ''}${debtBadge(e)}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${ac}">${priv ? '•••' : sg + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${ac}">${priv ? '•••' : sg + cents(e.amountCents)}</b>`}</button></div>`;
+      <button class="ledger-item swipe-front" data-ledger-edit="${esc(e.id)}"><span class="led-ico" aria-hidden="true">${esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${withDate ? esc(fmtShort(e.date)) + ' · ' : ''}${esc(catName(c))}${e.xfer ? ` · ${ico('swap', 'xs')}` : e.method ? ' · ' + esc(t('method_' + e.method)) : ''}${accRowTag(e)}${e.recurringId ? ` · ${ico('repeat', 'xs')}` : ''}${linkedNow(e) ? ` · <span class="led-link" title="${esc(t('lkLinked'))}">${ico('link', 'xs')}</span>` : ''}${debtBadge(e)}</span></span>${e.fx && e.fx.cur ? `<span class="fx-amt"><b class="${ac}">${priv ? '•••' : sg + fmtCur(e.fx.cents / 100, e.fx.cur)}</b><span class="muted small">(${esc(fxRateTxt(e.fx.cur, e.fx.rate))} → ${priv ? '•••' : cents(e.amountCents)})</span></span>` : `<b class="${ac}">${priv ? '•••' : sg + cents(e.amountCents)}</b>`}</button></div>`;
   }
   const SW_W = 124;
   let swg = null, swOpen = null, swBlock = false;
@@ -8457,17 +8653,78 @@
     const find = id => LV.entries.find(x => x.id === id);
     if ((el = e.target.closest('[data-sw-del]'))) {
       const id = el.dataset.swDel;
-      confirmDialog(t('ledgerDelQ')).then(ok => { closeSwipe(); if (!ok) return; LV.entries = LV.entries.filter(x => x.id !== id); ledgerSave(); render(); sfx('undo'); redraw && redraw(); });
+      const xf = (find(id) || {}).xfer;
+      confirmDialog(t(xf ? 'accXferDelQ' : 'ledgerDelQ')).then(ok => { closeSwipe(); if (!ok) return; LV.entries = LV.entries.filter(x => x.id !== id && (!xf || x.xfer !== xf)); ledgerSave(); render(); sfx('undo'); redraw && redraw(); });
       return true;
     }
     if ((el = e.target.closest('[data-sw-edit], [data-ledger-edit]'))) {
       const row = el.closest('.swipe');
       if (el.matches('[data-ledger-edit]') && row && row === swOpen) { closeSwipe(); return true; }
       const en = find(el.dataset.swEdit || el.dataset.ledgerEdit); closeSwipe();
+      if (en && en.xfer) { openTransfer(en.xfer, redraw); return true; } // v1.36: un traspaso se edita entero
       if (en) { closeFn && closeFn(); openEntry(en); }
       return true;
     }
     return false;
+  }
+  /* ---------- v1.36: seleccionar y fusionar movimientos del resumen del día ----------
+     Mantén pulsado un movimiento del resumen diario: entra en modo selección. Toca otros y «Fusionar» los junta en uno solo
+     (p. ej. si apuntaste varias compras del súper una a una). El nuevo suma los importes (un ingreso resta a un gasto), se
+     queda con la categoría, el método y la cuenta del más grande, y junta las notas. */
+  const LSEL = { day: '', ids: new Set() };
+  let lselTimer = null, lselBlock = false;
+  const lselExit = () => { LSEL.day = ''; LSEL.ids = new Set(); };
+  document.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const front = e.target.closest && e.target.closest('.ledger-day [data-ledger-edit]'); if (!front || e.target.closest('#modal-root')) return;
+    const sx = e.clientX, sy = e.clientY, id = front.dataset.ledgerEdit, day = state.ui.ledgerDay;
+    clearTimeout(lselTimer);
+    lselTimer = setTimeout(() => {
+      lselTimer = null; if (swg && swg.on) return;
+      lselBlock = true; swg = null;
+      if (LSEL.day !== day) { LSEL.day = day; LSEL.ids = new Set(); }
+      LSEL.ids.add(id); vibrate(12); render();
+    }, 480);
+    const mv = ev => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) stop(); };
+    const stop = () => { clearTimeout(lselTimer); lselTimer = null; document.removeEventListener('pointermove', mv); };
+    document.addEventListener('pointermove', mv);
+    ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, () => { stop(); setTimeout(() => { lselBlock = false; }, 350); }, { once: true }));
+  }, true);
+  window.addEventListener('click', e => {
+    if (lselBlock && e.target.closest && e.target.closest('.ledger-day')) { lselBlock = false; e.preventDefault(); e.stopPropagation(); return; }
+    if (!LSEL.day || !e.target.closest) return;
+    const mg = e.target.closest('[data-mg]');
+    if (mg) { e.preventDefault(); e.stopPropagation(); if (mg.dataset.mg === 'cancel') { lselExit(); render(); } else mergeSelected(); return; }
+    const row = e.target.closest('.ledger-day [data-ledger-edit], .ledger-day [data-sw-edit], .ledger-day [data-sw-del]');
+    if (row) { e.preventDefault(); e.stopPropagation(); const id = row.dataset.ledgerEdit || row.dataset.swEdit || row.dataset.swDel; if (LSEL.ids.has(id)) LSEL.ids.delete(id); else LSEL.ids.add(id); if (!LSEL.ids.size) lselExit(); vibrate(6); render(); }
+  }, true);
+  // Une varios movimientos en uno. Devuelve el nuevo o un código de por qué no se puede ('inv', 'fx', 'xfer', 'debt', 'zero')
+  function mergePlan(list) {
+    if (list.some(e => e.xfer)) return 'xfer';
+    if (list.some(e => e.owed || e.due || e.pay || linkedNow(e))) return 'debt';
+    const inv = list.filter(e => e.type === 'invest').length; if (inv && inv < list.length) return 'inv';
+    const fxs = new Set(list.map(e => (e.fx && e.fx.cur) || '')); if (fxs.size > 1) return 'fx';
+    const net = list.reduce((a, e) => a + (inv ? e.amountCents : LED.signed(e)), 0); if (!net) return 'zero';
+    const big = list.reduce((a, e) => (e.amountCents > a.amountCents ? e : a)), type = inv ? 'invest' : net > 0 ? 'income' : 'expense';
+    const notes = [...new Set(list.map(e => (e.note || '').trim()).filter(Boolean))];
+    const ne = { id: uid(), type, amountCents: Math.abs(net), categoryId: big.categoryId, note: notes.join(' + ').slice(0, 140), method: big.method || '', ...(big.acc ? { acc: big.acc } : {}), date: big.date, recurringId: '', createdAt: Math.min(...list.map(e => e.createdAt || Date.now())), merged: list.length };
+    const ext = [...new Set(list.flatMap(e => e.extIds || []))], exh = [...new Set(list.flatMap(e => e.extH || []))];
+    if (ext.length) ne.extIds = ext; if (exh.length) ne.extH = exh;
+    const imp = new Set(list.map(e => e.importId || '')); if (imp.size === 1 && [...imp][0]) ne.importId = [...imp][0];
+    const fxc = [...fxs][0];
+    if (fxc) { const fxNet = list.reduce((a, e) => a + (inv ? 1 : e.type === 'income' ? 1 : -1) * (e.fx.cents || 0), 0); ne.fx = { cur: fxc, cents: Math.abs(fxNet), rate: big.fx.rate }; }
+    return ne;
+  }
+  async function mergeSelected() {
+    const list = LV.entries.filter(e => LSEL.ids.has(e.id)); if (list.length < 2) return;
+    const ne = mergePlan(list);
+    if (typeof ne === 'string') { toast(t('mgNo_' + ne)); return; }
+    const c = catOf(ne.categoryId);
+    if (!(await confirmDialog(t('mgQ', { n: list.length, a: (ne.type === 'income' ? '+' : ne.type === 'expense' ? '−' : '') + cents(ne.amountCents), c: catName(c) })))) return;
+    const ids = new Set(list.map(e => e.id));
+    LV.entries = LV.entries.filter(e => !ids.has(e.id)); LV.entries.push(ne);
+    for (const ev of LV.events) { if ((ev.incl || []).some(x => ids.has(x))) ev.incl = [...ev.incl.filter(x => !ids.has(x)), ne.id]; if (ev.excl) ev.excl = ev.excl.filter(x => !ids.has(x)); }
+    lselExit(); ledgerSave(); render(); sfx('money'); toast(t('mgDone', { n: list.length }));
   }
   // v1.23: tipos de movimiento (Gasto, Ingreso, Inversión). «Ambos» vale para gasto e ingreso; la inversión tiene sus categorías
   const LTYPE_K = { expense: 'ledgerExpenseOne', income: 'ledgerIncomeOne', invest: 'ledgerInvestOne' };
@@ -8625,6 +8882,7 @@
         <label class="field"><span>${esc(t('ledgerDate'))}</span><input class="input" type="date" id="le-date" value="${esc(f.date)}"></label>
         <label class="field"><span>${esc(t('ledgerNote'))}</span><input class="input" id="le-note" maxlength="140" value="${esc(f.note || '')}" placeholder="${esc(t('ledgerNotePh'))}"></label>
         <div class="field"><span>${esc(t('ledgerMethod'))}</span><div class="seg">${LED.METHODS.map(v => `<button type="button" data-le-method="${v}" class="${f.method === v ? 'on' : ''}" aria-pressed="${f.method === v}">${esc(t('method_' + v))}</button>`).join('')}</div></div>
+        ${accFieldHtml(f)}
         <div id="le-link"></div>
         <div id="le-debt"></div>
         ${isNew ? `<label class="field"><span>${esc(t('ledgerRepeat'))}</span><select class="input" id="le-every"><option value="">${esc(t('repeat_none'))}</option>${LED.REPEATS.map(v => `<option value="${v}" ${f.every === v ? 'selected' : ''}>${esc(t('repeat_' + v))}</option>`).join('')}</select></label>
@@ -8640,6 +8898,7 @@
           if (e.target.id === 'le-every') { $('#le-to-wrap', w).classList.toggle('hidden', !e.target.value); linkBox(); }
           if (e.target.id === 'le-cur') { f.cur = e.target.value; f.rateSet = false; f.rate = 0; fxLine(); fxFetchRate(); }
           if (e.target.id === 'le-date') { f.date = e.target.value || f.date; fxFetchRate(); }
+          if (e.target.id === 'le-acc') f.acc = e.target.value;
           if (e.target.id === 'le-owed') { debtRead(); f.owed.on = e.target.checked; if (f.owed.on) { f.due.on = false; if (!f.owed.parts.length) f.owed.parts.push({ id: uid(), who: {}, mode: 'fixed', v: 0 }); } debtBox(); }
           if (e.target.id === 'le-due') { debtRead(); f.due.on = e.target.checked; if (f.due.on) f.owed.on = false; debtBox(); }
           if (e.target.id === 'le-due-paid') { f.due.paid = e.target.checked ? todayKey() : null; debtRead(); debtBox(); }
@@ -8681,6 +8940,8 @@
           const amt = LED.parseCents($('#le-amt', wref).value);
           if (!amt) { toast(t('ledgerNeedAmount')); $('#le-amt', wref).focus(); return; }
           const data = { type: f.type, amountCents: amt, categoryId: f.categoryId, note: f.note, method: f.method, date: f.date };
+          // v1.36: cuenta del movimiento (tarjeta, destino de la transferencia o efectivo)
+          { const a = f.method === 'cash' ? ACC_CASH : f.acc && accGet(f.acc) && (f.method !== 'card' || accKind(f.acc) === 'card') ? f.acc : ''; if (a && a !== (f.method === 'cash' ? ACC_CASH : ACC_MAIN)) data.acc = a; else if (accCustom() && a) data.acc = a; }
           // v1.25: deudas (las personas nuevas se guardan como contactos)
           debtRead();
           if (f.type === 'expense' && f.owed.on) {
@@ -8705,7 +8966,7 @@
             runRecurring();
             if (f.date > todayKey()) toast(t('ledgerRecFuture'));
           } else if (isNew) { const ne = { id: uid(), ...data, recurringId: '', createdAt: Date.now() }; LV.entries.push(ne); firstTime('ledger', LV.entries.length === 1); saveLinks(ne, f.type === 'invest' ? [] : f.links, []); }
-          else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; for (const k of ['owed', 'due', 'pay']) if (!data[k]) delete tg[k]; saveLinks(tg, f.type === 'invest' ? [] : f.links, links0); }
+          else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; if (!data.acc) delete tg.acc; for (const k of ['owed', 'due', 'pay']) if (!data[k]) delete tg[k]; saveLinks(tg, f.type === 'invest' ? [] : f.links, links0); }
           state.ui.ledgerDay = f.date; state.ui.ledgerMonth = f.date.slice(0, 7);
           ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'expense' ? 'pop' : 'money');
         }
@@ -8824,8 +9085,28 @@
     if (e.kind === 'other') return (e.label || '') + n;
     return t('rgNote_' + e.kind) + (e.extGroup ? n : e.label ? ' · ' + e.label : '');
   }
+  /* v1.36: borrador del registro. Lo que llevas respondido se guarda (cifrado, como todo lo de la Libreta) y se puede
+     retomar al volver a «Registrar»; si pasa media hora sin cambios, se borra solo. */
+  const RG_DRAFT_ID = 'rg-draft', RG_DRAFT_MS = 30 * 60 * 1000;
+  const realImports = () => LV.imports.filter(x => !x.draft);
+  const rgDraft = () => { const d = LV.imports.find(x => x.id === RG_DRAFT_ID); if (d && Date.now() - (d.at || 0) > RG_DRAFT_MS) { LV.imports = LV.imports.filter(x => x !== d); ledgerSave(); return null; } return d || null; };
+  let rgDraftT = 0;
+  function rgDraftSave(S) {
+    clearTimeout(rgDraftT);
+    rgDraftT = setTimeout(() => {
+      if (!ledgerOpen() || S.step !== 'ask' || !S.data) return;
+      const d = { id: RG_DRAFT_ID, draft: true, at: Date.now(), file: S.file, format: S.data.format, nRead: S.data.rows.length, dupN: S.dupN || 0, rows: S.rows, ans: S.ans, rates: S.rates, curMode: S.curMode, acc: S.acc || '' };
+      if (JSON.stringify(d.rows).length > 1.5e6) return; // un CSV enorme no se guarda como borrador
+      LV.imports = [...LV.imports.filter(x => x.id !== RG_DRAFT_ID), d]; ledgerSave();
+    }, 900);
+  }
+  function rgDraftDrop() { clearTimeout(rgDraftT); if (LV.imports.some(x => x.id === RG_DRAFT_ID)) { LV.imports = LV.imports.filter(x => x.id !== RG_DRAFT_ID); ledgerSave(); } }
+  // Purga del borrador caducado cada minuto mientras la Libreta está abierta
+  setInterval(() => { if (ledgerOpen()) rgDraft(); }, 60000);
+  const RG_METHODS = [['card', 'method_card'], ['cash', 'method_cash'], ['transfer', 'method_transfer'], ['other', 'method_other']];
+  const rgDefMethod = kind => (kind === 'card' || kind === 'cardCredit' ? 'card' : 'transfer');
   function openRegistrar() {
-    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {}, file: '', open: new Set() };
+    const S = { step: 'intro', data: null, q: [], cur: {}, ans: {}, rates: {}, curMode: {}, file: '', open: new Set(), splitting: '', acc: '' };
     let wref;
     const cats = type => LV.cats.filter(c => !c.archived && catFits(c, type));
     // v1.23: cada grupo se puede desglosar y decidir movimiento a movimiento (respuesta propia en S.ans['row:' + clave])
@@ -8847,6 +9128,7 @@
         box.innerHTML = `<div class="stack" style="gap:14px"><p style="margin:0">${esc(t('rgIntro'))}</p>
           <ol class="rg-steps">${['rgStep1', 'rgStep2', 'rgStep3'].map(k => `<li>${esc(t(k))}</li>`).join('')}</ol>
           <p class="muted small" style="margin:0">${esc(t('rgOnlyT212'))}</p>
+          ${(() => { const dr = rgDraft(); return dr ? `<div class="rg-q clay"><b>${ico('doc')} ${esc(t('rgDraftTitle'))}</b><p class="muted small" style="margin:0">${esc(t('rgDraftSub', { f: dr.file || 'CSV', m: Math.max(1, Math.round((RG_DRAFT_MS - (Date.now() - dr.at)) / 60000)) }))}</p><div class="row wrap" style="gap:8px"><button type="button" class="btn primary sm" data-rg="resume">${ico('right')} ${esc(t('rgDraftResume'))}</button><button type="button" class="btn sm" data-rg="drop">${ico('trash')} ${esc(t('rgDraftDrop'))}</button></div></div>` : ''; })()}
           <label class="btn calc-blue block">${ico('upload')} ${esc(t('rgChoose'))}<input type="file" accept=".csv,text/csv" class="sr-only" data-rg-file></label>
           <p class="muted small" style="margin:0">${esc(t('rgPrivacy'))}</p></div>`;
         $('.sheet-foot', wref) && ($('.sheet-foot', wref).innerHTML = '');
@@ -8859,6 +9141,8 @@
       const seg = (gid, key, opts, val) => `<div class="seg seg-sm" role="group">${opts.map(([v, k]) => `<button type="button" data-rg-set="${esc(gid)}" data-k="${key}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>`;
       box.innerHTML = `<div class="stack" style="gap:14px">
         <p class="muted small" style="margin:0">${esc(t('rgRead', { n: d.rows.length }))}${S.dupN ? ' · ' + esc(t('rgDupN', { n: S.dupN })) : ''}</p>
+        ${accCardList().length > 1 ? `<label class="field"><span>${ico('card', 'xs')} ${esc(t('rgAcc'))}</span><select class="input" data-rg-acc>${accCardList().map(a => `<option value="${esc(a.aid)}" ${S.acc === a.aid ? 'selected' : ''}>${esc(accLabel(a))}</option>`).join('')}</select><span class="muted small">${esc(t('rgAccHint'))}</span></label>` : ''}
+        <p class="muted small" style="margin:0">${ico('clock', 'xs')} ${esc(t('rgDraftAuto'))}</p>
         <p style="margin:0">${esc(t('rgAsk'))}</p>
         ${S.q.map(g => { const a = S.ans[g.id] || {}, rs = rowsOf(g), nOwn = rs.filter(r => S.ans['row:' + r.key]).length, open = S.open.has(g.id); return `<section class="rg-q clay">
           <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><b class="grow">${esc(rgKindName(g))}</b><span class="muted small" style="white-space:nowrap">${g.count} · ${money(g.cents / 100)}</span></div>
@@ -8866,10 +9150,13 @@
           <p class="muted small" style="margin:0">${esc(t('rgHint_' + g.kind))}</p>
           ${rs.length > nOwn ? `<span class="rg-l">${esc(t(nOwn ? 'rgWhatRest' : 'rgWhat', { n: rs.length - nOwn }))}</span>${seg(g.id, 'type', RG_TYPES, a.type)}
           ${a.type && a.type !== 'skip' ? `${catSel(g.id, a)}
+            <span class="rg-l">${esc(t('ledgerMethod'))}</span>${seg(g.id, 'method', RG_METHODS, a.method || rgDefMethod(g.kind))}
             ${rgCanGroup(g) ? `<span class="rg-l">${esc(t('rgGroupQ'))}</span>${seg(g.id, 'group', [['none', 'rgGroupNo'], ['day', 'rgGroupDay'], ['month', 'rgGroupMonth']], a.group)}` : ''}` : ''}` : `<p class="muted small" style="margin:0">${esc(t('rgAllOwn'))}</p>`}
-          ${rs.length > 1 || nOwn ? `<button type="button" class="chip sm rg-split ${open ? 'on' : ''}" data-rg-split="${esc(g.id)}" aria-expanded="${open}">${ico('list')} ${esc(t(open ? 'rgSplitHide' : 'rgSplit', { n: rs.length }))}${nOwn ? ` · ${esc(t('rgOwnN', { n: nOwn }))}` : ''}</button>` : ''}
-          ${open ? `<ul class="rg-rows">${rs.slice(0, RG_MAX_ROWS).map(r => { const ra = S.ans['row:' + r.key]; return `<li class="rg-row ${ra ? 'own' : ''}"><div class="row" style="gap:8px;align-items:baseline"><span class="grow small"><b>${esc(r.merchant || r.name || (r.kind === 'other' ? r.action : t('rgNote_' + r.kind)))}</b> <span class="muted">${esc(fmtShort(r.date))}</span></span><b class="small ${r.sign < 0 ? 'amt-out' : 'amt-in'}">${privacyOn() ? '•••' : (r.sign < 0 ? '−' : '+') + esc(fmtCur(r.cents / 100, r.currency))}</b></div>
-            ${seg('row:' + r.key, 'type', [['', 'rgAsGroup'], ...RG_TYPES], ra ? ra.type : '')}${ra && ra.type && ra.type !== 'skip' ? catSel('row:' + r.key, ra) : ''}</li>`; }).join('')}</ul>${rs.length > RG_MAX_ROWS ? `<p class="muted small" style="margin:0">${esc(t('rgMoreRows', { n: rs.length - RG_MAX_ROWS }))}</p>` : ''}` : ''}
+          ${rs.length ? `<button type="button" class="chip sm rg-split ${open ? 'on' : ''}" data-rg-split="${esc(g.id)}" aria-expanded="${open}">${ico('list')} ${esc(t(open ? 'rgSplitHide' : 'rgSplit', { n: rs.length }))}${nOwn ? ` · ${esc(t('rgOwnN', { n: nOwn }))}` : ''}</button>` : ''}
+          ${open ? `<ul class="rg-rows">${rs.slice(0, RG_MAX_ROWS).map(r => { const ra = S.ans['row:' + r.key]; return `<li class="rg-row ${ra ? 'own' : ''}"><div class="row" style="gap:8px;align-items:baseline"><span class="grow small"><b>${esc(r.merchant || r.name || (r.kind === 'other' ? r.action : t('rgNote_' + r.kind)))}</b> <span class="muted">${esc(fmtShort(r.date))}</span></span><b class="small ${r.sign < 0 ? 'amt-out' : 'amt-in'}">${privacyOn() ? '•••' : (r.sign < 0 ? '−' : '+') + esc(fmtCur(r.cents / 100, r.currency))}</b><button type="button" class="chip sm" data-rg-cut="${esc(r.key)}" aria-expanded="${S.splitting === r.key}">${ico('split')} ${esc(t('rgCut'))}</button></div>
+            ${r.split ? `<span class="muted small">${ico('split', 'xs')} ${esc(t('rgCutPart'))}</span>` : ''}
+            ${S.splitting === r.key ? `<div class="rg-cut"><span class="muted small">${esc(t('rgCutHint', { a: fmtCur(r.cents / 100, r.currency) }))}</span><div class="row" style="gap:8px"><input class="input grow" inputmode="decimal" autocomplete="off" data-rg-cut-v placeholder="0,00" aria-label="${esc(t('rgCutFirst'))}"><button type="button" class="btn sm primary" data-rg-cut-go="${esc(r.key)}">${esc(t('rgCutDo'))}</button></div></div>` : ''}
+            ${seg('row:' + r.key, 'type', [['', 'rgAsGroup'], ...RG_TYPES], ra ? ra.type : '')}${ra && ra.type && ra.type !== 'skip' ? catSel('row:' + r.key, ra) + `<span class="rg-l">${esc(t('ledgerMethod'))}</span>` + seg('row:' + r.key, 'method', RG_METHODS, ra.method || (S.ans[g.id] || {}).method || rgDefMethod(r.kind)) : ''}</li>`; }).join('')}</ul>${rs.length > RG_MAX_ROWS ? `<p class="muted small" style="margin:0">${esc(t('rgMoreRows', { n: rs.length - RG_MAX_ROWS }))}</p>` : ''}` : ''}
         </section>`; }).join('')}
         ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay"><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
           ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgKeepCur'], ['conv', 'rgConvMain']], S.curMode[c])}
@@ -8884,7 +9171,7 @@
       if (f.size > 5 * 1024 * 1024) { toast(t('tfFileBig')); return; }
       const d = BCSV.read(await f.text());
       if (!d.format) { toast(t('rgUnknown')); return; }
-      const known = new Set(); for (const e of LV.entries) for (const k of e.extIds || []) known.add(k);
+      const known = BCSV.knownKeys(LV.entries);
       const fresh = d.rows.filter(r => !known.has(r.key));
       S.dupN = d.rows.length - fresh.length;
       S.data = d; S.rows = fresh; S.file = String(f.name || '').slice(0, 120); S.q = BCSV.questions(fresh, ledgerMain()); S.cur = BCSV.currencies(fresh, ledgerMain()); S.ans = {}; S.open = new Set();
@@ -8892,7 +9179,15 @@
       fxLatest().then(() => { for (const c of Object.keys(S.cur)) if (!S.rates[c]) { const r = fxRateNow(c); if (r > 0) S.rates[c] = FX.roundRate(r); } draw(); });
       // Lo único que se sabe seguro: un pago con tarjeta es un gasto (la categoría la elige el usuario)
       for (const g of S.q) if (g.kind === 'card') S.ans[g.id] = { type: 'expense' };
-      S.step = 'ask'; draw(); const sh = $('.sheet', wref); if (sh) sh.scrollTop = 0;
+      S.acc = accDefaultCsv();
+      S.step = 'ask'; draw(); rgDraftSave(S); const sh = $('.sheet', wref); if (sh) sh.scrollTop = 0;
+    };
+    // Retomar el borrador guardado
+    const resume = () => {
+      const dr = rgDraft(); if (!dr) { toast(t('rgDraftGone')); draw(); return; }
+      S.data = { format: dr.format, rows: { length: dr.nRead || dr.rows.length } }; S.rows = dr.rows; S.file = dr.file; S.dupN = dr.dupN; S.ans = dr.ans || {}; S.rates = dr.rates || {}; S.curMode = dr.curMode || {}; S.acc = dr.acc || accDefaultCsv();
+      S.q = BCSV.questions(S.rows, ledgerMain()); S.cur = BCSV.currencies(S.rows, ledgerMain()); S.open = new Set();
+      S.step = 'ask'; draw(); rgDraftSave(S);
     };
     openModal({
       title: `${ico('upload')} ${esc(t('rgTitle'))}`, cls: 'rg-modal', body: '<div id="rg"></div>', foot: ' ',
@@ -8906,6 +9201,8 @@
             S.newCat = ''; a.categoryId = e.target.value; draw();
           }
           if (e.target.matches('[data-rg-rate]')) { const v = Number(String(e.target.value).replace(/\s/g, '').replace(',', '.')); S.rates[e.target.dataset.rgRate] = v > 0 && v < 1e7 ? v : 0; draw(); }
+          if (e.target.matches('[data-rg-acc]')) S.acc = e.target.value;
+          rgDraftSave(S);
         });
       },
       onClick: (e, close) => {
@@ -8922,15 +9219,35 @@
           if (k === 'cur') S.curMode[id.slice(4)] = v;
           else if (id.startsWith('row:') && k === 'type' && !v) delete S.ans[id]; // «Como el grupo»
           else { const a = S.ans[id] || (S.ans[id] = {}); if (k === 'type' && a.type !== v) { a.type = v; a.categoryId = ''; } else a[k] = v; }
-          draw(); return;
+          draw(); rgDraftSave(S); return;
         }
         if ((el = e.target.closest('[data-rg-split]'))) { const id = el.dataset.rgSplit; if (S.open.has(id)) S.open.delete(id); else S.open.add(id); draw(); return; }
+        // v1.36: dividir un movimiento detectado en dos (la segunda parte es lo que falta hasta el total)
+        if ((el = e.target.closest('[data-rg-cut]'))) { S.splitting = S.splitting === el.dataset.rgCut ? '' : el.dataset.rgCut; draw(); const i = $('[data-rg-cut-v]', wref); if (i) i.focus(); return; }
+        if ((el = e.target.closest('[data-rg-cut-go]'))) {
+          const key = el.dataset.rgCutGo, r = S.rows.find(x => x.key === key); if (!r) return;
+          const c = LED.parseCents($('[data-rg-cut-v]', wref).value);
+          if (!(c > 0 && c < r.cents)) { toast(t('rgCutBad', { a: fmtCur(r.cents / 100, r.currency) })); return; }
+          const parts = BCSV.splitRow(r, [c, r.cents - c]); if (!parts) return;
+          const own = S.ans['row:' + key]; delete S.ans['row:' + key];
+          // Cada parte queda con su propia respuesta (la del grupo o la que tenía) para poder cambiarla
+          const g = S.ans[BCSV.groupId(r)] || {}, base = own || (g.type ? { type: g.type, categoryId: g.categoryId || '', ...(g.method ? { method: g.method } : {}) } : null);
+          for (const p of parts) if (base) S.ans['row:' + p.key] = { ...base };
+          const i = S.rows.indexOf(r); S.rows.splice(i, 1, ...parts); S.splitting = '';
+          S.q = BCSV.questions(S.rows, ledgerMain()); draw(); rgDraftSave(S); vibrate(8); toast(t('rgCutDone')); return;
+        }
         if (!(el = e.target.closest('[data-rg]'))) return;
         if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
+        if (el.dataset.rg === 'resume') { resume(); return; }
+        if (el.dataset.rg === 'drop') { rgDraftDrop(); draw(); toast(t('rgDraftDropped')); return; }
         if (missing()) return;
         const rates = {}, conv = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] !== 'skip') { rates[c] = S.rates[c]; if (S.curMode[c] === 'conv') conv[c] = true; }
         const p = BCSV.plan(S.rows, S.ans, rates, LV.entries, ledgerMain(), conv), importId = uid();
-        for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, importId, ...(x.extGroup ? { extGroup: x.extGroup } : {}), ...(x.fx ? { fx: { ...x.fx, rate: FX.roundRate(x.fx.rate) } } : {}) });
+        // v1.36: cada movimiento va a la cuenta elegida para este CSV (o al Efectivo si su método es efectivo)
+        const accOf = m => (m === 'cash' ? 'cash' : S.acc || accDefaultCsv());
+        for (const x of p.create) LV.entries.push({ id: uid(), type: x.type, amountCents: x.amountCents, categoryId: x.categoryId, note: rgNote(x).slice(0, 200), method: x.method, acc: accOf(x.method), date: x.date, recurringId: '', createdAt: Date.now(), extIds: x.extIds, importId, ...(x.extGroup ? { extGroup: x.extGroup } : {}), ...(x.fx ? { fx: { ...x.fx, rate: FX.roundRate(x.fx.rate) } } : {}) });
+        if (S.acc) state.ledgerPrefs = { ...state.ledgerPrefs, csvAcc: S.acc };
+        LV.imports = LV.imports.filter(x => x.id !== RG_DRAFT_ID); clearTimeout(rgDraftT);
         // v1.22: cada importación queda como un registro (fecha, hora y archivo) para poder revisarla, editarla o borrarla entera
         if (p.create.length || p.update.length) LV.imports.push({ id: importId, at: Date.now(), file: S.file, format: S.data.format, n: p.create.length, updates: p.update.map(u => ({ id: u.id, addCents: u.addCents, addIds: u.addIds, addFx: u.addFx || 0 })) });
         for (const u of p.update) { const en = LV.entries.find(x => x.id === u.id); if (en) { en.amountCents += u.addCents; if (en.fx && u.addFx) en.fx.cents += u.addFx; en.extIds = [...(en.extIds || []), ...u.addIds]; const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${+m[1] + u.addIds.length})`); } }
@@ -8951,7 +9268,24 @@
       en.extIds = (en.extIds || []).filter(k => !ids.has(k));
       en.amountCents -= u.addCents || 0; if (en.fx && u.addFx) en.fx.cents -= u.addFx;
       const m = /\((\d+)\)$/.exec(en.note || ''); if (m) en.note = en.note.replace(/\(\d+\)$/, `(${Math.max(1, +m[1] - ids.size)})`);
-      if (en.amountCents <= 0 || !en.extIds.length) LV.entries = LV.entries.filter(x => x !== en);
+      if (en.amountCents <= 0 || (!en.extIds.length && !(en.extH || []).length)) LV.entries = LV.entries.filter(x => x !== en);
+    }
+    LV.imports = LV.imports.filter(x => x.id !== rec.id);
+  }
+  /* v1.36: quitar un registro SIN borrar sus movimientos (para que ocupe menos). Los movimientos se quedan como si los
+     hubieras apuntado tú; sus claves largas del banco pasan a una huella corta que sigue evitando duplicados al volver a
+     importar el mismo CSV. Ya no se podrá deshacer esa importación entera. */
+  function forgetImport(rec) {
+    for (const e of LV.entries) {
+      if (e.importId !== rec.id) continue;
+      delete e.importId;
+      if ((e.extIds || []).length) { e.extH = [...new Set([...(e.extH || []), ...e.extIds.map(BCSV.shortKey)])]; delete e.extIds; }
+    }
+    for (const u of rec.updates || []) {
+      const en = LV.entries.find(x => x.id === u.id); if (!en || en.importId) continue;
+      const ids = new Set(u.addIds || []); if (!(en.extIds || []).some(k => ids.has(k))) continue;
+      en.extH = [...new Set([...(en.extH || []), ...en.extIds.filter(k => ids.has(k)).map(BCSV.shortKey)])]; en.extIds = en.extIds.filter(k => !ids.has(k));
+      if (!en.extIds.length) delete en.extIds;
     }
     LV.imports = LV.imports.filter(x => x.id !== rec.id);
   }
@@ -8959,10 +9293,10 @@
     let wref, sel = null;
     const draw = () => {
       const box = $('#rgs', wref); if (!box) return;
-      const list = [...LV.imports].sort((a, b) => b.at - a.at), rec = sel && LV.imports.find(x => x.id === sel);
+      const list = realImports().sort((a, b) => b.at - a.at), rec = sel && realImports().find(x => x.id === sel);
       if (!rec) {
         sel = null;
-        box.innerHTML = list.length ? `<p class="muted small" style="margin-top:0">${esc(t('rgsIntro'))}</p><div class="stack" style="gap:10px">${list.map(r => { const n = LV.entries.filter(e => e.importId === r.id).length; return `<button class="create-opt clay" data-rgs-open="${esc(r.id)}"><span class="tool-ico">${ico('doc')}</span><span class="grow"><b>${esc(rgsWhen(r))}</b><br><span class="muted small">${esc(r.file || 'CSV')} · ${esc(t('rgsEntries', { n }))}${(r.updates || []).length ? ' · ' + esc(t('rgsUpdated', { n: r.updates.length })) : ''}</span></span>${ico('right')}</button>`; }).join('')}</div>`
+        box.innerHTML = list.length ? `<p class="muted small" style="margin-top:0">${esc(t('rgsIntro'))}</p>${list.length > 1 ? `<button class="chip sm" data-rgs="forgetAll" style="margin-bottom:10px">${ico('archive')} ${esc(t('rgsForgetAll'))}</button>` : ''}<div class="stack" style="gap:10px">${list.map(r => { const n = LV.entries.filter(e => e.importId === r.id).length; return `<button class="create-opt clay" data-rgs-open="${esc(r.id)}"><span class="tool-ico">${ico('doc')}</span><span class="grow"><b>${esc(rgsWhen(r))}</b><br><span class="muted small">${esc(r.file || 'CSV')} · ${esc(t('rgsEntries', { n }))}${(r.updates || []).length ? ' · ' + esc(t('rgsUpdated', { n: r.updates.length })) : ''}</span></span>${ico('right')}</button>`; }).join('')}</div>`
           : `<div class="center" style="padding:20px 0"><span class="tool-ico" style="margin:0 auto 10px">${ico('doc')}</span><p class="muted">${esc(t('rgsEmpty'))}</p><button class="btn primary" data-rgs="new">${ico('upload')} ${esc(t('rgTitle'))}</button></div>`;
         return;
       }
@@ -8972,6 +9306,7 @@
         <div class="kpis ls-kpis" style="margin:0"><div class="kpi clay"><b>${es.length}</b><span>${esc(t('evEntries'))}</span></div><div class="kpi clay"><b class="amt-in">${privacyOn() ? '•••' : cents(tot.income)}</b><span>${esc(t('ledgerIncome'))}</span></div><div class="kpi clay"><b class="amt-out">${privacyOn() ? '•••' : cents(tot.expense)}</b><span>${esc(t('ledgerExpense'))}</span></div></div>
         ${(rec.updates || []).length ? `<p class="muted small" style="margin:0">${esc(t('rgsUpdatedHint', { n: rec.updates.length }))}</p>` : ''}
         ${es.length ? `<p class="muted small" style="margin:0">${esc(t('rgsEditHint'))}</p><ul class="ledger-list">${es.map(e => `<li>${entryRow(e, true)}</li>`).join('')}</ul>` : `<p class="muted small">${esc(t('rgsNoEntries'))}</p>`}
+        <button class="btn block" data-rgs="forget">${ico('archive')} ${esc(t('rgsForget'))}</button><p class="muted small" style="margin:-4px 0 0">${esc(t('rgsForgetHint'))}</p>
         <button class="btn danger-text block" data-rgs="del">${ico('trash')} ${esc(t('rgsDelAll'))}</button></div>`;
     };
     openModal({
@@ -8985,6 +9320,11 @@
         const a = el.dataset.rgs;
         if (a === 'list') { sel = null; draw(); return; }
         if (a === 'new') { close(); openRegistrar(); return; }
+        if (a === 'forget' || a === 'forgetAll') {
+          const recs = a === 'forget' ? realImports().filter(x => x.id === sel) : realImports(); if (!recs.length) return;
+          if (!(await confirmDialog(t(a === 'forget' ? 'rgsForgetQ' : 'rgsForgetAllQ', { n: recs.length })))) return;
+          recs.forEach(forgetImport); ledgerSave(); sel = null; draw(); render(); toast(t('rgsForgotten', { n: recs.length })); return;
+        }
         if (a === 'del') {
           const rec = LV.imports.find(x => x.id === sel); if (!rec) return;
           if (!(await confirmDialog(t('rgsDelQ', { when: rgsWhen(rec) })))) return;
@@ -9287,7 +9627,41 @@
       onClose: () => render()
     });
   }
-  const eventEntries = ev => { const dl = evDays(ev), set = dl && new Set(dl); return LED.inRange(LV.entries, ev.from, ev.to).filter(e => (!set || set.has(e.date)) && (!(ev.catIds || []).length || ev.catIds.includes(e.categoryId))); };
+  /* v1.36: un evento también puede llevar movimientos de fuera de sus fechas (ev.incl, p. ej. el vuelo pagado antes del
+     viaje) y quitar algunos de dentro (ev.excl). Son ids de movimientos: si uno se borra, simplemente deja de contar. */
+  const evInRange = ev => { const dl = evDays(ev), set = dl && new Set(dl); return LED.inRange(LV.entries, ev.from, ev.to).filter(e => (!set || set.has(e.date)) && (!(ev.catIds || []).length || ev.catIds.includes(e.categoryId))); };
+  const eventEntries = ev => {
+    const ex = new Set(ev.excl || []), inc = new Set(ev.incl || []), base = evInRange(ev).filter(e => !ex.has(e.id)), seen = new Set(base.map(e => e.id));
+    return inc.size ? base.concat(LV.entries.filter(e => inc.has(e.id) && !seen.has(e.id))) : base;
+  };
+  function evToggleEntry(ev, id, on) {
+    const inRange = evInRange(ev).some(e => e.id === id);
+    ev.incl = (ev.incl || []).filter(x => x !== id); ev.excl = (ev.excl || []).filter(x => x !== id);
+    if (on && !inRange) ev.incl.push(id);
+    if (!on && inRange) ev.excl.push(id);
+    if (!ev.incl.length) delete ev.incl; if (!ev.excl.length) delete ev.excl;
+  }
+  // Elegir movimientos para añadir a un evento (los de fuera de sus fechas o los que se quitaron)
+  function openEvPicker(ev, done) {
+    let wref, q = '', sel = new Set();
+    const inEv = new Set(eventEntries(ev).map(e => e.id));
+    const draw = () => {
+      const qq = q.trim().toLowerCase();
+      const list = LV.entries.filter(e => !inEv.has(e.id) && (!qq || (e.note || '').toLowerCase().includes(qq) || catName(catOf(e.categoryId)).toLowerCase().includes(qq) || String(e.amountCents / 100).includes(qq)))
+        .sort((a, b) => Math.abs(diffDays(a.date, ev.from)) - Math.abs(diffDays(b.date, ev.from))).slice(0, 60);
+      $('#evp-l', wref).innerHTML = list.length ? list.map(e => { const c = catOf(e.categoryId), inc = e.type === 'income'; return `<button type="button" class="ledger-item ev-pick ${sel.has(e.id) ? 'on' : ''}" data-evk="${esc(e.id)}" aria-pressed="${sel.has(e.id)}"><span class="led-ico" aria-hidden="true">${sel.has(e.id) ? ico('check') : esc(c.icon)}</span><span class="grow"><b>${esc(e.note || catName(c))}</b><span class="muted small">${esc(fmtShort(e.date))} · ${esc(catName(c))}</span></span><b class="${inc ? 'amt-in' : 'amt-out'}">${privacyOn() ? '•••' : (inc ? '+' : '−') + cents(e.amountCents)}</b></button>`; }).join('') : `<p class="muted center">${esc(t('evpNone'))}</p>`;
+      $('#evp-n', wref).textContent = t('evpAdd', { n: sel.size });
+    };
+    openModal({
+      title: `${ico('plus')} ${esc(t('evAddEntries'))}`, body: `<p class="muted small" style="margin-top:0">${esc(t('evAddHint'))}</p><input class="input" id="evp-q" placeholder="${esc(t('evpSearch'))}" autocomplete="off"><div class="stack" id="evp-l" style="gap:6px;margin-top:10px"></div>`,
+      foot: `<button class="btn primary block" data-evp-go><span id="evp-n"></span></button>`,
+      onMount: w => { wref = w; draw(); $('#evp-q', w).addEventListener('input', e => { q = e.target.value; draw(); }); },
+      onClick: (e, close) => {
+        const b = e.target.closest('[data-evk]'); if (b) { const id = b.dataset.evk; if (sel.has(id)) sel.delete(id); else sel.add(id); draw(); return; }
+        if (e.target.closest('[data-evp-go]')) { if (!sel.size) return; for (const id of sel) evToggleEntry(ev, id, true); ledgerSave(); close(); done && done(); toast(t('evAdded', { n: sel.size })); }
+      }
+    });
+  }
   const evNDays = ev => { const dl = evDays(ev); return dl ? dl.length : Math.max(1, diffDays(ev.from, ev.to) + 1); };
   const eventState = ev => { const k = todayKey(); return k < ev.from ? 'soon' : k > ev.to ? 'done' : 'now'; };
   function eventCard(ev) {
@@ -9518,8 +9892,9 @@
         <div class="month-sum"><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${priv ? '•••' : cents(tot.expense)}</b></div><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${priv ? '•••' : cents(tot.income)}</b></div><div><span>${esc(t('evPerDay'))}</span><b>${priv ? '•••' : cents(Math.round(tot.expense / days))}</b></div></div>
         ${list.length ? `<div class="seg seg-sm" role="group" style="margin-top:14px;display:flex">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-evm="${v}" class="${mode === v ? 'on' : ''}" style="flex:1">${esc(t(k))}</button>`).join('')}</div>
           <div class="${priv ? 'priv' : ''}">${mode === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net)) : donutChart(segs, t(mode === 'expense' ? 'ledgerExpense' : 'ledgerIncome'))}</div>` : ''}
-        <h3 class="section-title" style="margin-top:18px">${esc(t('evEntries', { n: list.length }))}</h3>
-        ${list.length ? `<div class="stack" style="gap:6px">${list.map(x => entryRow(x, true)).join('')}</div><p class="muted small center">${esc(t('swipeHint'))}</p>` : `<p class="muted">${esc(t('evNoEntries'))}</p>`}`;
+        <div class="row" style="margin-top:18px;gap:8px;align-items:center"><h3 class="section-title grow" style="margin:0">${esc(t('evEntries', { n: list.length }))}</h3><button class="chip sm" data-evx="add">${ico('plus')} ${esc(t('evAddEntries'))}</button></div>
+        ${list.length ? `<div class="stack" style="gap:6px;margin-top:10px">${list.map(x => `<div class="ev-row ${(ev.incl || []).includes(x.id) ? 'extra' : ''}">${entryRow(x, true)}<button class="icon-btn sm ev-out" data-ev-out="${esc(x.id)}" aria-label="${esc(t('evOut'))}" title="${esc(t('evOut'))}">${ico('x')}</button></div>`).join('')}</div><p class="muted small center">${esc(t('evRowHint'))}</p>` : `<p class="muted">${esc(t('evNoEntries'))}</p>`}
+        ${(ev.excl || []).length ? `<details class="ev-done" style="margin-top:10px"><summary class="muted small">${esc(t('evExcluded', { n: ev.excl.length }))}</summary><div class="stack" style="gap:6px;margin-top:8px">${LV.entries.filter(x => ev.excl.includes(x.id)).map(x => `<div class="ev-row out">${entryRow(x, true)}<button class="chip sm" data-ev-in="${esc(x.id)}">${ico('plus')} ${esc(t('evIn'))}</button></div>`).join('')}</div></details>` : ''}`;
     };
     openModal({
       title: `${esc(ev.icon)} ${esc(ev.name)}`, cls: 'wide', body: '<div id="evd"></div>',
@@ -9528,6 +9903,9 @@
       onClick: (e, close) => {
         let el;
         if ((el = e.target.closest('[data-evm]'))) { mode = el.dataset.evm; draw(); return; }
+        if ((el = e.target.closest('[data-ev-out]'))) { evToggleEntry(ev, el.dataset.evOut, false); ledgerSave(); draw(); render(); toast(t('evOutDone')); return; }
+        if ((el = e.target.closest('[data-ev-in]'))) { evToggleEntry(ev, el.dataset.evIn, true); ledgerSave(); draw(); render(); return; }
+        if (e.target.closest('[data-evx="add"]')) { openEvPicker(ev, () => { draw(); render(); }); return; }
         if (swipeClick(e, () => { close(); }, draw)) return;
         if (e.target.closest('[data-evx="edit"]')) { close(); openEventEditor(ev); }
         if (e.target.closest('[data-evx="share"]')) shareEvent(ev);
@@ -12478,6 +12856,7 @@
       case 'ledger-contacts': openContacts(); break;
       case 'ledger-import': if (ledgerOpen()) openRegistrar(); break;
       case 'ledger-imports': if (ledgerOpen()) openRegistros(); break;
+      case 'ledger-accounts': if (ledgerOpen()) openAccounts(); break;
       case 'ledger-fx': if (ledgerOpen()) openFxSettings(); break;
       case 'ledger-share': openLedgerShare(); break;
       case 'profile': openProfile(); break;
