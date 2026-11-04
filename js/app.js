@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.35.0';
+  const VERSION = '1.37.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -199,6 +199,23 @@
     vote: '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V5l6-2 2 8M8 15h8"/>',
     live: '<circle cx="12" cy="12" r="3.5" fill="currentColor"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/>',
     party: '<path d="M4 20l4.5-12.5 8 8z"/><path d="M14 4v2M19 9h2M17.5 5.5l1.5-1.5M11 6.5c1-1 1-2.5 0-3.5M17.5 13c1-1 2.5-1 3.5 0"/>',
+    // v1.37: escenarios y transportes de Mundo
+    house: '<path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5.5h4V20"/>',
+    tree: '<path d="M12 3l5.5 8h-3l4 6H5.5l4-6h-3z"/><path d="M12 17v4"/>',
+    fork: '<path d="M7 3v6a2 2 0 0 0 4 0V3M9 9v12"/><path d="M17 21V3c-2 1.5-3 4-3 7v3h3"/>',
+    bag: '<path d="M5 8h14l-1 12H6z"/><path d="M9 10V6.5a3 3 0 0 1 6 0V10"/>',
+    cap: '<path d="M2.5 9.5L12 5l9.5 4.5L12 14z"/><path d="M6.5 11.5V16c3 2.5 8 2.5 11 0v-4.5M21.5 9.5V15"/>',
+    cross: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/>',
+    bed: '<path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="11.5" r="1.8"/>',
+    train: '<rect x="6" y="3" width="12" height="13" rx="3"/><path d="M6 10h12M9.5 13h.01M14.5 13h.01M8.5 16L6.5 20M15.5 16l2 4M8 18.5h8"/>',
+    road: '<path d="M8 3L4 21M16 3l4 18M12 4v2.5M12 10v3M12 17v3"/>',
+    plane: '<path d="M10.5 3.5c0-1 .7-1.5 1.5-1.5s1.5.5 1.5 1.5v6l7.5 4.5v2l-7.5-2.3v4.8l2.2 1.7v1.6L12 20.9l-3.7 1v-1.6l2.2-1.7v-4.8L3 16v-2l7.5-4.5z"/>',
+    bus: '<rect x="4.5" y="3" width="15" height="15" rx="3"/><path d="M4.5 11h15M8 14.5h.01M16 14.5h.01M7 18v2.5M17 18v2.5M8 6.5h8"/>',
+    car: '<path d="M5 16.5V12l2-5h10l2 5v4.5z"/><path d="M5 12h14M7.5 14.5h.01M16.5 14.5h.01M6.5 16.5V19M17.5 16.5V19"/>',
+    bike: '<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l2.5 7H6M14 6h2.5"/>',
+    walk: '<circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2-6 2.5 2.5V21M12 15l1-6-3.5 1.5L8 14M13 9l2 3 3 1"/>',
+    moto: '<circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M5.5 16.5h6l3-5h-5M14.5 11.5l4 5M13 7h3l1.5 4.5"/>',
+    route: '<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/>',
   };
   // v1.27: data-i = nombre del icono, para su micro animación propia al pasar el cursor o tocarlo
   const ico = (n, cls = '') => `<svg class="i ${cls}" data-i="${n}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1184,7 +1201,7 @@
     let at = KGT.isKey(u.at) && u.at <= tk ? u.at : tk;
     if (!tlBoot) { tlBoot = true; at = tk; } // al abrir la app, la línea empieza hoy
     const c = u.cmp && typeof u.cmp === 'object' ? u.cmp : {}, ok = KGT.isKey;
-    state.ui.tl = { sc: KGT.okScale(u.sc), at, panel: u.panel === 'compare' ? 'compare' : 'progress', pv: typeof u.pv === 'string' ? u.pv : 'general', open: !!u.open,
+    state.ui.tl = { sc: KGT.okScale(u.sc), at, panel: ['compare', 'world'].includes(u.panel) ? u.panel : 'progress', pv: typeof u.pv === 'string' ? u.pv : 'general', open: !!u.open,
       cmp: { mode: ['prev', 'year', 'custom'].includes(c.mode) ? c.mode : 'prev', a0: ok(c.a0) ? c.a0 : '', a1: ok(c.a1) ? c.a1 : '', b0: ok(c.b0) ? c.b0 : '', b1: ok(c.b1) ? c.b1 : '' } };
     return state.ui.tl;
   }
@@ -1354,6 +1371,80 @@
   }
   const tlSnapDiff = w => { const s = (state.tlSnaps || {})[w]; if (!s || !Array.isArray(s.v)) return null; const now = tlSnapOf(tfWeekKeys(w)); return now.some((x, i) => (x ?? null) !== (s.v[i] ?? null)) ? { s, now } : null; };
 
+  /* ---- v1.37: Mundo. Lugares, países y viajes del periodo, con el diorama de cada lugar (three.js solo al abrirlo) ---- */
+  const LW = { countries: null, loading: null, three: null, r: null, cv: null, obs: [], tm: 0, pick: null, rk: '', fail: false, dn: null };
+  const lwSceneIco = id => { const s = KGWorld.SCENES.find(x => x[0] === id); return s ? s[1] : 'pin'; };
+  const LW_TR_ICO = { walk: 'walk', bike: 'bike', moto: 'moto', car: 'car', bus: 'bus', train: 'train', plane: 'plane', other: 'route' };
+  const lwTrIco = tr => LW_TR_ICO[tr] || 'route';
+  // El mapa del mundo (Natural Earth 110m) se descarga la primera vez que se abre Mundo y queda en la caché de la app
+  function lwLoadMap() {
+    if (LW.countries) return Promise.resolve(LW.countries);
+    return LW.loading || (LW.loading = fetch('data/world-110m.json').then(r => r.ok ? r.json() : Promise.reject(new Error('map'))).then(j => (LW.countries = KGWorld.decodeTopo(j))).catch(() => { LW.loading = null; return []; }));
+  }
+  const lwGeo = p => KGWorld.geoOf(p, LW.countries || []);
+  const lwCountry = cc => { try { if (!LW.dn || LW.dn.l !== state.lang) LW.dn = { l: state.lang, f: new Intl.DisplayNames([state.lang], { type: 'region' }) }; return LW.dn.f.of(cc) || cc; } catch (e) { return cc; } };
+  const lwAccent = () => /^#[0-9a-f]{6}$/i.test((state.theme && state.theme.accent) || '') ? state.theme.accent : '#3ddc97';
+  // Coordenadas de un lugar: las suyas, o el centro de su país si solo se sabe el país (para el globo)
+  const lwLL = (p, g) => { if (p && p.lat != null && p.lon != null) return { lat: +p.lat, lon: +p.lon }; const c = g && g.cc && (LW.countries || []).find(x => x.a2 === g.cc); return c ? KGWorld.centerOf(c) : null; };
+  // Lo registrado del periodo (hasta hoy): turnos y eventos con su lugar y «cómo llegaste», y los entrenos hechos
+  function lwItems(from, to) {
+    return cached(`lw${from}${to}${LW.countries ? 1 : 0}`, () => {
+      const tk = todayKey(), end = to > tk ? tk : to, out = [], idOf = p => p ? (p.id ? p : { ...p, id: 'once:' + p.addr }) : null;
+      for (let k = from; k <= end; k = addDays(k, 1)) for (const e of state.calDays[k] || []) {
+        const s = tfShift(e.sid); if (!s) continue;
+        const tm = TF.entryTimes(s, e);
+        out.push({ date: k, min: tm.start ? tfMin(tm.start) : null, time: tm.start || '', kind: 'shift', name: `${s.emoji ? s.emoji + ' ' : ''}${s.name}`, place: idOf(tfPlaceOf(s, e)), tr: KGWorld.okTransport(e.tr) ? e.tr : '', color: tfColor(s.color) });
+      }
+      for (const x of (state.calExt && state.calExt.list) || []) if (x.date >= from && x.date <= end) out.push({ date: x.date, min: x.start ? tfMin(x.start) : null, time: x.start || '', kind: 'event', name: x.title, place: idOf(tfPlace(x.pl) || tfPlOnce(x.location ? { addr: x.location } : null)), tr: '', color: '#8e8e93' });
+      for (const w of state.gymWorkouts || []) if (w.status === 'done' && w.date >= from && w.date <= end) { const hm = w.start ? new Date(w.start) : null; out.push({ date: w.date, min: hm ? hm.getHours() * 60 + hm.getMinutes() : null, time: hm ? pad(hm.getHours()) + ':' + pad(hm.getMinutes()) : '', kind: 'gym', name: w.name || t('gyTab'), place: null, tr: '', color: lwAccent() }); }
+      return KGWorld.moments(out, lwGeo);
+    });
+  }
+  const lwSceneSpec = p => ({ type: 'scene', scene: p && KGWorld.okScene(p.scene) ? p.scene : 'pin', color: p ? tfColor(p.color) : '#8e8e93' });
+  // Qué se pinta para un momento: el lugar; si cambió de país, antes el vuelo; si se sabe cómo llegaste, antes el trayecto
+  function lwSpecs(m, trip = false) {
+    const end = m.place ? lwSceneSpec(m.place) : m.kind === 'gym' ? { type: 'scene', scene: 'gym', color: lwAccent() } : { type: 'scene', scene: 'unknown' }, mo = motionMode();
+    if (m.trip && (mo !== 'off' || trip)) { const a = lwLL(m.trip.fromPlace, lwGeo(m.trip.fromPlace)), b = lwLL(m.trip.toPlace, m.geo); if (a && b) return mo === 'off' ? [{ type: 'globe', from: a, to: b }] : [{ type: 'globe', from: a, to: b }, end]; }
+    if (m.move && m.tr && m.tr !== 'plane' && mo === 'full') return [{ type: 'travel', tr: m.tr, color: m.place ? tfColor(m.place.color) : lwAccent() }, end];
+    return [end];
+  }
+  function lwStop() {
+    clearTimeout(LW.tm); LW.tm = 0; LW.obs.forEach(o => o()); LW.obs = [];
+    if (LW.r) { try { LW.r.dispose(); } catch (e) { /* nada */ } }
+    LW.r = null; LW.cv = null;
+  }
+  // Versión fija (sin WebGL o sin poder cargar el 3D): el icono del escenario y su nombre
+  const lwStaticHtml = spec => spec.type === 'globe' ? `${ico('globe')}<span>${esc(t('lwTrips'))}</span>` : spec.type === 'travel' ? `${ico(lwTrIco(spec.tr))}<span>${esc(t('lwTr_' + spec.tr))}</span>` : `${ico(spec.scene === 'unknown' ? 'info' : lwSceneIco(spec.scene))}<span>${esc(spec.scene === 'unknown' ? t('lwNoPlace') : spec.scene === 'pin' ? t('lwNoScene') : t('lwSc_' + spec.scene))}</span>`;
+  // Enseña una lista de vistas una tras otra (vuelo → lugar, trayecto → lugar)
+  function lwPlay(list) {
+    clearTimeout(LW.tm); LW.arrive = null;
+    const st = $('#lw-static'); if (!LW.r) { if (st) st.innerHTML = lwStaticHtml(list[list.length - 1]); return; }
+    const [a, ...rest] = list; LW.r.show(a);
+    if (!rest.length) return;
+    if (a.type === 'globe') LW.arrive = () => { LW.tm = setTimeout(() => lwPlay(rest), 450); };
+    else LW.tm = setTimeout(() => lwPlay(rest), 1800);
+  }
+  async function lwStart(getList) {
+    const cv = $('#lw-cv'); if (!cv) return;
+    lwStop(); LW.cv = cv;
+    const stage = cv.closest('.lw-stage');
+    if (LW.fail || !KGLifeWorld.supported()) { stage.classList.add('static'); lwPlay(getList()); return; }
+    stage.classList.add('loading');
+    try {
+      const [THREE, countries] = await Promise.all([LW.three || (LW.three = import(new URL('js/vendor/three.module.min.js', document.baseURI).href)), lwLoadMap()]);
+      if (LW.cv !== cv || !cv.isConnected) return;
+      LW.r = KGLifeWorld.create(THREE, cv, { quality: KGLifeWorld.quality(), motion: motionMode(), countries, accent: lwAccent(), onArrive: () => { const f = LW.arrive; LW.arrive = null; if (f) f(); } });
+    } catch (e) { LW.three = null; LW.fail = true; if (LW.cv === cv) { stage.classList.add('static'); lwPlay(getList()); } return; }
+    finally { stage.classList.remove('loading'); }
+    // solo se mueve mientras se ve: fuera de pantalla o con la app en segundo plano se para
+    let inView = true;
+    const vis = () => LW.r && LW.r.setVisible(inView && !document.hidden);
+    if (window.IntersectionObserver) { const io = new IntersectionObserver(es => { inView = es[es.length - 1].isIntersecting; vis(); }); io.observe(cv); LW.obs.push(() => io.disconnect()); }
+    if (window.ResizeObserver) { const ro = new ResizeObserver(() => LW.r && LW.r.resize()); ro.observe(cv); LW.obs.push(() => ro.disconnect()); }
+    document.addEventListener('visibilitychange', vis); LW.obs.push(() => document.removeEventListener('visibilitychange', vis));
+    lwPlay(getList());
+  }
+
   /* ---- la pestaña ---- */
   function makeTimeline() {
     const u = tlUi(), weeks = jrWeeks(); let wref = null, wheelT = 0, ax = jrAxis(), saveT = 0, f = 0, dragging = false;
@@ -1517,7 +1608,70 @@
         ${rows.map(r => `<div class="tl-cr" role="row"><b class="tl-cn" role="rowheader">${esc(t('tlI_' + r.id))}</b><span role="cell">${esc(tlFmt(r.id, r.a.v))}</span><span role="cell">${esc(tlFmt(r.id, r.b.v))}</span>${dcell(r)}</div>`).join('')}</div>
         ${rows.length ? '' : `<p class="muted small">${esc(t('tlNoData'))}</p>`}${cut ? `<p class="muted small">${ico('info', 'xs')} ${esc(t('tlCmpCut'))}</p>` : ''}${locked ? `<p class="muted small">${ico('lock', 'xs')} ${esc(t('tlLockedHelp'))}</p>` : ''}<p class="muted small">${esc(t('tlCmpHelp'))}</p>`;
     };
-    const panel = () => u.panel === 'compare' ? compare() : progress();
+    /* -- Mundo: dónde estuviste en el periodo. Solo lo registrado; lo que no tiene lugar se queda como desconocido -- */
+    const lwData = () => { const { from, to } = R(), rk = u.sc + from + to; if (LW.rk !== rk) { LW.rk = rk; LW.pick = null; } const ms = lwItems(from, to); return { ms, S: KGWorld.summary(ms) }; };
+    const lwCur = ms => LW.pick ? (LW.pick.t === 'all' ? null : LW.pick) : u.sc === 'day' && ms.length ? { t: 'm', i: Math.max(0, ms.findIndex(m => m.place)) } : null;
+    const lwList = () => {
+      const D = lwData(), p = lwCur(D.ms);
+      if (p && p.t === 'm' && D.ms[p.i]) return lwSpecs(D.ms[p.i]);
+      if (p && p.t === 'p') { const x = D.S.places.find(y => y.place.id === p.id); if (x) return [lwSceneSpec(x.place)]; }
+      if (p && p.t === 'trip' && D.S.trips[p.i]) return lwSpecs(D.S.trips[p.i], true);
+      // el globo mira al último sitio conocido del periodo
+      const last = [...D.ms].reverse().find(m => m.place && lwLL(m.place, m.geo)), dots = D.S.places.map(x => lwLL(x.place, x.geo)).filter(Boolean).slice(0, 200);
+      if (last) dots.unshift(lwLL(last.place, last.geo));
+      return [{ type: 'globe', dots }];
+    };
+    const stTag = st => `<span class="tl-st" data-st="${st}">${esc(t('tlSt_' + st))}</span>`;
+    const geoLine = g => { const xs = []; if (g.city) xs.push(`${esc(g.city)} ${stTag(g.citySt)}`); if (g.cc) xs.push(`${esc(lwCountry(g.cc))} ${stTag(g.ccSt)}`); return `<span class="lw-geo">${ico('globe', 'xs')} ${xs.length ? xs.join(' · ') : `<span class="muted">${esc(t('lwNoGeo'))}</span> ${stTag('na')}`}</span>`; };
+    const kIco = k => k === 'gym' ? 'dumbbell' : k === 'event' ? 'calendar' : 'clock';
+    const plLine = pl => `<span>${ico(lwSceneIco(pl.scene), 'xs')} <b>${esc(pl.name)}</b> <span class="muted small">· ${esc(KGWorld.okScene(pl.scene) ? t('lwSc_' + pl.scene) : t('lwNoScene'))}</span></span>`;
+    const lwCap = D => {
+      const p = lwCur(D.ms), S = D.S;
+      if (p && p.t === 'm' && D.ms[p.i]) {
+        const m = D.ms[p.i];
+        return `<b class="lw-tt">${ico(kIco(m.kind), 'xs')} ${m.time ? esc(m.time) + ' · ' : ''}${esc(m.name)}</b>
+          ${m.place ? plLine(m.place) + geoLine(m.geo) : `<span class="muted">${ico('info', 'xs')} ${esc(t(m.kind === 'gym' ? 'lwGymNoPlace' : 'lwNoPlace'))} ${stTag('na')}</span>`}
+          ${m.move ? `<span class="small">${ico(lwTrIco(m.tr), 'xs')} ${esc(t('lwFrom', { p: m.from.name }))} · ${m.tr ? `${esc(t('lwTr_' + m.tr))} ${stTag('reg')}` : `<span class="muted">${esc(t('lwTrUnknown'))}</span>`}</span>` : ''}
+          ${m.trip ? `<span class="small">${ico('plane', 'xs')} ${esc(t('lwTrip', { a: lwCountry(m.trip.from), b: lwCountry(m.trip.to) }))}</span>` : ''}`;
+      }
+      if (p && p.t === 'p') {
+        const x = S.places.find(y => y.place.id === p.id);
+        if (x) return `${plLine(x.place)}${geoLine(x.geo)}<span class="muted small">${esc(x.n === 1 ? t('lwTimes1') : t('lwTimes', { n: x.n }))}${x.place.addr ? ' · ' + esc(x.place.addr) : ''}</span>
+          ${x.place.once ? '' : `<button class="chip sm" data-lw-edit="${esc(x.place.id)}">${ico('edit', 'xs')} ${esc(t(KGWorld.okScene(x.place.scene) ? 'lwChangeScene' : 'lwSetScene'))}</button>`}`;
+      }
+      if (p && p.t === 'trip' && S.trips[p.i]) { const m = S.trips[p.i]; return `<b class="lw-tt">${ico('plane', 'xs')} ${esc(t('lwTrip', { a: lwCountry(m.trip.from), b: lwCountry(m.trip.to) }))}</b><span class="muted small">${esc(fmtDate(m.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }))} · ${esc(m.trip.fromPlace.name)} → ${esc(m.trip.toPlace.name)}</span>`; }
+      return `<b class="lw-tt">${ico('globe', 'xs')} ${esc(t('lwOverview'))}</b><span class="muted small">${esc([[S.places.length, 'lwNPl'], [S.countries.length, 'lwNCc'], [S.trips.length, 'lwNTr']].map(([n, k]) => t(n === 1 ? k + '1' : k, { n })).join(' · '))}</span>`;
+    };
+    const worldBody = () => {
+      const D = lwData(), p = lwCur(D.ms), S = D.S;
+      let h = `<div class="lw-cap" id="lw-cap" aria-live="polite">${lwCap(D)}${p ? `<button class="chip sm ghost lw-back" data-lw-all>${ico('globe', 'xs')} ${esc(t('lwOverview'))}</button>` : ''}</div>`;
+      if (!D.ms.length) return h + `<div class="tl-empty">${esc(t('lwNoMoments'))}</div>`;
+      const row = (attr, on, tt, c, main, tail) => `<li><button class="lw-m ${on ? 'on' : ''}" ${attr}><span class="tl-ev-t">${esc(tt)}</span>${c ? `<span class="tl-ev-dot" style="--c:${c}"></span>` : ''}<span class="grow ellipsis">${main}</span>${tail || ''}</button></li>`;
+      if (u.sc === 'day') h += `<ol class="lw-ms">${D.ms.map((m, i) => row(`data-lw-m="${i}"`, p && p.t === 'm' && p.i === i, m.time || t('tlAllDay'), m.color, `${esc(m.name)}${m.place ? `<small class="muted"> · ${esc(m.place.name)}</small>` : ''}`, `${m.tr ? ico(lwTrIco(m.tr), 'xs') : ''}${m.trip ? ico('plane', 'xs') : ''}`)).join('')}</ol>`;
+      else {
+        if (S.places.length) h += `<div class="lw-sec"><span class="jr-h">${ico('pin', 'xs')} ${esc(t('lwPlaces'))}</span><div class="lw-pl">${S.places.slice(0, 40).map(x => `<button class="lw-pc ${p && p.t === 'p' && p.id === x.place.id ? 'on' : ''}" data-lw-p="${esc(x.place.id)}" style="--c:${tfColor(x.place.color)}">${ico(lwSceneIco(x.place.scene), 'xs')}<span class="grow ellipsis">${esc(x.place.name)}</span><b>×${x.n}</b></button>`).join('')}</div></div>`;
+        if (S.countries.length) h += `<div class="lw-sec"><span class="jr-h">${ico('globe', 'xs')} ${esc(t('lwCountries'))}</span><div class="lw-cc">${S.countries.map(c => `<span class="chip sm">${esc(lwCountry(c.cc))} <b>×${c.n}</b> ${stTag(c.st)}</span>`).join('')}</div></div>`;
+        if (S.trips.length) h += `<div class="lw-sec"><span class="jr-h">${ico('plane', 'xs')} ${esc(t('lwTrips'))}</span><ol class="lw-ms">${S.trips.map((m, i) => row(`data-lw-t="${i}"`, p && p.t === 'trip' && p.i === i, fmtDate(m.date, { day: 'numeric', month: 'short' }), '', `${esc(lwCountry(m.trip.from))} → ${esc(lwCountry(m.trip.to))}<small class="muted"> · ${esc(m.trip.fromPlace.name)} → ${esc(m.trip.toPlace.name)}</small>`)).join('')}</ol></div>`;
+      }
+      if (S.unknown) h += `<p class="muted small">${ico('info', 'xs')} ${esc(t(S.unknown === 1 ? 'lwUnknown1' : 'lwUnknownN', { n: S.unknown }))}</p>`;
+      const noSc = S.places.filter(x => !x.place.once && !KGWorld.okScene(x.place.scene));
+      if (noSc.length) h += `<div class="lw-hint">${ico('edit', 'xs')}<span class="grow small">${esc(t(noSc.length === 1 ? 'lwNoSceneHelp1' : 'lwNoSceneHelp', { n: noSc.length, p: noSc[0].place.name }))}</span><button class="chip sm" data-lw-edit="${esc(noSc[0].place.id)}">${esc(t('lwSetScene'))}</button></div>`;
+      if (S.countries.some(c => c.st === 'calc')) h += `<p class="muted small">${esc(t('lwMapNote'))}</p>`;
+      return h;
+    };
+    const world = () => `<div class="lw-stage" id="lw-stage"><canvas id="lw-cv" role="img" aria-label="${esc(t('lwAria'))}"></canvas><div class="lw-static" id="lw-static" aria-hidden="true"></div><span class="lw-load muted small">${esc(t('lwLoading'))}</span></div><div id="lw-body">${worldBody()}</div>`;
+    const worldInit = () => {
+      lwStart(lwList);
+      if (!LW.countries) lwLoadMap().then(c => { const b = wref && $('#lw-body', wref); if (c.length && b && u.panel === 'world') { b.innerHTML = worldBody(); lwPlay(lwList()); } });
+    };
+    const panel = () => u.panel === 'compare' ? compare() : u.panel === 'world' ? world() : progress();
+    // Cambiar lo de abajo. En Mundo, si el lienzo ya está, solo se cambia la lista y lo que se ve (no se crea otro 3D)
+    const setPanel = () => {
+      const p = wref && $('#tl-panel', wref); if (!p) return;
+      if (u.panel === 'world' && LW.cv && p.contains(LW.cv)) { $('#lw-body', p).innerHTML = worldBody(); lwPlay(lwList()); return; }
+      lwStop(); p.innerHTML = panel();
+      if (u.panel === 'world') worldInit();
+    };
     /* -- La barra de tiempo: todo el historial, con los acontecimientos y el periodo elegido -- */
     const track = () => {
       const tk = todayKey(), first = tlFirstKey(), { from, to } = R(), p0 = KGT.posOf(from < first ? first : from, first, tk), p1 = KGT.posOf(to > tk ? tk : to, first, tk);
@@ -1538,7 +1692,7 @@
         <div class="tl-jumps">${cur || u.sc === 'all' ? '' : `<button class="chip sm" data-tl-today>${esc(t('tfToday'))}</button>`}${u.sc !== 'all' && prevM ? `<button class="chip sm ghost" data-tl-mk="${prevM}">${ico('left', 'xs')} ${esc(t('tlPrevMark'))}</button>` : ''}${u.sc !== 'all' && nextM ? `<button class="chip sm ghost" data-tl-mk="${nextM}">${esc(t('tlNextMark'))} ${ico('right', 'xs')}</button>` : ''}</div>`;
     };
     const body = () => `<div id="tl-head">${head()}</div>${track()}<div class="tl-main" id="tl-main" data-sc="${u.sc}">${mainView()}</div><div id="tl-sbox">${statsBox()}</div>
-      <div class="seg tl-panels" role="tablist">${[['progress', 'chart', 'tlProgress'], ['compare', 'compare', 'tlCompare']].map(([p, ic, k]) => `<button role="tab" data-tl-panel="${p}" class="${u.panel === p ? 'on' : ''}" aria-selected="${u.panel === p}">${ico(ic, 'xs')} ${esc(t(k))}</button>`).join('')}</div>
+      <div class="seg tl-panels" role="tablist">${[['progress', 'chart', 'tlProgress'], ['world', 'globe', 'lwTab'], ['compare', 'compare', 'tlCompare']].map(([p, ic, k]) => `<button role="tab" data-tl-panel="${p}" class="${u.panel === p ? 'on' : ''}" aria-selected="${u.panel === p}">${ico(ic, 'xs')} ${esc(t(k))}</button>`).join('')}</div>
       <section class="tl-panel" id="tl-panel">${panel()}</section>`;
     const html = `<div class="jr tl" data-ax="${ax}" data-sc="${u.sc}"><div class="tl-bg" aria-hidden="true"><div class="jr-grid"></div></div><div class="tl-in" id="tl-in">${body()}</div></div>`;
     /* -- pintar de nuevo solo lo que cambia -- */
@@ -1554,7 +1708,7 @@
       if (u.sc !== 'week' || opt.full || !$('#jr-stage', m)) { m.dataset.sc = u.sc; m.innerHTML = mainView(); if (u.sc === 'week') place(); if (!reducedMotion()) { m.classList.remove('tl-pop'); void m.offsetWidth; m.classList.add('tl-pop'); } }
       else place();
       $('#tl-sbox', wref).innerHTML = statsBox();
-      if (!opt.keepPanel) $('#tl-panel', wref).innerHTML = panel();
+      if (!opt.keepPanel) setPanel();
     };
     let rT = 0;
     const setAt = (k, opt = {}) => {
@@ -1593,10 +1747,11 @@
         if (op === 'main' && i >= 0) v.main = v.main.includes(id) ? v.main.filter(x => x !== id) : [...v.main, id].slice(-4);
         state.tlViews = vs;
       }
-      save(); sfx('tap'); $('#tl-panel', wref).innerHTML = panel();
+      save(); sfx('tap'); setPanel();
     };
     const mount = w => {
       wref = w; if (u.sc === 'week') place();
+      if (u.panel === 'world') worldInit();
       // instantáneas de las semanas cerradas, cuando el navegador esté libre
       (window.requestIdleCallback || (fn => setTimeout(fn, 800)))(() => { try { tlSnapWeeks(weeks); } catch (e) { /* nada */ } });
       const main = $('#tl-main', w);
@@ -1621,7 +1776,7 @@
       });
       w.addEventListener('change', e => {
         if (e.target.id === 'tl-date' && KGT.isKey(e.target.value)) { setAt(e.target.value); return; }
-        const ci = e.target.closest('[data-tl-ci]'); if (ci && KGT.isKey(ci.value)) { u.cmp[ci.dataset.tlCi] = ci.value; save(); $('#tl-panel', w).innerHTML = panel(); }
+        const ci = e.target.closest('[data-tl-ci]'); if (ci && KGT.isKey(ci.value)) { u.cmp[ci.dataset.tlCi] = ci.value; save(); setPanel(); }
       });
       w.addEventListener('toggle', e => { if (e.target.id === 'tl-stats') { u.open = e.target.open; save(); } }, true);
       w.addEventListener('input', e => { if (e.target.id !== 'jr-note') return; const st2 = $('#jr-note-st', w); if (st2) st2.textContent = ''; clearTimeout(saveT); const v = e.target.value; saveT = setTimeout(() => { saveT = 0; commit(v); }, 700); });
@@ -1637,10 +1792,14 @@
         const gt = e.target.closest('[data-tl-go]'); if (gt) { flush(); u.at = gt.dataset.k > todayKey() ? todayKey() : gt.dataset.k; f = weekIdx(u.at); setScale(gt.dataset.tlGo); return; }
         const nt = e.target.closest('[data-tl-note]'); if (nt && nt.closest('.jr-f.on')) { u.open = true; const sb = $('#tl-stats', w); if (sb) { sb.open = true; const ta = $('#jr-note', w); if (ta) { ta.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); ta.focus({ preventScroll: true }); } } return; }
         const fr = e.target.closest('[data-jr-i]'); if (fr) { go(+fr.dataset.jrI); return; }
-        const pn = e.target.closest('[data-tl-panel]'); if (pn) { u.panel = pn.dataset.tlPanel; save(); sfx('tap'); $$('[data-tl-panel]', w).forEach(b => { b.classList.toggle('on', b === pn); b.setAttribute('aria-selected', b === pn); }); $('#tl-panel', w).innerHTML = panel(); return; }
-        const pv = e.target.closest('[data-tl-pv]'); if (pv) { u.pv = pv.dataset.tlPv; save(); sfx('tap'); $('#tl-panel', w).innerHTML = panel(); return; }
+        const pn = e.target.closest('[data-tl-panel]'); if (pn) { u.panel = pn.dataset.tlPanel; save(); sfx('tap'); $$('[data-tl-panel]', w).forEach(b => { b.classList.toggle('on', b === pn); b.setAttribute('aria-selected', b === pn); }); setPanel(); return; }
+        const pv = e.target.closest('[data-tl-pv]'); if (pv) { u.pv = pv.dataset.tlPv; save(); sfx('tap'); setPanel(); return; }
         const ed = e.target.closest('[data-tl-ed]'); if (ed) { editView(ed.dataset.tlEd, ed.dataset.id); return; }
-        const cm = e.target.closest('[data-tl-cm]'); if (cm) { u.cmp.mode = cm.dataset.tlCm; save(); sfx('tap'); $('#tl-panel', w).innerHTML = panel(); }
+        // Mundo: elegir un momento, un lugar o un viaje; volver a la vista general; poner el tipo de escenario a un lugar
+        const lm = e.target.closest('[data-lw-m], [data-lw-p], [data-lw-t], [data-lw-all]');
+        if (lm) { const d = lm.dataset; LW.pick = d.lwM !== undefined ? { t: 'm', i: +d.lwM } : d.lwP !== undefined ? { t: 'p', id: d.lwP } : d.lwT !== undefined ? { t: 'trip', i: +d.lwT } : { t: 'all' }; vibrate(5); sfx('tap'); setPanel(); return; }
+        const le = e.target.closest('[data-lw-edit]'); if (le) { const pl = tfPlace(le.dataset.lwEdit); if (pl) tfEditPlace(pl); return; }
+        const cm = e.target.closest('[data-tl-cm]'); if (cm) { u.cmp.mode = cm.dataset.tlCm; save(); sfx('tap'); setPanel(); return; }
       });
     };
     return { html, mount };
@@ -2638,6 +2797,7 @@
           <div class="row" style="gap:8px"><input class="input grow" type="time" data-tfd-t="start" value="${esc(e.start || tm.start || '')}" aria-label="${esc(t('tfStart'))}"><input class="input grow" type="time" data-tfd-t="end" value="${esc(e.end || tm.end || '')}" aria-label="${esc(t('tfEnd'))}"><span class="muted small tf-hrs">${tfH(TF.entryHours(s, e, list))} h</span></div>
           ${tm.start && tm.end ? `<label class="row tf-brk" style="gap:8px"><span class="muted small grow">${esc(t('tfBrkDay'))}</span><input class="input" type="number" inputmode="numeric" data-tfd-brk min="0" max="720" style="width:90px" value="${Number.isFinite(e.brk) ? e.brk : ''}" placeholder="${TF.entryBreak(s, { sid: e.sid }, list)}" aria-label="${esc(t('tfBrkDay'))}"><span class="muted small">min</span></label>` : ''}
           ${!s.once ? `<label class="row" style="gap:8px">${ico('pin', 'xs')}<span class="muted small">${esc(t('tfPlace'))}</span>${tfPlSelHtml('class="input grow" data-tfd-pl style="flex:1"', e.pl || '', t('tfPlSame', { p: (tfPlace(s.placeId) || { name: t('tfPlNone') }).name }), e.plx && e.plx.addr)}</label>` : ''}
+          <label class="row" style="gap:8px">${ico(lwTrIco(e.tr || ''), 'xs')}<span class="muted small">${esc(t('lwHowArrived'))}</span><select class="input grow" data-tfd-tr style="flex:1" aria-label="${esc(t('lwHowArrived'))}"><option value="">${esc(t('lwTrNone'))}</option>${KGWorld.TRANSPORTS.map(x => `<option value="${x}" ${e.tr === x ? 'selected' : ''}>${esc(t('lwTr_' + x))}</option>`).join('')}</select></label>
           <input class="input" type="text" data-tfd-note maxlength="${TF.LIMITS.note}" value="${esc(e.note || '')}" placeholder="${esc(t('tfNotePh'))}" aria-label="${esc(t('tfNote'))}"></div>`; }).join('')}
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfDkTitle'))}</h3><div class="row wrap" style="gap:6px">${tfDayKinds().map(d => `<button class="tf-pal" data-tfd-dk="${esc(d.id)}" aria-pressed="${tfDkIds(k).includes(d.id)}">${tfDkTag(d, 'big')}</button>`).join('')}</div>
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button class="tf-pal" data-tfd-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}<button class="chip" data-tfd="once-new">${ico('plus')} ${esc(t('tfOnceNew'))}</button></div>
@@ -2659,6 +2819,7 @@
           // v1.26: descanso solo de ese día (vacío = el del turno, o ninguno si el turno sale varias veces ese día)
           if (e.target.matches('[data-tfd-brk]')) { const v = e.target.value.trim(); if (v === '') delete en.brk; else en.brk = clamp(Math.round(+v) || 0, 0, 720); list[i] = en; tfSetDay(k, list); tfSave(false); draw(); }
           if (e.target.matches('[data-tfd-pl]')) { const v = e.target.value; if (v === '+' || (v === '*' && !e.target.dataset.plx)) return; const r = tfPlRead(e.target); delete en.pl; delete en.plx; if (r.plx) en.plx = r.plx; else if (r.pl === '-' || tfPlace(r.pl)) en.pl = r.pl; list[i] = en; tfSetDay(k, list); tfSave(false); return; }
+          if (e.target.matches('[data-tfd-tr]')) { const v = e.target.value; if (KGWorld.okTransport(v)) en.tr = v; else delete en.tr; list[i] = en; tfSetDay(k, list); tfSave(false); return; }
           if (e.target.matches('[data-tfd-note]')) { en.note = e.target.value.slice(0, TF.LIMITS.note); list[i] = en; tfSetDay(k, list); save(); }
         });
       },
@@ -2886,7 +3047,7 @@
   const tfExtTime = e => e.start ? e.start + (e.end ? '–' + e.end : '') : '';
   const tfExtHtml = e => { const p = tfLayers().places ? tfExtPl(e) : null; return `<span class="grow">${tfExtTime(e) ? `<b class="small">${esc(tfExtTime(e))}</b> · ` : ''}${esc(e.title)}${p && p.id ? tfPlBadge(p) : ''}${p ? `<br><button type="button" class="tf-ext-addr muted small" data-tf-extmap="${esc(p.addr || p.name)}" data-pl="${esc(p.id)}">${ico('pin', 'xs')} ${esc(p.addr || p.name)}</button>` : ''}</span>`; };
   async function tfGeo(path) {
-    const r = await fetch('https://nominatim.openstreetmap.org/' + path + '&format=jsonv2&accept-language=' + encodeURIComponent(state.lang), { headers: { Accept: 'application/json' } });
+    const r = await fetch('https://nominatim.openstreetmap.org/' + path + '&format=jsonv2&addressdetails=1&accept-language=' + encodeURIComponent(state.lang), { headers: { Accept: 'application/json' } });
     if (!r.ok) throw new Error('geo ' + r.status);
     return r.json();
   }
@@ -2931,14 +3092,14 @@
     const hasLoc = () => !!String(d.addr || '').trim() || d.lat != null;
     const prev = () => { const b = $('#tfpl-prev', wref); if (b) b.innerHTML = tfPlBadge({ ...d, name: $('#tfpl-name', wref).value || '?', icon: $('#tfpl-icon', wref).value }, 'big'); };
     const coLine = () => { const c = $('#tfpl-co', wref); if (c) c.innerHTML = d.lat != null ? `<span class="muted small grow">${esc(t('tfPlCoords', { c: d.lat + ', ' + d.lon }))}</span><button type="button" class="btn sm ghost" data-tfpl="nocoord">${ico('x')}</button>` : ''; const m = $('[data-tfpl="maps"]', wref); if (m) m.disabled = !hasLoc(); };
-    const pick = (addr, lat, lon) => { d.addr = String(addr || '').slice(0, 300); $('#tfpl-addr', wref).value = d.addr; if (lat != null) { d.lat = lat; d.lon = lon; } const n = $('#tfpl-name', wref); if (!n.value.trim()) n.value = KGPlaces.shortName(d.addr); $('#tfpl-res', wref).innerHTML = ''; coLine(); prev(); };
+    const pick = (addr, lat, lon, osm) => { if (osm !== undefined) { d.city = ''; d.cc = ''; Object.assign(d, KGWorld.fromOsmAddress(osm)); } d.addr = String(addr || '').slice(0, 300); $('#tfpl-addr', wref).value = d.addr; if (lat != null) { d.lat = lat; d.lon = lon; } const n = $('#tfpl-name', wref); if (!n.value.trim()) n.value = KGPlaces.shortName(d.addr); $('#tfpl-res', wref).innerHTML = ''; coLine(); prev(); };
     // Lo pegado: un enlace o unas coordenadas. Con coordenadas se pide la dirección a OpenStreetMap (una sola vez)
     const onAddr = async v => {
       if (KGPlaces.isShortLink(v)) { toast(t('tfPlShort')); return; }
       const c = KGPlaces.parseCoords(v); if (!c) { if (!KGPlaces.isUrl(v)) d.addr = v; return; }
       d.lat = c.lat; d.lon = c.lon; const nm = KGPlaces.placeNameOf(v);
       pick(nm || c.lat + ', ' + c.lon, c.lat, c.lon);
-      try { const r = await tfGeo(`reverse?lat=${c.lat}&lon=${c.lon}`); if (r && r.display_name) pick(nm && !r.display_name.toLowerCase().startsWith(nm.toLowerCase()) ? nm + ', ' + r.display_name : r.display_name, c.lat, c.lon); } catch (e) { /* se queda con las coordenadas */ }
+      try { const r = await tfGeo(`reverse?lat=${c.lat}&lon=${c.lon}`); if (r && r.display_name) pick(nm && !r.display_name.toLowerCase().startsWith(nm.toLowerCase()) ? nm + ', ' + r.display_name : r.display_name, c.lat, c.lon, r.address || null); } catch (e) { /* se queda con las coordenadas */ }
     };
     const search = async () => {
       const q = $('#tfpl-addr', wref).value.trim(), box = $('#tfpl-res', wref); if (!q || busy) return;
@@ -2955,6 +3116,7 @@
       title: esc(t(isNew ? 'tfNewPlace' : 'tfEditPlace')), cls: 'tf-sheet',
       body: `<div class="stack" style="gap:12px"><div class="row" style="gap:10px;align-items:flex-end"><span id="tfpl-prev" class="tf-pl-prev"></span>${tfField(t('tfName'), `<input class="input" id="tfpl-name" maxlength="40" value="${esc(d.name)}" placeholder="${esc(t('tfPlNamePh'))}">`)}</div>
         ${tfField(t('tfPlIcon'), `<input class="input" id="tfpl-icon" maxlength="4" value="${esc(d.icon)}" placeholder="${esc(t('tfPlIconPh'))}">`)}
+        <div class="field"><span>${esc(t('lwSceneType'))}</span><div class="lw-scpick" role="radiogroup">${['', ...KGWorld.SCENE_IDS].map(id => `<button type="button" class="chip sm ${(d.scene || '') === id ? 'on' : ''}" data-tfpl-sc="${id}" role="radio" aria-checked="${(d.scene || '') === id}">${id ? ico(lwSceneIco(id), 'xs') + ' ' : ''}${esc(id ? t('lwSc_' + id) : t('lwScNone'))}</button>`).join('')}</div><small class="muted">${esc(t('lwSceneHelp'))}</small></div>
         <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${cols.map(c => `<button type="button" class="sw ${d.color === c ? 'on' : ''}" data-tfpl-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="tfpl-color" value="${tfColor(d.color)}" aria-label="${esc(t('themeCustom'))}"></div></div>
         <div class="field"><span>${esc(t('tfPlAddr'))}</span><textarea class="input" id="tfpl-addr" rows="2" maxlength="300" placeholder="${esc(t('tfPlAddrPh'))}">${esc(d.addr || '')}</textarea>
           <div class="row wrap" style="gap:8px;margin-top:8px"><button type="button" class="btn sm" data-tfpl="search">${ico('search')} ${esc(t('tfPlSearch'))}</button><button type="button" class="btn sm ghost" data-tfpl="inmaps">${ico('pin')} ${esc(t('tfPlInMaps'))}</button></div>
@@ -2968,10 +3130,12 @@
         w.addEventListener('keydown', e => { if (e.target.id === 'tfpl-addr' && e.key === 'Enter') { e.preventDefault(); search(); } });
       },
       onClick: async (e, close, w) => {
+        const sc = e.target.closest('[data-tfpl-sc]');
+        if (sc) { d.scene = sc.dataset.tfplSc; $$('[data-tfpl-sc]', w).forEach(x => { x.classList.toggle('on', x === sc); x.setAttribute('aria-checked', x === sc); }); return; }
         const c = e.target.closest('[data-tfpl-c]');
         if (c) { d.color = c.dataset.tfplC; $$('[data-tfpl-c]', w).forEach(x => x.classList.toggle('on', x === c)); $('#tfpl-color', w).value = d.color; prev(); return; }
         const h = e.target.closest('[data-tfpl-hit]');
-        if (h) { const x = ($('#tfpl-res', w)._hits || [])[+h.dataset.tfplHit]; if (x) pick(x.display_name, Math.round(+x.lat * 1e6) / 1e6, Math.round(+x.lon * 1e6) / 1e6); return; }
+        if (h) { const x = ($('#tfpl-res', w)._hits || [])[+h.dataset.tfplHit]; if (x) pick(x.display_name, Math.round(+x.lat * 1e6) / 1e6, Math.round(+x.lon * 1e6) / 1e6, x.address || null); return; }
         const b = e.target.closest('[data-tfpl]'); if (!b) return;
         const act = b.dataset.tfpl;
         if (act === 'search') { search(); return; }
@@ -2989,7 +3153,7 @@
         const name = $('#tfpl-name', w).value.trim();
         if (!name) { toast(t('tfNeedName')); return; }
         const picked = $('#tfpl-color', w).value; if (/^#[0-9a-fA-F]{6}$/.test(picked)) d.color = picked;
-        const out = { id: d.id, name: name.slice(0, 40), icon: $('#tfpl-icon', w).value.trim().slice(0, 4), color: tfColor(d.color), addr: $('#tfpl-addr', w).value.trim().slice(0, 300), ...(d.lat != null ? { lat: d.lat, lon: d.lon } : {}) };
+        const out = { id: d.id, name: name.slice(0, 40), icon: $('#tfpl-icon', w).value.trim().slice(0, 4), color: tfColor(d.color), addr: $('#tfpl-addr', w).value.trim().slice(0, 300), ...(d.lat != null ? { lat: d.lat, lon: d.lon } : {}), ...(KGWorld.okScene(d.scene) ? { scene: d.scene } : {}), ...(d.city ? { city: String(d.city).slice(0, 80) } : {}), ...(/^[A-Z]{2}$/.test(d.cc || '') ? { cc: d.cc } : {}) };
         const i = state.calPlaces.findIndex(x => x.id === d.id); if (i >= 0) state.calPlaces[i] = out; else state.calPlaces.push(out);
         close(); tfSave(!after); toast(t('saved')); after && after(out.id);
       }
@@ -3623,6 +3787,7 @@
     tfFitCells($('#main')); tfTlScroll($('#main'));
     if (state.ui.tab === 'habits') loadPhotos($('#main'));
     applyWOrder($('#main'));
+    if (LW.cv && !LW.cv.isConnected) lwStop(); // se fue de Mundo: se suelta el 3D
     if (state.ui.tab === 'journal' && JR) JR.mount($('#main'));
     decorateJiggle();
   }
@@ -5423,7 +5588,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.37', [['1.37.0', 4]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
