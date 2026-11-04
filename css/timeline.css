@@ -199,3 +199,39 @@
 /* Animaciones: con «suave» u «off» nada se desplaza */
 :root:is([data-motion="soft"], [data-motion="off"]) .tl-main.tl-pop > *, :root:is([data-motion="soft"], [data-motion="off"]) .tl-stats[open] .tl-stats-b > * { animation: none; }
 :root[data-motion="off"] :is(.tl-win, .tl-knob, .tl-stats summary > svg.i) { transition: none; }
+
+/* =========================================================
+   v1.37: MUNDO. Un lienzo 3D (three.js) con el globo o el diorama del lugar, y debajo lo del periodo.
+   ========================================================= */
+.lw-stage { position: relative; height: clamp(240px, 40vh, 360px); border-radius: 22px; overflow: hidden; background: radial-gradient(90% 80% at 50% 30%, #18233f 0%, #070a14 75%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.lw-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: opacity .16s ease; touch-action: pan-y; }
+.lw-static { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: rgba(238,241,246,.8); font-size: 14px; }
+.lw-static svg.i { width: 64px; height: 64px; stroke-width: 1.4; color: var(--accent); }
+.lw-stage.static canvas { display: none; }
+.lw-stage.static .lw-static { display: flex; }
+.lw-load { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; display: none; }
+.lw-stage.loading .lw-load { display: block; }
+.lw-cap { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 16px; background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); font-size: 14px; }
+.lw-cap svg.i { width: 14px; height: 14px; vertical-align: -2px; }
+.lw-cap .lw-tt { font-size: 15px; }
+.lw-cap .chip { align-self: flex-start; margin-top: 4px; }
+.lw-cap .lw-back { position: static; }
+.lw-geo { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 13px; }
+.lw-ms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.lw-m { width: 100%; display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 9px 10px; border: 0; border-radius: 12px; background: rgba(255,255,255,.04); color: inherit; font: inherit; font-size: 14px; text-align: left; cursor: pointer; min-width: 0; }
+.lw-m.on { background: color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,.04)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.lw-m svg.i { width: 14px; height: 14px; flex: none; opacity: .8; }
+.lw-m .tl-ev-t { width: 64px; }
+.lw-sec { display: flex; flex-direction: column; gap: 8px; }
+.lw-pl { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.lw-pc { display: flex; align-items: center; justify-content: flex-start; text-align: left; gap: 8px; min-width: 0; padding: 9px 10px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--c) 18%, rgba(255,255,255,.04)); color: inherit; font: inherit; font-size: 13.5px; cursor: pointer; box-shadow: inset 3px 0 0 var(--c); }
+.lw-pc.on { box-shadow: inset 3px 0 0 var(--c), inset 0 0 0 1px var(--accent); }
+.lw-pc svg.i { width: 15px; height: 15px; flex: none; }
+.lw-cc { display: flex; flex-wrap: wrap; gap: 6px; }
+.lw-cc .tl-st { margin-left: 2px; }
+.lw-hint { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 211, 77, .08); }
+.lw-hint svg.i { width: 14px; height: 14px; flex: none; }
+/* selector de escenario en el editor de lugares */
+.lw-scpick { display: flex; flex-wrap: wrap; gap: 6px; }
+.lw-scpick .chip svg.i { width: 14px; height: 14px; vertical-align: -2px; }
+:root[data-motion="off"] .lw-stage canvas { transition: none; }

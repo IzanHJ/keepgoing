@@ -100,7 +100,7 @@
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
       const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
       const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...(jobIds.has(e.job) ? { job: e.job } : {}), ...(plxOk(e.plx) ? { plx: { addr: str(e.plx.addr, 300) } } : {}),
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...(typeof e.tr === 'string' && /^[a-z]{2,10}$/.test(e.tr) ? { tr: e.tr } : {}), ...(jobIds.has(e.job) ? { job: e.job } : {}), ...(plxOk(e.plx) ? { plx: { addr: str(e.plx.addr, 300) } } : {}),
           ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '', ...(typeof e.once.placeId === 'string' && RE_ID.test(e.once.placeId) ? { placeId: e.once.placeId } : {}), ...(plxOk(e.once.plx) ? { plx: { addr: str(e.once.plx.addr, 300) } } : {}) } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
@@ -114,7 +114,9 @@
     // v1.26: lugares
     const places = (Array.isArray(raw.places) ? raw.places : []).slice(0, 60).filter((p) => p && RE_ID.test(p.id)).map((p) => ({
       id: p.id, name: str(p.name, 40, 'Lugar'), icon: str(p.icon, 4), color: RE_COLOR.test(p.color) ? p.color : '#5b8cff', addr: str(p.addr, 300),
-      ...(Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180 ? { lat: p.lat, lon: p.lon } : {}) }));
+      ...(Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180 ? { lat: p.lat, lon: p.lon } : {}),
+      // v1.37: tipo de escenario, ciudad y país (de la búsqueda en OpenStreetMap) para el Mundo de la Línea de tiempo
+      ...(typeof p.scene === 'string' && /^[a-z]{2,16}$/.test(p.scene) ? { scene: p.scene } : {}), ...(typeof p.city === 'string' && p.city.trim() ? { city: str(p.city, 80) } : {}), ...(typeof p.cc === 'string' && /^[A-Z]{2}$/.test(p.cc) ? { cc: p.cc } : {}) }));
     return { v: 1, jobs, shifts, days, ext, settings, places };
   }
 
