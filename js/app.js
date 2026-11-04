@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.34.0';
+  const VERSION = '1.35.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -97,6 +97,7 @@
 
   /* ---------- iconos (SVG en línea) ---------- */
   const ICONS = {
+    timeline: '<path d="M3 12h18"/><circle cx="7" cy="12" r="2.2"/><circle cx="16" cy="12" r="2.2"/><path d="M7 4.5v5M16 14.5v5M11.5 7v3"/>',
     dumbbell: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
     brush: '<path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/>',
     reply: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
@@ -236,7 +237,7 @@
       ledgerProjs: [],
       ledgerWorth: [], ledgerContacts: [], // v1.25: contactos de la Libreta (cifrados)
       calDayK: {}, cdkmt: {}, perfectRules: [], ledDays: {}, ldmt: {},
-      calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, calGaps: {}, cgmt: {}, jrNotes: {}, jnmt: {}, // v1.26: notas en los huecos entre turnos
+      calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, calGaps: {}, cgmt: {}, jrNotes: {}, jnmt: {}, tlSnaps: {}, tsmt: {}, tlViews: [], // v1.26: notas en los huecos entre turnos
       // v1.25: nota de cada día del Calendario y valoración del día ({ r: 0..10 }) // v1.24: requisitos del día perfecto (historial por fecha) y días con movimientos
       // v1.24: tipo de día de cada fecha (Laboral, Libre, Festivo…) → id de calPrefs.dayKinds
       gymWorkouts: [], gymRoutines: [], gymEx: [], gymPrefs: {}, // v1.30: Gimnasio (entrenamientos, rutinas, ejercicios propios y ajustes)
@@ -257,7 +258,7 @@
   const ORDER_LISTS = ['projects', 'routines'];
   const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'gymWorkouts', 'gymRoutines', 'gymEx'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt'], ['sublogs', 'slmt']]; // hábito → día → valor (v1.23: sublogs = objetivos o maneras hechos ese día)
-  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt'], ['calGaps', 'cgmt'], ['jrNotes', 'jnmt']];             // clave → valor
+  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt'], ['calGaps', 'cgmt'], ['jrNotes', 'jnmt'], ['tlSnaps', 'tsmt']];             // clave → valor
   function normalize(s) {
     const d = defaultState();
     const out = { ...d, ...s };
@@ -278,7 +279,7 @@
     out.perfectMastery = s.perfectMastery && typeof s.perfectMastery === 'object' && !Array.isArray(s.perfectMastery) ? s.perfectMastery : {};
     out.rest = s.rest && typeof s.rest === 'object' ? s.rest : {};
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
-    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'cgmt', 'calGaps', 'jnmt', 'jrNotes', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
+    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'cgmt', 'calGaps', 'jnmt', 'jrNotes', 'tsmt', 'tlSnaps', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
     for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'perfectRules', 'gymRoutines', 'gymEx']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     // v1.30: entrenamientos limpios (llegan de la nube o de una copia); ajustes del Gimnasio
@@ -292,6 +293,7 @@
     out.ledgerCats = Array.isArray(s.ledgerCats) && s.ledgerCats.length ? s.ledgerCats : defaultLedgerCats();
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
+    out.tlViews = Array.isArray(s.tlViews) ? s.tlViews.filter(v => v && typeof v === 'object').slice(0, 20) : []; // v1.35: vistas de Progreso
     out.hiddenW = Array.isArray(s.hiddenW) ? s.hiddenW.filter(k => typeof k === 'string') : [];
     out.wOrder = Array.isArray(s.wOrder) ? s.wOrder.filter(k => typeof k === 'string').slice(0, 400) : [];
     out.stats = { timerMin: 0, ...(s.stats || {}) };
@@ -324,7 +326,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif, s.perfectRules, s.gymPrefs];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif, s.perfectRules, s.gymPrefs, s.tlViews];
   // La caja fuerte de la Libreta y el par de claves para compartir van aparte, con su propia marca (vmt)
   const vaultOf = s => [s.ledgerVault, s.kx];
   function stampChanges(prev, cur) {
@@ -408,7 +410,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif, out.perfectRules, out.gymPrefs] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif, out.perfectRules, out.gymPrefs, out.tlViews] = settingsOf(R); out.smt = R.smt; }
     // Caja fuerte: gana la más reciente, pero una vacía (o sin marca) nunca borra a otra salvo que venga de «Borrar la Libreta»
     {
       const lv = L.ledgerVault, rv = R.ledgerVault, wipe = Math.max(L.vaultWipe || 0, R.vaultWipe || 0);
@@ -735,7 +737,7 @@
     setTimeout(end, rm ? 2000 : hold);
   }
   /* v1.29: primer registro en cada pestaña. state.firsts[clave] = fecha. Quien ya tenía datos no lo ve (se marca al cargar). */
-  const FIRSTS = { habits: 'checklist', projects: 'folder', cal: 'calendar', ledger: 'wallet', chat: 'chat', journal: 'book', rate: 'sparkle' };
+  const FIRSTS = { habits: 'checklist', projects: 'folder', cal: 'calendar', ledger: 'wallet', chat: 'chat', journal: 'timeline', rate: 'sparkle' };
   function firstTime(kind, isFirst = true) {
     if (!state.firsts) state.firsts = {};
     if (state.firsts[kind]) return;
@@ -1118,25 +1120,38 @@
     html += tfFab(year);
     return html;
   }
-  /* ---------- v1.27: Diario semanal (estilo «teseracto») ----------
-     Cada semana de Organización es un marco suspendido en un pasillo 3D: la semana enfocada está delante y las anteriores
-     se alejan hacia el fondo. Se avanza con la rueda, deslizando, con las flechas o con la barra; arriba se elige el año.
-     Debajo, el resumen de la semana enfocada: horas, turnos, paga, días por tipo, días perfectos, valoración y notas. */
+  /* ---------- v1.35: LÍNEA DE TIEMPO (antes «Diario»; sexta luna del orbe, id interno 'journal') ----------
+     Una sola barra de tiempo manda en toda la pestaña: la escala (Día, Semana, Mes, Año, Todo) y la fecha van en state.ui.tl.
+     Debajo: la vista de esa escala (en Semana, el archivador de siempre), las estadísticas plegables y dos paneles que leen
+     el mismo periodo: Progreso (indicadores configurables) y Comparar (dos periodos). Lógica pura en js/timeline.js (KGT).
+     Todo sale de los datos de las demás pestañas: aquí no se apunta nada nuevo, salvo la nota de la semana (state.jrNotes)
+     y una instantánea de cada semana cerrada (state.tlSnaps) para saber si un registro antiguo cambió después.
+     Nunca se rellenan huecos: lo que no tiene datos se ve como «sin datos». */
+  const KGT = window.KGTimeline;
   const jrFmtRange = (a, b) => {
     const da = TF.parseISO(a), db = TF.parseISO(b), o = { day: 'numeric', month: 'long', year: 'numeric' };
     try { return new Intl.DateTimeFormat(state.lang, o).formatRange(da, db); } catch (e) { return fmtDate(a, o) + ' – ' + fmtDate(b, o); }
   };
+  // Primer día con algún registro (Organización, valoración, hábitos, gimnasio y, con la Libreta abierta, sus movimientos)
+  function tlFirstKey() {
+    return cached('tlfirst' + (ledgerOpen() ? 1 : 0), () => {
+      const tk = todayKey(), keys = [...Object.keys(state.calDays || {}), ...Object.keys(state.dayRate || {}), ...Object.keys(state.calGaps || {}), ...Object.keys(state.calDayK || {}), ...state.habits.map(firstKey), ...(state.gymWorkouts || []).filter(w => w.status === 'done').map(w => w.date)];
+      if (ledgerOpen()) { const sp = LED.span(LV.entries); if (sp && sp.from) keys.push(sp.from); }
+      const ok = keys.filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= tk);
+      let first = ok.length ? ok.reduce((a, b) => a < b ? a : b) : tk;
+      const minK = addDays(tk, -6 * 366); if (first < minK) first = minK;
+      return first;
+    });
+  }
   function jrWeeks() {
-    const tk = todayKey(), keys = [...Object.keys(state.calDays || {}), ...Object.keys(state.dayRate || {}), ...Object.keys(state.calGaps || {}), ...Object.keys(state.calDayK || {}), ...state.habits.map(firstKey), ...(state.gymWorkouts || []).filter(w => w.status === 'done').map(w => w.date)].filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= tk);
-    let first = keys.length ? keys.reduce((a, b) => a < b ? a : b) : tk;
-    const minK = addDays(tk, -6 * 366); if (first < minK) first = minK;
-    const out = []; let w = tfWeekKeys(tk)[0];
-    const stop = tfWeekKeys(first)[0];
+    const tk = todayKey(), out = []; let w = tfWeekKeys(tk)[0];
+    const stop = tfWeekKeys(tlFirstKey())[0];
     while (w >= stop && out.length < 320) { out.push(w); w = addDays(w, -7); }
     return out; // de la más reciente a la más antigua
   }
   function jrWeek(w) {
-    const ks = tfWeekKeys(w), tk = todayKey(), r = TF.report(tfData(), ks[0], ks[6], tfWs(), () => true, null);
+    const ks = tfWeekKeys(w), tk = todayKey(), last = ks[6] > tk ? tk : ks[6], r = TF.report(tfData(), ks[0], last, tfWs(), () => true, null);
+    const plan = ks[6] > tk ? TF.report(tfData(), addDays(tk, 1), ks[6], tfWs(), () => true, null) : null;
     const rates = ks.map(dayRateOf).filter(v => v != null), dk = {};
     ks.forEach(k => tfDksOf(k).forEach(d => { (dk[d.id] = dk[d.id] || { d, n: 0 }).n++; }));
     const perfect = state.habits.length ? ks.filter(k => k <= tk && dayInfo(k).perfect).length : null;
@@ -1150,7 +1165,7 @@
       const xs = habits.filter(x => p.habitIds.includes(x.h.id) && x.of); if (!xs.length) return null;
       return { p, pct: Math.round(xs.reduce((a, x) => a + Math.min(1, x.done / x.of), 0) / xs.length * 100) };
     }).filter(Boolean);
-    return { ks, r, avg: rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null, rates: ks.map(dayRateOf), dk: Object.values(dk), perfect, notes, partial: ks[6] > tk, habits, projects, note: jrNoteOf(ks[0]) };
+    return { ks, r, plan, avg: rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null, rates: ks.map(dayRateOf), dk: Object.values(dk), perfect, notes, partial: ks[6] > tk, habits, projects, note: jrNoteOf(ks[0]) };
   }
   // v1.32: notas propias de cada semana (state.jrNotes[lunes] = texto), se sincronizan como las demás notas
   const JR_NOTE_MAX = 4000;
@@ -1160,24 +1175,211 @@
   const jrAxis = () => { try { return localStorage.getItem(JR_AXIS_KEY) === 'h' ? 'h' : 'v'; } catch (e) { return 'v'; } };
   // Icono morph: dos flechas que giran entre vertical (↕) y horizontal (↔)
   const jrAxisIco = () => `<svg class="i jr-ax-i" viewBox="0 0 24 24" aria-hidden="true"><g class="jr-ax-g"><path d="M12 4v16"/><path class="jr-ax-a" d="M8 8l4-4 4 4"/><path class="jr-ax-b" d="M8 16l4 4 4-4"/></g></svg>`;
-  /* v1.32: el diario es un ARCHIVADOR. Cada semana es una carpeta con su pestaña (número de semana y media de la
-     valoración); se ojea en vertical (pasillo hacia el fondo) o en horizontal (carpetas en fila, como un archivador
-     abierto): el botón con flechas cambia de eje con un icono que se transforma. Debajo, la semana abierta: resumen
-     (valoración media día a día, hábitos, proyectos, Organización y Gimnasio) y una nota propia que se puede editar. */
-  function makeJournal() {
-    const weeks = jrWeeks(); let f = 0, wref = null, wheelT = 0, ax = jrAxis(), saveT = 0;
-    const years = [...new Set(weeks.map(w => tfWeekKeys(w)[6].slice(0, 4)))];
+
+  /* ---- estado de la pestaña ---- */
+  let tlBoot = false;
+  const TLS = { edit: false };
+  function tlUi() {
+    const u = state.ui.tl && typeof state.ui.tl === 'object' ? state.ui.tl : {}, tk = todayKey();
+    let at = KGT.isKey(u.at) && u.at <= tk ? u.at : tk;
+    if (!tlBoot) { tlBoot = true; at = tk; } // al abrir la app, la línea empieza hoy
+    const c = u.cmp && typeof u.cmp === 'object' ? u.cmp : {}, ok = KGT.isKey;
+    state.ui.tl = { sc: KGT.okScale(u.sc), at, panel: u.panel === 'compare' ? 'compare' : 'progress', pv: typeof u.pv === 'string' ? u.pv : 'general', open: !!u.open,
+      cmp: { mode: ['prev', 'year', 'custom'].includes(c.mode) ? c.mode : 'prev', a0: ok(c.a0) ? c.a0 : '', a1: ok(c.a1) ? c.a1 : '', b0: ok(c.b0) ? c.b0 : '', b1: ok(c.b1) ? c.b1 : '' } };
+    return state.ui.tl;
+  }
+  const tlRange = (sc, at) => KGT.range(sc, at, { ws: tfWs(), first: tlFirstKey(), today: todayKey() });
+  const tlDaysBetween = (a, b) => Math.round((TF.parseISO(b) - TF.parseISO(a)) / 864e5);
+  function tlLabel(sc, from, to) {
+    if (sc === 'day') return fmtDate(from, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    if (sc === 'week') return jrFmtRange(from, to);
+    if (sc === 'month') return fmtDate(from, { month: 'long', year: 'numeric' });
+    if (sc === 'year') return from.slice(0, 4);
+    return t('tlAllFrom', { d: fmtDate(from, { month: 'long', year: 'numeric' }) });
+  }
+  const tlRangeLabel = (a, b) => a === b ? fmtDate(a, { day: 'numeric', month: 'short', year: 'numeric' }) : jrFmtRange(a, b);
+
+  /* ---- datos (solo lectura) ---- */
+  // Lo de cada día: hábitos hechos, debidos, día perfecto y valoración. Los días futuros no tienen datos.
+  function tlDay(k) {
+    return cached('tld' + k, () => {
+      if (k > todayKey()) return null;
+      const di = state.habits.length ? dayInfo(k) : null;
+      let hab = di ? di.done : 0;
+      for (const h of state.habits) if (h.freq !== 'daily' && !isQuit(h) && cnt(h, k) > 0) hab++;
+      return { hab, due: di ? di.due : 0, done: di ? di.done : 0, perfect: !!(di && di.perfect), rate: dayRateOf(k) };
+    });
+  }
+  // Gimnasio por día, con los récords calculados en orden (cada sesión contra lo mejor de las anteriores)
+  const tlGym = () => cached('tlgym', () => {
+    const out = {}, best = {}, cu = state.gymEx;
+    const list = (state.gymWorkouts || []).filter(w => w.status === 'done' && /^\d{4}-\d{2}-\d{2}$/.test(w.date || '')).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.end || 0) - (b.end || 0));
+    for (const w of list) {
+      const s = KGGym.workoutStats(w, cu), d = out[w.date] || (out[w.date] = { n: 0, vol: 0, min: 0, rec: 0 });
+      d.n++; d.vol += s.volume; d.min += s.minutes || s.cardioMin || 0;
+      const now = KGGym.bests([w], cu);
+      for (const eid in now) {
+        const p = best[eid], n = now[eid], e = KGGym.exercise(eid, cu), kind = e ? e.kind : 'w';
+        if (p) {
+          const up = kind === 'w' ? (n.e1 > p.e1 || n.w > p.w) : kind === 'bw' ? n.r > p.r : kind === 'h' ? n.s > p.s : kind === 'c' ? n.d > p.d : false;
+          if (up) d.rec++;
+        }
+        best[eid] = p ? { w: Math.max(p.w, n.w), e1: Math.max(p.e1, n.e1), r: Math.max(p.r, n.r), s: Math.max(p.s, n.s), d: Math.max(p.d, n.d) } : { ...n };
+      }
+    }
+    return out;
+  });
+  const tlLed = () => cached('tlled' + (ledgerOpen() ? LV.entries.length : 'x'), () => {
+    if (!ledgerOpen()) return null;
+    const list = NET(LV.entries), sp = LED.span(list);
+    return { days: LED.byDay(list), from: sp && sp.from };
+  });
+  const tlOrg = (from, to) => cached('tlorg' + from + to, () => TF.report(tfData(), from, to, tfWs(), () => true, null));
+  const tlHasOrg = () => Object.keys(state.calDays || {}).length > 0;
+  // Pasos de proyecto hechos (puntos de control y elementos de la lista de la meta), con su fecha
+  const tlSteps = () => cached('tlsteps', () => {
+    const out = [];
+    for (const p of state.projects || []) {
+      for (const m of p.milestones || []) if (m && m.done && KGT.isKey(m.doneAt)) out.push({ date: m.doneAt, p });
+      for (const it of (p.goal && p.goal.items) || []) if (it && it.done && KGT.isKey(it.doneAt)) out.push({ date: it.doneAt, p });
+    }
+    return out;
+  });
+  // Acontecimientos destacados con su fecha real (no se usan los «primeros registros»: a quien ya tenía datos se le pusieron el día que llegó la v1.29)
+  const tlMarks = () => cached('tlmarks' + (ledgerOpen() ? 1 : 0), () => {
+    const out = [];
+    for (const [r, v] of Object.entries(state.perfectMastery || {})) if (v && KGT.isKey(v.date)) out.push({ date: v.date, kind: 'mastery', ic: 'crown', label: t('tlMkMastery', { r: t('rank_' + r) }) });
+    for (const c of state.challengeCards || []) if (c && KGT.isKey(c.end)) out.push({ date: c.end, kind: 'challenge', ic: 'flag', label: t('tlMkChallenge', { n: c.name || '' }) });
+    for (const [k, d] of Object.entries(tlGym())) if (d.rec) out.push({ date: k, kind: 'record', ic: 'trophy', label: t('tlMkRecord', { n: d.rec }) });
+    for (const s of tlSteps()) out.push({ date: s.date, kind: 'step', ic: 'target', label: t('tlMkStep', { p: s.p.name || '' }) });
+    if (ledgerOpen()) for (const ev of LV.events || []) if (ev && KGT.isKey(ev.from)) out.push({ date: ev.from, kind: 'event', ic: 'folder', label: ev.name || '' });
+    return out.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  });
+
+  /* ---- indicadores ----
+     tlVal(id, from, to) → { v, st }. st: reg (suma de lo registrado), calc (calculado), est (estimado), na (sin datos), locked (Libreta cerrada).
+     El periodo se corta en hoy: lo que aún no ha pasado no cuenta. */
+  const NA = { v: null, st: 'na' };
+  function tlVal(id, from, to) {
+    const tk = todayKey(); if (from > tk) return NA;
+    const b = to > tk ? tk : to, X = KGT.IND[id];
+    if (!X) return NA;
+    if (X.ledger && !ledgerOpen()) return { v: null, st: 'locked' };
+    return cached(`tlv${id}|${from}|${b}`, () => {
+      const each = fn => { for (let k = from; k <= b; k = addDays(k, 1)) fn(k); };
+      switch (id) {
+        case 'worth': {
+          const rows = worthData().rows; if (!rows.length || b < rows[0].key) return NA;
+          const r = rows[Math.min(rows.length - 1, tlDaysBetween(rows[0].key, b))];
+          return r ? { v: r.patrimony / 100, st: 'calc' } : NA; // la Libreta guarda céntimos
+        }
+        case 'income': case 'expenses': case 'balance': case 'savings': {
+          const L = tlLed(); if (!L || !L.from || b < L.from) return NA;
+          let inc = 0, exp = 0; each(k => { const d = L.days[k]; if (d) { inc += d.income; exp += d.expense; } });
+          if (id === 'income') return { v: inc / 100, st: 'reg' };
+          if (id === 'expenses') return { v: exp / 100, st: 'reg' };
+          if (id === 'balance') return { v: (inc - exp) / 100, st: 'calc' };
+          return inc > 0 ? { v: (inc - exp) / inc * 100, st: 'calc' } : NA;
+        }
+        case 'habits': case 'consistency': case 'perfect': {
+          if (!state.habits.length) return NA;
+          let hab = 0, due = 0, done = 0, per = 0, any = false;
+          each(k => { if (k < firstDay()) return; const d = tlDay(k); if (!d) return; any = true; hab += d.hab; due += d.due; done += d.done; if (d.perfect) per++; });
+          if (!any) return NA;
+          if (id === 'habits') return { v: hab, st: 'reg' };
+          if (id === 'perfect') return { v: per, st: 'calc' };
+          return due ? { v: done / due * 100, st: 'calc' } : NA;
+        }
+        case 'rate': { const xs = []; each(k => { const v = dayRateOf(k); if (v != null) xs.push(v); }); return xs.length ? { v: xs.reduce((a, c) => a + c, 0) / xs.length, st: 'calc' } : NA; }
+        case 'challenges': return { v: (state.challengeCards || []).filter(c => c && c.end >= from && c.end <= b).length, st: 'reg' };
+        case 'steps': return { v: tlSteps().filter(s => s.date >= from && s.date <= b).length, st: 'reg' };
+        case 'workouts': case 'trainDays': case 'volume': case 'activeH': case 'records': {
+          if (!(state.gymWorkouts || []).some(w => w.status === 'done')) return NA;
+          const G = tlGym(); let n = 0, days = 0, vol = 0, min = 0, rec = 0;
+          each(k => { const d = G[k]; if (d) { n += d.n; days++; vol += d.vol; min += d.min; rec += d.rec; } });
+          return { v: { workouts: n, trainDays: days, volume: vol, activeH: min / 60, records: rec }[id], st: id === 'records' ? 'calc' : 'reg' };
+        }
+        case 'workH': case 'shifts': case 'pay': case 'restDays': case 'timeDist': {
+          if (!tlHasOrg()) return NA;
+          const r = tlOrg(from, b), bk = r.byKind || {};
+          if (id === 'workH') return { v: (bk.work || {}).hours || 0, st: 'reg' };
+          if (id === 'shifts') return { v: r.count, st: 'reg' };
+          if (id === 'pay') return { v: r.pay, st: 'est' };
+          if (id === 'restDays') return { v: ['off', 'vacation', 'sick'].reduce((a, kd) => a + ((bk[kd] || {}).count || 0), 0), st: 'reg' };
+          const parts = Object.entries(bk).filter(([, x]) => x.hours > 0).map(([kd, x]) => ({ kd, h: x.hours })).sort((p, q) => q.h - p.h);
+          return parts.length ? { v: parts.reduce((a, p) => a + p.h, 0), parts, st: 'reg' } : { v: 0, parts: [], st: 'reg' };
+        }
+      }
+      return NA;
+    });
+  }
+  function tlFmt(id, v) {
+    if (v == null) return '—';
+    const f = KGT.IND[id].fmt;
+    if (f === 'money') return money(Math.round(v * 100) / 100);
+    if (f === 'pct') return Math.round(v) + ' %';
+    if (f === 'rate') return fmtNum(Math.round(v * 10) / 10) + '/10';
+    if (f === 'hours') return tfH(v) + ' h';
+    if (f === 'kg') return fmtNum(Math.round(v)) + ' kg';
+    return fmtNum(Math.round(v * 100) / 100);
+  }
+  const tlDiffFmt = (id, d) => { const s = tlFmt(id, Math.abs(d)); return (d > 0 ? '+' : d < 0 ? '−' : '') + s; };
+  const tlKindName = kd => { const k = 'tfKind_' + kd; const v = t(k); return v === k ? kd : v; };
+  const TL_KIND_C = { work: 'var(--accent)', off: '#43a047', vacation: '#29b6f6', sick: '#ef5350', training: '#ab47bc' };
+  // Minigráfica: una línea fina con los trozos del periodo (los que no tienen datos cortan la línea)
+  function tlSpark(vals, color) {
+    const xs = vals.filter(v => v != null); if (xs.length < 2) return '';
+    const W = 120, H = 30, lo = Math.min(...xs), hi = Math.max(...xs), sp = hi - lo || 1, n = vals.length;
+    let d = '', pen = false;
+    vals.forEach((v, i) => { if (v == null) { pen = false; return; } const x = n === 1 ? W / 2 : i * W / (n - 1), y = H - 3 - (v - lo) / sp * (H - 6); d += (pen ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1); pen = true; });
+    return `<svg class="tl-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" style="stroke:${color || 'var(--accent)'}"/></svg>`;
+  }
+
+  /* ---- instantáneas de las semanas cerradas ----
+     state.tlSnaps[lunes] = { at: fecha en que se guardó, v: [hábitos hechos, días perfectos, valoración ×10, horas ×100, entrenos] }.
+     No llevan nada de la Libreta (va cifrada y esto no). Si después cambia un registro de esa semana, se avisa y se puede ver la original. */
+  const tlSnapOf = ks => {
+    const hv = tlVal('habits', ks[0], ks[6]).v, pv = tlVal('perfect', ks[0], ks[6]).v, rv = tlVal('rate', ks[0], ks[6]).v, wv = tlVal('workH', ks[0], ks[6]).v, gv = tlVal('workouts', ks[0], ks[6]).v;
+    return [hv, pv, rv == null ? null : Math.round(rv * 10), wv == null ? null : Math.round(wv * 100), gv];
+  };
+  function tlSnapWeeks(weeks) {
+    if (!state.tlSnaps) state.tlSnaps = {};
+    const tk = todayKey(), S = state.tlSnaps; let n = 0;
+    for (const w of weeks) {
+      const ks = tfWeekKeys(w); if (ks[6] >= tk || S[w]) continue;
+      const v = tlSnapOf(ks); if (v.every(x => x == null || x === 0)) continue;
+      S[w] = { at: tk, v }; n++;
+    }
+    if (n) save();
+  }
+  const tlSnapDiff = w => { const s = (state.tlSnaps || {})[w]; if (!s || !Array.isArray(s.v)) return null; const now = tlSnapOf(tfWeekKeys(w)); return now.some((x, i) => (x ?? null) !== (s.v[i] ?? null)) ? { s, now } : null; };
+
+  /* ---- la pestaña ---- */
+  function makeTimeline() {
+    const u = tlUi(), weeks = jrWeeks(); let wref = null, wheelT = 0, ax = jrAxis(), saveT = 0, f = 0, dragging = false;
+    const weekIdx = at => { const w = tfWeekKeys(at)[0], i = weeks.indexOf(w); return i < 0 ? 0 : i; };
+    f = weekIdx(u.at);
+    const R = () => tlRange(u.sc, u.at);
+    /* -- Semana: el archivador. Cada semana es una carpeta grande con los 7 días, la nota visible y lo esencial -- */
     const frame = (w, i) => {
       const ks = tfWeekKeys(w), tk = todayKey(), rs = ks.map(dayRateOf).filter(v => v != null), avg = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null, note = jrNoteOf(ks[0]);
-      const cells = ks.map(k => { const cs = tfDayColors(k), rv = dayRateOf(k), n = (state.calDays[k] || []).length; return `<i class="${k > tk ? 'fut' : ''}" style="${cs.length ? `--c:${cs[0]}` : rv != null ? `--c:${rateColor(rv)}` : ''}">${n ? `<b>${n}</b>` : ''}</i>`; }).join('');
-      return `<button class="jr-f" data-jr-i="${i}" aria-label="${esc(jrFmtRange(ks[0], ks[6]))}"><span class="jr-tabl"><b>${esc(t('jrWeekN', { n: tfWeekNo(ks[0]) }))}</b>${avg != null ? `<i style="--rc:${rateColor(avg)}">${fmtNum(Math.round(avg * 10) / 10)}</i>` : ''}</span><span class="jr-rg">${esc(jrFmtRange(ks[0], ks[6]))}</span><span class="jr-cells">${cells}</span>${note ? `<span class="jr-snip">${ico('edit', 'xs')} ${esc(note.slice(0, 90))}</span>` : ''}</button>`;
+      const cells = ks.map(k => { const cs = tfDayColors(k), rv = dayRateOf(k), n = (state.calDays[k] || []).length, d = tlDay(k); return `<i class="${k > tk ? 'fut' : ''} ${d && d.perfect ? 'pf' : ''}" style="${cs.length ? `--c:${cs[0]}` : rv != null ? `--c:${rateColor(rv)}` : ''}"><small>${esc(fmtDate(k, { weekday: 'narrow' }))}</small>${n ? `<b>${n}</b>` : '<b class="nil">·</b>'}</i>`; }).join('');
+      const per = state.habits.length ? ks.filter(k => k <= tk && (tlDay(k) || {}).perfect).length : null, G = tlGym(), gd = ks.filter(k => G[k]).length;
+      const chips = [per != null ? `${ico('crown', 'xs')} ${per}/7` : '', gd ? `${ico('dumbbell', 'xs')} ${gd}` : '', rs.length ? `${ico('star', 'xs')} ${rs.length}/7` : ''].filter(Boolean);
+      return `<button class="jr-f" data-jr-i="${i}" aria-label="${esc(jrFmtRange(ks[0], ks[6]))}"><span class="jr-tabl"><b>${esc(t('jrWeekN', { n: tfWeekNo(ks[0]) }))}</b>${avg != null ? `<i style="--rc:${rateColor(avg)}">${fmtNum(Math.round(avg * 10) / 10)}</i>` : ''}</span>
+        <span class="jr-rg">${esc(jrFmtRange(ks[0], ks[6]))}</span><span class="jr-cells">${cells}</span>
+        ${chips.length ? `<span class="jr-chips">${chips.map(c => `<span>${c}</span>`).join('')}</span>` : ''}
+        ${note ? `<span class="jr-snip">${esc(note.slice(0, 400))}</span>` : `<span class="jr-ph" data-tl-note>${ico('edit', 'xs')} ${esc(t('tlNotePh'))}</span>`}</button>`;
     };
-    const detail = () => {
+    const weekDetail = () => {
       const S = jrWeek(weeks[f]), pv = privacyOn(), stat = (v, l) => `<div class="jr-st"><b>${v}</b><span>${esc(l)}</span></div>`;
       const G = window.KGGym ? KGGym.weekSummary(state.gymWorkouts, S.ks, state.gymEx) : null, gm = m => (KGGym.MUSCLE_NAME[state.lang] || KGGym.MUSCLE_NAME.es)[m] || m;
       const bars = S.rates.some(v => v != null) ? `<div class="jr-rbars" aria-label="${esc(t('rateAvg'))}">${S.ks.map((k, i) => { const v = S.rates[i]; return `<span><i style="--h:${v == null ? 0 : Math.max(4, Math.round(v * 4.6))}px;--rc:${v == null ? 'transparent' : rateColor(v)};--d:${i}"></i><small>${esc(fmtDate(k, { weekday: 'narrow' }))}</small></span>`; }).join('')}</div>` : '';
-      return `<div class="jr-d-h"><b>${esc(jrFmtRange(S.ks[0], S.ks[6]))}</b>${S.partial ? `<span class="chip sm">${esc(t('jrNow'))}</span>` : ''}</div>
+      const sd = tlSnapDiff(S.ks[0]), lab = ['tlI_habits', 'tlI_perfect', 'tlI_rate', 'tlI_workH', 'tlI_workouts'], fv = (i, x) => x == null ? '—' : i === 2 ? fmtNum(x / 10) : i === 3 ? tfH(x / 100) : fmtNum(x);
+      return `${S.partial ? `<span class="chip sm" style="align-self:flex-start">${esc(t('jrNow'))}</span>` : ''}
+        ${sd ? `<details class="tl-mod"><summary>${ico('info', 'xs')} ${esc(t('tlModified', { d: fmtDate(sd.s.at, { day: 'numeric', month: 'short', year: 'numeric' }) }))}</summary><table class="tl-mod-t"><tr><th></th><th>${esc(t('tlOriginal'))}</th><th>${esc(t('tlNowV'))}</th></tr>${lab.map((k, i) => `<tr><td>${esc(t(k))}</td><td>${fv(i, sd.s.v[i])}</td><td>${fv(i, sd.now[i])}</td></tr>`).join('')}</table></details>` : ''}
         <div class="jr-stats">${stat(S.avg == null ? '—' : fmtNum(Math.round(S.avg * 10) / 10) + '/10', t('rateAvg'))}${S.perfect != null ? stat(S.perfect + '/7', t('perfectDays')) : ''}${stat(tfH(S.r.hours) + ' h', t('tfHours'))}${stat(S.r.count, t('tfShiftsN'))}${S.r.pay > 0 ? stat(pv ? '••••' : esc(money(S.r.pay)), t('tfPayEst')) : ''}${G && G.sessions ? stat(G.days.length + '/7', t('gyDaysTrained')) : ''}</div>
+        ${S.plan && S.plan.count ? `<span class="muted small">${esc(t('tlPlanned', { h: tfH(S.plan.hours), n: S.plan.count }))}</span>` : ''}
         ${bars}
         ${S.habits.length ? `<div class="jr-sec"><span class="jr-h">${ico('checklist', 'xs')} ${esc(t('jrHabits'))}</span><div class="jr-hab">${S.habits.map(x => `<span class="jr-hb" style="${habitVars(hColor(x.h))}"><span class="grow ellipsis">${esc(x.h.icon || '')} ${esc(x.h.name)}</span><b>${x.of ? `${x.done}/${x.of}` : `×${x.done}`}</b><i style="--p:${x.of ? Math.min(100, x.done / x.of * 100) : 100}%"></i></span>`).join('')}</div></div>` : ''}
         ${S.projects.length ? `<div class="jr-sec"><span class="jr-h">${ico('folder', 'xs')} ${esc(t('jrProjects'))}</span><div class="jr-hab">${S.projects.map(x => `<span class="jr-hb" style="--h:${x.p.color || 'var(--accent)'}"><span class="grow ellipsis">${esc(x.p.icon || '')} ${esc(x.p.name)}</span><b>${x.pct}%</b><i style="--p:${x.pct}%"></i></span>`).join('')}</div></div>` : ''}
@@ -1186,73 +1388,266 @@
         ${S.notes.length ? `<ul class="jr-notes">${S.notes.map(n => `<li><span class="muted small">${esc(fmtDate(n.k, { weekday: 'short', day: 'numeric' }))} · ${esc(n.a)}</span> ${esc(n.t)}</li>`).join('')}</ul>` : ''}
         <label class="jr-note"><span class="jr-h">${ico('edit', 'xs')} ${esc(t('jrNote'))}</span><textarea class="input" id="jr-note" rows="3" maxlength="${JR_NOTE_MAX}" placeholder="${esc(t('jrNotePh'))}">${esc(S.note)}</textarea><small class="muted" id="jr-note-st" aria-live="polite"></small></label>`;
     };
-    const place = (refresh = true) => {
+    const archive = () => `<div class="jr-stage" id="jr-stage">${weeks.map((w, i) => frame(w, i)).join('')}</div>`;
+    const place = () => {
       if (!wref) return;
       const H = ax === 'h';
       $$('.jr-f', wref).forEach(el => {
         const i = +el.dataset.jrI, d = i - f, side = (i % 2 ? 1 : -1), ad = Math.abs(d);
         if (H) {
-          // Horizontal: las carpetas en fila; la abierta delante, las demás se inclinan hacia los lados (las antiguas a la izquierda)
-          el.style.transform = d === 0 ? 'translate3d(0, 0, 60px)' : `translate3d(${-Math.sign(d) * (110 + Math.min(ad, 5) * 46)}px, ${Math.min(ad, 5) * 6}px, ${-ad * 120}px) rotateY(${Math.sign(d) * 48}deg)`;
-          el.style.opacity = ad > 5 ? 0 : Math.max(0, 1 - ad * .14);
+          el.style.transform = d === 0 ? 'translate3d(0, 0, 60px)' : `translate3d(${-Math.sign(d) * (130 + Math.min(ad, 3) * 40)}px, ${Math.min(ad, 3) * 6}px, ${-ad * 140}px) rotateY(${Math.sign(d) * 48}deg)`;
+          el.style.opacity = ad > 3 ? 0 : Math.max(0, 1 - ad * .25);
         } else {
-          el.style.transform = d < 0 ? `translate3d(${side * 40}px, 120px, 260px) rotateX(-12deg)` : `translate3d(${side * Math.min(d, 6) * 14}px, ${-d * 26}px, ${-d * 190}px) rotateY(${side * Math.min(d, 6) * -3}deg)`;
-          el.style.opacity = d < 0 ? 0 : Math.max(0, 1 - d * .16);
+          // Vertical: solo se ven dos o tres semanas detrás, así la de delante es grande y no queda un hueco vacío
+          el.style.transform = d < 0 ? `translate3d(${side * 40}px, 160px, 260px) rotateX(-12deg)` : `translate3d(${side * Math.min(d, 3) * 12}px, ${-d * 22}px, ${-d * 150}px)`;
+          el.style.opacity = d < 0 || d > 3 ? 0 : Math.max(0, 1 - d * .28);
         }
-        el.style.zIndex = 100 - ad; el.style.pointerEvents = (H ? ad > 5 : d < 0 || d > 6) ? 'none' : '';
+        el.style.zIndex = 100 - ad; el.style.pointerEvents = (H ? ad > 3 : d < 0 || d > 3) ? 'none' : '';
         el.classList.toggle('on', d === 0); el.tabIndex = d === 0 ? 0 : -1;
       });
-      if (refresh) { const box = $('#jr-d', wref); box.innerHTML = detail(); if (!reducedMotion()) { box.classList.remove('jr-in'); void box.offsetWidth; box.classList.add('jr-in'); } }
-      const ky = tfWeekKeys(weeks[f])[6].slice(0, 4);
-      $$('[data-jr-y]', wref).forEach(b => b.classList.toggle('on', b.dataset.jrY === ky));
-      const rng = $('#jr-rng', wref); if (rng) rng.value = weeks.length - 1 - f;
-      $('.jr-grid', wref).style.setProperty('--z', f * 40 + 'px');
+      const g = $('.jr-grid', wref); if (g) g.style.setProperty('--z', f * 40 + 'px');
     };
-    const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; flush(); f = nf; vibrate(5); sfx('tap'); place(); };
+    /* -- Día: lo que pasó, en orden. Sin datos = «sin registros», no se inventa nada -- */
+    const dayView = k => {
+      const tk = todayKey(), it = tfDayItems(k), rv = dayRateOf(k), d = tlDay(k), G = (state.gymWorkouts || []).filter(w => w.status === 'done' && w.date === k), L = tlLed(), ld = L && L.days[k];
+      const rows = [];
+      for (const x of it.timed.filter(x => !x.cont)) { const pl = tfPlaceOf(x.s, x.e); rows.push({ m: x.a, h: `<span class="tl-ev-t">${esc(x.start)}–${esc(x.end)}</span><span class="tl-ev-dot" style="--c:${tfColor(x.s.color)}"></span><span class="grow"><b>${esc(x.s.emoji || '')} ${esc(x.s.name)}</b>${pl ? `<small class="muted"> · ${ico('pin', 'xs')} ${esc(pl.name)}</small>` : ''}${x.e.note ? `<small class="muted"> · ${esc(x.e.note)}</small>` : ''}</span>` }); }
+      for (const x of it.allDay) rows.push({ m: -1, h: `<span class="tl-ev-t">${esc(t('tlAllDay'))}</span><span class="tl-ev-dot" style="--c:${tfColor(x.s.color)}"></span><span class="grow"><b>${esc(x.s.emoji || '')} ${esc(x.s.name)}</b></span>` });
+      for (const w of G) { const s = KGGym.workoutStats(w, state.gymEx), hm = w.start ? new Date(w.start) : null; rows.push({ m: hm ? hm.getHours() * 60 + hm.getMinutes() : 1441, h: `<span class="tl-ev-t">${hm ? pad(hm.getHours()) + ':' + pad(hm.getMinutes()) : '—'}</span><span class="tl-ev-dot" style="--c:var(--accent)"></span><span class="grow"><b>${ico('dumbbell', 'xs')} ${esc(w.name || t('gyTab'))}</b><small class="muted"> · ${esc(t('gyJrLine', { s: 1, sets: s.sets }))}${s.volume ? ' · ' + fmtNum(s.volume) + ' kg' : ''}</small></span>` }); }
+      for (const g of tfGaps(k)) rows.push({ m: tfMin(g.a || '00:00'), h: `<span class="tl-ev-t">${esc(g.a || '')}</span><span class="tl-ev-dot note"></span><span class="grow">${ico('edit', 'xs')} ${esc(String(g.t || ''))}</span>` });
+      rows.sort((a, b) => a.m - b.m);
+      const marks = tlMarks().filter(m => m.date === k);
+      const habs = state.habits.filter(h => !h.archived && !isQuit(h) && cnt(h, k) > 0);
+      const empty = !rows.length && !habs.length && rv == null && !marks.length && !ld;
+      return `<div class="tl-day">
+        ${rv != null || (d && state.habits.length) ? `<div class="tl-day-top">${rv != null ? `<b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b>` : ''}${d && state.habits.length ? `<span class="chip sm ${d.perfect ? 'on' : ''}">${ico('crown', 'xs')} ${d.perfect ? esc(t('tlPerfectDay')) : esc(t('tlHabDone', { a: d.done, b: d.due }))}</span>` : ''}</div>` : ''}
+        ${marks.length ? `<div class="tl-mk-row">${marks.map(m => `<span class="tl-mk-chip" data-k="${m.kind}">${ico(m.ic, 'xs')} ${esc(m.label)}</span>`).join('')}</div>` : ''}
+        ${rows.length ? `<ol class="tl-evs">${rows.map(r => `<li>${r.h}</li>`).join('')}</ol>` : ''}
+        ${habs.length ? `<div class="tl-habs">${habs.map(h => `<span class="tl-hab" style="${habitVars(hColor(h))}">${esc(h.icon || '')} ${esc(h.name)}${cnt(h, k) > 1 ? ` <b>×${cnt(h, k)}</b>` : ''}</span>`).join('')}</div>` : ''}
+        ${ld ? `<div class="muted small">${ico('wallet', 'xs')} ${esc(t('tlLedDay', { n: ld.count }))} · +${esc(money(ld.income / 100))} · −${esc(money(ld.expense / 100))}</div>` : ''}
+        ${empty ? `<div class="tl-empty">${esc(k > tk ? t('tlFuture') : t('tlNoData'))}</div>` : ''}</div>`;
+    };
+    /* -- Mes: los días con su color; tocar un día lo abre -- */
+    const monthView = (from, to) => {
+      const tk = todayKey(), lead = (TF.parseISO(from).getDay() - tfWs() + 7) % 7, mk = new Set(tlMarks().map(m => m.date));
+      let cells = ''; for (let i = 0; i < lead; i++) cells += '<span class="tl-mc pad"></span>';
+      for (let k = from; k <= to; k = addDays(k, 1)) {
+        const cs = tfDayColors(k), rv = dayRateOf(k), d = tlDay(k);
+        cells += `<button class="tl-mc ${k > tk ? 'fut' : ''} ${d && d.perfect ? 'pf' : ''} ${k === tk ? 'now' : ''}" data-tl-go="day" data-k="${k}" style="${cs.length ? `--c:${cs[0]}` : rv != null ? `--c:${rateColor(rv)}` : ''}"><b>${+k.slice(8)}</b>${rv != null ? `<small>${rv}</small>` : ''}${mk.has(k) ? '<i class="tl-mdot"></i>' : ''}</button>`;
+      }
+      return `<div class="tl-month"><div class="tl-dow">${tfDow().map(n => `<span>${esc(n)}</span>`).join('')}</div><div class="tl-mgrid">${cells}</div></div>`;
+    };
+    /* -- Año y Todo: cada mes (o cada año) es una ficha con lo esencial -- */
+    const tiles = (list, go) => `<div class="tl-tiles">${list.map(x => {
+      const pf = tlVal('perfect', x.from, x.to).v, rt = tlVal('rate', x.from, x.to).v, wo = tlVal('workouts', x.from, x.to).v, wh = tlVal('workH', x.from, x.to).v, fut = x.from > todayKey();
+      const mk = tlMarks().filter(m => m.date >= x.from && m.date <= x.to).length;
+      return `<button class="tl-tile ${fut ? 'fut' : ''}" data-tl-go="${go}" data-k="${x.from}" style="${rt != null ? `--rc:${rateColor(rt)}` : ''}"><b>${esc(x.name)}</b>
+        ${fut ? '' : `<span>${pf != null ? `${ico('crown', 'xs')} ${fmtNum(pf)}` : ''}${wo ? ` ${ico('dumbbell', 'xs')} ${fmtNum(wo)}` : ''}${wh ? ` ${ico('clock', 'xs')} ${tfH(wh)} h` : ''}${mk ? ` ${ico('star', 'xs')} ${mk}` : ''}</span>${rt != null ? `<i class="tl-rbar" style="--p:${rt * 10}%"></i>` : ''}`}</button>`;
+    }).join('')}</div>`;
+    const yearView = from => { const y = +from.slice(0, 4); return tiles(Array.from({ length: 12 }, (_, m) => { const a = `${y}-${pad(m + 1)}-01`; return { from: a, to: KGT.range('month', a).to, name: fmtDate(a, { month: 'long' }) }; }), 'month'); };
+    const allView = (from, to) => { const ys = []; for (let y = +to.slice(0, 4); y >= +from.slice(0, 4); y--) ys.push({ from: `${y}-01-01`, to: `${y}-12-31`, name: String(y) }); return tiles(ys, 'year'); };
+    const mainView = () => { const { from, to } = R(); return u.sc === 'week' ? archive() : u.sc === 'day' ? dayView(from) : u.sc === 'month' ? monthView(from, to) : u.sc === 'year' ? yearView(from) : allView(from, to); };
+    /* -- Estadísticas plegables (plegadas de serie) -- */
+    const statsSum = () => {
+      const { from, to } = R(), rt = tlVal('rate', from, to).v, pf = tlVal('perfect', from, to).v, wh = tlVal('workH', from, to).v;
+      return [rt != null ? fmtNum(Math.round(rt * 10) / 10) + '/10' : '', pf != null ? `${ico('crown', 'xs')} ${fmtNum(pf)}` : '', wh ? tfH(wh) + ' h' : ''].filter(Boolean).join(' · ');
+    };
+    const genericStats = () => {
+      const { from, to } = R(), ids = ['rate', 'perfect', 'habits', 'consistency', 'workH', 'shifts', 'workouts', 'volume'];
+      return `<div class="jr-stats">${ids.map(id => { const x = tlVal(id, from, to); return x.v == null ? '' : `<div class="jr-st"><b>${esc(tlFmt(id, x.v))}</b><span>${esc(t('tlI_' + id))}</span></div>`; }).join('') || `<span class="muted small">${esc(t('tlNoData'))}</span>`}</div>`;
+    };
+    const statsBox = () => `<details class="tl-stats" id="tl-stats" ${u.open ? 'open' : ''}><summary><span class="jr-h">${ico('chart', 'xs')} ${esc(t('tlStats_' + u.sc))}</span><span class="tl-sum-k grow">${statsSum()}</span>${ico('down')}</summary><div class="tl-stats-b ${u.sc === 'week' ? '' : 'gen'}" id="jr-d">${u.sc === 'week' ? weekDetail() : genericStats()}</div></details>`;
+    /* -- Progreso: los indicadores de la vista elegida, con su minigráfica del periodo -- */
+    const views = () => KGT.views(state.tlViews), curView = () => { const vs = views(); return vs.find(v => v.id === u.pv) || vs[0]; };
+    const viewName = v => v.name || t('tlv_' + v.id);
+    const stLabel = st => t('tlSt_' + st);
+    const card = (id, main) => {
+      const { from, to } = R(), X = KGT.IND[id], x = tlVal(id, from, to), un = KGT.units(u.sc, from, to);
+      if (id === 'timeDist') {
+        const parts = x.parts || [], tot = parts.reduce((a, p) => a + p.h, 0);
+        return `<div class="tl-card ${main ? 'main' : ''}" data-ind="${id}"><span class="tl-c-l">${esc(t('tlI_' + id))}</span>${tot ? `<div class="tl-dist">${parts.map(p => `<i style="--w:${p.h / tot * 100}%;--c:${TL_KIND_C[p.kd] || '#8e8e93'}" title="${esc(tlKindName(p.kd))}"></i>`).join('')}</div><div class="tl-dist-l">${parts.map(p => `<span><i style="--c:${TL_KIND_C[p.kd] || '#8e8e93'}"></i>${esc(tlKindName(p.kd))} ${tfH(p.h)} h</span>`).join('')}</div>` : `<b class="tl-c-v na">—</b>`}<span class="tl-st" data-st="${x.st}">${esc(stLabel(x.st))}</span></div>`;
+      }
+      const sp = x.v != null && un.length > 1 && un.length <= 400 ? tlSpark(un.map(p => tlVal(id, p.from, p.to).v), X.group === 'money' ? 'var(--accent)' : undefined) : '';
+      return `<div class="tl-card ${main ? 'main' : ''}" data-ind="${id}"><span class="tl-c-l">${esc(t('tlI_' + id))}</span><b class="tl-c-v ${x.v == null ? 'na' : ''}">${x.st === 'locked' ? ico('lock', 'xs') : esc(tlFmt(id, x.v))}</b>${sp}<span class="tl-st" data-st="${x.st}">${esc(stLabel(x.st))}${X.agg === 'close' && x.v != null ? ' · ' + esc(t('tlAtClose')) : ''}</span></div>`;
+    };
+    const progress = () => {
+      const vs = views(), v = curView();
+      if (TLS.edit) {
+        const inV = new Set(v.ids);
+        return `<div class="tl-vchips">${vs.map(x => `<button class="chip sm ${x.id === v.id ? 'on' : ''}" data-tl-pv="${esc(x.id)}">${esc(viewName(x))}</button>`).join('')}</div>
+          <div class="tl-edit"><p class="muted small">${esc(t('tlEditHelp'))}</p>
+          <ol class="tl-ed-list">${v.ids.map((id, i) => `<li><span class="grow">${esc(t('tlI_' + id))}</span><button class="icon-btn sm ${v.main.includes(id) ? 'on' : ''}" data-tl-ed="main" data-id="${id}" aria-pressed="${v.main.includes(id)}" aria-label="${esc(t('tlMain'))}" title="${esc(t('tlMain'))}">${ico('star')}</button><button class="icon-btn sm" data-tl-ed="up" data-id="${id}" ${i ? '' : 'disabled'} aria-label="${esc(t('tlUp'))}">${ico('up')}</button><button class="icon-btn sm" data-tl-ed="down" data-id="${id}" ${i < v.ids.length - 1 ? '' : 'disabled'} aria-label="${esc(t('tlDown'))}">${ico('down')}</button><button class="icon-btn sm" data-tl-ed="hide" data-id="${id}" aria-label="${esc(t('tlHide'))}">${ico('eyeOff')}</button></li>`).join('')}</ol>
+          ${KGT.GROUPS.map(g => { const rest = KGT.INDICATORS.filter(x => x.group === g && !inV.has(x.id)); return rest.length ? `<div class="tl-ed-add"><span class="jr-h">${esc(t('tlG_' + g))}</span><div class="row wrap" style="gap:6px">${rest.map(x => `<button class="chip sm" data-tl-ed="add" data-id="${x.id}">${ico('plus', 'xs')} ${esc(t('tlI_' + x.id))}</button>`).join('')}</div></div>` : ''; }).join('')}
+          <div class="tl-ed-new"><input class="input" id="tl-vname" maxlength="40" placeholder="${esc(t('tlNewViewPh'))}"><button class="btn sm" data-tl-ed="new">${ico('plus', 'xs')} ${esc(t('tlNewView'))}</button></div>
+          <div class="row wrap" style="gap:8px;margin-top:10px">${vs.length > 1 ? `<button class="btn sm" data-tl-ed="del">${ico('trash', 'xs')} ${esc(t('tlDelView'))}</button>` : ''}<button class="btn sm" data-tl-ed="reset">${ico('refresh', 'xs')} ${esc(t('tlResetViews'))}</button><button class="btn sm primary" data-tl-ed="done">${ico('check', 'xs')} ${esc(t('tlDone'))}</button></div></div>`;
+      }
+      const order = [...v.main, ...v.ids.filter(id => !v.main.includes(id))];
+      return `<div class="tl-vchips">${vs.map(x => `<button class="chip sm ${x.id === v.id ? 'on' : ''}" data-tl-pv="${esc(x.id)}">${esc(viewName(x))}</button>`).join('')}<button class="chip sm ghost" data-tl-ed="edit">${ico('edit', 'xs')} ${esc(t('tlEdit'))}</button></div>
+        ${order.length ? `<div class="tl-cards">${order.map(id => card(id, v.main.includes(id))).join('')}</div>` : `<p class="muted small">${esc(t('tlViewEmpty'))}</p>`}
+        ${order.some(id => KGT.IND[id].ledger) && !ledgerOpen() ? `<p class="muted small">${ico('lock', 'xs')} ${esc(t('tlLockedHelp'))}</p>` : ''}`;
+    };
+    /* -- Comparar: el periodo elegido frente a otro -- */
+    const cmpRanges = () => {
+      const c = u.cmp, A = R();
+      if (c.mode === 'custom') { const LYR = KGT.range(u.sc === 'all' ? 'year' : u.sc, KGT.lastYear(u.sc === 'all' ? todayKey() : A.from), { ws: tfWs() }), a0 = c.a0 || A.from, a1 = c.a1 || A.to, b0 = c.b0 || LYR.from, b1 = c.b1 || LYR.to; return { A: { from: a0 <= a1 ? a0 : a1, to: a0 <= a1 ? a1 : a0 }, B: { from: b0 <= b1 ? b0 : b1, to: b0 <= b1 ? b1 : b0 } }; }
+      if (u.sc === 'all') return { A, B: null };
+      const at = c.mode === 'year' ? KGT.lastYear(u.at) : KGT.shift(u.sc, u.at, -1), B = KGT.range(u.sc, at, { ws: tfWs() }), tk = todayKey();
+      // Si el periodo elegido aún no ha acabado, el otro se corta en el mismo punto (1–4 de noviembre frente a 1–4 de octubre)
+      if (A.to > tk && A.from <= tk) { const cut = addDays(B.from, tlDaysBetween(A.from, tk)); if (cut < B.to) return { A, B: { from: B.from, to: cut }, cut: true }; }
+      return { A, B };
+    };
+    const compare = () => {
+      const c = u.cmp, { A, B, cut } = cmpRanges();
+      const head = `<div class="tl-vchips">${[['prev', 'tlCmpPrev'], ['year', 'tlCmpYear'], ['custom', 'tlCmpCustom']].map(([m, k]) => `<button class="chip sm ${c.mode === m ? 'on' : ''}" data-tl-cm="${m}" ${u.sc === 'all' && m !== 'custom' ? 'disabled' : ''}>${esc(t(k))}</button>`).join('')}</div>
+        ${c.mode === 'custom' ? `<div class="tl-cmp-in"><label><span>${esc(t('tlPeriodA'))}</span><span class="row" style="gap:6px"><input type="date" class="input" data-tl-ci="a0" value="${A.from}" max="${todayKey()}"><input type="date" class="input" data-tl-ci="a1" value="${A.to}"></span></label><label><span>${esc(t('tlPeriodB'))}</span><span class="row" style="gap:6px"><input type="date" class="input" data-tl-ci="b0" value="${B.from}" max="${todayKey()}"><input type="date" class="input" data-tl-ci="b1" value="${B.to}"></span></label></div>` : ''}`;
+      if (!B) return head + `<p class="muted small">${esc(t('tlCmpAllHelp'))}</p>`;
+      const ids = KGT.INDICATORS.filter(x => !x.noCompare).map(x => x.id);
+      // Se compara lo que se ve: porcentajes enteros, valoración con un decimal y dinero en céntimos
+      const rd = (id, v) => { if (v == null) return v; const f = KGT.IND[id].fmt; return f === 'pct' ? Math.round(v) : f === 'rate' ? Math.round(v * 10) / 10 : f === 'money' ? Math.round(v * 100) / 100 : Math.round(v * 100) / 100; };
+      const all = ids.map(id => { const a = tlVal(id, B.from, B.to), b = tlVal(id, A.from, A.to); return { id, a, b, c: KGT.compare(rd(id, a.v), rd(id, b.v), KGT.IND[id].better) }; });
+      const locked = all.some(r => r.a.st === 'locked'), rows = all.filter(r => r.a.st !== 'locked' && (r.a.v != null || r.b.v != null));
+      const dcell = r => {
+        if (r.c.dir === 'na') return `<span role="cell" class="tl-d na">${esc(t('tlNoDataS'))}</span>`;
+        if (r.c.dir === 'same') return `<span role="cell" class="tl-d same">${esc(t('tlSame'))}</span>`;
+        const cls = r.c.good == null ? 'neu' : r.c.good ? 'good' : 'bad', pct = r.c.pct == null ? (r.a.v === 0 ? `<small>${esc(t('tlNew'))}</small>` : '') : `<small>${r.c.pct > 0 ? '+' : '−'}${fmtNum(Math.round(Math.abs(r.c.pct)))} %</small>`;
+        return `<span role="cell" class="tl-d ${cls}">${ico(r.c.dir === 'up' ? 'up' : 'down', 'xs')} ${esc(KGT.IND[r.id].fmt === 'pct' ? (r.c.diff > 0 ? '+' : '−') + fmtNum(Math.round(Math.abs(r.c.diff))) + ' pt' : tlDiffFmt(r.id, r.c.diff))}${KGT.IND[r.id].fmt === 'pct' ? '' : pct}</span>`;
+      };
+      const aTo = A.to > todayKey() ? todayKey() : A.to;
+      return head + `<div class="tl-cmp" role="table"><div class="tl-cr tl-ch" role="row"><i class="tl-hc"></i><span role="columnheader">${esc(tlRangeLabel(B.from, B.to))}</span><span role="columnheader">${esc(tlRangeLabel(A.from, aTo))}</span><span role="columnheader">${esc(t('tlDiff'))}</span></div>
+        ${rows.map(r => `<div class="tl-cr" role="row"><b class="tl-cn" role="rowheader">${esc(t('tlI_' + r.id))}</b><span role="cell">${esc(tlFmt(r.id, r.a.v))}</span><span role="cell">${esc(tlFmt(r.id, r.b.v))}</span>${dcell(r)}</div>`).join('')}</div>
+        ${rows.length ? '' : `<p class="muted small">${esc(t('tlNoData'))}</p>`}${cut ? `<p class="muted small">${ico('info', 'xs')} ${esc(t('tlCmpCut'))}</p>` : ''}${locked ? `<p class="muted small">${ico('lock', 'xs')} ${esc(t('tlLockedHelp'))}</p>` : ''}<p class="muted small">${esc(t('tlCmpHelp'))}</p>`;
+    };
+    const panel = () => u.panel === 'compare' ? compare() : progress();
+    /* -- La barra de tiempo: todo el historial, con los acontecimientos y el periodo elegido -- */
+    const track = () => {
+      const tk = todayKey(), first = tlFirstKey(), { from, to } = R(), p0 = KGT.posOf(from < first ? first : from, first, tk), p1 = KGT.posOf(to > tk ? tk : to, first, tk);
+      const ys = []; for (let y = +first.slice(0, 4) + 1; y <= +tk.slice(0, 4); y++) ys.push(y);
+      const mks = tlMarks().filter(m => m.date >= first && m.date <= tk);
+      return `<div class="tl-track" id="tl-track" role="slider" tabindex="0" aria-label="${esc(t('tlTrackAria'))}" aria-valuetext="${esc(tlLabel(u.sc, from, to))}">
+        <span class="tl-rail"></span>${ys.map(y => `<span class="tl-yt" style="--x:${KGT.posOf(y + '-01-01', first, tk) * 100}%">${y}</span>`).join('')}
+        ${mks.map(m => `<i class="tl-mk" data-k="${m.kind}" style="--x:${KGT.posOf(m.date, first, tk) * 100}%"></i>`).join('')}
+        <span class="tl-win" style="--a:${p0 * 100}%;--b:${p1 * 100}%"></span><span class="tl-knob" style="--x:${(p0 + p1) / 2 * 100}%"></span></div>`;
+    };
+    const head = () => {
+      const { from, to } = R(), tk = todayKey(), cur = from <= tk && tk <= to, mk = tlMarks(), prevM = KGT.nextMark(mk, from, to, -1), nextM = KGT.nextMark(mk, from, to, 1);
+      return `<div class="tl-top"><div class="seg seg-sm tl-sc" role="group" aria-label="${esc(t('tlScaleAria'))}">${KGT.SCALES.map(s => `<button data-tl-sc="${s}" class="${u.sc === s ? 'on' : ''}" aria-pressed="${u.sc === s}">${esc(t('tlSc_' + s))}</button>`).join('')}</div>
+          ${u.sc === 'week' ? `<button class="icon-btn sm jr-ax" data-jr-ax aria-pressed="${ax === 'h'}" aria-label="${esc(t(ax === 'h' ? 'jrAxisH' : 'jrAxisV'))}" title="${esc(t(ax === 'h' ? 'jrAxisH' : 'jrAxisV'))}">${jrAxisIco()}</button>` : ''}</div>
+        <div class="tl-nav"><button class="icon-btn sm" data-tl-step="-1" ${u.sc === 'all' || from <= tlFirstKey() ? 'disabled' : ''} aria-label="${esc(t('tlPrev'))}" title="${esc(t('tlPrev'))}">${ico('left')}</button>
+          <label class="tl-lbl"><span>${esc(tlLabel(u.sc, from, to))}</span>${u.sc === 'week' ? `<small>${esc(t('jrWeekN', { n: tfWeekNo(from) }))}</small>` : ''}<input type="date" id="tl-date" value="${u.at}" min="${tlFirstKey()}" max="${tk}" aria-label="${esc(t('tlPickDate'))}"></label>
+          <button class="icon-btn sm" data-tl-step="1" ${u.sc === 'all' || to >= tk ? 'disabled' : ''} aria-label="${esc(t('tlNext'))}" title="${esc(t('tlNext'))}">${ico('right')}</button></div>
+        <div class="tl-jumps">${cur || u.sc === 'all' ? '' : `<button class="chip sm" data-tl-today>${esc(t('tfToday'))}</button>`}${u.sc !== 'all' && prevM ? `<button class="chip sm ghost" data-tl-mk="${prevM}">${ico('left', 'xs')} ${esc(t('tlPrevMark'))}</button>` : ''}${u.sc !== 'all' && nextM ? `<button class="chip sm ghost" data-tl-mk="${nextM}">${esc(t('tlNextMark'))} ${ico('right', 'xs')}</button>` : ''}</div>`;
+    };
+    const body = () => `<div id="tl-head">${head()}</div>${track()}<div class="tl-main" id="tl-main" data-sc="${u.sc}">${mainView()}</div><div id="tl-sbox">${statsBox()}</div>
+      <div class="seg tl-panels" role="tablist">${[['progress', 'chart', 'tlProgress'], ['compare', 'compare', 'tlCompare']].map(([p, ic, k]) => `<button role="tab" data-tl-panel="${p}" class="${u.panel === p ? 'on' : ''}" aria-selected="${u.panel === p}">${ico(ic, 'xs')} ${esc(t(k))}</button>`).join('')}</div>
+      <section class="tl-panel" id="tl-panel">${panel()}</section>`;
+    const html = `<div class="jr tl" data-ax="${ax}" data-sc="${u.sc}"><div class="tl-bg" aria-hidden="true"><div class="jr-grid"></div></div><div class="tl-in" id="tl-in">${body()}</div></div>`;
+    /* -- pintar de nuevo solo lo que cambia -- */
+    const swap = (sel, h) => { const el = wref && $(sel, wref); if (el) el.outerHTML = h; };
+    const redraw = (opt = {}) => {
+      if (!wref) return;
+      const root = $('.tl', wref); root.dataset.sc = u.sc;
+      $('#tl-head', wref).innerHTML = head();
+      const tr = $('#tl-track', wref);
+      if (tr && opt.track !== 'full') { const tk = todayKey(), first = tlFirstKey(), { from, to } = R(), p0 = KGT.posOf(from < first ? first : from, first, tk), p1 = KGT.posOf(to > tk ? tk : to, first, tk); $('.tl-win', tr).style.cssText = `--a:${p0 * 100}%;--b:${p1 * 100}%`; $('.tl-knob', tr).style.cssText = `--x:${(p0 + p1) / 2 * 100}%`; tr.setAttribute('aria-valuetext', tlLabel(u.sc, from, to)); }
+      else swap('#tl-track', track());
+      const m = $('#tl-main', wref);
+      if (u.sc !== 'week' || opt.full || !$('#jr-stage', m)) { m.dataset.sc = u.sc; m.innerHTML = mainView(); if (u.sc === 'week') place(); if (!reducedMotion()) { m.classList.remove('tl-pop'); void m.offsetWidth; m.classList.add('tl-pop'); } }
+      else place();
+      $('#tl-sbox', wref).innerHTML = statsBox();
+      if (!opt.keepPanel) $('#tl-panel', wref).innerHTML = panel();
+    };
+    let rT = 0;
+    const setAt = (k, opt = {}) => {
+      const tk = todayKey(); k = k > tk ? tk : k < tlFirstKey() && u.sc !== 'day' ? tlFirstKey() : k;
+      if (k === u.at && !opt.force) return;
+      flush(); u.at = k; f = weekIdx(k); save();
+      if (opt.lazy) { cancelAnimationFrame(rT); rT = requestAnimationFrame(() => redraw()); } else redraw();
+    };
+    const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; vibrate(5); sfx('tap'); setAt(nf === 0 ? todayKey() : weeks[nf]); };
+    const setScale = sc => { if (sc === u.sc) return; const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx('tap'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
     const flush = () => { if (!saveT) return; clearTimeout(saveT); saveT = 0; const ta = wref && $('#jr-note', wref); if (ta) commit(ta.value); };
-    const commit = v => { const w = tfWeekKeys(weeks[f])[0], had = Object.keys(state.jrNotes || {}).length; jrSetNote(w, v); save(); if (v.trim()) firstTime('journal', !had); const st = wref && $('#jr-note-st', wref); if (st) st.textContent = t('saved'); const fr = wref && $(`.jr-f[data-jr-i="${f}"]`, wref); if (fr) { fr.outerHTML = frame(weeks[f], f); place(false); } };
+    const commit = v => {
+      const w = tfWeekKeys(weeks[f])[0], had = Object.keys(state.jrNotes || {}).length; jrSetNote(w, v); save(); if (v.trim()) firstTime('journal', !had);
+      const st = wref && $('#jr-note-st', wref); if (st) st.textContent = t('saved');
+      const fr = wref && $(`.jr-f[data-jr-i="${f}"]`, wref); if (fr) { fr.outerHTML = frame(weeks[f], f); place(); }
+    };
     const setAxis = a => {
       ax = a; try { localStorage.setItem(JR_AXIS_KEY, a); } catch (e) { /* nada */ }
       const root = wref && $('.jr', wref); if (root) root.dataset.ax = a;
       const b = wref && $('[data-jr-ax]', wref); if (b) { b.setAttribute('aria-pressed', a === 'h'); b.title = b.ariaLabel = t(a === 'h' ? 'jrAxisH' : 'jrAxisV'); }
-      vibrate(8); sfx('toggle'); place(false);
+      vibrate(8); sfx('toggle'); place();
     };
-    const html = `<div class="jr jr-tab" data-ax="${ax}"><div class="jr-grid" aria-hidden="true"></div>
-        <div class="jr-top"><h1 class="page-title grow" style="margin:0">${esc(t('jrTitle'))}</h1>
-          <button class="icon-btn sm jr-nav" data-jr-step="1" aria-label="${esc(t('jrOlder'))}" title="${esc(t('jrOlder'))}">${ico('left')}</button><button class="icon-btn sm jr-nav" data-jr-step="-1" aria-label="${esc(t('jrNewer'))}" title="${esc(t('jrNewer'))}">${ico('right')}</button>
-          <button class="icon-btn sm jr-ax" data-jr-ax aria-pressed="${ax === 'h'}" aria-label="${esc(t(ax === 'h' ? 'jrAxisH' : 'jrAxisV'))}" title="${esc(t(ax === 'h' ? 'jrAxisH' : 'jrAxisV'))}">${jrAxisIco()}</button></div>
-        <div class="jr-years" role="tablist">${years.map(y => `<button class="chip sm" role="tab" data-jr-y="${y}">${y}</button>`).join('')}</div>
-        <div class="jr-stage" id="jr-stage">${weeks.map((w, i) => frame(w, i)).join('')}</div>
-        <input type="range" class="jr-rng" id="jr-rng" min="0" max="${Math.max(0, weeks.length - 1)}" value="${weeks.length - 1}" aria-label="${esc(t('jrScrub'))}">
-        <section class="jr-d clay" id="jr-d" aria-live="polite"></section></div>`;
+    // Editar las vistas de Progreso: se guarda la lista entera (las de serie pasan a ser tuyas al tocarlas)
+    const editView = (op, id) => {
+      const vs = views(), v = vs.find(x => x.id === curView().id);
+      if (op === 'edit') TLS.edit = true;
+      else if (op === 'done') TLS.edit = false;
+      else if (op === 'reset') { state.tlViews = []; u.pv = 'general'; }
+      else if (op === 'del') { const i = vs.indexOf(v); vs.splice(i, 1); state.tlViews = vs; u.pv = vs[0].id; }
+      else if (op === 'new') { const inp = $('#tl-vname', wref), name = (inp && inp.value.trim()) || t('tlMyView'); const nv = { id: 'v' + uid().replace(/[^A-Za-z0-9]/g, ''), name, ids: [...v.ids], main: [...v.main] }; vs.push(nv); state.tlViews = vs.slice(0, 20); u.pv = nv.id; }
+      else {
+        const i = v.ids.indexOf(id);
+        if (op === 'add' && i < 0) v.ids.push(id);
+        if (op === 'hide' && i >= 0) { v.ids.splice(i, 1); v.main = v.main.filter(x => x !== id); }
+        if ((op === 'up' && i > 0) || (op === 'down' && i >= 0 && i < v.ids.length - 1)) { const j = op === 'up' ? i - 1 : i + 1; [v.ids[i], v.ids[j]] = [v.ids[j], v.ids[i]]; }
+        if (op === 'main' && i >= 0) v.main = v.main.includes(id) ? v.main.filter(x => x !== id) : [...v.main, id].slice(-4);
+        state.tlViews = vs;
+      }
+      save(); sfx('tap'); $('#tl-panel', wref).innerHTML = panel();
+    };
     const mount = w => {
-      wref = w; place();
-      const st = $('#jr-stage', w);
-      st.addEventListener('wheel', e => { e.preventDefault(); if (Date.now() - wheelT < 120) return; wheelT = Date.now(); const dv = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; go(f + (dv > 0 ? 1 : -1)); }, { passive: false });
+      wref = w; if (u.sc === 'week') place();
+      // instantáneas de las semanas cerradas, cuando el navegador esté libre
+      (window.requestIdleCallback || (fn => setTimeout(fn, 800)))(() => { try { tlSnapWeeks(weeks); } catch (e) { /* nada */ } });
+      const main = $('#tl-main', w);
+      main.addEventListener('wheel', e => { if (u.sc !== 'week' || !e.target.closest('#jr-stage')) return; e.preventDefault(); if (Date.now() - wheelT < 120) return; wheelT = Date.now(); const dv = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; go(f + (dv > 0 ? 1 : -1)); }, { passive: false });
       let p0 = null;
-      st.addEventListener('pointerdown', e => { p0 = { x: e.clientX, y: e.clientY }; });
-      st.addEventListener('pointermove', e => {
+      main.addEventListener('pointerdown', e => { if (u.sc === 'week' && e.target.closest('#jr-stage')) p0 = { x: e.clientX, y: e.clientY }; });
+      main.addEventListener('pointermove', e => {
         if (!p0) return; const dx = e.clientX - p0.x, dy = e.clientY - p0.y;
         if (ax === 'h' && Math.abs(dx) > 40) { go(f + (dx > 0 ? 1 : -1)); p0 = { x: e.clientX, y: e.clientY }; }
         else if (ax === 'v' && Math.abs(dy) > 40) { go(f + (dy < 0 ? 1 : -1)); p0 = { x: e.clientX, y: e.clientY }; }
       });
-      const up = () => { p0 = null; }; st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
-      w.addEventListener('keydown', e => { if (!e.target.closest('.jr') || e.target.closest('textarea')) return; if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); go(f + 1); } if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); go(f - 1); } });
-      $('#jr-rng', w).addEventListener('input', e => go(weeks.length - 1 - +e.target.value));
+      const up = () => { p0 = null; }; main.addEventListener('pointerup', up); main.addEventListener('pointercancel', up);
+      // Barra de tiempo: tocar o arrastrar elige la fecha; con el teclado, flechas
+      const trackAt = e => { const tr = $('#tl-track', w); if (!tr) return; const r = tr.getBoundingClientRect(); setAt(KGT.keyAt((e.clientX - r.left) / r.width, tlFirstKey(), todayKey()), { lazy: true }); };
+      w.addEventListener('pointerdown', e => { if (!e.target.closest('#tl-track') || u.sc === 'all') return; dragging = true; e.target.closest('#tl-track').setPointerCapture?.(e.pointerId); trackAt(e); });
+      w.addEventListener('pointermove', e => { if (dragging) trackAt(e); });
+      const end = () => { if (dragging) { dragging = false; vibrate(5); } }; w.addEventListener('pointerup', end); w.addEventListener('pointercancel', end);
+      w.addEventListener('keydown', e => {
+        if (!e.target.closest('.tl') || e.target.closest('textarea, input')) return;
+        const back = e.key === 'ArrowLeft' || (u.sc === 'week' && e.key === 'ArrowUp'), fwd = e.key === 'ArrowRight' || (u.sc === 'week' && e.key === 'ArrowDown');
+        if (back || fwd) { e.preventDefault(); setAt(KGT.shift(u.sc, u.at, back ? -1 : 1)); }
+      });
+      w.addEventListener('change', e => {
+        if (e.target.id === 'tl-date' && KGT.isKey(e.target.value)) { setAt(e.target.value); return; }
+        const ci = e.target.closest('[data-tl-ci]'); if (ci && KGT.isKey(ci.value)) { u.cmp[ci.dataset.tlCi] = ci.value; save(); $('#tl-panel', w).innerHTML = panel(); }
+      });
+      w.addEventListener('toggle', e => { if (e.target.id === 'tl-stats') { u.open = e.target.open; save(); } }, true);
       w.addEventListener('input', e => { if (e.target.id !== 'jr-note') return; const st2 = $('#jr-note-st', w); if (st2) st2.textContent = ''; clearTimeout(saveT); const v = e.target.value; saveT = setTimeout(() => { saveT = 0; commit(v); }, 700); });
       w.addEventListener('focusout', e => { if (e.target.id === 'jr-note') flush(); });
       w.addEventListener('click', e => {
+        if (!e.target.closest('.tl')) return;
         if (e.target.closest('[data-jr-ax]')) { setAxis(ax === 'h' ? 'v' : 'h'); return; }
-        const sb = e.target.closest('[data-jr-step]'); if (sb) { go(f + +sb.dataset.jrStep); return; }
+        const sc = e.target.closest('[data-tl-sc]'); if (sc) { setScale(sc.dataset.tlSc); return; }
+        const st = e.target.closest('[data-tl-step]'); if (st) { vibrate(5); sfx('tap'); setAt(KGT.shift(u.sc, u.at, +st.dataset.tlStep)); return; }
+        if (e.target.closest('[data-tl-today]')) { setAt(todayKey()); return; }
+        const mk = e.target.closest('[data-tl-mk]'); if (mk) { sfx('tap'); setAt(mk.dataset.tlMk); return; }
+        const lb = e.target.closest('.tl-lbl'); if (lb) { const di = $('#tl-date', w); if (di && di.showPicker) { e.preventDefault(); try { di.showPicker(); } catch (er) { di.focus(); } } return; }
+        const gt = e.target.closest('[data-tl-go]'); if (gt) { flush(); u.at = gt.dataset.k > todayKey() ? todayKey() : gt.dataset.k; f = weekIdx(u.at); setScale(gt.dataset.tlGo); return; }
+        const nt = e.target.closest('[data-tl-note]'); if (nt && nt.closest('.jr-f.on')) { u.open = true; const sb = $('#tl-stats', w); if (sb) { sb.open = true; const ta = $('#jr-note', w); if (ta) { ta.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); ta.focus({ preventScroll: true }); } } return; }
         const fr = e.target.closest('[data-jr-i]'); if (fr) { go(+fr.dataset.jrI); return; }
-        const yb = e.target.closest('[data-jr-y]'); if (yb) { const i = weeks.findIndex(x => tfWeekKeys(x)[6].slice(0, 4) === yb.dataset.jrY); if (i >= 0) go(i); }
+        const pn = e.target.closest('[data-tl-panel]'); if (pn) { u.panel = pn.dataset.tlPanel; save(); sfx('tap'); $$('[data-tl-panel]', w).forEach(b => { b.classList.toggle('on', b === pn); b.setAttribute('aria-selected', b === pn); }); $('#tl-panel', w).innerHTML = panel(); return; }
+        const pv = e.target.closest('[data-tl-pv]'); if (pv) { u.pv = pv.dataset.tlPv; save(); sfx('tap'); $('#tl-panel', w).innerHTML = panel(); return; }
+        const ed = e.target.closest('[data-tl-ed]'); if (ed) { editView(ed.dataset.tlEd, ed.dataset.id); return; }
+        const cm = e.target.closest('[data-tl-cm]'); if (cm) { u.cmp.mode = cm.dataset.tlCm; save(); sfx('tap'); $('#tl-panel', w).innerHTML = panel(); }
       });
     };
     return { html, mount };
   }
-  // v1.27: el Diario es una pestaña propia (sexta luna del orbe)
+  // v1.27: el Diario es una pestaña propia (sexta luna del orbe); v1.35: ahora es la Línea de tiempo
   let JR = null;
-  function viewJournal() { tfEnsure(); JR = makeJournal(); return topBar() + JR.html; }
+  function viewJournal() { tfEnsure(); JR = makeTimeline(); return topBar() + JR.html; }
   /* ---------- v1.30: GIMNASIO (séptima luna del orbe) ----------
      Registro de entrenamientos inspirado en openGym, escrito para KeepGoing (lógica en js/gym.js → KGGym).
      Rutinas, entrenamiento en directo con series (kg × reps, segundos o km), descanso con cuenta atrás, récords,
@@ -3023,7 +3418,7 @@
      ========================================================= */
   let lastView = null, lastTabIdx = -1;
   // Pestañas: Hábitos y Proyectos (con Gráficos dentro), Libreta y Maestrías
-  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['cal', 'calendar', 'tabCalendar'], ['journal', 'book', 'jrTab'], ['gym', 'dumbbell', 'gyTab'], ['ledger', 'wallet', 'tabLedger'], ['chat', 'chat', 'tabChat'], ['mastery', 'crown', 'tabMastery']];
+  const TABS = [['habits', 'checklist', 'tabHabitsProjects'], ['cal', 'calendar', 'tabCalendar'], ['journal', 'timeline', 'jrTab'], ['gym', 'dumbbell', 'gyTab'], ['ledger', 'wallet', 'tabLedger'], ['chat', 'chat', 'tabChat'], ['mastery', 'crown', 'tabMastery']];
   const HVIEWS = [['today', 'sun', 'viewToday'], ['all', 'checklist', 'viewAll'], ['challenges', 'flag', 'viewChallenges']];
   const habitsView = () => HVIEWS.some(v => v[0] === state.ui.habitsView) ? state.ui.habitsView : 'all';
   const openFolder = () => { const p = state.ui.folder && state.projects.find(x => x.id === state.ui.folder); return p && habitsView() === 'all' ? p : null; };
@@ -5028,7 +5423,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
