@@ -1454,7 +1454,8 @@
   const lwLL = (p, g) => { if (p && p.lat != null && p.lon != null) return { lat: +p.lat, lon: +p.lon }; const c = g && g.cc && (LW.countries || []).find(x => x.a2 === g.cc); return c ? KGWorld.centerOf(c) : null; };
   // v1.40: Medio de transporte de un turno (lo pone el turno del día; si no, la plantilla del turno). Horas 'HH:MM' de salida y llegada
   const lwHM = v => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : '';
-  const lwTrOf = (s, e) => { const tr = KGWorld.okTransport(e.tr) ? e.tr : KGWorld.okTransport(s.tr) ? s.tr : ''; return tr ? { tr, trDep: lwHM(e.trDep) || lwHM(s.trDep), trArr: lwHM(e.trArr) || lwHM(s.trArr) } : { tr: '' }; };
+  // e.tr = '-' (v1.39): ese día sin transporte aunque la plantilla del turno lo tenga
+  const lwTrOf = (s, e) => { if (e.tr === '-') return { tr: '' }; const tr = KGWorld.okTransport(e.tr) ? e.tr : KGWorld.okTransport(s.tr) ? s.tr : ''; return tr ? { tr, trDep: lwHM(e.trDep) || lwHM(s.trDep), trArr: lwHM(e.trArr) || lwHM(s.trArr) } : { tr: '' }; };
   // Lo registrado del periodo (hasta hoy): turnos y eventos con su lugar y «cómo llegaste», y los entrenos hechos
   function lwItems(from, to) {
     return cached(`lw${from}${to}${LW.countries ? 1 : 0}`, () => {
