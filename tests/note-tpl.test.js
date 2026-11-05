@@ -66,3 +66,13 @@ test('Plantillas: totales del periodo', () => {
   assert.deepEqual(g.fields.find(f => f.id === 'effort'), { id: 'effort', label: 'Esfuerzo', kind: 'avg', value: 7.5 });
   assert.deepEqual(g.fields.find(f => f.id === 'kind').value, [['Cardio', 2]]);
 });
+
+test('v1.39: notas modulares con secuencias', () => {
+  const NT = require('../js/note-tpl.js');
+  const p = NT.sanitizeTpl({ id: 'nm1', kind: 'mod', name: 'Conocer', fields: [{ id: 'a', label: 'Conocer a' }, { id: 'b', label: 'en el lugar' }, { id: 'c', label: '' }] });
+  assert.strictEqual(p.kind, 'mod'); assert.strictEqual(p.fields.length, 3); assert.strictEqual(p.icon, 'list');
+  assert.strictEqual(NT.summary(p, NT.sanitizeVals(p, { a: 'Ana', b: 'Bar Pepe' })), 'Conocer a Ana → en el lugar Bar Pepe');
+  assert.strictEqual(NT.summary(p, { b: 'Bar', c: 'feliz' }, 'genial'), 'en el lugar Bar → feliz — genial');
+  assert.strictEqual(NT.sanitizeTpl({ id: 'nm2', kind: 'mod', name: 'X', fields: [] }), null);
+  assert.strictEqual(NT.sanitizeTpl({ id: 'nm3', kind: 'mod', name: 'X', fields: Array.from({ length: 20 }, (_, i) => ({ id: 's' + i, label: 'p' })) }).fields.length, 12);
+});

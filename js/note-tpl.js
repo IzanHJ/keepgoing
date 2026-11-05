@@ -6,7 +6,9 @@
      goals: la meta de cada valor de «key» (p. ej. { dune: 600 } páginas), con la clave en minúsculas y sin espacios de más.
    Una nota con plantilla vive en state.calGaps[fecha] como { a, b, t, tp, v, x }:
      a / b: horas 'HH:MM' o '' si es del día entero; tp: id de la plantilla; v: { idCampo: valor }; x: texto libre;
-     t: el resumen ya escrito («Leer · Dune · 30 págs»), para que se vea igual en todas partes (Día, Mes, «Ver más» y PDF). */
+     t: el resumen ya escrito («Leer · Dune · 30 págs»), para que se vea igual en todas partes (Día, Mes, «Ver más» y PDF).
+   v1.39: Notas modulares = plantilla con kind: 'mod'. Sus fields son las secuencias, en orden: label es el texto fijo que va antes
+   del hueco («Conocer a», «en el lugar») y siempre son de texto. La nota se lee «Conocer a Ana → en el lugar Bar Pepe». */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -15,7 +17,7 @@
   'use strict';
   const TYPES = ['text', 'num', 'bool', 'rate', 'pick'];
   const ICONS = ['doc', 'book', 'dumbbell', 'cap', 'heart', 'calendar', 'clock', 'pin', 'users', 'sparkle', 'target', 'flame', 'smile', 'play', 'tag', 'list'];
-  const LIM = { tpls: 30, fields: 8, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, extra: 300, sum: 500 };
+  const LIM = { tpls: 30, fields: 8, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, extra: 300, sum: 500 };
   const str = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
   const keyOf = v => str(v, LIM.text).toLowerCase();
   const isHex = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
@@ -39,6 +41,14 @@
     if (!t || typeof t !== 'object' || !idOk(t.id)) return null;
     const name = str(t.name, LIM.name); if (!name) return null;
     const ids = new Set();
+    if (t.kind === 'mod') {
+      const steps = (Array.isArray(t.fields) ? t.fields : []).filter(f => f && typeof f === 'object').map((f, i) => ({ id: idOk(f.id) ? f.id : 's' + i, label: str(f.label, LIM.label), type: 'text' }))
+        .filter(f => !ids.has(f.id) && ids.add(f.id)).slice(0, LIM.steps);
+      if (!steps.length) return null;
+      const o = { id: t.id, kind: 'mod', name, icon: ICONS.includes(t.icon) ? t.icon : 'list', color: isHex(t.color) ? t.color : '#7c8cff', fields: steps, prog: null, goals: {} };
+      if (Number.isFinite(t.mt)) o.mt = t.mt;
+      return o;
+    }
     const fields = (Array.isArray(t.fields) ? t.fields : []).map(sanitizeField).filter(f => f && !ids.has(f.id) && ids.add(f.id)).slice(0, LIM.fields);
     const out = { id: t.id, name, icon: ICONS.includes(t.icon) ? t.icon : 'doc', color: isHex(t.color) ? t.color : '#7c8cff', fields, prog: null, goals: {} };
     const p = t.prog && typeof t.prog === 'object' ? t.prog : null;
@@ -66,7 +76,13 @@
   const fmtDef = n => String(r2(n));
   // Resumen de una nota: «Leer · Dune · 30 págs — me encantó»
   function summary(tpl, v, extra, fmt) {
-    fmt = fmt || fmtDef; const parts = [tpl.name];
+    fmt = fmt || fmtDef;
+    if (tpl.kind === 'mod') {
+      const seq = tpl.fields.map(f => { const x = v && v[f.id]; return x === undefined ? '' : (f.label ? f.label + ' ' : '') + x; }).filter(Boolean);
+      const e0 = str(extra, LIM.extra);
+      return ((seq.length ? seq.join(' → ') : tpl.name) + (e0 ? ' — ' + e0 : '')).slice(0, LIM.sum);
+    }
+    const parts = [tpl.name];
     for (const f of tpl.fields) {
       const x = v && v[f.id]; if (x === undefined) continue;
       if (f.type === 'text' || f.type === 'pick') parts.push(x);
