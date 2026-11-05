@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.38.0';
+  const VERSION = '1.39.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -98,6 +98,9 @@
   /* ---------- iconos (SVG en línea) ---------- */
   const ICONS = {
     timeline: '<path d="M3 12h18"/><circle cx="7" cy="12" r="2.2"/><circle cx="16" cy="12" r="2.2"/><path d="M7 4.5v5M16 14.5v5M11.5 7v3"/>',
+    volume: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+    music: '<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+    headphones: '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3.5" y="14" width="4" height="6.5" rx="1.6"/><rect x="16.5" y="14" width="4" height="6.5" rx="1.6"/>',
     dumbbell: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
     brush: '<path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/>',
     reply: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
@@ -662,7 +665,32 @@
     checkSecrets();
   }
   /* ---------- respuesta al marcar: sonido, «+puntos» y subida de nivel ---------- */
-  const sfx = name => { if (window.KGSound) { KGSound.setEnabled(state.soundOn !== false); KGSound.play(name); } };
+  /* v1.39: sonido. Los efectos (soundOn) se sincronizan; música, audio espacial, volúmenes y ambiente van por dispositivo
+     (localStorage keepgoing.audio), como «Animaciones». La música toma el ambiente de la pestaña abierta. */
+  const AUDIO_KEY = 'keepgoing.audio', AUDIO_DEF = { music: false, spatial: true, adaptive: true, sfxVol: .7, musicVol: .45, mood: 'auto' };
+  const audioPrefs = () => { try { return { ...AUDIO_DEF, ...JSON.parse(localStorage.getItem(AUDIO_KEY) || '{}') }; } catch (e) { return { ...AUDIO_DEF }; } };
+  const audioSync = () => { if (window.KGSound) KGSound.configure({ ...audioPrefs(), sfx: state.soundOn !== false }); };
+  const setAudioPref = (k, v) => { const p = audioPrefs(); p[k] = v; try { localStorage.setItem(AUDIO_KEY, JSON.stringify(p)); } catch (e) { /* sin almacenamiento */ } audioSync(); };
+  // Ajustes → Sonido: efectos, música relajante, audio espacial, adaptación, volúmenes y ambiente
+  const audioHint = () => { const a = audioPrefs(), on = state.soundOn !== false; return [on ? t('soundOn') : t('soundOff'), a.music ? t('auMusicOn') : ''].filter(Boolean).join(' · '); };
+  const auHintRefresh = w => { const sm = $('[data-acc="sound"] summary small', w); if (sm) sm.textContent = audioHint(); };
+  function audioSettingsHtml() {
+    const a = audioPrefs(), on = state.soundOn !== false;
+    const sw = (attr, chk, title, hint, icon) => `<label class="row au-row" style="gap:14px"><span class="switch"><input type="checkbox" ${attr} ${chk ? 'checked' : ''}><span></span></span><span class="au-ico">${ico(icon)}</span><span class="grow"><b>${esc(title)}</b><br><span class="muted small">${esc(hint)}</span></span></label>`;
+    const vol = (k, label) => `<label class="field au-vol"><span>${esc(label)} <b data-au-v="${k}">${Math.round(a[k] * 100)}%</b></span><input type="range" min="0" max="100" step="5" value="${Math.round(a[k] * 100)}" data-au-vol="${k}" aria-label="${esc(label)}"></label>`;
+    return `<div class="stack au" style="gap:14px">
+      ${sw('data-s-sound', on, t('soundLabel'), t('auSfxHint'), 'volume')}
+      ${sw('data-au="music"', a.music, t('auMusic'), t('auMusicHint'), 'music')}
+      ${sw('data-au="spatial"', a.spatial, t('auSpatial'), t('auSpatialHint'), 'headphones')}
+      ${sw('data-au="adaptive"', a.adaptive, t('auAdaptive'), t('auAdaptiveHint'), 'sparkle')}
+      ${vol('sfxVol', t('auSfxVol'))}${vol('musicVol', t('auMusicVol'))}
+      <div class="field"><span>${esc(t('auMood'))}</span><div class="seg au-mood" role="group">${KGSound.theory.MOOD_CHOICES.map(m => `<button type="button" data-au-mood="${m}" class="${a.mood === m ? 'on' : ''}">${esc(t('auMood_' + m))}</button>`).join('')}</div><span class="muted small" style="text-transform:none;letter-spacing:0">${esc(t('auMoodHint'))}</span></div>
+      <div class="row wrap" style="gap:8px"><button class="chip" data-s-sound-test>${ico('play')} ${esc(t('soundTest'))}</button><button class="chip" data-au-test="spatial">${ico('headphones')} ${esc(t('auTestSpatial'))}</button><button class="chip" data-au-test="new">${ico('sparkle')} ${esc(t('auTestNew'))}</button></div>
+      <p class="muted small" style="margin:0">${esc(t('auDevice'))}</p></div>`;
+  }
+  const audioMood = (name, extra) => { if (window.KGSound) KGSound.mood(name, extra); };
+  const sfx = (name, arg) => { if (window.KGSound) { if (KGSound.enabled !== (state.soundOn !== false)) audioSync(); KGSound.play(name, arg); } };
+  audioSync();
   // v1.27.2: ajuste «Animaciones» por dispositivo: 'auto' (según el sistema), 'on' (siempre) u 'off' (reducidas).
   // Con 'auto' y Reducir movimiento activado en el sistema, la app usa fundidos suaves (data-motion="soft").
   const MOTION_KEY = 'keepgoing.motion', sysMotionMq = matchMedia('(prefers-reduced-motion: reduce)');
@@ -738,14 +766,14 @@
   }
   /* v1.29: misma puesta en escena que el día perfecto para otros momentos (primer registro de una pestaña…).
      inner = HTML del centro; los <b data-cnt> cuentan hacia arriba. Se cierra tocando o sola. */
-  function takeoverFx(inner, { hold = 3400, cls = '' } = {}) {
+  function takeoverFx(inner, { hold = 3400, cls = '', snd = 'unlock' } = {}) {
     if (document.querySelector('.pfx')) return;
     const o = lastTap && Date.now() - lastTap.at < 4000 ? lastTap : { x: innerWidth / 2, y: innerHeight / 2 };
     const el = document.createElement('div'); el.className = 'pfx ' + cls; el.setAttribute('role', 'status');
     el.style.setProperty('--ox', o.x + 'px'); el.style.setProperty('--oy', o.y + 'px');
     el.innerHTML = `<div class="pfx-bg"></div><div class="pfx-ring"></div><div class="pfx-in">${inner}<p class="pfx-hint">${esc(t('pfxTap'))}</p></div>`;
     document.body.appendChild(el);
-    vibrate([15, 50, 30]); sfx('unlock');
+    vibrate([15, 50, 30]); sfx(snd);
     const rm = reducedMotion();
     $$('[data-cnt]', el).forEach(b => {
       const to = +b.dataset.cnt, t0 = performance.now(), dur = rm ? 0 : 900;
@@ -986,6 +1014,21 @@
       }
       return periodHabitsOk('monthly', first, end) && (any || state.habits.some(h => (h.freq === 'weekly' || h.freq === 'monthly') && !h.archived && firstKey(h) <= end));
     });
+  }
+  /* v1.39: al empezar una semana (o un mes) nuevo, si la anterior fue perfecta se celebra una vez por dispositivo
+     con su propio sonido (localStorage keepgoing.pp guarda la última semana y el último mes celebrados). */
+  const PP_KEY = 'keepgoing.pp';
+  function checkPerfectPeriods() {
+    if (publicMode || !state.onboarded || !state.habits.length) return;
+    let seen; try { seen = JSON.parse(localStorage.getItem(PP_KEY) || '{}') || {}; } catch (e) { seen = {}; }
+    const tk = todayKey(), lw = addDays(weekStart(tk), -7), lm = monthKey(addMonths(monthKey(tk) + '-01', -1));
+    const mOk = seen.m !== lm && monthPerfect(lm), wOk = seen.w !== lw && weekPerfect(lw);
+    if (!wOk && !mOk) return;
+    if (wOk) seen.w = lw; if (mOk) seen.m = lm;
+    try { localStorage.setItem(PP_KEY, JSON.stringify(seen)); } catch (e) { /* sin almacenamiento */ }
+    const pp = perfectPeriods(), label = mOk ? fmtDate(lm + '-01', { month: 'long', year: 'numeric' }) : `${fmtDate(lw, { day: 'numeric', month: 'short' })} – ${fmtDate(addDays(lw, 6), { day: 'numeric', month: 'short' })}`;
+    whenFree(() => takeoverFx(`<div class="pp-crown">${ico('crown')}</div><h2 class="pfx-t">${esc(t(mOk ? 'ppMonthT' : 'ppWeekT'))}</h2><p class="pp-sub">${esc(label.charAt(0).toUpperCase() + label.slice(1))}</p>
+      <div class="pfx-stats"><div><b data-cnt="${pp.weeks}">0</b><span>${esc(t('perfectWeeks'))}</span></div><div><b data-cnt="${pp.months}">0</b><span>${esc(t('perfectMonths'))}</span></div></div>`, { cls: 'ppx' + (mOk ? ' month' : ''), snd: mOk ? 'perfectMonth' : 'perfectWeek', hold: 4200 }));
   }
   function perfectPeriods() {
     return cached('pperiods', () => {
@@ -1764,19 +1807,20 @@
       $('#tl-sbox', wref).innerHTML = statsBox();
       if (!opt.keepPanel) setPanel();
     };
-    let rT = 0;
+    let rT = 0, tlTickAt = 0;
     const setAt = (k, opt = {}) => {
       rpStop(); const tk = todayKey(); k = k > tk ? tk : k < tlFirstKey() && u.sc !== 'day' ? tlFirstKey() : k;
       if (k === u.at && !opt.force) return;
       flush(); u.at = k; f = weekIdx(k); save();
+      if (opt.lazy && Date.now() - tlTickAt > 70) { tlTickAt = Date.now(); sfx('tlFrame'); } // v1.39: «clic» al arrastrar por la pista
       if (opt.lazy) { cancelAnimationFrame(rT); rT = requestAnimationFrame(() => redraw()); } else redraw();
     };
-    const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; vibrate(5); sfx('tap'); setAt(nf === 0 ? todayKey() : weeks[nf]); };
+    const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; vibrate(5); sfx('tlStep'); setAt(nf === 0 ? todayKey() : weeks[nf]); };
     /* -- Replay: avanza solo un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
     const rpPaint = () => { const el = wref && $('#tl-rp', wref); if (el) el.innerHTML = rpBar(); };
     const rpStop = () => { if (!RP.on) return; rpHalt(); save(); rpPaint(); };
     const rpNext = () => { clearTimeout(RP.tm); RP.tm = setTimeout(rpStep, RP_MS / RP.sp); };
-    const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); };
+    const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); if (RP.on) sfx('tlFrame'); };
     const rpWorldDay = () => u.sc === 'day' && u.panel === 'world';
     // Un paso: en Día con Mundo, el siguiente momento (o el primero del siguiente día que tenga alguno); si no, el siguiente periodo
     function rpStep() {
@@ -1799,7 +1843,7 @@
       if (rpAtEnd()) { LW.pick = null; rpGo(tlFirstKey()); } // ya al final: vuelve a empezar desde el principio
       rpPaint(); rpNext();
     };
-    const setScale = sc => { if (sc === u.sc) return; rpStop(); const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx('tap'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
+    const setScale = sc => { if (sc === u.sc) return; rpStop(); const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx(dir === 'out' ? 'tlZoomOut' : 'tlZoomIn'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
     const flush = () => { if (!saveT) return; clearTimeout(saveT); saveT = 0; const ta = wref && $('#jr-note', wref); if (ta) commit(ta.value); };
     const commit = v => {
       const w = tfWeekKeys(weeks[f])[0], had = Object.keys(state.jrNotes || {}).length; jrSetNote(w, v); save(); if (v.trim()) firstTime('journal', !had);
@@ -1810,7 +1854,7 @@
       ax = a; try { localStorage.setItem(JR_AXIS_KEY, a); } catch (e) { /* nada */ }
       const root = wref && $('.jr', wref); if (root) root.dataset.ax = a;
       const b = wref && $('[data-jr-ax]', wref); if (b) { b.setAttribute('aria-pressed', a === 'h'); b.title = b.ariaLabel = t(a === 'h' ? 'jrAxisH' : 'jrAxisV'); }
-      vibrate(8); sfx('toggle'); place();
+      vibrate(8); sfx('tlToggle'); place();
     };
     // Editar las vistas de Progreso: se guarda la lista entera (las de serie pasan a ser tuyas al tocarlas)
     const editView = (op, id) => {
@@ -1867,23 +1911,23 @@
         if (!e.target.closest('.tl')) return;
         if (e.target.closest('[data-jr-ax]')) { setAxis(ax === 'h' ? 'v' : 'h'); return; }
         const sc = e.target.closest('[data-tl-sc]'); if (sc) { setScale(sc.dataset.tlSc); return; }
-        const rp = e.target.closest('[data-rp]'); if (rp) { vibrate(5); sfx('tap'); if (rp.dataset.rp === 'play') rpPlay(); else { LW.pick = null; rpGo(tlFirstKey()); if (RP.on) rpNext(); else save(); } return; }
-        const rs = e.target.closest('[data-rp-sp]'); if (rs) { RP.sp = +rs.dataset.rpSp; sfx('tap'); rpPaint(); if (RP.on) rpNext(); return; }
-        const st = e.target.closest('[data-tl-step]'); if (st) { vibrate(5); sfx('tap'); setAt(KGT.shift(u.sc, u.at, +st.dataset.tlStep)); return; }
+        const rp = e.target.closest('[data-rp]'); if (rp) { vibrate(5); sfx(rp.dataset.rp === 'play' && !RP.on ? 'tlReplay' : 'tlPanel'); if (rp.dataset.rp === 'play') rpPlay(); else { LW.pick = null; rpGo(tlFirstKey()); if (RP.on) rpNext(); else save(); } return; }
+        const rs = e.target.closest('[data-rp-sp]'); if (rs) { RP.sp = +rs.dataset.rpSp; sfx('tlPanel'); rpPaint(); if (RP.on) rpNext(); return; }
+        const st = e.target.closest('[data-tl-step]'); if (st) { vibrate(5); sfx('tlStep'); setAt(KGT.shift(u.sc, u.at, +st.dataset.tlStep)); return; }
         if (e.target.closest('[data-tl-today]')) { setAt(todayKey()); return; }
-        const mk = e.target.closest('[data-tl-mk]'); if (mk) { sfx('tap'); setAt(mk.dataset.tlMk); return; }
+        const mk = e.target.closest('[data-tl-mk]'); if (mk) { sfx('tlMark'); setAt(mk.dataset.tlMk); return; }
         const lb = e.target.closest('.tl-lbl'); if (lb) { const di = $('#tl-date', w); if (di && di.showPicker) { e.preventDefault(); try { di.showPicker(); } catch (er) { di.focus(); } } return; }
         const gt = e.target.closest('[data-tl-go]'); if (gt) { flush(); u.at = gt.dataset.k > todayKey() ? todayKey() : gt.dataset.k; f = weekIdx(u.at); setScale(gt.dataset.tlGo); return; }
         const nt = e.target.closest('[data-tl-note]'); if (nt && nt.closest('.jr-f.on')) { u.open = true; const sb = $('#tl-stats', w); if (sb) { sb.open = true; const ta = $('#jr-note', w); if (ta) { ta.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); ta.focus({ preventScroll: true }); } } return; }
         const fr = e.target.closest('[data-jr-i]'); if (fr) { go(+fr.dataset.jrI); return; }
-        const pn = e.target.closest('[data-tl-panel]'); if (pn) { u.panel = pn.dataset.tlPanel; save(); sfx('tap'); $$('[data-tl-panel]', w).forEach(b => { b.classList.toggle('on', b === pn); b.setAttribute('aria-selected', b === pn); }); setPanel(); return; }
-        const pv = e.target.closest('[data-tl-pv]'); if (pv) { u.pv = pv.dataset.tlPv; save(); sfx('tap'); setPanel(); return; }
+        const pn = e.target.closest('[data-tl-panel]'); if (pn) { u.panel = pn.dataset.tlPanel; save(); sfx('tlPanel'); $$('[data-tl-panel]', w).forEach(b => { b.classList.toggle('on', b === pn); b.setAttribute('aria-selected', b === pn); }); setPanel(); return; }
+        const pv = e.target.closest('[data-tl-pv]'); if (pv) { u.pv = pv.dataset.tlPv; save(); sfx('tlPanel'); setPanel(); return; }
         const ed = e.target.closest('[data-tl-ed]'); if (ed) { editView(ed.dataset.tlEd, ed.dataset.id); return; }
         // Mundo: elegir un momento, un lugar o un viaje; volver a la vista general; poner el tipo de escenario a un lugar
         const lm = e.target.closest('[data-lw-m], [data-lw-p], [data-lw-t], [data-lw-all]');
-        if (lm) { const d = lm.dataset; LW.pick = d.lwM !== undefined ? { t: 'm', i: +d.lwM } : d.lwP !== undefined ? { t: 'p', id: d.lwP } : d.lwT !== undefined ? { t: 'trip', i: +d.lwT } : { t: 'all' }; vibrate(5); sfx('tap'); setPanel(); return; }
+        if (lm) { const d = lm.dataset; LW.pick = d.lwM !== undefined ? { t: 'm', i: +d.lwM } : d.lwP !== undefined ? { t: 'p', id: d.lwP } : d.lwT !== undefined ? { t: 'trip', i: +d.lwT } : { t: 'all' }; vibrate(5); sfx('tlPick'); setPanel(); return; }
         const le = e.target.closest('[data-lw-edit]'); if (le) { const pl = tfPlace(le.dataset.lwEdit); if (pl) tfEditPlace(pl); return; }
-        const cm = e.target.closest('[data-tl-cm]'); if (cm) { u.cmp.mode = cm.dataset.tlCm; save(); sfx('tap'); setPanel(); return; }
+        const cm = e.target.closest('[data-tl-cm]'); if (cm) { u.cmp.mode = cm.dataset.tlCm; save(); sfx('tlPanel'); setPanel(); return; }
       });
     };
     return { html, mount };
@@ -2060,7 +2104,7 @@
     $$('[data-gy-clock]').forEach(el => { const s = +el.dataset.gyClock; if (s) el.textContent = gyClock(Date.now() - s); });
     if (GY.rest) {
       const left = GY.rest.until - Date.now(), bar = $('#gy-rest');
-      if (left <= 0) { GY.rest = null; if (bar) bar.remove(); vibrate([40, 60, 40]); sfx('complete'); toast(t('gyRestDone')); }
+      if (left <= 0) { GY.rest = null; if (bar) bar.remove(); vibrate([40, 60, 40]); sfx('setStart'); toast(t('gyRestDone')); }
       else if (bar) { bar.style.setProperty('--p', (left / GY.rest.total).toFixed(3)); const b = $('[data-gy-rest]', bar); if (b) b.textContent = gyClock(left); }
     }
   }
@@ -2069,7 +2113,7 @@
   function gySaveQuiet() { clearTimeout(GY.saveT); GY.saveT = setTimeout(save, 400); }
   function gyStart(w) {
     if (gyLive()) { state.ui.gyOpen = true; save(); render(); toast(t('gyAlreadyLive')); return; }
-    state.gymWorkouts.push(w); state.ui.gyOpen = true; state.ui.gyView = ''; save(); render(); window.scrollTo(0, 0); vibrate(15); sfx('toggle');
+    state.gymWorkouts.push(w); state.ui.gyOpen = true; state.ui.gyView = ''; save(); render(); window.scrollTo(0, 0); vibrate(15); sfx('gymStart');
   }
   const gyNewFree = () => ({ id: uid(), date: todayKey(), name: '', status: 'live', start: Date.now(), note: '', ex: [] });
   function gyStartRoutine(r) { gyStart(GYM.fromRoutine(r, state.gymWorkouts, state.gymEx, uid(), todayKey(), Date.now())); }
@@ -2170,7 +2214,7 @@
       <div class="pfx-stats"><div><b data-cnt="${wk.days.length}">0</b><span>${esc(t('gyDaysWeek'))}</span></div><div><b data-cnt="${s.sets}">0</b><span>${esc(t('gySets'))}</span></div><div><b data-cnt="${Math.round(s.volume)}" data-vol="1">0</b><span>${esc(t('gyVolume'))}</span></div></div>
       ${prs.length ? `<ul class="gfx-prs">${prs.slice(0, 4).map((p, i) => `<li style="--d:${i}">${ico('trophy')} <b>${esc(gyName(p.eid))}</b> <span>${fmtNum(p.v)}${p.type === 'w' || p.type === 'e1' ? ' kg' : p.type === 's' ? ' s' : p.type === 'd' ? ' km' : ''}</span></li>`).join('')}</ul>` : ''}
       <p class="pfx-hint">${esc(t('pfxTap'))}</p></div>`;
-    document.body.appendChild(el); vibrate([15, 50, 15, 50, 30]); sfx(prs.length ? 'levelup' : 'complete');
+    document.body.appendChild(el); vibrate([15, 50, 15, 50, 30]); sfx('gymFinish'); if (prs.length) setTimeout(() => sfx('levelup'), 1300);
     const rm = reducedMotion();
     $$('[data-cnt]', el).forEach(b => {
       const to = +b.dataset.cnt, vol = !!b.dataset.vol, t0 = performance.now(), dur = rm ? 0 : 900;
@@ -2294,7 +2338,7 @@
       case 'finish': if (w) gyFinish(w); break;
       case 'discard': if (w) gyDiscard(w); break;
       case 'rest-add': if (GY.rest) { GY.rest.until += 15000; GY.rest.total += 15000; gyTick(); } break;
-      case 'rest-skip': GY.rest = null; { const r = $('#gy-rest'); if (r) r.remove(); } break;
+      case 'rest-skip': GY.rest = null; sfx('setStart'); { const r = $('#gy-rest'); if (r) r.remove(); } break;
       case 'set-add': if (w) { const x = w.ex[+b.dataset.x]; const l = x.sets[x.sets.length - 1] || {}; x.sets.push({ w: l.w, r: l.r, s: l.s, d: l.d }); save(); render(); } break;
       case 'set-del': if (w) { const x = w.ex[+b.dataset.x]; if (x.sets.length > 1) x.sets.pop(); save(); render(); } break;
       case 'warm': if (w) { const st = w.ex[+b.dataset.x].sets[+b.dataset.s]; st.warm = !st.warm; if (!st.warm) delete st.warm; save(); render(); } break;
@@ -2302,7 +2346,7 @@
         const x = w.ex[+b.dataset.x], st = x.sets[+b.dataset.s]; st.done = !st.done; if (!st.done) delete st.done;
         const row = b.closest('.gy-set'); row.classList.toggle('done', !!st.done); b.classList.toggle('on', !!st.done); b.setAttribute('aria-pressed', !!st.done);
         if (st.done) {
-          vibrate(10); sfx('toggle');
+          vibrate(10); sfx('setDone');
           if (!reducedMotion()) { row.classList.remove('pop'); void row.offsetWidth; row.classList.add('pop'); }
           const sec = (x.rest || gyPrefs().rest) * 1000; GY.rest = { until: Date.now() + sec, total: sec };
           const old = $('#gy-rest'); if (old) old.remove(); const live = $('.gy-live'); if (live) live.insertAdjacentHTML('beforeend', gyRestBar());
@@ -2996,7 +3040,7 @@
         try {
           if (!gid) gid = f.dm || await rpc('kg_dm_open', { p_user: f.user_id, p_display_name: myName() });
           await rpc('kg_post_media', { p_group: gid, p_kind: 'file', p_mime: 'application/pdf', p_data: bytesB64(r.bytes), p_meta: { name: r.filename } });
-          sfx('pop'); toast(f ? t('tfPdfSent', { tag: '@' + (f.nametag || '') }) : t('calcPdfSent')); close(); after && after();
+          sfx('share'); toast(f ? t('tfPdfSent', { tag: '@' + (f.nametag || '') }) : t('calcPdfSent')); close(); after && after();
         } catch (err) { b.disabled = false; toast(chatErr(err)); }
       }
     });
@@ -3048,7 +3092,7 @@
         if (!/^@?[A-Za-z0-9_.-]{2,32}$/.test(tag)) { toast(t('tfBadTag')); return; }
         const f = tfFriendBy(tag); if (!f) { toast(t('tfNotFriend', { tag: '@' + tag.replace(/^@/, '') })); return; }
         b.disabled = true;
-        try { await tfPublish(); await rpc('kg_cal_grant', { p_to: f.user_id }); await tfRefresh(true); sfx('pop'); toast(t('tfSharedWith', { tag: '@' + (f.nametag || '') })); draw(); }
+        try { await tfPublish(); await rpc('kg_cal_grant', { p_to: f.user_id }); await tfRefresh(true); sfx('share'); toast(t('tfSharedWith', { tag: '@' + (f.nametag || '') })); draw(); }
         catch (err) { b.disabled = false; toast(chatErr(err)); }
       }
     });
@@ -3685,6 +3729,7 @@
     else if (ledgerOpen() && LV.sig !== ledgerSig() && !LV.busy) { LV.busy = true; ledgerLoad().then(() => { LV.busy = false; runRecurring(); render(); }).catch(() => { LV.busy = false; }); }
     if (ledgerOpen() && !LV.busy) syncWorthGoals(); // v1.36: metas vinculadas al Patrimonio actual
     applyTheme();
+    if (!document.querySelector('.rate-imm')) audioMood(state.ui.tab); // v1.39: ambiente de la música según la pestaña
     document.documentElement.lang = state.lang;
     hideTip();
     const app = $('#app');
@@ -5382,7 +5427,7 @@
       onClick: async (e, close) => {
         const g = e.target.closest('[data-pick-g]'); if (!g) return;
         g.disabled = true;
-        try { await onPick(g.dataset.pickG); sfx('pop'); toast(t('shareSent')); close(); } catch (err) { g.disabled = false; toast(chatErr(err)); }
+        try { await onPick(g.dataset.pickG); sfx('share'); toast(t('shareSent')); close(); } catch (err) { g.disabled = false; toast(chatErr(err)); }
       }
     });
   }
@@ -5405,7 +5450,7 @@
     } catch (err) { toast(t('shareWebOnly')); return; }
     const file = new File([blob], filename, { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title }); return; } catch (err) { if (err.name === 'AbortError') return; }
+      try { await navigator.share({ files: [file], title }); sfx('share'); return; } catch (err) { if (err.name === 'AbortError') return; }
     }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
@@ -5682,7 +5727,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.39', [['1.39.0', 6]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -6292,7 +6337,7 @@
           acc('plan', ico('sparkle'), t('plTitle'), planHint(), planHtml()),
           acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
           acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
-          acc('sound', '🔊', t('soundTitle'), state.soundOn !== false ? t('soundOn') : t('soundOff'), `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-s-sound ${state.soundOn !== false ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('soundLabel'))}</b><br><span class="muted small">${esc(t('soundHint'))}</span></span></label><div class="row wrap" style="margin-top:12px"><button class="chip" data-s-sound-test>▶ ${esc(t('soundTest'))}</button></div>`),
+          acc('sound', ico('volume'), t('soundTitle'), audioHint(), audioSettingsHtml()),
           acc('anim', ico('sparkle'), t('anTitle'), t('anOpt_' + motionPref()), `<div class="seg" role="group" id="st-anim">${['auto', 'on', 'off'].map(v => `<button type="button" data-s-anim="${v}" class="${motionPref() === v ? 'on' : ''}">${esc(t('anOpt_' + v))}</button>`).join('')}</div><p class="muted small" id="st-anim-hint" style="margin:10px 0 0">${esc(t('anHint_' + motionPref()))}</p><div class="anim-prev"><button class="chip" data-s-anim-test="perfect">${ico('play')} ${esc(t('anTestPerfect'))}</button><button class="chip" data-s-anim-test="ach">${ico('play')} ${esc(t('anTestAch'))}</button></div>`),
           acc('look', ico('palette'), t('setLook'), `${fontFamily(state.theme.font)} · ${preset ? presetName(preset) : t('themeCustom')}`, `<div id="st-theme">${themeEditorHtml()}</div>`)
         ])}
@@ -6327,6 +6372,7 @@
         w.addEventListener('toggle', e => { const d = e.target.closest && e.target.closest('details[data-acc]'); if (!d) return; if (d.open) openAcc.add(d.dataset.acc); else openAcc.delete(d.dataset.acc); }, true);
         bindThemeEditor(w, () => { $('#st-theme', w).innerHTML = themeEditorHtml(); render(); });
         bindCap(w, () => render());
+        w.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.auVol; if (!k) return; const b = $(`[data-au-v="${k}"]`, w); if (b) b.textContent = e.target.value + '%'; setAudioPref(k, +e.target.value / 100); });
         w.addEventListener('change', e => {
           if (e.target.id === 'st-file' && e.target.files[0]) importFile(e.target.files[0], w);
           // Avisos: activar/desactivar y nota
@@ -6337,7 +6383,9 @@
           if (e.target.dataset && e.target.dataset.ntf) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntf]: e.target.checked }; const at = e.target.closest('.ntf-row').querySelector('[data-ntf-at]'); if (at) at.disabled = !e.target.checked; save(); toast(t(e.target.checked ? 'ntfOn' : 'ntfOff')); }
           if (e.target.dataset && e.target.dataset.ntfAt && /^\d{2}:\d{2}$/.test(e.target.value)) { state.notif = { ...NOTIF0, ...state.notif, [e.target.dataset.ntfAt]: e.target.value }; save(); toast(t('saved')); }
           if (e.target.closest && e.target.closest('#st-priv')) privacyChange(e, w);
-          if (e.target.matches && e.target.matches('[data-s-sound]')) { state.soundOn = e.target.checked; save(); if (state.soundOn) sfx('toggle'); toast(t(state.soundOn ? 'soundOnToast' : 'soundOffToast')); }
+          if (e.target.matches && e.target.matches('[data-s-sound]')) { state.soundOn = e.target.checked; save(); audioSync(); if (state.soundOn) sfx('toggle'); toast(t(state.soundOn ? 'soundOnToast' : 'soundOffToast')); auHintRefresh(w); }
+          if (e.target.matches && e.target.matches('[data-au]')) { const k = e.target.dataset.au; setAudioPref(k, e.target.checked); sfx('toggle'); if (k === 'music') toast(t(e.target.checked ? 'auMusicOnToast' : 'auMusicOffToast')); auHintRefresh(w); }
+          if (e.target.matches && e.target.matches('[data-au-vol]') && e.target.dataset.auVol === 'sfxVol') sfx('tap');
           if (e.target.matches && e.target.matches('[data-s-motion]')) setFlip(e.target.checked);
           if (e.target.matches && e.target.matches('[data-s-privacy]')) { setPrivacy(e.target.checked); render(); toast(t(e.target.checked ? 'privacyOnToast' : 'privacyOffToast')); }
         });
@@ -6358,6 +6406,12 @@
         if ((el = q('[data-s-anim-test]'))) {
           if (el.dataset.sAnimTest === 'perfect') perfectFx(todayKey());
           else openTrophy(`<div class="kcard-face anim-demo">${KG_LOGO()}</div>`, t('masteryUnlocked'), t('anTestMsg'));
+          return;
+        }
+        if ((el = q('[data-au-mood]'))) { setAudioPref('mood', el.dataset.auMood); $$('[data-au-mood]', w).forEach(b => b.classList.toggle('on', b === el)); sfx('toggle'); return; }
+        if ((el = q('[data-au-test]'))) {
+          if (el.dataset.auTest === 'spatial') KGSound.testSpatial();
+          else ['tlZoomIn', 'income', 'expense', 'invest', 'share', 'gymStart', 'setDone', 'setStart', 'gymFinish', 'perfectWeek', 'perfectMonth'].forEach((n, i) => setTimeout(() => sfx(n), i * 1100));
           return;
         }
         if (q('[data-s-sound-test]')) { const seq = ['complete', 'points', 'perfect', 'levelup']; seq.forEach((n, i) => setTimeout(() => sfx(n), i * 900)); return; }
@@ -8387,7 +8441,7 @@
       onClick: async (e, close) => {
         const g = e.target.closest('[data-pdfg]'); if (!g) return;
         g.disabled = true;
-        try { await rpc('kg_post_media', { p_group: g.dataset.pdfg, p_kind: 'file', p_mime: 'application/pdf', p_data: data, p_meta: { name } }); sfx('pop'); toast(t('calcPdfSent')); close(); }
+        try { await rpc('kg_post_media', { p_group: g.dataset.pdfg, p_kind: 'file', p_mime: 'application/pdf', p_data: data, p_meta: { name } }); sfx('share'); toast(t('calcPdfSent')); close(); }
         catch (err) { g.disabled = false; toast(chatErr(err)); }
       }
     });
@@ -8637,7 +8691,7 @@
         if ((el = e.target.closest('[data-pjs-to]'))) {
           const f = (chatData.friends || []).find(x => x.user_id === el.dataset.pjsTo); if (!f) return;
           el.disabled = true;
-          try { await projSendTo(p, f); await projRefresh(); sfx('pop'); toast(t('projSent', { who: personName(f) })); draw(); }
+          try { await projSendTo(p, f); await projRefresh(); sfx('share'); toast(t('projSent', { who: personName(f) })); draw(); }
           catch (err) { el.disabled = false; toast(err.message === 'nokey' ? t('projNoKey', { who: personName(f) }) : chatErr(err)); }
         }
       }
@@ -9175,7 +9229,7 @@
           } else if (isNew) { const ne = { id: uid(), ...data, recurringId: '', createdAt: Date.now() }; LV.entries.push(ne); firstTime('ledger', LV.entries.length === 1); saveLinks(ne, f.type === 'invest' ? [] : f.links, []); }
           else { const tg = LV.entries.find(x => x.id === entry.id) || {}; Object.assign(tg, data); if (!data.fx) delete tg.fx; if (!data.acc) delete tg.acc; for (const k of ['owed', 'due', 'pay']) if (!data[k]) delete tg[k]; saveLinks(tg, f.type === 'invest' ? [] : f.links, links0); }
           state.ui.ledgerDay = f.date; state.ui.ledgerMonth = f.date.slice(0, 7);
-          ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'expense' ? 'pop' : 'money');
+          ledgerSave(); close(); render(); vibrate(10); sfx(f.type === 'expense' ? 'expense' : f.type === 'invest' ? 'invest' : 'income');
         }
       }
     });
@@ -9650,7 +9704,7 @@
           askSharePassword(f, async pw => {
             const sealed = await VAULT.pwSeal({ v: 2, title: autoTitle(), from: S.from, to: S.to, by: profileName(), ...slice() }, pw);
             await rpc('kg_ledger_share_pw', { p_to: f.user_id, p_title: autoTitle().slice(0, 80), p_from: S.from, p_to_date: S.to, p_head: sealed.head, p_iv: sealed.body.iv, p_ct: sealed.body.ct, p_proof: sealed.proof });
-            sfx('unlock'); toast(t('lsSent', { tag: '@' + (f.nametag || '') })); chatData.at = 0; close();
+            sfx('share'); toast(t('lsSent', { tag: '@' + (f.nametag || '') })); chatData.at = 0; close();
           });
         }
       }
@@ -9726,7 +9780,7 @@
             const g = e2.target.closest('[data-esg]'); if (!g) return;
             g.disabled = true;
             const cats = (ev.catIds || []).map(id => catOf(id)).filter(Boolean).map(c => ({ name: catName(c), icon: c.icon }));
-            try { await rpc('kg_post', { p_group: g.dataset.esg, p_kind: 'share', p_body: '', p_payload: { type: 'event', event: { name: ev.name, icon: ev.icon || '🗂️', from: ev.from, to: ev.to, ...(evDays(ev) ? { days: evDays(ev) } : {}), cats } } }); sfx('pop'); toast(t('evShared')); close2(); }
+            try { await rpc('kg_post', { p_group: g.dataset.esg, p_kind: 'share', p_body: '', p_payload: { type: 'event', event: { name: ev.name, icon: ev.icon || '🗂️', from: ev.from, to: ev.to, ...(evDays(ev) ? { days: evDays(ev) } : {}), cats } } }); sfx('share'); toast(t('evShared')); close2(); }
             catch (err) { g.disabled = false; toast(chatErr(err)); }
           }
         });
@@ -10167,7 +10221,7 @@
      (rubí, zafiro, esmeralda, amatista, topacio) y con 8 o más brillan las puntas, giran rayos detrás y suben chispas.
      El fondo toma el color de la nota. Se abre desde la tarjeta «¿Qué tal tu día?» o desde el aviso de las 22:00. */
   const CROWN_GEMS = ['#ff2d55', '#2f7bff', '#14d98b', '#b44dff', '#ffb020'];
-  function drawCrown(ctx, cx, cy, R, v, tm) {
+  function drawCrown(ctx, cx, cy, R, v, tm, fxOnly = false) { // fxOnly: solo rayos y halo (la corona la pinta el modelo 3D)
     const q = v / 10, lit = Math.ceil(v / 2), tilt = v < 4 ? -.22 * (1 - v / 4) + Math.sin(tm * 9) * .02 * (1 - v / 4) : Math.sin(tm * 1.4) * .02;
     const W = R * 2.3, bh = R * .5, top = cy - R * .1;
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(tilt); const sc = .72 + q * .38 + Math.sin(tm * 2) * .012; ctx.scale(sc, sc); ctx.translate(-cx, -cy);
@@ -10180,6 +10234,7 @@
     }
     const g = ctx.createRadialGradient(cx, top, R * .2, cx, top, R * 2.2); g.addColorStop(0, `hsla(45, 100%, 70%, ${.15 + q * .45})`); g.addColorStop(1, 'hsla(45, 100%, 60%, 0)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, top, R * 2.2, 0, Math.PI * 2); ctx.fill();
+    if (fxOnly) { ctx.restore(); return; }
     // Silueta: banda + 5 puntas (la central más alta)
     const L = cx - W / 2, Rr = cx + W / 2, base = top + bh, hs = [.75, .95, 1.25, .95, .75].map(h => h * R * (.55 + q * .55));
     const path = new Path2D(); path.moveTo(L, base); path.lineTo(L, top);
@@ -10218,7 +10273,7 @@
     const sparks = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), s: .5 + Math.random() * 2, sp: .02 + Math.random() * .06, c: CROWN_GEMS[Math.floor(Math.random() * 5)], ph: Math.random() * 6 }));
     openModal({
       cls: 'imm rate-imm crown', title: '',
-      body: `<div class="ri"><canvas class="ri-cv" aria-hidden="true"></canvas>
+      body: `<div class="ri"><canvas class="ri-cv" aria-hidden="true"></canvas><canvas class="ri-3d" aria-hidden="true"></canvas>
         <div class="ri-top"><button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button><span class="ri-day">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span style="width:36px"></span></div>
         <div class="ri-mid"><span class="ri-q">${esc(t(k === todayKey() ? 'crownQ' : 'crownQy'))}</span><b class="ri-n" id="ri-n">${v}</b><span class="ri-w" id="ri-w">${esc(t(RATE_WORDS[v]))}</span></div>
         <div class="ri-bot"><input type="range" class="ri-range" id="ri-range" min="0" max="10" step="1" value="${v}" aria-label="${esc(t('rateTitle'))}" aria-valuetext="${v} · ${esc(t(RATE_WORDS[v]))}">
@@ -10226,13 +10281,22 @@
           <div class="row" style="gap:10px">${cur != null ? `<button class="btn grow" data-ri="clear">${ico('trash')} ${esc(t('riClear'))}</button>` : ''}<button class="btn primary grow" data-ri="save">${ico('crown')} ${esc(t('crownSave'))}</button></div></div></div>`,
       onMount: (w, close) => {
         immersiveIn(w);
-        const box = $('.ri', w), cv = $('.ri-cv', w), ctx = cv.getContext('2d'), rng = $('#ri-range', w), rm = reducedMotion();
+        const box = $('.ri', w), cv = $('.ri-cv', w), cv3 = $('.ri-3d', w), ctx = cv.getContext('2d'), rng = $('#ri-range', w), rm = reducedMotion();
         const dpr = Math.min(2, devicePixelRatio || 1);
-        const fit = () => { cv.width = box.clientWidth * dpr; cv.height = box.clientHeight * dpr; };
+        sfx('rateOpen'); audioMood('rate', { v });
+        // v1.39: corona 3D (three.js solo al abrir); mientras carga, o si no hay WebGL, se ve la corona plana
+        let C3 = null, last = 0;
+        const fit3 = () => { const W = box.clientWidth, H = box.clientHeight, S = Math.round(Math.min(W, H) * .17 * 4.6); cv3.style.width = cv3.style.height = S + 'px'; cv3.style.top = Math.round(H * .36) + 'px'; if (C3) C3.resize(S, S); };
+        const fit = () => { cv.width = box.clientWidth * dpr; cv.height = box.clientHeight * dpr; fit3(); };
         fit(); addEventListener('resize', fit);
+        if (window.KGCrown3D) (LW.three || (LW.three = import(new URL('js/vendor/three.module.min.js', document.baseURI).href))).then(THREE => {
+          if (!w.isConnected) return;
+          try { C3 = KGCrown3D.create(THREE, cv3, { motion: motionMode() }); fit3(); box.classList.add('c3d'); } catch (e) { C3 = null; }
+        }).catch(() => { LW.three = null; });
         const t0 = performance.now();
         const frame = now => {
-          if (!w.isConnected) { removeEventListener('resize', fit); return; }
+          if (!w.isConnected) { removeEventListener('resize', fit); if (C3) { C3.dispose(); C3 = null; } return; }
+          const dt = last ? Math.min(.1, (now - last) / 1000) : 0; last = now;
           shown += (v - shown) * (rm ? 1 : .1);
           const sv = Math.max(0, Math.min(10, shown)), col = rateColor(Math.round(sv * 10) / 10);
           box.style.setProperty('--rc', col);
@@ -10242,12 +10306,13 @@
           const nS = Math.round(sparks.length * Math.max(0, (sv - 3) / 7));
           for (let i = 0; i < nS; i++) { const p = sparks[i], y = ((p.y - tm * p.sp * (.5 + sv / 10)) % 1 + 1) % 1; ctx.globalAlpha = .35 + .4 * Math.sin(tm * 3 + p.ph); ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x * W, y * H, p.s * (1 + sv / 10), 0, Math.PI * 2); ctx.fill(); }
           ctx.globalAlpha = 1;
-          drawCrown(ctx, W / 2, H * .36, Math.min(W, H) * .17, sv, tm);
+          drawCrown(ctx, W / 2, H * .36, Math.min(W, H) * .17, sv, tm, !!C3);
+          if (C3) { C3.set(sv); C3.frame(tm, rm ? 0 : dt); }
           raf = requestAnimationFrame(frame);
         };
         raf = requestAnimationFrame(frame);
         rng.addEventListener('input', () => {
-          const n = +rng.value; if (n === v) return; const up = n > v; v = n; vibrate(n >= 8 && up ? [6, 20, 6] : 6); sfx(n === 10 && up ? 'perfect' : 'tap');
+          const n = +rng.value; if (n === v) return; const up = n > v; v = n; vibrate(n >= 8 && up ? [6, 20, 6] : 6); sfx(n === 10 && up ? 'perfect' : 'rateTick', n); audioMood('rate', { v: n });
           $('#ri-n', w).textContent = n; $('#ri-w', w).textContent = t(RATE_WORDS[n]); rng.setAttribute('aria-valuetext', n + ' · ' + t(RATE_WORDS[n]));
           const nb = $('#ri-n', w); nb.classList.remove('bump'); void nb.offsetWidth; nb.classList.add('bump');
         });
@@ -10255,9 +10320,9 @@
       onClick: (e, close) => {
         const b = e.target.closest('[data-ri]'); if (!b) return;
         if (b.dataset.ri === 'clear') delete state.dayRate[k]; else { state.dayRate[k] = { r: v }; firstTime('rate', Object.keys(state.dayRate).length === 1); }
-        save(); sfx(b.dataset.ri === 'clear' ? 'undo' : v >= 8 ? 'levelup' : 'complete'); vibrate(v >= 8 ? [15, 50, 15, 50, 30] : 12); close(); render();
+        save(); sfx(b.dataset.ri === 'clear' ? 'undo' : 'rateSave', v); vibrate(v >= 8 ? [15, 50, 15, 50, 30] : 12); close(); render();
       },
-      onClose: () => cancelAnimationFrame(raf)
+      onClose: () => { cancelAnimationFrame(raf); audioMood(state.ui.tab); }
     });
   }
   function dayRateHtml() {
@@ -12166,7 +12231,7 @@
             const items = k === 'habit' ? state.habits.filter(h => !h.archived) : state.projects;
             pick(t(k === 'habit' ? 'chatPickHabit' : 'chatPickProject'), items.map(o => ({ id: o.id, label: `${o.icon || ''} ${o.name}` })), async id => {
               const o = items.find(x => x.id === id);
-              await rpc('kg_post', { p_group: gid, p_kind: 'share', p_body: '', p_payload: { type: k, spec: k === 'habit' ? habitSpec(o) : projectSpec(o) } });
+              await rpc('kg_post', { p_group: gid, p_kind: 'share', p_body: '', p_payload: { type: k, spec: k === 'habit' ? habitSpec(o) : projectSpec(o) } }); sfx('share');
             });
           }
         }
@@ -13135,8 +13200,9 @@
     if (todayKey() === lastDay) return;
     lastDay = todayKey(); render();
     checkPerfectMastery(); state.habits.filter(isQuit).forEach(h => checkChallenge(h));
-    checkSecrets(); offerShields(); maybeWeeklyReview(); checkRetos();
+    checkSecrets(); offerShields(); maybeWeeklyReview(); checkRetos(); checkPerfectPeriods();
   };
+  setTimeout(() => { try { checkPerfectPeriods(); } catch (e) { /* nada */ } }, 2500);
   setInterval(dayCheck, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) dayCheck(); });
 
