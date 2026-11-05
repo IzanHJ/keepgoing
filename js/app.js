@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.39.0';
+  const VERSION = '1.40.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -218,6 +218,18 @@
     rewind: '<path d="M11.5 6.5L5 12l6.5 5.5zM19.5 6.5L13 12l6.5 5.5z"/><path d="M4 6v12"/>',
     route: '<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/>',
     heart: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/>',
+    // v1.40: piezas del creador de escenarios
+    tower: '<path d="M8 21V5l4-2 4 2v16"/><path d="M5 21h14M11 8h2M11 12h2M11 16h2"/>',
+    pine: '<path d="M12 3l5 7h-3l4 6H6l4-6H7z"/><path d="M12 16v5"/>',
+    bush: '<path d="M4 18a4 4 0 0 1 3-6 5 5 0 0 1 10 0 4 4 0 0 1 3 6z"/><path d="M3 21h18"/>',
+    rock: '<path d="M3 19l3-7 5-4 5 2 5 9z"/><path d="M11 8l1 5 4 6"/>',
+    hill: '<path d="M2 20l7-11 4 6 3-4 6 9z"/><path d="M7.5 11.5l1.5 1 1.5-1"/>',
+    water: '<path d="M3 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 14c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 19c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>',
+    bench: '<path d="M4 10h16M4 14h16M6 14v5M18 14v5M6 10V6M18 10V6"/>',
+    lamp: '<path d="M10 21h4M12 21V7M12 7h5"/><circle cx="17" cy="9" r="2"/>',
+    fence: '<path d="M5 21V6l1.5-2L8 6v15M11 21V6l1.5-2L14 6v15M17 21V6l1.5-2L20 6v15M3 10h18M3 16h18"/>',
+    fountain: '<path d="M4 15h16l-2 5H6z"/><path d="M12 15V6M12 6c-2 0-4 2-4 5M12 6c2 0 4 2 4 5"/>',
+    tent: '<path d="M3 20L12 4l9 16z"/><path d="M12 4v16M9 20l3-6 3 6"/>',
   };
   // v1.27: data-i = nombre del icono, para su micro animación propia al pasar el cursor o tocarlo
   const ico = (n, cls = '') => `<svg class="i ${cls}" data-i="${n}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -315,6 +327,7 @@
     out.ledgerPrefs = { privacy: false, ...(s.ledgerPrefs || {}) };
     out.soundOn = s.soundOn !== false;
     out.tlViews = Array.isArray(s.tlViews) ? s.tlViews.filter(v => v && typeof v === 'object').slice(0, 20) : []; // v1.35: vistas de Progreso
+    out.lwStyle = KGScenes.normStyle(s.lwStyle); // v1.40: color de cada escenario 3D y escenarios propios
     out.hiddenW = Array.isArray(s.hiddenW) ? s.hiddenW.filter(k => typeof k === 'string') : [];
     out.wOrder = Array.isArray(s.wOrder) ? s.wOrder.filter(k => typeof k === 'string').slice(0, 400) : [];
     out.stats = { timerMin: 0, ...(s.stats || {}) };
@@ -347,7 +360,7 @@
   /* ---------- marcas de tiempo para fusionar ---------- */
   const strip = o => { if (!o) return ''; const { mt, ...rest } = o; return JSON.stringify(rest); };
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif, s.perfectRules, s.gymPrefs, s.tlViews];
+  const settingsOf = s => [s.theme, s.lang, s.commitment, s.commitHistory, s.pet, s.profile, s.caprice, s.ledgerPrefs, s.soundOn, s.hiddenW, s.wOrder, s.calPrefs, s.notif, s.perfectRules, s.gymPrefs, s.tlViews, s.lwStyle];
   // La caja fuerte de la Libreta y el par de claves para compartir van aparte, con su propia marca (vmt)
   const vaultOf = s => [s.ledgerVault, s.kx];
   function stampChanges(prev, cur) {
@@ -431,7 +444,7 @@
       }
     }
     if (!L.contract || (R.contract && (R.contract.mt || 0) > (L.contract.mt || 0))) out.contract = R.contract || null;
-    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif, out.perfectRules, out.gymPrefs, out.tlViews] = settingsOf(R); out.smt = R.smt; }
+    if ((R.smt || 0) > (L.smt || 0)) { [out.theme, out.lang, out.commitment, out.commitHistory, out.pet, out.profile, out.caprice, out.ledgerPrefs, out.soundOn, out.hiddenW, out.wOrder, out.calPrefs, out.notif, out.perfectRules, out.gymPrefs, out.tlViews, out.lwStyle] = settingsOf(R); out.smt = R.smt; }
     // Caja fuerte: gana la más reciente, pero una vacía (o sin marca) nunca borra a otra salvo que venga de «Borrar la Libreta»
     {
       const lv = L.ledgerVault, rv = R.ledgerVault, wipe = Math.max(L.vaultWipe || 0, R.vaultWipe || 0);
@@ -1243,7 +1256,7 @@
     let at = KGT.isKey(u.at) && u.at <= tk ? u.at : tk;
     if (!tlBoot) { tlBoot = true; at = tk; } // al abrir la app, la línea empieza hoy
     const c = u.cmp && typeof u.cmp === 'object' ? u.cmp : {}, ok = KGT.isKey;
-    state.ui.tl = { sc: KGT.okScale(u.sc), at, panel: ['compare', 'world'].includes(u.panel) ? u.panel : 'progress', pv: typeof u.pv === 'string' ? u.pv : 'general', open: !!u.open,
+    state.ui.tl = { sc: KGT.okScale(u.sc), at, panel: ['compare', 'world'].includes(u.panel) ? u.panel : 'progress', ws: ['place', 'tr', 'sc'].includes(u.ws) ? u.ws : 'place', pv: typeof u.pv === 'string' ? u.pv : 'general', open: !!u.open,
       cmp: { mode: ['prev', 'year', 'custom'].includes(c.mode) ? c.mode : 'prev', a0: ok(c.a0) ? c.a0 : '', a1: ok(c.a1) ? c.a1 : '', b0: ok(c.b0) ? c.b0 : '', b1: ok(c.b1) ? c.b1 : '' } };
     return state.ui.tl;
   }
@@ -1417,6 +1430,15 @@
   const lwSceneIco = id => { const s = KGWorld.SCENES.find(x => x[0] === id); return s ? s[1] : 'pin'; };
   const LW_TR_ICO = { walk: 'walk', bike: 'bike', moto: 'moto', car: 'car', bus: 'bus', train: 'train', plane: 'plane', other: 'route' };
   const lwTrIco = tr => LW_TR_ICO[tr] || 'route';
+  /* v1.40: escenarios 3D. Cada escenario tiene un color (state.lwStyle.colors) y se pueden crear escenarios propios
+     con piezas low-poly sobre una rejilla (state.lwStyle.scenes, lógica en js/scenes.js) */
+  const lwSt = () => state.lwStyle || (state.lwStyle = KGScenes.normStyle(null));
+  const lwCustom = id => KGScenes.isCustom(id) ? lwSt().scenes.find(x => x.id === id) || null : null;
+  const lwSceneOk = id => KGWorld.okScene(id) || !!lwCustom(id);
+  const lwSceneName = id => KGWorld.okScene(id) ? t('lwSc_' + id) : lwCustom(id) ? lwCustom(id).name : t('lwNoScene');
+  const lwScIco = id => lwCustom(id) ? 'layers' : lwSceneIco(id);
+  const lwTrSpec = (tr, o = {}) => ({ type: 'travel', tr, color: KGScenes.colorOf(lwSt(), 'tr-' + tr), mono: lwSt().mono, ...o });
+  const lwDur = m => m == null ? '' : m < 60 ? t('lwMin', { n: m }) : m % 60 ? t('lwHMin', { h: Math.floor(m / 60), m: m % 60 }) : t('lwH', { h: m / 60 });
   // El mapa del mundo (Natural Earth 110m) se descarga la primera vez que se abre Mundo y queda en la caché de la app
   function lwLoadMap() {
     if (LW.countries) return Promise.resolve(LW.countries);
@@ -1427,6 +1449,10 @@
   const lwAccent = () => /^#[0-9a-f]{6}$/i.test((state.theme && state.theme.accent) || '') ? state.theme.accent : '#3ddc97';
   // Coordenadas de un lugar: las suyas, o el centro de su país si solo se sabe el país (para el globo)
   const lwLL = (p, g) => { if (p && p.lat != null && p.lon != null) return { lat: +p.lat, lon: +p.lon }; const c = g && g.cc && (LW.countries || []).find(x => x.a2 === g.cc); return c ? KGWorld.centerOf(c) : null; };
+  // v1.40: Medio de transporte de un turno (lo pone el turno del día; si no, la plantilla del turno). Horas 'HH:MM' de salida y llegada
+  const lwHM = v => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : '';
+  // e.tr = '-' (v1.39): ese día sin transporte aunque la plantilla del turno lo tenga
+  const lwTrOf = (s, e) => { if (e.tr === '-') return { tr: '' }; const tr = KGWorld.okTransport(e.tr) ? e.tr : KGWorld.okTransport(s.tr) ? s.tr : ''; return tr ? { tr, trDep: lwHM(e.trDep) || lwHM(s.trDep), trArr: lwHM(e.trArr) || lwHM(s.trArr) } : { tr: '' }; };
   // Lo registrado del periodo (hasta hoy): turnos y eventos con su lugar y «cómo llegaste», y los entrenos hechos
   function lwItems(from, to) {
     return cached(`lw${from}${to}${LW.countries ? 1 : 0}`, () => {
@@ -1434,20 +1460,25 @@
       for (let k = from; k <= end; k = addDays(k, 1)) for (const e of state.calDays[k] || []) {
         const s = tfShift(e.sid); if (!s) continue;
         const tm = TF.entryTimes(s, e);
-        out.push({ date: k, min: tm.start ? tfMin(tm.start) : null, time: tm.start || '', kind: 'shift', name: `${s.emoji ? s.emoji + ' ' : ''}${s.name}`, place: idOf(tfPlaceOf(s, e)), tr: KGWorld.okTransport(e.tr) ? e.tr : '', color: tfColor(s.color) });
+        out.push({ date: k, min: tm.start ? tfMin(tm.start) : null, time: tm.start || '', kind: 'shift', name: `${s.emoji ? s.emoji + ' ' : ''}${s.name}`, place: idOf(tfPlaceOf(s, e)), ...lwTrOf(s, e), color: tfColor(s.color) });
       }
       for (const x of (state.calExt && state.calExt.list) || []) if (x.date >= from && x.date <= end) out.push({ date: x.date, min: x.start ? tfMin(x.start) : null, time: x.start || '', kind: 'event', name: x.title, place: idOf(tfPlace(x.pl) || tfPlOnce(x.location ? { addr: x.location } : null)), tr: '', color: '#8e8e93' });
       for (const w of state.gymWorkouts || []) if (w.status === 'done' && w.date >= from && w.date <= end) { const hm = w.start ? new Date(w.start) : null; out.push({ date: w.date, min: hm ? hm.getHours() * 60 + hm.getMinutes() : null, time: hm ? pad(hm.getHours()) + ':' + pad(hm.getMinutes()) : '', kind: 'gym', name: w.name || t('gyTab'), place: null, tr: '', color: lwAccent() }); }
       return KGWorld.moments(out, lwGeo);
     });
   }
-  const lwSceneSpec = p => ({ type: 'scene', scene: p && KGWorld.okScene(p.scene) ? p.scene : 'pin', color: p ? tfColor(p.color) : '#8e8e93' });
-  // Qué se pinta para un momento: el lugar; si cambió de país, antes el vuelo; si se sabe cómo llegaste, antes el trayecto
-  function lwSpecs(m, trip = false) {
-    const end = m.place ? lwSceneSpec(m.place) : m.kind === 'gym' ? { type: 'scene', scene: 'gym', color: lwAccent() } : { type: 'scene', scene: 'unknown' }, mo = motionMode();
-    if (m.trip && (mo !== 'off' || trip)) { const a = lwLL(m.trip.fromPlace, lwGeo(m.trip.fromPlace)), b = lwLL(m.trip.toPlace, m.geo); if (a && b) return mo === 'off' ? [{ type: 'globe', from: a, to: b }] : [{ type: 'globe', from: a, to: b }, end]; }
-    if (m.move && m.tr && m.tr !== 'plane' && mo === 'full') return [{ type: 'travel', tr: m.tr, color: m.place ? tfColor(m.place.color) : lwAccent() }, end];
-    return [end];
+  const lwSceneSpec = p => {
+    const st = lwSt(), cs = p && lwCustom(p.scene);
+    if (cs) return { type: 'scene', scene: cs.id, cells: cs.cells, color: cs.color, mono: st.mono };
+    if (p && KGWorld.okScene(p.scene)) return { type: 'scene', scene: p.scene, color: KGScenes.colorOf(st, p.scene), mono: st.mono };
+    return { type: 'scene', scene: 'pin', color: p ? tfColor(p.color) : '#8e8e93', mono: false };
+  };
+  // Qué se pinta para un momento en «Lugares»: solo su escenario (v1.40: el trayecto y el vuelo están aparte, en «Transporte»)
+  const lwSpecs = m => [m.place ? lwSceneSpec(m.place) : m.kind === 'gym' ? { type: 'scene', scene: 'gym', color: KGScenes.colorOf(lwSt(), 'gym'), mono: lwSt().mono } : { type: 'scene', scene: 'unknown' }];
+  // …y para un trayecto en «Transporte»: el vuelo en el globo si cambió de país (y se saben los dos sitios); si no, el vehículo en marcha
+  function lwLegSpecs(l) {
+    if (l.trip) { const a = lwLL(l.trip.fromPlace, lwGeo(l.trip.fromPlace)), b = lwLL(l.trip.toPlace, l.geo); if (a && b) return [{ type: 'globe', from: a, to: b }]; }
+    return [lwTrSpec(l.tr)];
   }
   function lwStop() {
     clearTimeout(LW.tm); LW.tm = 0; LW.obs.forEach(o => o()); LW.obs = [];
@@ -1455,7 +1486,7 @@
     LW.r = null; LW.cv = null;
   }
   // Versión fija (sin WebGL o sin poder cargar el 3D): el icono del escenario y su nombre
-  const lwStaticHtml = spec => spec.type === 'globe' ? `${ico('globe')}<span>${esc(t('lwTrips'))}</span>` : spec.type === 'travel' ? `${ico(lwTrIco(spec.tr))}<span>${esc(t('lwTr_' + spec.tr))}</span>` : `${ico(spec.scene === 'unknown' ? 'info' : lwSceneIco(spec.scene))}<span>${esc(spec.scene === 'unknown' ? t('lwNoPlace') : spec.scene === 'pin' ? t('lwNoScene') : t('lwSc_' + spec.scene))}</span>`;
+  const lwStaticHtml = spec => spec.type === 'globe' ? `${ico('globe')}<span>${esc(t('lwTrips'))}</span>` : spec.type === 'travel' ? `${ico(lwTrIco(spec.tr))}<span>${esc(t('lwTr_' + spec.tr))}</span>` : `<span class="lw-st-c" style="--c:${esc(spec.color || 'transparent')}">${ico(spec.scene === 'unknown' ? 'info' : spec.cells ? 'layers' : lwSceneIco(spec.scene))}</span><span>${esc(spec.scene === 'unknown' ? t('lwNoPlace') : spec.scene === 'pin' ? t('lwNoScene') : spec.cells ? (LW.ed && LW.ed.id === spec.scene ? LW.ed.name : lwSceneName(spec.scene)) : t('lwSc_' + spec.scene))}</span>`;
   // Enseña una lista de vistas una tras otra (vuelo → lugar, trayecto → lugar)
   function lwPlay(list) {
     clearTimeout(LW.tm); LW.arrive = null;
@@ -1474,7 +1505,7 @@
     try {
       const [THREE, countries] = await Promise.all([LW.three || (LW.three = import(new URL('js/vendor/three.module.min.js', document.baseURI).href)), lwLoadMap()]);
       if (LW.cv !== cv || !cv.isConnected) return;
-      LW.r = KGLifeWorld.create(THREE, cv, { quality: KGLifeWorld.quality(), motion: motionMode(), countries, accent: lwAccent(), onArrive: () => { const f = LW.arrive; LW.arrive = null; if (f) f(); } });
+      LW.r = KGLifeWorld.create(THREE, cv, { grid: KGScenes.GRID, quality: KGLifeWorld.quality(), motion: motionMode(), countries, accent: lwAccent(), onArrive: () => { const f = LW.arrive; LW.arrive = null; if (f) f(); } });
     } catch (e) { LW.three = null; LW.fail = true; if (LW.cv === cv) { stage.classList.add('static'); lwPlay(getList()); } return; }
     finally { stage.classList.remove('loading'); }
     // solo se mueve mientras se ve: fuera de pantalla o con la app en segundo plano se para
@@ -1653,67 +1684,257 @@
         ${rows.map(r => `<div class="tl-cr" role="row"><b class="tl-cn" role="rowheader">${esc(t('tlI_' + r.id))}</b><span role="cell">${esc(tlFmt(r.id, r.a.v))}</span><span role="cell">${esc(tlFmt(r.id, r.b.v))}</span>${dcell(r)}</div>`).join('')}</div>
         ${rows.length ? '' : `<p class="muted small">${esc(t('tlNoData'))}</p>`}${cut ? `<p class="muted small">${ico('info', 'xs')} ${esc(t('tlCmpCut'))}</p>` : ''}${locked ? `<p class="muted small">${ico('lock', 'xs')} ${esc(t('tlLockedHelp'))}</p>` : ''}<p class="muted small">${esc(t('tlCmpHelp'))}</p>`;
     };
-    /* -- Mundo: dónde estuviste en el periodo. Solo lo registrado; lo que no tiene lugar se queda como desconocido -- */
-    const lwData = () => { const { from, to } = R(), rk = u.sc + from + to; if (LW.rk !== rk) { LW.rk = rk; LW.pick = null; } const ms = lwItems(from, to); return { ms, S: KGWorld.summary(ms) }; };
-    const lwCur = ms => LW.pick ? (LW.pick.t === 'all' ? null : LW.pick) : u.sc === 'day' && ms.length ? { t: 'm', i: Math.max(0, ms.findIndex(m => m.place)) } : null;
-    const lwList = () => {
-      const D = lwData(), p = lwCur(D.ms);
-      if (p && p.t === 'm' && D.ms[p.i]) return lwSpecs(D.ms[p.i]);
-      if (p && p.t === 'p') { const x = D.S.places.find(y => y.place.id === p.id); if (x) return [lwSceneSpec(x.place)]; }
-      if (p && p.t === 'trip' && D.S.trips[p.i]) return lwSpecs(D.S.trips[p.i], true);
+    /* -- Mundo: dónde estuviste en el periodo. Solo lo registrado; lo que no tiene lugar se queda como desconocido.
+          v1.40: tres apartados. «Lugares» (escenario de cada sitio), «Transporte» (el recorrido: trayectos con su transporte,
+          salida, llegada y duración, sacados de cada turno) y «Escenarios» (carrusel 3D con un color por escenario y creador). -- */
+    const lwData = () => {
+      const { from, to } = R(), rk = u.sc + from + to + u.ws; if (LW.rk !== rk) { LW.rk = rk; LW.pick = null; }
+      const ms = lwItems(from, to), L = KGWorld.legs(ms);
+      return { ms, S: KGWorld.summary(ms), L, LS: KGWorld.legSummary(L) };
+    };
+    // Lo que se recorre momento a momento (Replay y elección por defecto en Día): momentos en Lugares, trayectos en Transporte
+    const lwSeq = D => u.ws === 'tr' ? D.L : D.ms;
+    const lwCur = D => {
+      if (LW.pick) return LW.pick.t === 'all' ? null : LW.pick;
+      if (u.sc !== 'day') return null;
+      if (u.ws === 'tr') return D.L.length ? { t: 'm', i: 0 } : null;
+      return D.ms.length ? { t: 'm', i: Math.max(0, D.ms.findIndex(m => m.place)) } : null;
+    };
+    const lwGlobe = D => {
       // el globo mira al último sitio conocido del periodo
       const last = [...D.ms].reverse().find(m => m.place && lwLL(m.place, m.geo)), dots = D.S.places.map(x => lwLL(x.place, x.geo)).filter(Boolean).slice(0, 200);
       if (last) dots.unshift(lwLL(last.place, last.geo));
       return [{ type: 'globe', dots }];
     };
+    const lwList = () => {
+      if (u.ws === 'sc') return [lwScSpec()];
+      const D = lwData(), p = lwCur(D);
+      if (u.ws === 'tr') {
+        if (p && p.t === 'm' && D.L[p.i]) return lwLegSpecs(D.L[p.i]);
+        if (p && p.t === 'trip' && D.S.trips[p.i]) { const m = D.S.trips[p.i]; return lwLegSpecs({ tr: 'plane', trip: m.trip, geo: m.geo }); }
+        if (p && p.t === 'tr') return [lwTrSpec(p.tr)];
+        if (D.LS.byTr.length) return [lwTrSpec(D.LS.byTr[0].tr)];
+        return lwGlobe(D);
+      }
+      if (p && p.t === 'm' && D.ms[p.i]) return lwSpecs(D.ms[p.i]);
+      if (p && p.t === 'p') { const x = D.S.places.find(y => y.place.id === p.id); if (x) return [lwSceneSpec(x.place)]; }
+      return lwGlobe(D);
+    };
     const stTag = st => `<span class="tl-st" data-st="${st}">${esc(t('tlSt_' + st))}</span>`;
     const geoLine = g => { const xs = []; if (g.city) xs.push(`${esc(g.city)} ${stTag(g.citySt)}`); if (g.cc) xs.push(`${esc(lwCountry(g.cc))} ${stTag(g.ccSt)}`); return `<span class="lw-geo">${ico('globe', 'xs')} ${xs.length ? xs.join(' · ') : `<span class="muted">${esc(t('lwNoGeo'))}</span> ${stTag('na')}`}</span>`; };
     const kIco = k => k === 'gym' ? 'dumbbell' : k === 'event' ? 'calendar' : 'clock';
-    const plLine = pl => `<span>${ico(lwSceneIco(pl.scene), 'xs')} <b>${esc(pl.name)}</b> <span class="muted small">· ${esc(KGWorld.okScene(pl.scene) ? t('lwSc_' + pl.scene) : t('lwNoScene'))}</span></span>`;
+    const plLine = pl => `<span>${ico(lwScIco(pl.scene), 'xs')} <b>${esc(pl.name)}</b> <span class="muted small">· ${esc(lwSceneOk(pl.scene) ? lwSceneName(pl.scene) : t('lwNoScene'))}</span></span>`;
+    const row = (attr, on, tt, c, main, tail) => `<li><button class="lw-m ${on ? 'on' : ''}" ${attr}><span class="tl-ev-t">${esc(tt)}</span>${c ? `<span class="tl-ev-dot" style="--c:${c}"></span>` : ''}<span class="grow ellipsis">${main}</span>${tail || ''}</button></li>`;
+    const back = p => p ? `<button class="chip sm ghost lw-back" data-lw-all>${ico(u.ws === 'tr' ? 'route' : 'globe', 'xs')} ${esc(t(u.ws === 'tr' ? 'lwTrAll' : 'lwOverview'))}</button>` : '';
+    /* Lugares */
     const lwCap = D => {
-      const p = lwCur(D.ms), S = D.S;
+      const p = lwCur(D), S = D.S;
       if (p && p.t === 'm' && D.ms[p.i]) {
         const m = D.ms[p.i];
         return `<b class="lw-tt">${ico(kIco(m.kind), 'xs')} ${m.time ? esc(m.time) + ' · ' : ''}${esc(m.name)}</b>
           ${m.place ? plLine(m.place) + geoLine(m.geo) : `<span class="muted">${ico('info', 'xs')} ${esc(t(m.kind === 'gym' ? 'lwGymNoPlace' : 'lwNoPlace'))} ${stTag('na')}</span>`}
-          ${m.move ? `<span class="small">${ico(lwTrIco(m.tr), 'xs')} ${esc(t('lwFrom', { p: m.from.name }))} · ${m.tr ? `${esc(t('lwTr_' + m.tr))} ${stTag('reg')}` : `<span class="muted">${esc(t('lwTrUnknown'))}</span>`}</span>` : ''}
-          ${m.trip ? `<span class="small">${ico('plane', 'xs')} ${esc(t('lwTrip', { a: lwCountry(m.trip.from), b: lwCountry(m.trip.to) }))}</span>` : ''}`;
+          ${m.move ? `<span class="small">${ico(lwTrIco(m.tr), 'xs')} ${esc(t('lwFrom', { p: m.from.name }))} · ${m.tr ? `${esc(t('lwTr_' + m.tr))} ${stTag('reg')}` : `<span class="muted">${esc(t('lwTrUnknown'))}</span>`}</span>` : ''}`;
       }
       if (p && p.t === 'p') {
         const x = S.places.find(y => y.place.id === p.id);
         if (x) return `${plLine(x.place)}${geoLine(x.geo)}<span class="muted small">${esc(x.n === 1 ? t('lwTimes1') : t('lwTimes', { n: x.n }))}${x.place.addr ? ' · ' + esc(x.place.addr) : ''}</span>
-          ${x.place.once ? '' : `<button class="chip sm" data-lw-edit="${esc(x.place.id)}">${ico('edit', 'xs')} ${esc(t(KGWorld.okScene(x.place.scene) ? 'lwChangeScene' : 'lwSetScene'))}</button>`}`;
+          ${x.place.once ? '' : `<button class="chip sm" data-lw-edit="${esc(x.place.id)}">${ico('edit', 'xs')} ${esc(t(lwSceneOk(x.place.scene) ? 'lwChangeScene' : 'lwSetScene'))}</button>`}`;
       }
-      if (p && p.t === 'trip' && S.trips[p.i]) { const m = S.trips[p.i]; return `<b class="lw-tt">${ico('plane', 'xs')} ${esc(t('lwTrip', { a: lwCountry(m.trip.from), b: lwCountry(m.trip.to) }))}</b><span class="muted small">${esc(fmtDate(m.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }))} · ${esc(m.trip.fromPlace.name)} → ${esc(m.trip.toPlace.name)}</span>`; }
-      return `<b class="lw-tt">${ico('globe', 'xs')} ${esc(t('lwOverview'))}</b><span class="muted small">${esc([[S.places.length, 'lwNPl'], [S.countries.length, 'lwNCc'], [S.trips.length, 'lwNTr']].map(([n, k]) => t(n === 1 ? k + '1' : k, { n })).join(' · '))}</span>`;
+      return `<b class="lw-tt">${ico('globe', 'xs')} ${esc(t('lwOverview'))}</b><span class="muted small">${esc([[S.places.length, 'lwNPl'], [S.countries.length, 'lwNCc']].map(([n, k]) => t(n === 1 ? k + '1' : k, { n })).join(' · '))}</span>`;
     };
-    const worldBody = () => {
-      const D = lwData(), p = lwCur(D.ms), S = D.S;
-      let h = `<div class="lw-cap" id="lw-cap" aria-live="polite">${lwCap(D)}${p ? `<button class="chip sm ghost lw-back" data-lw-all>${ico('globe', 'xs')} ${esc(t('lwOverview'))}</button>` : ''}</div>`;
+    const placeBody = D => {
+      const p = lwCur(D), S = D.S;
+      let h = `<div class="lw-cap" id="lw-cap" aria-live="polite">${lwCap(D)}${back(p)}</div>`;
       if (!D.ms.length) return h + `<div class="tl-empty">${esc(t('lwNoMoments'))}</div>`;
-      const row = (attr, on, tt, c, main, tail) => `<li><button class="lw-m ${on ? 'on' : ''}" ${attr}><span class="tl-ev-t">${esc(tt)}</span>${c ? `<span class="tl-ev-dot" style="--c:${c}"></span>` : ''}<span class="grow ellipsis">${main}</span>${tail || ''}</button></li>`;
-      if (u.sc === 'day') h += `<ol class="lw-ms">${D.ms.map((m, i) => row(`data-lw-m="${i}"`, p && p.t === 'm' && p.i === i, m.time || t('tlAllDay'), m.color, `${esc(m.name)}${m.place ? `<small class="muted"> · ${esc(m.place.name)}</small>` : ''}`, `${m.tr ? ico(lwTrIco(m.tr), 'xs') : ''}${m.trip ? ico('plane', 'xs') : ''}`)).join('')}</ol>`;
+      if (u.sc === 'day') h += `<ol class="lw-ms">${D.ms.map((m, i) => row(`data-lw-m="${i}"`, p && p.t === 'm' && p.i === i, m.time || t('tlAllDay'), m.color, `${esc(m.name)}${m.place ? `<small class="muted"> · ${esc(m.place.name)}</small>` : ''}`, '')).join('')}</ol>`;
       else {
-        if (S.places.length) h += `<div class="lw-sec"><span class="jr-h">${ico('pin', 'xs')} ${esc(t('lwPlaces'))}</span><div class="lw-pl">${S.places.slice(0, 40).map(x => `<button class="lw-pc ${p && p.t === 'p' && p.id === x.place.id ? 'on' : ''}" data-lw-p="${esc(x.place.id)}" style="--c:${tfColor(x.place.color)}">${ico(lwSceneIco(x.place.scene), 'xs')}<span class="grow ellipsis">${esc(x.place.name)}</span><b>×${x.n}</b></button>`).join('')}</div></div>`;
+        if (S.places.length) h += `<div class="lw-sec"><span class="jr-h">${ico('pin', 'xs')} ${esc(t('lwPlaces'))}</span><div class="lw-pl">${S.places.slice(0, 40).map(x => `<button class="lw-pc ${p && p.t === 'p' && p.id === x.place.id ? 'on' : ''}" data-lw-p="${esc(x.place.id)}" style="--c:${lwSceneSpec(x.place).color}">${ico(lwScIco(x.place.scene), 'xs')}<span class="grow ellipsis">${esc(x.place.name)}</span><b>×${x.n}</b></button>`).join('')}</div></div>`;
         if (S.countries.length) h += `<div class="lw-sec"><span class="jr-h">${ico('globe', 'xs')} ${esc(t('lwCountries'))}</span><div class="lw-cc">${S.countries.map(c => `<span class="chip sm">${esc(lwCountry(c.cc))} <b>×${c.n}</b> ${stTag(c.st)}</span>`).join('')}</div></div>`;
-        if (S.trips.length) h += `<div class="lw-sec"><span class="jr-h">${ico('plane', 'xs')} ${esc(t('lwTrips'))}</span><ol class="lw-ms">${S.trips.map((m, i) => row(`data-lw-t="${i}"`, p && p.t === 'trip' && p.i === i, fmtDate(m.date, { day: 'numeric', month: 'short' }), '', `${esc(lwCountry(m.trip.from))} → ${esc(lwCountry(m.trip.to))}<small class="muted"> · ${esc(m.trip.fromPlace.name)} → ${esc(m.trip.toPlace.name)}</small>`)).join('')}</ol></div>`;
       }
       if (S.unknown) h += `<p class="muted small">${ico('info', 'xs')} ${esc(t(S.unknown === 1 ? 'lwUnknown1' : 'lwUnknownN', { n: S.unknown }))}</p>`;
-      const noSc = S.places.filter(x => !x.place.once && !KGWorld.okScene(x.place.scene));
+      const noSc = S.places.filter(x => !x.place.once && !lwSceneOk(x.place.scene));
       if (noSc.length) h += `<div class="lw-hint">${ico('edit', 'xs')}<span class="grow small">${esc(t(noSc.length === 1 ? 'lwNoSceneHelp1' : 'lwNoSceneHelp', { n: noSc.length, p: noSc[0].place.name }))}</span><button class="chip sm" data-lw-edit="${esc(noSc[0].place.id)}">${esc(t('lwSetScene'))}</button></div>`;
       if (S.countries.some(c => c.st === 'calc')) h += `<p class="muted small">${esc(t('lwMapNote'))}</p>`;
       return h;
     };
-    const world = () => `<div class="lw-stage" id="lw-stage"><canvas id="lw-cv" role="img" aria-label="${esc(t('lwAria'))}"></canvas><div class="lw-static" id="lw-static" aria-hidden="true"></div><span class="lw-load muted small">${esc(t('lwLoading'))}</span></div><div id="lw-body">${worldBody()}</div>`;
+    /* Transporte: el recorrido del periodo */
+    const hrs = l => l.dep || l.arr ? `${esc(l.dep || '?')} → ${esc(l.arr || '?')}` : '';
+    const legMain = l => `${esc(t('lwTr_' + l.tr))}<small class="muted"> · ${esc(l.from ? l.from.name : '?')} → ${esc(l.to ? l.to.name : t('lwNoPlaceShort'))}</small>`;
+    const trCap = D => {
+      const p = lwCur(D), LS = D.LS;
+      if (p && p.t === 'm' && D.L[p.i]) {
+        const l = D.L[p.i];
+        return `<b class="lw-tt">${ico(lwTrIco(l.tr), 'xs')} ${esc(t('lwTr_' + l.tr))} ${stTag('reg')}</b>
+          <span>${ico('route', 'xs')} ${l.from ? `${esc(l.from.name)}` : `<span class="muted">${esc(t('lwFromUnknown'))}</span>`} → ${l.to ? `<b>${esc(l.to.name)}</b>` : `<span class="muted">${esc(t('lwNoPlaceShort'))}</span>`}</span>
+          <span class="small">${ico('clock', 'xs')} ${l.dep || l.arr ? `${esc(t('lwDep'))} ${esc(l.dep || '—')} · ${esc(t('lwArr'))} ${esc(l.arr || '—')}${l.min != null ? ` · <b>${esc(lwDur(l.min))}</b> ${stTag('calc')}` : ''}` : `<span class="muted">${esc(t('lwNoHours'))}</span>`}</span>
+          <span class="muted small">${esc(fmtDate(l.date, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(l.name)}</span>
+          ${l.trip ? `<span class="small">${ico('plane', 'xs')} ${esc(t('lwTrip', { a: lwCountry(l.trip.from), b: lwCountry(l.trip.to) }))}</span>` : ''}`;
+      }
+      if (p && p.t === 'trip' && D.S.trips[p.i]) { const m = D.S.trips[p.i]; return `<b class="lw-tt">${ico('plane', 'xs')} ${esc(t('lwTrip', { a: lwCountry(m.trip.from), b: lwCountry(m.trip.to) }))}</b><span class="muted small">${esc(fmtDate(m.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }))} · ${esc(m.trip.fromPlace.name)} → ${esc(m.trip.toPlace.name)}</span>`; }
+      if (p && p.t === 'tr') { const x = LS.byTr.find(y => y.tr === p.tr); if (x) return `<b class="lw-tt">${ico(lwTrIco(x.tr), 'xs')} ${esc(t('lwTr_' + x.tr))}</b><span class="small">${esc(t(x.n === 1 ? 'lwNLeg1' : 'lwNLeg', { n: x.n }))}${x.nMin ? ` · ${esc(t('lwOnTheWay', { d: lwDur(x.min) }))} · ${esc(t('lwAvg', { d: lwDur(Math.round(x.min / x.nMin)) }))}` : ''}</span>`; }
+      return `<b class="lw-tt">${ico('route', 'xs')} ${esc(t('lwRoute'))}</b><span class="muted small">${esc(t(LS.total.n === 1 ? 'lwNLeg1' : 'lwNLeg', { n: LS.total.n }))}${LS.total.nMin ? ' · ' + esc(t('lwOnTheWay', { d: lwDur(LS.total.min) })) : ''}${D.S.trips.length ? ' · ' + esc(t(D.S.trips.length === 1 ? 'lwNTr1' : 'lwNTr', { n: D.S.trips.length })) : ''}</span>`;
+    };
+    const trBody = D => {
+      const p = lwCur(D), LS = D.LS, S = D.S;
+      let h = `<div class="lw-cap" id="lw-cap" aria-live="polite">${trCap(D)}${back(p)}</div>`;
+      if (!D.L.length && !S.trips.length) return h + `<div class="tl-empty">${esc(t('lwNoLegs'))}</div>`;
+      if (u.sc === 'day') {
+        const rt = KGWorld.route(D.ms);
+        if (rt.length > 1) h += `<div class="lw-route" aria-label="${esc(t('lwRoute'))}">${rt.map((r, i) => `${i ? `<span class="lw-hop">${r.tr ? ico(lwTrIco(r.tr), 'xs') : '<i>·</i>'}${r.min != null ? `<small>${esc(lwDur(r.min))}</small>` : ''}</span>` : ''}<span class="lw-stop" style="--c:${lwSceneSpec(r.place).color}">${ico(lwScIco(r.place.scene), 'xs')}<span class="ellipsis">${esc(r.place.name)}</span></span>`).join('')}</div>`;
+        h += `<ol class="lw-ms">${D.L.map((l, i) => row(`data-lw-m="${i}"`, p && p.t === 'm' && p.i === i, l.dep || l.time || t('tlAllDay'), KGScenes.colorOf(lwSt(), 'tr-' + l.tr), legMain(l), `${l.min != null ? `<small class="lw-dur">${esc(lwDur(l.min))}</small>` : ''}${ico(lwTrIco(l.tr), 'xs')}`)).join('')}</ol>`;
+      } else {
+        if (LS.byTr.length) h += `<div class="lw-sec"><span class="jr-h">${ico('route', 'xs')} ${esc(t('lwByTr'))}</span><div class="lw-pl">${LS.byTr.map(x => `<button class="lw-pc ${p && p.t === 'tr' && p.tr === x.tr ? 'on' : ''}" data-lw-tr="${x.tr}" style="--c:${KGScenes.colorOf(lwSt(), 'tr-' + x.tr)}">${ico(lwTrIco(x.tr), 'xs')}<span class="grow ellipsis">${esc(t('lwTr_' + x.tr))}${x.nMin ? `<small class="muted"> · ${esc(lwDur(x.min))}</small>` : ''}</span><b>×${x.n}</b></button>`).join('')}</div></div>`;
+        if (LS.routes.length) h += `<div class="lw-sec"><span class="jr-h">${ico('repeat', 'xs')} ${esc(t('lwRoutes'))}</span><ol class="lw-ms">${LS.routes.slice(0, 12).map(r => `<li><div class="lw-m lw-ro">${ico(lwTrIco(r.tr), 'xs')}<span class="grow ellipsis">${esc(r.from ? r.from.name : '?')} → ${esc(r.to.name)}</span>${r.nMin ? `<small class="lw-dur">${esc(t('lwAvg', { d: lwDur(Math.round(r.min / r.nMin)) }))}</small>` : ''}<b>×${r.n}</b></div></li>`).join('')}</ol></div>`;
+        if (D.L.length) h += `<details class="lw-sec lw-legs"><summary class="jr-h">${ico('list', 'xs')} ${esc(t('lwLegs'))} <b>${D.L.length}</b></summary><ol class="lw-ms">${D.L.slice(-80).map((l, k) => { const i = D.L.length > 80 ? D.L.length - 80 + k : k; return row(`data-lw-m="${i}"`, p && p.t === 'm' && p.i === i, fmtDate(l.date, { day: 'numeric', month: 'short' }), KGScenes.colorOf(lwSt(), 'tr-' + l.tr), legMain(l), l.min != null ? `<small class="lw-dur">${esc(lwDur(l.min))}</small>` : ''); }).join('')}</ol></details>`;
+        if (S.trips.length) h += `<div class="lw-sec"><span class="jr-h">${ico('plane', 'xs')} ${esc(t('lwTrips'))}</span><ol class="lw-ms">${S.trips.map((m, i) => row(`data-lw-t="${i}"`, p && p.t === 'trip' && p.i === i, fmtDate(m.date, { day: 'numeric', month: 'short' }), '', `${esc(lwCountry(m.trip.from))} → ${esc(lwCountry(m.trip.to))}<small class="muted"> · ${esc(m.trip.fromPlace.name)} → ${esc(m.trip.toPlace.name)}</small>`)).join('')}</ol></div>`;
+      }
+      const noH = D.L.filter(l => l.min == null).length;
+      if (noH) h += `<p class="muted small">${ico('info', 'xs')} ${esc(t(noH === 1 ? 'lwNoHours1' : 'lwNoHoursN', { n: noH }))}</p>`;
+      const noTr = D.ms.filter(m => m.move && !m.tr).length;
+      if (noTr) h += `<p class="muted small">${ico('info', 'xs')} ${esc(t(noTr === 1 ? 'lwNoTr1' : 'lwNoTrN', { n: noTr }))}</p>`;
+      return h;
+    };
+    /* Escenarios: carrusel 3D (lugares o transportes), un color por escenario, plantillas y creador por casillas */
+    const scItems = () => LW.scKind === 'tr' ? KGWorld.TRANSPORTS.map(x => 'tr-' + x) : [...KGWorld.SCENE_IDS, ...lwSt().scenes.map(x => x.id)];
+    const scCur = () => { const xs = scItems(); return xs.includes(LW.sc) ? LW.sc : xs[0]; };
+    const scName = id => id.startsWith('tr-') ? t('lwTr_' + id.slice(3)) : lwSceneName(id);
+    const scIco = id => id.startsWith('tr-') ? lwTrIco(id.slice(3)) : lwScIco(id);
+    const scColor = id => lwCustom(id) ? lwCustom(id).color : KGScenes.colorOf(lwSt(), id);
+    function lwScSpec() {
+      const st = lwSt();
+      if (LW.ed) return { type: 'scene', scene: LW.ed.id, cells: LW.ed.cells, color: LW.ed.color, mono: st.mono, instant: true };
+      const id = scCur();
+      if (id.startsWith('tr-')) return lwTrSpec(id.slice(3));
+      const cs = lwCustom(id); if (cs) return { type: 'scene', scene: id, cells: cs.cells, color: cs.color, mono: st.mono };
+      return { type: 'scene', scene: id, color: KGScenes.colorOf(st, id), mono: st.mono };
+    }
+    const swatches = (cur, attr) => `<div class="swatches lw-sw">${['#8e8e93', ...HABIT_COLORS].map(c => `<button type="button" class="sw ${cur === c ? 'on' : ''}" ${attr}="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="lw-color" value="${esc(cur)}" aria-label="${esc(t('themeCustom'))}"></div>`;
+    const usedBy = id => (state.calPlaces || []).filter(pl => pl.scene === id);
+    const scBody = () => {
+      const st = lwSt();
+      if (LW.ed) return edBody();
+      const xs = scItems(), id = scCur(), i = xs.indexOf(id), cs = lwCustom(id), isTr = id.startsWith('tr-');
+      let h = `<div class="lw-scnav"><button class="icon-btn sm" data-lw-scn="-1" aria-label="${esc(t('tlPrev'))}">${ico('left')}</button><div class="lw-sct"><b>${ico(scIco(id), 'xs')} ${esc(scName(id))}</b><small class="muted">${i + 1} / ${xs.length}${cs ? ' · ' + esc(t('lwMine')) : ''}</small></div><button class="icon-btn sm" data-lw-scn="1" aria-label="${esc(t('tlNext'))}">${ico('right')}</button></div>`;
+      h += `<div class="seg seg-sm lw-sck" role="group">${[['place', 'pin', 'lwScPlaces'], ['tr', 'route', 'lwScTr']].map(([k, ic, l]) => `<button data-lw-sck="${k}" class="${(LW.scKind || 'place') === k ? 'on' : ''}" aria-pressed="${(LW.scKind || 'place') === k}">${ico(ic, 'xs')} ${esc(t(l))}</button>`).join('')}</div>`;
+      h += `<div class="lw-car" id="lw-car" role="listbox" aria-label="${esc(t('lwScAria'))}">${xs.map(x => `<button class="lw-cc-i ${x === id ? 'on' : ''}" role="option" aria-selected="${x === id}" data-lw-sc="${esc(x)}" style="--c:${scColor(x)}"><span class="lw-cc-d">${ico(scIco(x))}</span><span class="ellipsis">${esc(scName(x))}</span></button>`).join('')}${isTr ? '' : `<button class="lw-cc-i lw-cc-new" data-lw-new>${ico('plus')}<span>${esc(t('lwNewScene'))}</span></button>`}</div>`;
+      h += `<div class="lw-sec"><span class="jr-h">${ico('palette', 'xs')} ${esc(t('lwScColor'))}</span>${swatches(scColor(id), 'data-lw-c')}
+        <label class="row lw-mono" style="gap:12px"><span class="switch"><input type="checkbox" id="lw-mono" ${st.mono ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('lwMono'))}</b><br><span class="muted">${esc(t('lwMonoHint'))}</span></span></label>
+        ${!cs && st.colors[id] ? `<button class="chip sm ghost" data-lw-reset>${ico('refresh', 'xs')} ${esc(t('lwScReset'))}</button>` : ''}</div>`;
+      if (cs) h += `<div class="row wrap lw-acts"><button class="btn sm" data-lw-ed="${esc(id)}">${ico('edit')} ${esc(t('edit'))}</button><button class="btn sm ghost" data-lw-dup="${esc(id)}">${ico('copy')} ${esc(t('lwDup'))}</button><button class="btn sm ghost danger" data-lw-del="${esc(id)}">${ico('trash')} ${esc(t('delete'))}</button></div>`;
+      if (!isTr) {
+        const ub = usedBy(id), pls = (state.calPlaces || []).filter(pl => pl.scene !== id);
+        h += `<div class="lw-sec"><span class="jr-h">${ico('pin', 'xs')} ${esc(t('lwUsedBy'))}</span>${ub.length ? `<div class="lw-cc">${ub.map(pl => `<span class="chip sm" style="--c:${tfColor(pl.color)}">${esc(pl.name)}</span>`).join('')}</div>` : `<span class="muted small">${esc(t('lwUsedNone'))}</span>`}
+          ${pls.length ? `<label class="row" style="gap:8px">${ico('plus', 'xs')}<select class="input grow" id="lw-assign" aria-label="${esc(t('lwAssign'))}"><option value="">${esc(t('lwAssign'))}</option>${pls.map(pl => `<option value="${esc(pl.id)}">${esc(pl.name)}${lwSceneOk(pl.scene) ? ' · ' + esc(lwSceneName(pl.scene)) : ''}</option>`).join('')}</select></label>` : ''}</div>`;
+      } else h += `<p class="muted small">${esc(t('lwScTrHint'))}</p>`;
+      if (LW.tplOpen) h += tplPick();
+      return h;
+    };
+    const tplPick = () => `<div class="lw-sec lw-tpl" id="lw-tpl"><span class="jr-h">${ico('layers', 'xs')} ${esc(t('lwFromTpl'))}</span><div class="lw-pl">${['', ...KGScenes.TEMPLATE_IDS].map(x => `<button class="lw-pc" data-lw-tpl="${x}" style="--c:var(--accent)">${ico(x ? 'layers' : 'plus', 'xs')}<span class="grow ellipsis">${esc(t(x ? 'lwTpl_' + x : 'lwTplEmpty'))}</span></button>`).join('')}</div></div>`;
+    const edBody = () => {
+      const E = LW.ed, n = KGScenes.GRID, top = (x, z) => { const ks = E.cells.filter(k => k[0] === x && k[1] === z); return ks.find(k => KGScenes.topAsset(k[2])) || ks[0]; };
+      const aIco = a => (KGScenes.ASSETS.find(x => x[0] === a) || [0, 'box'])[1];
+      const tools = `<div class="lw-tools" role="radiogroup" aria-label="${esc(t('lwPieces'))}">${KGScenes.ASSETS.map(([a, ic]) => `<button class="lw-tool ${E.tool === a ? 'on' : ''}" data-lw-tool="${a}" role="radio" aria-checked="${E.tool === a}">${ico(ic, 'xs')}<span>${esc(t('lwA_' + a))}</span></button>`).join('')}
+          <button class="lw-tool ${E.tool === 'size' ? 'on' : ''}" data-lw-tool="size" role="radio" aria-checked="${E.tool === 'size'}">${ico('layers', 'xs')}<span>${esc(t('lwSize'))}</span></button>
+          <button class="lw-tool ${E.tool === 'erase' ? 'on' : ''}" data-lw-tool="erase" role="radio" aria-checked="${E.tool === 'erase'}">${ico('trash', 'xs')}<span>${esc(t('lwErase'))}</span></button></div>`;
+      let h = `<div class="lw-ed"><div class="lw-grid" style="--n:${n}" role="grid" aria-label="${esc(t('lwGridAria'))}">`;
+      for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) { const k = top(x, z), both = E.cells.filter(c => c[0] === x && c[1] === z).length > 1; h += `<button class="lw-cell ${k ? 'on' : ''}" data-lw-cell="${x},${z}" style="--r:${k ? k[3] * 90 : 0}deg" aria-label="${esc(k ? t('lwA_' + k[2]) : t('lwEmptyCell'))}">${k ? ico(aIco(k[2]), 'xs') : ''}${k && k[4] !== 1 ? `<i class="lw-sz">${k[4] === 2 ? 'L' : 'S'}</i>` : ''}${both ? '<i class="lw-stack"></i>' : ''}</button>`; }
+      h += `</div><p class="muted small">${esc(t('lwEdHint'))}</p>${tools}
+        <input class="input" id="lw-ed-name" maxlength="${KGScenes.NAME_MAX}" value="${esc(E.name)}" placeholder="${esc(t('lwScNamePh'))}" aria-label="${esc(t('tfName'))}">
+        ${swatches(E.color, 'data-lw-c')}
+        <div class="row wrap lw-acts"><button class="btn sm ghost" data-lw-clear>${ico('x')} ${esc(t('lwClear'))}</button><span class="grow"></span><button class="btn sm ghost" data-lw-cancel>${esc(t('cancel'))}</button><button class="btn sm primary" data-lw-save>${ico('check')} ${esc(t('save'))}</button></div></div>`;
+      return h;
+    };
+    const subs = () => `<div class="seg seg-sm lw-sub" role="tablist">${[['place', 'pin', 'lwSubPlace'], ['tr', 'route', 'lwSubTr'], ['sc', 'layers', 'lwSubSc']].map(([k, ic, l]) => `<button role="tab" data-lw-ws="${k}" class="${u.ws === k ? 'on' : ''}" aria-selected="${u.ws === k}">${ico(ic, 'xs')} ${esc(t(l))}</button>`).join('')}</div>`;
+    const worldBody = () => u.ws === 'sc' ? scBody() : u.ws === 'tr' ? trBody(lwData()) : placeBody(lwData());
+    const world = () => `<div id="lw-subs">${subs()}</div><div class="lw-stage" id="lw-stage"><canvas id="lw-cv" role="img" aria-label="${esc(t('lwAria'))}"></canvas><div class="lw-static" id="lw-static" aria-hidden="true"></div><span class="lw-load muted small">${esc(t('lwLoading'))}</span></div><div id="lw-body">${worldBody()}</div>`;
     const worldInit = () => {
       lwStart(lwList);
       if (!LW.countries) lwLoadMap().then(c => { const b = wref && $('#lw-body', wref); if (c.length && b && u.panel === 'world') { b.innerHTML = worldBody(); lwPlay(lwList()); } });
     };
+    // Escenarios: guardar el estilo (se sincroniza con los ajustes) y volver a pintar
+    const scSave = () => { state.lwStyle = KGScenes.normStyle(lwSt()); save(); };
+    const scRefresh = (keepScroll = true) => {
+      const car = wref && $('#lw-car', wref), sl = car ? car.scrollLeft : 0;
+      setPanel();
+      const c2 = wref && $('#lw-car', wref);
+      if (c2) { if (keepScroll) c2.scrollLeft = sl; const on = $('.lw-cc-i.on', c2); if (on && on.scrollIntoView) { const r = on.offsetLeft - c2.clientWidth / 2 + on.clientWidth / 2; c2.scrollTo({ left: r, behavior: reducedMotion() ? 'auto' : 'smooth' }); } }
+    };
+    const scStep = d => { const xs = scItems(), i = xs.indexOf(scCur()); LW.sc = xs[(i + d + xs.length) % xs.length]; vibrate(5); sfx('tap'); scRefresh(); };
+    const setColor = c => {
+      if (!/^#[0-9a-f]{6}$/i.test(c)) return;
+      c = c.toLowerCase();
+      if (LW.ed) { LW.ed.color = c; } else { const id = scCur(), cs = lwCustom(id); if (cs) cs.color = c; else lwSt().colors[id] = c; scSave(); }
+    };
+    const edOpen = (cs, tpl) => {
+      const st = lwSt();
+      if (!cs && st.scenes.length >= KGScenes.MAX_SCENES) { toast(t('lwScMax', { n: KGScenes.MAX_SCENES })); return; }
+      LW.tplOpen = false;
+      LW.ed = cs ? { id: cs.id, name: cs.name, color: cs.color, cells: cs.cells.map(k => k.slice()), tool: 'house', isNew: false }
+        : { id: KGScenes.newId(Math.random, st.scenes.map(x => x.id)), name: tpl ? t('lwTpl_' + tpl) : t('lwMyScene'), color: KGScenes.CUSTOM_COLOR, cells: tpl ? KGScenes.template(tpl) : [], tool: 'house', isNew: true, tpl };
+      sfx('tap'); setPanel();
+    };
+    const edSave = () => {
+      const E = LW.ed, st = lwSt(), sc = KGScenes.normScene({ id: E.id, name: E.name, color: E.color, cells: E.cells, tpl: E.tpl });
+      if (!sc) return;
+      const i = st.scenes.findIndex(x => x.id === E.id); if (i >= 0) st.scenes[i] = sc; else st.scenes.push(sc);
+      LW.ed = null; LW.scKind = 'place'; LW.sc = sc.id; scSave(); sfx('success'); toast(t('saved')); scRefresh(false);
+    };
+    // Repintar solo la rejilla y el 3D al editar (sin volver a crear el resto)
+    const edPaint = () => { const b = wref && $('#lw-body', wref); if (!b) return; const y = window.scrollY; b.innerHTML = edBody(); window.scrollTo(0, y); lwPlay([lwScSpec()]); };
+    function lwClick(e) {
+      const ws = e.target.closest('[data-lw-ws]'); if (ws) { if (u.ws === ws.dataset.lwWs) return true; u.ws = ws.dataset.lwWs; LW.pick = null; LW.ed = null; LW.tplOpen = false; save(); vibrate(5); sfx('tap'); setPanel(); return true; }
+      const lm = e.target.closest('[data-lw-m], [data-lw-p], [data-lw-t], [data-lw-tr], [data-lw-all]');
+      if (lm) { const d = lm.dataset; LW.pick = d.lwM !== undefined ? { t: 'm', i: +d.lwM } : d.lwP !== undefined ? { t: 'p', id: d.lwP } : d.lwT !== undefined ? { t: 'trip', i: +d.lwT } : d.lwTr !== undefined ? { t: 'tr', tr: d.lwTr } : { t: 'all' }; vibrate(5); sfx('tap'); setPanel(); return true; }
+      const le = e.target.closest('[data-lw-edit]'); if (le) { const pl = tfPlace(le.dataset.lwEdit); if (pl) tfEditPlace(pl, () => setPanel()); return true; }
+      const sk = e.target.closest('[data-lw-sck]'); if (sk) { LW.scKind = sk.dataset.lwSck; LW.sc = null; LW.tplOpen = false; sfx('tap'); scRefresh(false); return true; }
+      const si = e.target.closest('[data-lw-sc]'); if (si) { LW.sc = si.dataset.lwSc; LW.tplOpen = false; vibrate(5); sfx('tap'); scRefresh(); return true; }
+      const sn = e.target.closest('[data-lw-scn]'); if (sn) { scStep(+sn.dataset.lwScn); return true; }
+      const sw = e.target.closest('[data-lw-c]'); if (sw) { setColor(sw.dataset.lwC); sfx('tap'); if (LW.ed) edPaint(); else scRefresh(); return true; }
+      if (e.target.closest('[data-lw-reset]')) { delete lwSt().colors[scCur()]; scSave(); sfx('tap'); scRefresh(); return true; }
+      if (e.target.closest('[data-lw-new]')) { LW.tplOpen = !LW.tplOpen; sfx('tap'); setPanel(); const tp = wref && $('#lw-tpl', wref); if (tp) tp.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); return true; }
+      const tp = e.target.closest('[data-lw-tpl]'); if (tp) { edOpen(null, tp.dataset.lwTpl || ''); return true; }
+      const ed = e.target.closest('[data-lw-ed]'); if (ed) { const cs = lwCustom(ed.dataset.lwEd); if (cs) edOpen(cs); return true; }
+      const du = e.target.closest('[data-lw-dup]'); if (du) { const cs = lwCustom(du.dataset.lwDup); if (cs) { edOpen({ ...cs, id: KGScenes.newId(Math.random, lwSt().scenes.map(x => x.id)), name: (cs.name + ' 2').slice(0, KGScenes.NAME_MAX) }); if (LW.ed) LW.ed.isNew = true; } return true; }
+      const dl = e.target.closest('[data-lw-del]'); if (dl) {
+        const id = dl.dataset.lwDel, ub = usedBy(id);
+        confirmDialog(ub.length ? t('lwDelUsedQ', { n: ub.length }) : t('lwDelQ')).then(ok => {
+          if (!ok) return;
+          const st = lwSt(); st.scenes = st.scenes.filter(x => x.id !== id);
+          if (ub.length) { state.calPlaces = state.calPlaces.map(pl => pl.scene === id ? (({ scene, ...r }) => r)(pl) : pl); tfSave(false); }
+          LW.sc = null; scSave(); scRefresh(false);
+        });
+        return true;
+      }
+      const tl = e.target.closest('[data-lw-tool]'); if (tl && LW.ed) { LW.ed.tool = tl.dataset.lwTool; sfx('tap'); $$('[data-lw-tool]', wref).forEach(b => { b.classList.toggle('on', b === tl); b.setAttribute('aria-checked', b === tl); }); return true; }
+      const ce = e.target.closest('[data-lw-cell]'); if (ce && LW.ed) {
+        const [x, z] = ce.dataset.lwCell.split(',').map(Number), E = LW.ed;
+        E.cells = E.tool === 'erase' ? KGScenes.erase(E.cells, x, z) : E.tool === 'size' ? KGScenes.resize(E.cells, x, z) : KGScenes.place(E.cells, x, z, E.tool);
+        vibrate(4); sfx('tap'); edPaint(); return true;
+      }
+      if (e.target.closest('[data-lw-clear]') && LW.ed) { LW.ed.cells = []; sfx('tap'); edPaint(); return true; }
+      if (e.target.closest('[data-lw-cancel]')) { LW.ed = null; sfx('tap'); scRefresh(false); return true; }
+      if (e.target.closest('[data-lw-save]') && LW.ed) { edSave(); return true; }
+      return false;
+    }
+    function lwChange(e) {
+      if (e.target.id === 'lw-color') { setColor(e.target.value); if (LW.ed) edPaint(); else scRefresh(); return true; }
+      if (e.target.id === 'lw-mono') { lwSt().mono = e.target.checked; scSave(); sfx('toggle'); lwPlay(lwList()); return true; }
+      if (e.target.id === 'lw-assign' && e.target.value) {
+        const id = scCur(), pid = e.target.value;
+        state.calPlaces = state.calPlaces.map(pl => pl.id === pid ? { ...pl, scene: id } : pl); tfSave(false); sfx('success'); setPanel(); return true;
+      }
+      return false;
+    }
+    function lwInput(e) {
+      if (e.target.id === 'lw-ed-name' && LW.ed) { LW.ed.name = e.target.value; return true; }
+      if (e.target.id === 'lw-color' && LW.ed) { LW.ed.color = e.target.value; lwPlay([lwScSpec()]); return true; }
+      return false;
+    }
     const panel = () => u.panel === 'compare' ? compare() : u.panel === 'world' ? world() : progress();
     // Cambiar lo de abajo. En Mundo, si el lienzo ya está, solo se cambia la lista y lo que se ve (no se crea otro 3D)
     const setPanel = () => {
       const p = wref && $('#tl-panel', wref); if (!p) return;
-      if (u.panel === 'world' && LW.cv && p.contains(LW.cv)) { $('#lw-body', p).innerHTML = worldBody(); lwPlay(lwList()); return; }
+      if (u.panel === 'world' && LW.cv && p.contains(LW.cv)) { $('#lw-subs', p).innerHTML = subs(); $('#lw-body', p).innerHTML = worldBody(); lwPlay(lwList()); return; }
       lwStop(); p.innerHTML = panel();
       if (u.panel === 'world') worldInit();
     };
@@ -1774,22 +1995,22 @@
     const rpStop = () => { if (!RP.on) return; rpHalt(); save(); rpPaint(); };
     const rpNext = () => { clearTimeout(RP.tm); RP.tm = setTimeout(rpStep, RP_MS / RP.sp); };
     const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); };
-    const rpWorldDay = () => u.sc === 'day' && u.panel === 'world';
+    const rpWorldDay = () => u.sc === 'day' && u.panel === 'world' && u.ws !== 'sc';
     // Un paso: en Día con Mundo, el siguiente momento (o el primero del siguiente día que tenga alguno); si no, el siguiente periodo
     function rpStep() {
       RP.tm = 0; if (!RP.on || !wref || !wref.isConnected) return;
       const tk = todayKey();
       if (rpWorldDay()) {
-        const D = lwData(), p = lwCur(D.ms), i = p && p.t === 'm' ? p.i : -1;
-        if (i + 1 < D.ms.length) { LW.pick = { t: 'm', i: i + 1 }; setPanel(); rpNext(); return; }
-        let k = u.at, n = 0; do { k = addDays(k, 1); n++; } while (k <= tk && n < 3700 && !lwItems(k, k).length);
+        const D = lwData(), p = lwCur(D), i = p && p.t === 'm' ? p.i : -1;
+        if (i + 1 < lwSeq(D).length) { LW.pick = { t: 'm', i: i + 1 }; setPanel(); rpNext(); return; }
+        let k = u.at, n = 0; do { k = addDays(k, 1); n++; } while (k <= tk && n < 3700 && !(u.ws === 'tr' ? KGWorld.legs(lwItems(k, k)) : lwItems(k, k)).length);
         if (k > tk || n >= 3700) { rpStop(); return; }
-        LW.rk = 'day' + k + k; LW.pick = { t: 'm', i: 0 }; rpGo(k); rpNext(); return;
+        LW.rk = 'day' + k + k + u.ws; LW.pick = { t: 'm', i: 0 }; rpGo(k); rpNext(); return;
       }
       if (R().to >= tk) { rpStop(); return; }
       const nk = KGT.shift(u.sc, u.at, 1); rpGo(nk > tk ? tk : nk); rpNext();
     }
-    const rpAtEnd = () => { const tk = todayKey(); if (!rpWorldDay()) return R().to >= tk; if (u.at < tk) return false; const D = lwData(), p = lwCur(D.ms); return !D.ms.length || !!(p && p.t === 'm' && p.i >= D.ms.length - 1); };
+    const rpAtEnd = () => { const tk = todayKey(); if (!rpWorldDay()) return R().to >= tk; if (u.at < tk) return false; const D = lwData(), p = lwCur(D), xs = lwSeq(D); return !xs.length || !!(p && p.t === 'm' && p.i >= xs.length - 1); };
     const rpPlay = () => {
       if (RP.on) { rpStop(); return; }
       flush(); TLS.edit = false; RP.on = true;
@@ -1843,6 +2064,10 @@
         else if (ax === 'v' && Math.abs(dy) > 40) { go(f + (dy < 0 ? 1 : -1)); p0 = { x: e.clientX, y: e.clientY }; }
       });
       const up = () => { p0 = null; }; main.addEventListener('pointerup', up); main.addEventListener('pointercancel', up);
+      // v1.40: en Escenarios, deslizar sobre el 3D pasa al escenario anterior o siguiente del carrusel
+      let sx = null;
+      w.addEventListener('pointerdown', e => { sx = u.panel === 'world' && u.ws === 'sc' && !LW.ed && e.target.closest('#lw-stage') ? e.clientX : null; });
+      w.addEventListener('pointerup', e => { if (sx == null) return; const dx = e.clientX - sx; sx = null; if (Math.abs(dx) > 40) scStep(dx < 0 ? 1 : -1); });
       // Barra de tiempo: tocar o arrastrar elige la fecha; con el teclado, flechas
       const trackAt = e => { const tr = $('#tl-track', w); if (!tr) return; const r = tr.getBoundingClientRect(); setAt(KGT.keyAt((e.clientX - r.left) / r.width, tlFirstKey(), todayKey()), { lazy: true }); };
       w.addEventListener('pointerdown', e => { if (!e.target.closest('#tl-track') || u.sc === 'all') return; dragging = true; e.target.closest('#tl-track').setPointerCapture?.(e.pointerId); trackAt(e); });
@@ -1855,10 +2080,11 @@
       });
       w.addEventListener('change', e => {
         if (e.target.id === 'tl-date' && KGT.isKey(e.target.value)) { setAt(e.target.value); return; }
-        const ci = e.target.closest('[data-tl-ci]'); if (ci && KGT.isKey(ci.value)) { u.cmp[ci.dataset.tlCi] = ci.value; save(); setPanel(); }
+        const ci = e.target.closest('[data-tl-ci]'); if (ci && KGT.isKey(ci.value)) { u.cmp[ci.dataset.tlCi] = ci.value; save(); setPanel(); return; }
+        lwChange(e);
       });
       w.addEventListener('toggle', e => { if (e.target.id === 'tl-stats') { u.open = e.target.open; save(); } }, true);
-      w.addEventListener('input', e => { if (e.target.id !== 'jr-note') return; const st2 = $('#jr-note-st', w); if (st2) st2.textContent = ''; clearTimeout(saveT); const v = e.target.value; saveT = setTimeout(() => { saveT = 0; commit(v); }, 700); });
+      w.addEventListener('input', e => { if (lwInput(e)) return; if (e.target.id !== 'jr-note') return; const st2 = $('#jr-note-st', w); if (st2) st2.textContent = ''; clearTimeout(saveT); const v = e.target.value; saveT = setTimeout(() => { saveT = 0; commit(v); }, 700); });
       w.addEventListener('focusout', e => { if (e.target.id === 'jr-note') flush(); });
       w.addEventListener('click', e => {
         if (!e.target.closest('.tl')) return;
@@ -1876,10 +2102,8 @@
         const pn = e.target.closest('[data-tl-panel]'); if (pn) { u.panel = pn.dataset.tlPanel; save(); sfx('tap'); $$('[data-tl-panel]', w).forEach(b => { b.classList.toggle('on', b === pn); b.setAttribute('aria-selected', b === pn); }); setPanel(); return; }
         const pv = e.target.closest('[data-tl-pv]'); if (pv) { u.pv = pv.dataset.tlPv; save(); sfx('tap'); setPanel(); return; }
         const ed = e.target.closest('[data-tl-ed]'); if (ed) { editView(ed.dataset.tlEd, ed.dataset.id); return; }
-        // Mundo: elegir un momento, un lugar o un viaje; volver a la vista general; poner el tipo de escenario a un lugar
-        const lm = e.target.closest('[data-lw-m], [data-lw-p], [data-lw-t], [data-lw-all]');
-        if (lm) { const d = lm.dataset; LW.pick = d.lwM !== undefined ? { t: 'm', i: +d.lwM } : d.lwP !== undefined ? { t: 'p', id: d.lwP } : d.lwT !== undefined ? { t: 'trip', i: +d.lwT } : { t: 'all' }; vibrate(5); sfx('tap'); setPanel(); return; }
-        const le = e.target.closest('[data-lw-edit]'); if (le) { const pl = tfPlace(le.dataset.lwEdit); if (pl) tfEditPlace(pl); return; }
+        // Mundo: apartados, momentos, lugares, trayectos, viajes y escenarios
+        if (lwClick(e)) return;
         const cm = e.target.closest('[data-tl-cm]'); if (cm) { u.cmp.mode = cm.dataset.tlCm; save(); sfx('tap'); setPanel(); return; }
       });
     };
@@ -3573,7 +3797,7 @@
       title: esc(t(isNew ? 'tfNewPlace' : 'tfEditPlace')), cls: 'tf-sheet',
       body: `<div class="stack" style="gap:12px"><div class="row" style="gap:10px;align-items:flex-end"><span id="tfpl-prev" class="tf-pl-prev"></span>${tfField(t('tfName'), `<input class="input" id="tfpl-name" maxlength="40" value="${esc(d.name)}" placeholder="${esc(t('tfPlNamePh'))}">`)}</div>
         ${tfField(t('tfPlIcon'), `<input class="input" id="tfpl-icon" maxlength="4" value="${esc(d.icon)}" placeholder="${esc(t('tfPlIconPh'))}">`)}
-        <div class="field"><span>${esc(t('lwSceneType'))}</span><div class="lw-scpick" role="radiogroup">${['', ...KGWorld.SCENE_IDS].map(id => `<button type="button" class="chip sm ${(d.scene || '') === id ? 'on' : ''}" data-tfpl-sc="${id}" role="radio" aria-checked="${(d.scene || '') === id}">${id ? ico(lwSceneIco(id), 'xs') + ' ' : ''}${esc(id ? t('lwSc_' + id) : t('lwScNone'))}</button>`).join('')}</div><small class="muted">${esc(t('lwSceneHelp'))}</small></div>
+        <div class="field"><span>${esc(t('lwSceneType'))}</span><div class="lw-scpick" role="radiogroup">${['', ...KGWorld.SCENE_IDS, ...lwSt().scenes.map(x => x.id)].map(id => `<button type="button" class="chip sm ${(d.scene || '') === id ? 'on' : ''}" data-tfpl-sc="${id}" role="radio" aria-checked="${(d.scene || '') === id}">${id ? ico(lwScIco(id), 'xs') + ' ' : ''}${esc(id ? lwSceneName(id) : t('lwScNone'))}</button>`).join('')}</div><small class="muted">${esc(t('lwSceneHelp'))}</small></div>
         <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${cols.map(c => `<button type="button" class="sw ${d.color === c ? 'on' : ''}" data-tfpl-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="tfpl-color" value="${tfColor(d.color)}" aria-label="${esc(t('themeCustom'))}"></div></div>
         <div class="field"><span>${esc(t('tfPlAddr'))}</span><textarea class="input" id="tfpl-addr" rows="2" maxlength="300" placeholder="${esc(t('tfPlAddrPh'))}">${esc(d.addr || '')}</textarea>
           <div class="row wrap" style="gap:8px;margin-top:8px"><button type="button" class="btn sm" data-tfpl="search">${ico('search')} ${esc(t('tfPlSearch'))}</button><button type="button" class="btn sm ghost" data-tfpl="inmaps">${ico('pin')} ${esc(t('tfPlInMaps'))}</button></div>
@@ -3610,7 +3834,7 @@
         const name = $('#tfpl-name', w).value.trim();
         if (!name) { toast(t('tfNeedName')); return; }
         const picked = $('#tfpl-color', w).value; if (/^#[0-9a-fA-F]{6}$/.test(picked)) d.color = picked;
-        const out = { id: d.id, name: name.slice(0, 40), icon: $('#tfpl-icon', w).value.trim().slice(0, 4), color: tfColor(d.color), addr: $('#tfpl-addr', w).value.trim().slice(0, 300), ...(d.lat != null ? { lat: d.lat, lon: d.lon } : {}), ...(KGWorld.okScene(d.scene) ? { scene: d.scene } : {}), ...(d.city ? { city: String(d.city).slice(0, 80) } : {}), ...(/^[A-Z]{2}$/.test(d.cc || '') ? { cc: d.cc } : {}) };
+        const out = { id: d.id, name: name.slice(0, 40), icon: $('#tfpl-icon', w).value.trim().slice(0, 4), color: tfColor(d.color), addr: $('#tfpl-addr', w).value.trim().slice(0, 300), ...(d.lat != null ? { lat: d.lat, lon: d.lon } : {}), ...(lwSceneOk(d.scene) ? { scene: d.scene } : {}), ...(d.city ? { city: String(d.city).slice(0, 80) } : {}), ...(/^[A-Z]{2}$/.test(d.cc || '') ? { cc: d.cc } : {}) };
         const i = state.calPlaces.findIndex(x => x.id === d.id); if (i >= 0) state.calPlaces[i] = out; else state.calPlaces.push(out);
         close(); tfSave(!after); toast(t('saved')); after && after(out.id);
       }
@@ -6043,7 +6267,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
