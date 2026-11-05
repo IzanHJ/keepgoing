@@ -140,5 +140,42 @@
     return out;
   }
 
-  return { SCENES, SCENE_IDS, okScene, TRANSPORTS, okTransport, decodeTopo, inRing, countryAt, centerOf, fromOsmAddress, geoOf, moments, summary, toXYZ, arc };
+  /* ---- v1.40: Recorrido. Los trayectos del periodo, sacados del «Medio de transporte» y el «Lugar» de cada turno ----
+     Cada momento con transporte registrado es un trayecto: { tr, dep, arr ('HH:MM' o ''), min (duración o null), from (último lugar
+     conocido, solo si cambió), to (su lugar o null) }. La duración sale de la salida y la llegada; si falta una, no se supone. */
+  const hm = s => (typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s) ? +s.slice(0, 2) * 60 + +s.slice(3) : null);
+  function legDur(dep, arr) { const a = hm(dep), b = hm(arr); if (a == null || b == null) return null; const d = b - a; return d < 0 ? d + 1440 : d; }
+  function legs(ms) {
+    const out = [];
+    (ms || []).forEach((m, i) => {
+      if (!m || !okTransport(m.tr)) return;
+      out.push({ i, date: m.date, time: m.time || '', tr: m.tr, dep: hm(m.trDep) != null ? m.trDep : '', arr: hm(m.trArr) != null ? m.trArr : '', min: legDur(m.trDep, m.trArr),
+        from: m.move ? m.from : null, to: m.place || null, name: m.name, color: m.color, trip: m.trip || null, geo: m.geo });
+    });
+    return out;
+  }
+  // Totales: por transporte (veces, minutos con hora de salida y llegada) y rutas repetidas (de → a, con el mismo transporte)
+  function legSummary(ls) {
+    const byTr = new Map(), routes = new Map(), total = { n: 0, min: 0, nMin: 0 };
+    for (const l of ls || []) {
+      const t = byTr.get(l.tr) || byTr.set(l.tr, { tr: l.tr, n: 0, min: 0, nMin: 0 }).get(l.tr);
+      const rk = `${l.from ? l.from.id : '?'}>${l.to ? l.to.id : '?'}>${l.tr}`, r = routes.get(rk) || routes.set(rk, { from: l.from, to: l.to, tr: l.tr, n: 0, min: 0, nMin: 0 }).get(rk);
+      for (const x of [t, r, total]) { x.n++; if (l.min != null) { x.min += l.min; x.nMin++; } }
+    }
+    const by = (a, b) => b.n - a.n || b.min - a.min;
+    return { byTr: [...byTr.values()].sort(by), routes: [...routes.values()].filter(r => r.to).sort(by), total };
+  }
+  // El recorrido de un día: las paradas en orden (sin repetir la misma seguida) y cómo se llegó a cada una
+  function route(ms) {
+    const out = [];
+    for (const m of ms || []) {
+      if (!m.place) continue;
+      const last = out[out.length - 1];
+      if (last && last.place.id === m.place.id) continue;
+      out.push({ place: m.place, tr: okTransport(m.tr) ? m.tr : '', dep: hm(m.trDep) != null ? m.trDep : '', arr: hm(m.trArr) != null ? m.trArr : '', min: legDur(m.trDep, m.trArr), time: m.time || '' });
+    }
+    return out;
+  }
+
+  return { SCENES, SCENE_IDS, okScene, TRANSPORTS, okTransport, decodeTopo, inRing, countryAt, centerOf, fromOsmAddress, geoOf, moments, summary, toXYZ, arc, legDur, legs, legSummary, route };
 });

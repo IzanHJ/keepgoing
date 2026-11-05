@@ -62,3 +62,28 @@ test('catálogos', () => {
   assert.ok(W.okTransport('bus') && !W.okTransport('teleport'));
   assert.equal(new Set(W.SCENE_IDS).size, W.SCENES.length);
 });
+
+test('v1.40 recorrido: trayectos con transporte, salida, llegada y duración', () => {
+  const casa = { id: 'a', name: 'Casa' }, ofi = { id: 'b', name: 'Oficina' }, gym = { id: 'c', name: 'Gym' };
+  const ms = W.moments([
+    { date: '2026-11-03', min: 480, kind: 'shift', name: 'Mañana', place: casa, tr: '' },
+    { date: '2026-11-03', min: 540, kind: 'shift', name: 'Trabajo', place: ofi, tr: 'bus', trDep: '08:20', trArr: '08:55' },
+    { date: '2026-11-03', min: 1100, kind: 'shift', name: 'Pesas', place: gym, tr: 'walk', trDep: '18:10' },
+    { date: '2026-11-04', min: 540, kind: 'shift', name: 'Trabajo', place: ofi, tr: 'bus', trDep: '23:50', trArr: '00:20' },
+    { date: '2026-11-04', min: 600, kind: 'shift', name: 'Sin lugar', place: null, tr: 'car' },
+  ], () => ({ cc: null, ccSt: 'na', city: null, citySt: 'na' }));
+  const L = W.legs(ms);
+  assert.equal(L.length, 4);
+  assert.deepEqual([L[0].tr, L[0].dep, L[0].arr, L[0].min, L[0].from.id, L[0].to.id], ['bus', '08:20', '08:55', 35, 'a', 'b']);
+  assert.equal(L[1].min, null); // falta la llegada: no se supone
+  assert.equal(L[2].min, 30); // cruza la medianoche
+  assert.equal(L[2].from.id, 'c');
+  assert.equal(L[3].to, null);
+  const S = W.legSummary(L);
+  assert.deepEqual(S.total, { n: 4, min: 65, nMin: 2 });
+  assert.equal(S.byTr[0].tr, 'bus'); assert.equal(S.byTr[0].n, 2);
+  assert.ok(S.routes.every(r => r.to)); // los trayectos sin destino no son rutas
+  const R = W.route(ms.filter(m => m.date === '2026-11-03'));
+  assert.deepEqual(R.map(r => [r.place.id, r.tr, r.min]), [['a', '', null], ['b', 'bus', 35], ['c', 'walk', null]]);
+  assert.equal(W.legDur('9:00', '10:00'), null);
+});
