@@ -91,7 +91,6 @@
     { id: 'records', group: 'sport', agg: 'sum', fmt: 'int', better: 'up' },
     { id: 'workH', group: 'org', agg: 'sum', fmt: 'hours', better: 'none' },
     { id: 'shifts', group: 'org', agg: 'sum', fmt: 'int', better: 'none' },
-    { id: 'pay', group: 'org', agg: 'sum', fmt: 'money', better: 'up' },
     { id: 'restDays', group: 'org', agg: 'sum', fmt: 'int', better: 'none' },
     { id: 'timeDist', group: 'org', agg: 'dist', fmt: 'hours', better: 'none', noCompare: true },
   ];
@@ -101,10 +100,10 @@
   // Vistas de serie. Las del usuario se guardan con la misma forma: { id, name, ids: [...], main: [...] }
   const DEFAULT_VIEWS = [
     { id: 'general', ids: ['habits', 'perfect', 'rate', 'workouts', 'workH', 'worth', 'balance', 'consistency'], main: ['habits', 'perfect', 'rate'] },
-    { id: 'money', ids: ['worth', 'income', 'expenses', 'balance', 'savings', 'pay'], main: ['worth', 'balance'] },
+    { id: 'money', ids: ['worth', 'income', 'expenses', 'balance', 'savings'], main: ['worth', 'balance'] },
     { id: 'sport', ids: ['workouts', 'trainDays', 'volume', 'activeH', 'records'], main: ['workouts', 'volume'] },
     { id: 'habits', ids: ['habits', 'consistency', 'perfect', 'rate', 'challenges', 'steps'], main: ['consistency', 'perfect'] },
-    { id: 'org', ids: ['workH', 'shifts', 'pay', 'restDays', 'timeDist'], main: ['workH', 'timeDist'] },
+    { id: 'org', ids: ['workH', 'shifts', 'restDays', 'timeDist'], main: ['workH', 'timeDist'] },
   ];
   const RE_VID = /^[A-Za-z0-9_-]{1,40}$/;
   function normView(v) {
