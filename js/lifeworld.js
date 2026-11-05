@@ -25,8 +25,15 @@
     const torus = (r, t, a = 6, b = 12) => geo(`t${r}|${t}|${a}|${b}`, () => new THREE.TorusGeometry(r, t, a, b));
     const col = c => { const x = new THREE.Color(); try { x.set(c || '#8e8e93'); } catch (e) { x.set('#8e8e93'); } return x; };
     const hex = c => '#' + col(c).getHexString();
+    const shadeRaw = (c, k) => { const x = col(c); return '#' + (k < 0 ? x.lerp(new THREE.Color(0, 0, 0), -k) : x.lerp(new THREE.Color(1, 1, 1), k)).getHexString(); };
     const shade = (c, k) => { const x = col(c); return '#' + (k < 0 ? x.lerp(new THREE.Color(0, 0, 0), -k) : x.lerp(new THREE.Color(1, 1, 1), k)).getHexString(); };
-    const mat = (c, o = {}) => { const k = hex(c) + (o.op ? '|' + o.op : ''); return M.get(k) || M.set(k, new THREE.MeshPhongMaterial({ color: hex(c), flatShading: true, shininess: 6, ...(o.op ? { transparent: true, opacity: o.op } : {}) })).get(k); };
+    /* v1.40: monocromo. Mientras se construye un escenario con un color, cada color pedido pasa a ser un tono de ese color según
+       lo claro u oscuro que era (relativo al color elegido): el diorama entero queda en una sola gama, con su volumen. */
+    let monoC = null, monoL = 0.5;
+    const lumOf = c => { const h = hex(c), r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+    const monoOf = c => { const h = hex(c); if (!monoC || h === monoC) return h; const k = Math.max(-0.82, Math.min(0.85, (lumOf(h) - monoL) * 1.6)); return shadeRaw(monoC, k); };
+    const withMono = (c, fn) => { const prev = [monoC, monoL]; monoC = c ? hex(c) : null; monoL = c ? lumOf(c) : 0.5; try { return fn(); } finally { [monoC, monoL] = prev; } };
+    const mat = (c0, o = {}) => { const c = monoOf(c0), k = hex(c) + (o.op ? '|' + o.op : ''); return M.get(k) || M.set(k, new THREE.MeshPhongMaterial({ color: hex(c), flatShading: true, shininess: 6, ...(o.op ? { transparent: true, opacity: o.op } : {}) })).get(k); };
     const mesh = (g, c, x = 0, y = 0, z = 0, o) => { const m = new THREE.Mesh(g, mat(c, o)); m.position.set(x, y, z); return m; };
     const group = (...xs) => { const g = new THREE.Group(); xs.forEach(x => x && g.add(x)); return g; };
     const at = (o, x, y, z, ry = 0, s = 1) => { o.position.set(x, y, z); o.rotation.y = ry; o.scale.setScalar(s); return o; };
@@ -69,7 +76,43 @@
       pin: c => { const g = group(base(GRASS), mesh(cyl(0.9, 0.9, 0.03, 12), shade(c, 0.45), 0, 0.02, 0)), k = mesh(cone(0.42, 1.2, 10), c, 0, 0.75, 0); k.rotation.x = Math.PI; g.add(k, mesh(ico(0.5, 1), c, 0, 1.55, 0), mesh(ico(0.2, 1), WHITE, 0, 1.6, 0.38), at(tree(), -1.9, 0, -0.8, 0, 0.8), at(tree(), 1.8, 0, 1, 0, 0.7)); return g; },
       unknown: () => { const g = group(base('#3a3f4b')); for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; g.add(mesh(ico(0.45 + (i % 3) * 0.12, 0), '#8b93a6', Math.cos(a) * 1.2, 0.6 + (i % 2) * 0.3, Math.sin(a) * 1.2, { op: 0.55 })); } return g; },
     };
-    const VEH = { bus, car, moto, bike, walk: c => person(c), train, other: c => car(c) };
+    const VEH = { bus, car, moto, bike, walk: c => person(c), train, other: c => car(c), plane: c => { const p = fixPlane(plane(c)); p.position.y = 1.6; p.scale.setScalar(1.3); return group(p); } };
+
+    /* ---- v1.40: piezas low-poly para los escenarios propios (una casilla mide CELL; ids de KGScenes.ASSETS) ---- */
+    const CELL = 0.86;
+    const ASSET = {
+      house: c => house(c, 0.48),
+      block: c => group(mesh(box(0.72, 1, 0.72), c, 0, 0.5, 0), at(windows(0.72, 1, 0.72, 3, 2, GLASS), 0, 0, 0), mesh(box(0.76, 0.08, 0.76), shade(c, -0.3), 0, 1.04, 0)),
+      tower: c => group(mesh(box(0.6, 2.1, 0.6), c, 0, 1.05, 0), at(windows(0.6, 2.1, 0.6, 7, 2, GLASS), 0, 0, 0), mesh(box(0.4, 0.25, 0.4), shade(c, -0.3), 0, 2.22, 0), mesh(cyl(0.02, 0.02, 0.4, 4), shade(c, -0.5), 0, 2.55, 0)),
+      tree: c => at(tree(c), 0, 0, 0, 0, 0.62),
+      pine: c => group(mesh(cyl(0.05, 0.07, 0.3, 5), TRUNK, 0, 0.15, 0), mesh(cone(0.36, 0.6, 7), c, 0, 0.55, 0), mesh(cone(0.28, 0.5, 7), shade(c, 0.1), 0, 0.88, 0), mesh(cone(0.18, 0.4, 7), shade(c, 0.2), 0, 1.15, 0)),
+      bush: c => group(mesh(ico(0.26, 0), c, 0, 0.2, 0), mesh(ico(0.18, 0), shade(c, 0.15), 0.2, 0.15, 0.08), mesh(ico(0.16, 0), shade(c, -0.12), -0.18, 0.13, -0.06)),
+      rock: c => { const a = mesh(ico(0.3, 0), shade(c, -0.15), 0, 0.16, 0), b = mesh(ico(0.17, 0), shade(c, 0.1), 0.22, 0.09, 0.12); a.scale.y = 0.65; a.rotation.y = 0.6; return group(a, b); },
+      hill: c => group(mesh(cone(0.46, 0.7, 7), c, 0, 0.35, 0), mesh(cone(0.18, 0.24, 7), shade(c, 0.55), 0, 0.6, 0)),
+      water: c => mesh(box(CELL, 0.06, CELL), shade(c, 0.25), 0, 0.03, 0, { op: 0.85 }),
+      path: c => group(mesh(box(CELL, 0.03, 0.38), shade(c, 0.45), 0, 0.015, 0), mesh(box(0.12, 0.035, 0.12), shade(c, 0.25), -0.2, 0.018, 0.08), mesh(box(0.1, 0.035, 0.1), shade(c, 0.25), 0.22, 0.018, -0.06)),
+      road: c => group(mesh(box(CELL, 0.03, CELL), shade(c, -0.55), 0, 0.015, 0), mesh(box(0.3, 0.035, 0.05), WHITE, 0, 0.018, 0)),
+      bench: c => group(mesh(box(0.6, 0.06, 0.22), c, 0, 0.24, 0), mesh(box(0.6, 0.2, 0.05), c, 0, 0.36, -0.1), mesh(box(0.05, 0.22, 0.2), shade(c, -0.4), -0.25, 0.11, 0), mesh(box(0.05, 0.22, 0.2), shade(c, -0.4), 0.25, 0.11, 0)),
+      lamp: c => group(mesh(cyl(0.03, 0.04, 1, 5), shade(c, -0.45), 0, 0.5, 0), mesh(box(0.22, 0.05, 0.08), shade(c, -0.45), 0.08, 1, 0), mesh(ico(0.08, 0), shade(c, 0.6), 0.17, 0.95, 0)),
+      fence: c => { const g = group(mesh(box(CELL, 0.05, 0.04), c, 0, 0.3, 0), mesh(box(CELL, 0.05, 0.04), c, 0, 0.16, 0)); for (let i = 0; i < 4; i++) g.add(mesh(box(0.06, 0.4, 0.06), shade(c, -0.2), -0.36 + i * 0.24, 0.2, 0)); return g; },
+      fountain: c => group(mesh(cyl(0.4, 0.42, 0.18, 10), shade(c, 0.3), 0, 0.09, 0), mesh(cyl(0.33, 0.33, 0.05, 10), shade(c, -0.1), 0, 0.17, 0, { op: 0.9 }), mesh(cyl(0.06, 0.08, 0.45, 6), shade(c, 0.3), 0, 0.35, 0), mesh(ico(0.1, 0), shade(c, 0.55), 0, 0.62, 0)),
+      tent: c => { const k = mesh(cone(0.42, 0.55, 4), c, 0, 0.27, 0); k.rotation.y = Math.PI / 4; return group(k, mesh(box(0.14, 0.3, 0.02), shade(c, -0.5), 0, 0.15, 0.3)); },
+      car: c => at(car(c), 0, 0, 0, 0, 0.42),
+      person: c => at(person(c), 0, 0, 0, 0, 0.7),
+    };
+    const SIZE = [0.72, 1, 1.38];
+    // Escenario propio: una losa cuadrada y las piezas en su casilla, con su giro y tamaño (coche y persona van encima del suelo de la casilla)
+    function custom(cells, c) {
+      const n = (opts.grid || 7), w = n * CELL + 0.5, g = group(mesh(box(w, 0.42, w), shade(c, 0.12), 0, -0.21, 0), mesh(box(w - 0.15, 0.5, w - 0.15), shade(c, -0.35), 0, -0.66, 0));
+      for (const [x, z, a, r, s] of cells || []) {
+        const make = ASSET[a]; if (!make) continue;
+        const flat = a === 'water' || a === 'path' || a === 'road';
+        const o = make(c); o.position.set((x - (n - 1) / 2) * CELL, flat ? 0.002 : 0, (z - (n - 1) / 2) * CELL); o.rotation.y = r * Math.PI / 2;
+        if (!flat) o.scale.setScalar(SIZE[s] ?? 1);
+        g.add(o);
+      }
+      return g;
+    }
 
     /* ---- globo ---- */
     let globe = null;
@@ -123,7 +166,11 @@
         } else if (spec.dots && spec.dots.length) globe.quaternion.copy(faceQ(spec.dots[0]));
         return g;
       }
-      if (spec.type === 'travel') {
+      if (spec.type === 'travel') return withMono(spec.mono ? spec.color : null, () => buildTravel(spec));
+      return withMono(spec.mono ? spec.color : null, () => spec.cells ? custom(spec.cells, spec.color || '#5b8cff') : (BUILD[spec.scene] || BUILD.unknown)(spec.color || '#8e8e93'));
+    }
+    function buildTravel(spec) {
+      {
         const make = VEH[spec.tr] || VEH.other, g = new THREE.Group();
         g.add(mesh(box(14, 0.3, 9), spec.tr === 'train' ? '#6f8f5a' : GRASS, 0, -0.17, 0));
         g.add(mesh(box(14, 0.04, spec.tr === 'walk' || spec.tr === 'bike' ? 1.2 : 2.2), spec.tr === 'train' ? '#6d5a4b' : spec.tr === 'walk' ? STONE : ASPHALT, 0, 0.02, 0));
@@ -132,10 +179,9 @@
         const dashes = new THREE.Group(); g.add(dashes);
         if (spec.tr !== 'walk' && spec.tr !== 'train') for (let i = 0; i < 8; i++) dashes.add(mesh(box(0.7, 0.05, 0.09), WHITE, -7 + i * 2, 0.04, 0));
         const v = make(spec.color || '#ffcc33'); v.position.set(0.4, 0.04, 0); g.add(v);
-        g.userData = { travel: { env, dashes, v, speed: spec.tr === 'walk' ? 1.1 : spec.tr === 'bike' ? 2.2 : spec.tr === 'train' ? 5 : 3.6 } };
+        g.userData = { travel: { env, dashes, v, speed: spec.tr === 'walk' ? 1.1 : spec.tr === 'bike' ? 2.2 : spec.tr === 'train' ? 5 : spec.tr === 'plane' ? 7 : 3.6 } };
         return g;
       }
-      return (BUILD[spec.scene] || BUILD.unknown)(spec.color || '#8e8e93');
     }
     // Giro del globo para que un punto quede delante (un poco por encima del centro) y con el norte siempre arriba
     const AX = new THREE.Vector3(1, 0, 0), AY = new THREE.Vector3(0, 1, 0);
@@ -147,7 +193,7 @@
       if (key === curKey) return;
       curKey = key;
       const next = build(spec), camK = spec.type === 'globe' ? 'globe' : spec.type === 'travel' ? 'travel' : 'scene';
-      if (motion === 'off' || !cur) { if (cur) scene.remove(cur); cur = next; scene.add(cur); setCam(camK); mode = live(spec) ? 'live' : 'idle'; anim = { spec, t: performance.now() }; kick(); draw(); return; }
+      if (motion === 'off' || !cur || spec.instant) { if (cur) scene.remove(cur); cur = next; scene.add(cur); setCam(camK); mode = live(spec) ? 'live' : 'idle'; anim = { spec, t: performance.now() }; kick(); draw(); return; }
       if (motion === 'soft') { canvas.style.opacity = '0'; setTimeout(() => { if (!alive) return; scene.remove(cur); cur = next; scene.add(cur); setCam(camK); anim = { spec, t: performance.now() }; mode = live(spec) ? 'live' : 'idle'; draw(); canvas.style.opacity = '1'; kick(); }, 160); return; }
       const old = cur; anim = { spec, old, next, camK, t: performance.now(), phase: 'out' }; mode = 'morph'; kick();
     }

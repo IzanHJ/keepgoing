@@ -22,14 +22,13 @@ const n = T.applyRotation(data, { cycle: '4x4' && T.PATTERNS['4x4'].cycle, map: 
 assert.strictEqual(n, 8);
 assert.ok(data.days['2026-01-05'] && !data.days['2026-01-09'] && data.days['2026-01-13']);
 
-// Extras semanales: umbral 40h, 6 mañanas de 7.5h = 45h -> 5h extra; paga = 12*(40+5*1.5)
+// v1.39: el informe solo cuenta horas, turnos y días (ya no hay paga ni extras)
 const d2 = T.defaults();
-d2.shifts.find((s) => s.id === 's_man').breakMin = 30; // 7.5h
 for (let i = 0; i < 6; i++) d2.days['2026-03-0' + (2 + i)] = [{ sid: 's_man', note: '' }]; // lun 2 ... sáb 7
 const r = T.report(d2, '2026-03-02', '2026-03-08', 1);
 assert.strictEqual(r.hours, 45);
-assert.strictEqual(r.otHours, 5);
-assert.strictEqual(r.pay, 12 * (40 + 5 * 1.5));
+assert.strictEqual(r.days, 6);
+assert.strictEqual(r.pay, undefined);
 
 // Sanitize: rechaza basura y limpia colores/ids inválidos
 assert.throws(() => T.sanitize(null));
@@ -45,39 +44,21 @@ assert.strictEqual(s.days['2026-01-01'].length, 1);
 const ics = T.toICS(d2, '2026-03-01', '2026-03-31', new Date('2026-01-01T00:00:00Z'));
 assert.ok(ics.includes('DTSTART:20260302T060000'));
 assert.strictEqual(T.parseICS(ics).length, 6);
-// Tarifas especiales: noche entera a 15 €/h
-const d3 = T.defaults(); d3.days['2026-03-02'] = [{ sid: 's_noc', note: '' }];
-d3.jobs[0].specials = [{ rate: 15, from: '22:00', to: '06:00', mode: 'mult', plus: 1 }];
-assert.strictEqual(T.report(d3, '2026-03-02', '2026-03-02', 1).pay, 7.5 * 15);
-// Plus fijo (+2 €/h sobre el precio normal)
-d3.jobs[0].specials = [{ rate: 0, from: '22:00', to: '06:00', mode: 'fixed', plus: 2 }];
-assert.strictEqual(T.report(d3, '2026-03-02', '2026-03-02', 1).pay, 7.5 * 14);
-// Solapamiento parcial: tarde 14-22 con especial 20-23 a 20 €/h -> 25 % del turno
-const d4 = T.defaults(); d4.days['2026-03-02'] = [{ sid: 's_tar', note: '' }];
-d4.jobs[0].specials = [{ rate: 20, from: '20:00', to: '23:00', mode: 'mult', plus: 1 }];
-assert.strictEqual(T.report(d4, '2026-03-02', '2026-03-02', 1).pay, 7.5 * (0.75 * 12 + 0.25 * 20));
-// Plus de extras fijo: 5 h extra a 12 + 3 = 15 €/h
-const d5 = T.defaults(); d5.jobs[0].otMode = 'fixed'; d5.jobs[0].otPlus = 3;
-for (let i = 0; i < 6; i++) d5.days['2026-03-0' + (2 + i)] = [{ sid: 's_man', note: '' }];
-assert.strictEqual(T.report(d5, '2026-03-02', '2026-03-08', 1).pay, 40 * 12 + 5 * 15);
-// Migración: otMult antiguo -> otPlus
-assert.strictEqual(T.sanitize({ jobs: [{ id: 'j', otMult: 2 }] }).jobs[0].otPlus, 2);
-assert.strictEqual(T.sanitize({ jobs: [{ id: 'j', specials: Array(20).fill({ rate: 5 }) }] }).jobs[0].specials.length, 6);
+// v1.39: los campos de paga antiguos desaparecen al validar
+const sj = T.sanitize({ jobs: [{ id: 'j', rate: 9, otMult: 2, paid: false, specials: [{ rate: 5 }] }], shifts: [{ id: 'a', jobId: 'j', diffPct: 10, rateMode: 'fixed', rateV: 2 }] });
+assert.deepStrictEqual(Object.keys(sj.jobs[0]).sort(), ['color', 'id', 'name']);
+assert.ok(!('diffPct' in sj.shifts[0]) && !('rateMode' in sj.shifts[0]));
 console.log('OK: todas las pruebas pasan');
 
 });
 
-test('v1.23: tipos sin paga y categorías sin paga suman horas pero no dinero', () => {
-  const T = require('../js/turns.js');
+test('v1.23: las categorías antiguas «sin paga» siguen sumando horas', () => {
   const d = T.defaults();
-  d.jobs.push({ id: 'ocio', name: 'Ocio', color: '#000000', rate: 50, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [], paid: false });
-  d.shifts.push({ id: 'cine', jobId: 'ocio', name: 'Cine', emoji: '', color: '#000000', kind: 'work', start: '18:00', end: '20:00', breakMin: 0, diffPct: 0, alarmMin: 0 });
-  d.shifts.push({ id: 'gym', jobId: 'job1', name: 'Gym', emoji: '', color: '#000000', kind: 'k_gym', start: '10:00', end: '11:00', breakMin: 0, diffPct: 0, alarmMin: 0 });
-  d.days['2026-10-05'] = [{ sid: 'cine', note: '', start: '', end: '' }, { sid: 'gym', note: '', start: '', end: '' }];
-  const r = T.report(d, '2026-10-05', '2026-10-05', 1, (k) => k === 'work');
-  assert.equal(r.hours, 3); assert.equal(r.pay, 0);
-  assert.equal(T.sanitize(d).shifts.find((s) => s.id === 'gym').kind, 'k_gym');
-  assert.equal(T.sanitize(d).jobs.find((j) => j.id === 'ocio').paid, false);
+  d.jobs.push({ id: 'ocio', name: 'Ocio', color: '#000000', paid: false });
+  d.shifts.push({ id: 'cine', jobId: 'ocio', name: 'Cine', emoji: '', color: '#000000', kind: 'work', start: '18:00', end: '20:00', breakMin: 0, alarmMin: 0 });
+  d.days['2026-10-05'] = [{ sid: 'cine', note: '', start: '', end: '' }];
+  assert.equal(T.report(d, '2026-10-05', '2026-10-05').hours, 2);
+  assert.equal(T.report(d, '2026-10-05', '2026-10-05').byJob.ocio.hours, 2);
 });
 
 test('v1.23: rutinas de un día y semana tipo', () => {
@@ -97,10 +78,7 @@ test('v1.23: rutinas de un día y semana tipo', () => {
 // v1.24: tarifa propia del tipo (+€/h o +%) sobre la de su categoría
 {
   const d = T.sanitize({ jobs: [{ id: 'j1', name: 'J', rate: 10, otWeekHours: 0 }], shifts: [{ id: 'a', jobId: 'j1', name: 'A', kind: 'night', start: '22:00', end: '06:00' }, { id: 'b', jobId: 'j1', name: 'B', kind: 'work', start: '09:00', end: '13:00' }], days: { '2026-10-05': [{ sid: 'a' }, { sid: 'b' }] } });
-  const paid = () => true;
-  assert.strictEqual(T.report(d, '2026-10-05', '2026-10-05', 1, paid).pay, 120);
-  assert.strictEqual(T.report(d, '2026-10-05', '2026-10-05', 1, paid, (k) => k === 'night' ? { mode: 'fixed', v: 2 } : null).pay, 8 * 12 + 4 * 10);
-  assert.strictEqual(T.report(d, '2026-10-05', '2026-10-05', 1, paid, (k) => k === 'night' ? { mode: 'pct', v: 25 } : { mode: 'same', v: 0 }).pay, 8 * 12.5 + 4 * 10);
+  assert.strictEqual(T.report(d, '2026-10-05', '2026-10-05').hours, 12);
   // Las rutinas marcan sus turnos con rt y sanitize lo conserva
   const data = { shifts: d.shifts, days: {} };
   T.applyRoutine(data, { id: 'r1', kind: 'day', day: [{ sid: 'b', start: '', end: '' }] }, { from: '2026-10-06', to: '2026-10-06' });
@@ -139,10 +117,10 @@ test('v1.26: el .ics exportado lleva el lugar', () => {
   assert.ok(ics.includes('GEO:40.4;-3.7'));
 });
 
-test('v1.26: un fichaje con otra categoría cobra con la de ese día', () => {
+test('v1.26: un fichaje con otra categoría cuenta en la de ese día', () => {
   const data = { jobs: [{ id: 'j1', rate: 10, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [] }, { id: 'j2', rate: 20, otWeekHours: 0, otMode: 'mult', otPlus: 1.5, specials: [] }], shifts: [{ id: 's1', jobId: 'j1', kind: 'work', start: '09:00', end: '11:00', breakMin: 0, diffPct: 0 }], days: { '2026-11-02': [{ sid: 's1' }, { sid: 's1', start: '15:00', end: '16:00', job: 'j2' }] } };
   const r = T.report(data, '2026-11-02', '2026-11-02', 1, () => true, null);
-  assert.strictEqual(r.pay, 2 * 10 + 1 * 20);
+  assert.strictEqual(r.byJob.j1.hours, 2);
   assert.strictEqual(r.byJob.j2.hours, 1);
 });
 
@@ -152,4 +130,43 @@ test('v1.26.1: lugar puntual en el .ics y al validar', () => {
   assert.ok(ics.includes('LOCATION:Hospital\\, Madrid')); assert.ok(!ics.includes('Calle Mayor'));
   const s = T.sanitize({ jobs: [], shifts: [{ id: 's1', name: 'x' }], days: { '2026-11-02': [{ sid: 's1', plx: { addr: 'Hospital' } }, { sid: 's1', plx: { addr: '  ' } }] } });
   assert.deepStrictEqual(s.days['2026-11-02'][0].plx, { addr: 'Hospital' }); assert.strictEqual(s.days['2026-11-02'][1].plx, undefined);
+});
+
+test('v1.39: medio de transporte (la entrada del día gana; «-» lo quita ese día)', () => {
+  const s = { id: 's1', start: '09:00', end: '14:00', tr: 'bus', trDep: '08:20', trArr: '08:50' };
+  assert.deepStrictEqual(T.entryTransport(s, { sid: 's1' }), { mode: 'bus', dep: '08:20', arr: '08:50' });
+  assert.deepStrictEqual(T.entryTransport(s, { sid: 's1', tr: 'car', trArr: '08:40' }), { mode: 'car', dep: '08:20', arr: '08:40' });
+  assert.strictEqual(T.entryTransport(s, { sid: 's1', tr: '-' }), null);
+  assert.strictEqual(T.entryTransport({ id: 'x' }, { sid: 'x' }), null);
+  const v = T.sanitize({ jobs: [], shifts: [{ id: 's1', name: 'A', tr: 'rocket', trDep: '99:00' }, { id: 's2', name: 'B', tr: 'walk', trDep: '07:00', trArr: 'x' }], days: { '2026-11-02': [{ sid: 's1', tr: '-', trDep: '07:00' }, { sid: 's2', tr: 'train', trDep: '06:10', trArr: '06:55' }] } });
+  assert.ok(!('tr' in v.shifts[0]));
+  assert.deepStrictEqual([v.shifts[1].tr, v.shifts[1].trDep, v.shifts[1].trArr], ['walk', '07:00', undefined]);
+  assert.deepStrictEqual(v.days['2026-11-02'][0], { sid: 's1', note: '', start: '', end: '', tr: '-' });
+  assert.deepStrictEqual([v.days['2026-11-02'][1].tr, v.days['2026-11-02'][1].trDep, v.days['2026-11-02'][1].trArr], ['train', '06:10', '06:55']);
+});
+
+test('v1.39: cambiar un turno en este día, en los siguientes o en todos los iguales', () => {
+  const mk = () => ({ shifts: [{ id: 'm', start: '06:00', end: '14:00' }, { id: 't', start: '14:00', end: '22:00' }], days: {
+    '2026-11-01': [{ sid: 'm' }], '2026-11-02': [{ sid: 'm', note: 'hoy' }, { sid: 't' }], '2026-11-03': [{ sid: 'm', start: '07:00' }], '2026-11-04': [{ sid: 'm', note: 'otra' }],
+    '2026-11-05': [{ sid: 'o_x', once: { name: 'X' } }] } });
+  let d = mk();
+  assert.deepStrictEqual(T.sameEntries(d, '2026-11-02', 0, 'all'), [{ k: '2026-11-01', i: 0 }, { k: '2026-11-04', i: 0 }]);
+  assert.deepStrictEqual(T.sameEntries(d, '2026-11-02', 0, 'next'), [{ k: '2026-11-04', i: 0 }]);
+  assert.deepStrictEqual(T.sameEntries(d, '2026-11-05', 0, 'all'), []);
+  const nx = { sid: 'm', note: 'nueva', start: '06:30', pl: 'p1', tr: 'bus', trDep: '06:00' };
+  assert.strictEqual(T.applyEdit(d, '2026-11-02', 0, nx, 'one'), 1);
+  assert.strictEqual(d.days['2026-11-04'][0].start, undefined);
+  d = mk();
+  assert.strictEqual(T.applyEdit(d, '2026-11-02', 0, nx, 'next'), 2);
+  assert.deepStrictEqual(d.days['2026-11-04'][0], { sid: 'm', note: 'otra', start: '06:30', pl: 'p1', tr: 'bus', trDep: '06:00' });
+  assert.deepStrictEqual(d.days['2026-11-01'][0], { sid: 'm' });
+  assert.strictEqual(d.days['2026-11-03'][0].start, '07:00'); // otro horario: no se toca
+  assert.strictEqual(d.days['2026-11-02'][0].note, 'nueva');
+  d = mk();
+  assert.strictEqual(T.applyEdit(d, '2026-11-02', 0, nx, 'all'), 3);
+  assert.strictEqual(d.days['2026-11-01'][0].tr, 'bus');
+  // Quitar un campo vuelve a lo del turno
+  d = mk(); d.days['2026-11-01'][0].pl = 'p9'; d.days['2026-11-02'][0].pl = 'p9';
+  T.applyEdit(d, '2026-11-02', 0, { sid: 'm', note: 'hoy' }, 'all');
+  assert.strictEqual(d.days['2026-11-01'][0].pl, undefined);
 });
