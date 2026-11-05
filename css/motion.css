@@ -275,3 +275,25 @@
 :root[data-motion="full"] .main:not(.no-anim) :is(.habit, .today-row, .folder, .series, .kpi):nth-child(n+6) { animation-delay: .2s; }
 @keyframes kgRise { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 :root:is([data-motion="soft"], [data-motion="off"]) .streak-flame { animation: none; }
+
+/* v1.39: corona 3D de la valoración (encima del lienzo de rayos y chispas; se gira con el dedo) */
+.ri-3d { position: absolute; left: 50%; top: 36%; width: 60vmin; height: 60vmin; transform: translate(-50%, -50%); z-index: 0; touch-action: none; cursor: grab; opacity: 0; transition: opacity .5s; }
+.ri.c3d .ri-3d { opacity: 1; }
+.ri-3d:active { cursor: grabbing; }
+:root[data-motion="off"] .ri-3d { transition: none; }
+
+/* v1.39: Ajustes → Sonido */
+.au-row { align-items: center; }
+.au-ico { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); flex: none; }
+.au-ico svg { width: 18px; height: 18px; }
+.au-vol input[type="range"] { width: 100%; accent-color: var(--accent); }
+.au-vol b { font-variant-numeric: tabular-nums; float: right; }
+.au-mood { flex-wrap: wrap; }
+
+/* v1.39: semana y mes perfectos */
+.ppx .pp-crown { width: 96px; height: 96px; margin: 0 auto 8px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, rgba(255, 220, 120, .45), transparent 70%); color: inherit; }
+.ppx .pp-crown svg { width: 64px; height: 64px; }
+.ppx.month .pp-crown { width: 120px; height: 120px; box-shadow: 0 0 60px rgba(255, 210, 94, .45); border-radius: 50%; }
+.ppx .pp-sub { margin: 4px 0 12px; opacity: .85; }
+:root[data-motion="full"] .ppx .pp-crown { animation: ppPop .9s cubic-bezier(.2, 1.4, .4, 1) both .2s; }
+@keyframes ppPop { from { transform: scale(.2) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
