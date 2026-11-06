@@ -148,6 +148,17 @@
     }
     return out;
   }
+  /* v1.42: historial de una plantilla o nota modular. Devuelve las notas de la más nueva a la más antigua agrupadas por mes
+     ({ m: 'AAAA-MM', items: [{ k, g }] }), cuántas hay, la primera y la última fecha, y para cada campo de número o de
+     valoración su serie por fecha (para dibujar la evolución): [{ id, label, unit, kind, pts: [{ k, v }] }]. */
+  function history(gaps, tpl, from, to) {
+    if (!tpl) return { n: 0, first: '', last: '', months: [], series: [] };
+    const l = notesOf(gaps, tpl.id, from, to), months = [];
+    for (let i = l.length - 1; i >= 0; i--) { const m = l[i].k.slice(0, 7); if (!months.length || months[months.length - 1].m !== m) months.push({ m, items: [] }); months[months.length - 1].items.push(l[i]); }
+    const series = tpl.kind === 'mod' ? [] : tpl.fields.filter(f => f.type === 'num' || f.type === 'rate').map(f => ({ id: f.id, label: f.label, unit: f.unit || '', kind: f.type,
+      pts: l.map(x => ({ k: x.k, v: x.g.v && x.g.v[f.id] })).filter(x => Number.isFinite(+x.v) && x.v !== undefined && x.v !== '').map(x => ({ k: x.k, v: +x.v })) })).filter(x => x.pts.length);
+    return { n: l.length, first: l.length ? l[0].k : '', last: l.length ? l[l.length - 1].k : '', months, series };
+  }
   // Plantillas de serie (ids fijos: si se crean en dos dispositivos, la sincronización las junta en vez de duplicarlas)
   function seeds(L) {
     return [
@@ -157,5 +168,5 @@
       { id: 'tp_date', name: L.date, icon: 'users', color: '#b06ad9', fields: [{ id: 'who', label: L.who, type: 'text' }, { id: 'where', label: L.where, type: 'text' }, { id: 'done', label: L.done, type: 'bool' }], prog: null, goals: {} }
     ].map(sanitizeTpl);
   }
-  return { TYPES, ICONS, LIM, keyOf, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, seeds };
+  return { TYPES, ICONS, LIM, keyOf, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
 });

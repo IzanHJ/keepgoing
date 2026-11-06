@@ -76,3 +76,15 @@ test('v1.39: notas modulares con secuencias', () => {
   assert.strictEqual(NT.sanitizeTpl({ id: 'nm2', kind: 'mod', name: 'X', fields: [] }), null);
   assert.strictEqual(NT.sanitizeTpl({ id: 'nm3', kind: 'mod', name: 'X', fields: Array.from({ length: 20 }, (_, i) => ({ id: 's' + i, label: 'p' })) }).fields.length, 12);
 });
+
+test('v1.42: historial de una plantilla por meses y series', () => {
+  const h = N.history(gaps, read);
+  assert.equal(h.n, N.notesOf(gaps, 'tp_read').length);
+  assert.ok(h.first <= h.last);
+  assert.equal(h.months.reduce((s, m) => s + m.items.length, 0), h.n);
+  assert.ok(h.months[0].m >= h.months[h.months.length - 1].m, 'de la más nueva a la más antigua');
+  assert.equal(h.months[0].items[0].k, h.last);
+  assert.deepEqual(h.series.map(s => s.id), ['pages']);
+  assert.equal(h.series[0].pts.length, h.n);
+  assert.deepEqual(N.history(gaps, null), { n: 0, first: '', last: '', months: [], series: [] });
+});

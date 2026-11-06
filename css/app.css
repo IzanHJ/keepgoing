@@ -2638,3 +2638,18 @@ body.orb-open { overflow: hidden; }
 .nm-arrow { color: var(--accent); }
 
 .tf-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* v1.42: historial de una plantilla o nota modular (línea de tiempo por meses) */
+.nh-ser { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.nh-spark { width: 100%; height: 56px; display: block; overflow: visible; }
+.nh-spark polyline { fill: none; stroke: var(--c); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.nh-spark circle { fill: var(--c); }
+.nh-mon { margin: 6px 0 4px; font-size: 13px; text-transform: none; color: var(--muted); font-weight: 600; }
+.nh-list { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid color-mix(in srgb, var(--nc) 55%, transparent); display: flex; flex-direction: column; gap: 6px; }
+.nh-list li { position: relative; }
+.nh-list li::before { content: ''; position: absolute; left: -20px; top: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--nc); box-shadow: 0 0 0 3px var(--surface); }
+.nh-it { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; padding: 8px 10px; border-radius: var(--r-md); background: var(--surface-2); }
+.nh-d { display: flex; flex-direction: column; align-items: center; min-width: 34px; line-height: 1.1; }
+.nh-d b { font-size: 18px; } .nh-d small { color: var(--muted); font-size: 11px; text-transform: capitalize; }
+.nh-it .grow { display: flex; flex-direction: column; min-width: 0; }
+.nh-t { overflow-wrap: anywhere; }
