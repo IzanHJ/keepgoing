@@ -1,5 +1,7 @@
 /* KeepGoing — Calendario de turnos (v1.20, traído de TurnoFlow): lógica pura, sin DOM.
-   Turnos, trabajos, rotaciones, informes (horas, paga, extras y tarifas especiales), ICS y validación.
+   Turnos, categorías, rotaciones, informes de horas, ICS y validación.
+   v1.39: sin paga. Ya no hay tarifas, horas extra ni categorías «sin paga»; sanitize quita esos campos de los datos antiguos.
+   v1.39: medio de transporte de cada turno (tr, trDep, trArr) y cambiar un turno en otros días iguales (sameEntries, applyEdit).
    Se usa en el navegador (window.KGTurns) y en los tests de Node (require). */
 (function (root) {
   'use strict';
@@ -9,7 +11,7 @@
   const KIND_LABEL = { work: 'Trabajo', off: 'Libre', vacation: 'Vacaciones', sick: 'Baja', training: 'Formación' };
   /* v1.23: los tipos se pueden añadir, editar y borrar. Cada tipo dice si cuenta para la paga (como «Trabajo»);
      un tipo que no la cobra (p. ej. «Ocio» para ir al cine) suma horas pero no dinero. «other» es «Otro», sin paga. */
-  const defaultKinds = () => [...KINDS, 'other'].map((id) => ({ id, name: '', paid: id === 'work' }));
+  const defaultKinds = () => [...KINDS, 'other'].map((id) => ({ id, name: '' }));
   const kindOk = (k) => typeof k === 'string' && RE_ID.test(k);
   const RE_DATE = /^\d{4}-\d{2}-\d{2}$/;
   const RE_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -25,9 +27,9 @@
   const startOfWeek = (d, ws) => addDays(d, -((d.getDay() - ws + 7) % 7));
 
   function defaults() {
-    const job = { id: 'job1', name: 'Trabajo', color: '#4f6bed', rate: 12, otWeekHours: 40, otMode: 'mult', otPlus: 1.5, specials: [] };
+    const job = { id: 'job1', name: 'Trabajo', color: '#4f6bed' };
     const sh = (id, name, emoji, color, kind, start, end, brk, alarm) =>
-      ({ id, jobId: 'job1', name, emoji, color, kind, start, end, breakMin: brk, diffPct: 0, alarmMin: alarm || 0 });
+      ({ id, jobId: 'job1', name, emoji, color, kind, start, end, breakMin: brk, alarmMin: alarm || 0 });
     return {
       v: 1,
       jobs: [job],
@@ -49,37 +51,32 @@
   const str = (v, max, fb) => (typeof v === 'string' ? v.slice(0, max) : (fb === undefined ? '' : fb));
   const num = (v, min, max, fb) => { v = Number(v); return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fb; };
   const id = (v) => { if (typeof v !== 'string' || !RE_ID.test(v)) throw new Error('Identificador no válido'); return v; };
-  // Plus: multiplicador (1-10) o cantidad fija de dinero por hora (0-1000)
-  const normPlus = (mode, v, fb) => (mode === 'fixed' ? num(v, 0, 1000, 0) : num(v, 1, 10, fb));
-  const applyPlus = (base, mode, plus) => (mode === 'fixed' ? base + plus : base * plus);
-  const inWindow = (t, from, to) => { const f = toMin(from), e = toMin(to); return f === e ? false : (f < e ? t >= f && t < e : t >= f || t < e); };
-  /** Fracción del turno que cae en cada tarifa especial (último índice = horas normales). */
-  function specialFractions(job, start, end) {
-    const sp = job.specials || [], fr = new Array(sp.length + 1).fill(0);
-    if (!sp.length || !start || !end) { fr[sp.length] = 1; return fr; }
-    let a = toMin(start), b = toMin(end); if (b <= a) b += 1440;
-    for (let m = a; m < b; m++) {
-      const t = m % 1440; let idx = sp.length;
-      for (let i = 0; i < sp.length; i++) if (inWindow(t, sp[i].from, sp[i].to)) { idx = i; break; }
-      fr[idx]++;
-    }
-    return fr.map((x) => x / (b - a));
-  }
+  /* v1.39: medio de transporte. TRANSPORTS son los mismos ids que usa el Mundo de la Línea de tiempo (KGWorld.TRANSPORTS).
+     En la entrada del día: tr (id o '-' = sin transporte ese día aunque el turno lo tenga), trDep y trArr ('HH:MM', salida y llegada).
+     En el turno (plantilla): tr, trDep, trArr con el mismo formato. La entrada del día gana. */
+  const TRANSPORTS = ['bus', 'car', 'moto', 'walk', 'bike', 'train', 'plane', 'other'];
+  const trOk = (v) => typeof v === 'string' && TRANSPORTS.includes(v);
   const plxOk = (x) => !!x && typeof x === 'object' && typeof x.addr === 'string' && !!x.addr.trim(); // v1.26.1: lugar puntual
   const timeOr = (v) => (typeof v === 'string' && RE_TIME.test(v) ? v : '');
+  // Campos de transporte validados (day = entrada del día, que además admite '-')
+  const trOf = (x, day) => {
+    const o = {}; if (!x) return o;
+    if (trOk(x.tr) || (day && x.tr === '-')) o.tr = x.tr;
+    if (o.tr && o.tr !== '-') { if (timeOr(x.trDep)) o.trDep = x.trDep; if (timeOr(x.trArr)) o.trArr = x.trArr; }
+    else if (day && !o.tr) { if (timeOr(x.trDep)) o.trDep = x.trDep; if (timeOr(x.trArr)) o.trArr = x.trArr; }
+    // v1.43: trayecto de después del turno (bk = medio o '-' en el día, bkDep/bkArr = horas, bkTo = destino: '' Casa, '>' siguiente turno o id de lugar)
+    if (trOk(x.bk) || (day && x.bk === '-')) o.bk = x.bk;
+    if (o.bk && o.bk !== '-') { if (timeOr(x.bkDep)) o.bkDep = x.bkDep; if (timeOr(x.bkArr)) o.bkArr = x.bkArr; }
+    if (o.bk && o.bk !== '-' && typeof x.bkTo === 'string' && (x.bkTo === '>' || RE_ID.test(x.bkTo))) o.bkTo = x.bkTo;
+    return o;
+  };
 
   /** Valida y normaliza datos externos (localStorage o importación). Lanza Error si no son válidos. */
   function sanitize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Formato no válido');
     const def = defaults();
     const jobs = (Array.isArray(raw.jobs) ? raw.jobs : []).slice(0, LIMITS.jobs).map((j) => ({
-      id: id(j.id), name: str(j.name, LIMITS.text, 'Trabajo'), paid: j.paid !== false,
-      color: RE_COLOR.test(j.color) ? j.color : '#4f6bed',
-      rate: num(j.rate, 0, 100000, 0), otWeekHours: num(j.otWeekHours, 0, 168, 0),
-      otMode: j.otMode === 'fixed' ? 'fixed' : 'mult', otPlus: normPlus(j.otMode, j.otPlus !== undefined ? j.otPlus : j.otMult, 1.5),
-      specials: (Array.isArray(j.specials) ? j.specials : []).slice(0, LIMITS.specials).filter((sp) => sp && typeof sp === 'object').map((sp) => ({
-        rate: num(sp.rate, 0, 100000, 0), from: timeOr(sp.from) || '22:00', to: timeOr(sp.to) || '06:00',
-        mode: sp.mode === 'fixed' ? 'fixed' : 'mult', plus: normPlus(sp.mode, sp.plus, 1) })),
+      id: id(j.id), name: str(j.name, LIMITS.text, 'Trabajo'), color: RE_COLOR.test(j.color) ? j.color : '#4f6bed',
     }));
     if (!jobs.length) jobs.push(def.jobs[0]);
     const jobIds = new Set(jobs.map((j) => j.id));
@@ -89,8 +86,8 @@
       color: RE_COLOR.test(s.color) ? s.color : '#4f6bed',
       kind: kindOk(s.kind) ? s.kind : 'work',
       start: timeOr(s.start), end: timeOr(s.end),
-      breakMin: num(s.breakMin, 0, 720, 0), diffPct: num(s.diffPct, -100, 1000, 0), alarmMin: num(s.alarmMin, 0, 1440, 0),
-      ...(s.rateMode === 'fixed' ? { rateMode: 'fixed', rateV: num(s.rateV, -1000, 1000, 0) } : {}), ...(typeof s.placeId === 'string' && RE_ID.test(s.placeId) ? { placeId: s.placeId } : {}),
+      breakMin: num(s.breakMin, 0, 720, 0), alarmMin: num(s.alarmMin, 0, 1440, 0),
+      ...(typeof s.placeId === 'string' && RE_ID.test(s.placeId) ? { placeId: s.placeId } : {}), ...trOf(s, false), ...(typeof s.ntp === 'string' && RE_ID.test(s.ntp) ? { ntp: s.ntp } : {}), ...(s.ask === true ? { ask: true } : {}), // v1.43: nota que se propone en el turno
     }));
     const shiftIds = new Set(shifts.map((s) => s.id));
     const days = {};
@@ -100,7 +97,7 @@
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
       const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
       const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...(jobIds.has(e.job) ? { job: e.job } : {}), ...(plxOk(e.plx) ? { plx: { addr: str(e.plx.addr, 300) } } : {}),
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...trOf(e, true), ...(jobIds.has(e.job) ? { job: e.job } : {}), ...(plxOk(e.plx) ? { plx: { addr: str(e.plx.addr, 300) } } : {}),
           ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '', ...(typeof e.once.placeId === 'string' && RE_ID.test(e.once.placeId) ? { placeId: e.once.placeId } : {}), ...(plxOk(e.once.plx) ? { plx: { addr: str(e.once.plx.addr, 300) } } : {}) } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
@@ -114,7 +111,9 @@
     // v1.26: lugares
     const places = (Array.isArray(raw.places) ? raw.places : []).slice(0, 60).filter((p) => p && RE_ID.test(p.id)).map((p) => ({
       id: p.id, name: str(p.name, 40, 'Lugar'), icon: str(p.icon, 4), color: RE_COLOR.test(p.color) ? p.color : '#5b8cff', addr: str(p.addr, 300),
-      ...(Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180 ? { lat: p.lat, lon: p.lon } : {}) }));
+      ...(Number.isFinite(p.lat) && Number.isFinite(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180 ? { lat: p.lat, lon: p.lon } : {}),
+      // v1.37: tipo de escenario, ciudad y país (de la búsqueda en OpenStreetMap) para el Mundo de la Línea de tiempo
+      ...(typeof p.scene === 'string' && /^[a-z]{2,16}$/.test(p.scene) ? { scene: p.scene } : {}), ...(typeof p.city === 'string' && p.city.trim() ? { city: str(p.city, 80) } : {}), ...(typeof p.cc === 'string' && /^[A-Z]{2}$/.test(p.cc) ? { cc: p.cc } : {}) }));
     return { v: 1, jobs, shifts, days, ext, settings, places };
   }
 
@@ -134,53 +133,103 @@
     return Math.max(0, (b - a - entryBreak(shift, e, day)) / 60);
   }
 
-  /** Informe de horas/paga entre dos fechas ISO (inclusive). Extras semanales por trabajo.
-      v1.23: paidKind(kind) dice si un tipo cuenta para la paga (por defecto solo 'work'); una categoría con paid === false no cobra.
-      v1.24: kindRate(kind) → { mode: 'same' | 'fixed' | 'pct', v } cambia la tarifa de la categoría para ese tipo (+v €/h o +v %). */
-  function report(data, from, to, weekStart, paidKind, kindRate) {
-    // v1.26: la tarifa +X €/h va en el propio turno (s.rateMode = 'fixed', s.rateV); el +X % es s.diffPct. kindRate queda para datos antiguos.
-    const adj = (s, b) => { if (s.rateMode === 'fixed' && Number.isFinite(+s.rateV)) return Math.max(0, b + +s.rateV); const r = kindRate ? kindRate(s.kind) : null; if (!r || !Number.isFinite(+r.v)) return b; return r.mode === 'fixed' ? Math.max(0, b + +r.v) : r.mode === 'pct' ? Math.max(0, b * (1 + +r.v / 100)) : b; };
-    const isPaid = (s, job) => (paidKind ? paidKind(s.kind) : s.kind === 'work') && job.paid !== false;
+  /** Informe de horas entre dos fechas ISO (inclusive). v1.39: ya no hay paga (se quitaron tarifas, extras y «sin paga»).
+      Devuelve { hours, count, days, byShift: { id: { count, hours } }, byKind, byJob: { id: { count, hours } } }. */
+  function report(data, from, to) {
     const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
-    const jobBy = Object.fromEntries(data.jobs.map((j) => [j.id, j]));
-    const res = { hours: 0, pay: 0, otHours: 0, count: 0, byShift: {}, byKind: {}, byJob: {} };
-    const weekHours = {};
-    for (let d = startOfWeek(parseISO(from), weekStart), end = parseISO(to); d <= end; d = addDays(d, 1)) {
-      const k = iso(d), inRange = k >= from, wk = iso(startOfWeek(d, weekStart));
+    const jobBy = Object.fromEntries((data.jobs || []).map((j) => [j.id, j]));
+    const res = { hours: 0, count: 0, days: 0, byShift: {}, byKind: {}, byJob: {} };
+    for (let d = parseISO(from), end = parseISO(to); d <= end; d = addDays(d, 1)) {
+      const k = iso(d); let any = false;
       for (const e of data.days[k] || []) {
         const s = shiftBy[e.sid]; if (!s) continue;
         if (s.once && !jobBy[s.jobId]) continue; // v1.25: un turno puntual solo cuenta si tiene categoría
-        const job = jobBy[e.job] || jobBy[s.jobId] || data.jobs[0]; // v1.26: e.job = otra categoría solo ese día (fichaje)
+        const job = jobBy[e.job] || jobBy[s.jobId] || (data.jobs || [])[0]; // v1.26: e.job = otra categoría solo ese día (fichaje)
         const h = entryHours(s, e, data.days[k]);
-        let regular = h, ot = 0;
-        const paid = isPaid(s, job);
-        if (paid) {
-          const key = job.id + '|' + wk, prev = weekHours[key] || 0;
-          weekHours[key] = prev + h;
-          if (job.otWeekHours > 0) { regular = Math.min(h, Math.max(0, job.otWeekHours - prev)); ot = h - regular; }
-        }
-        if (!inRange) continue;
-        let pay = 0;
-        if (paid) {
-          const { start, end: en } = entryTimes(s, e), fr = specialFractions(job, start, en), sps = job.specials || [];
-          fr.forEach((f, i) => {
-            if (!f) return;
-            const sp = sps[i];
-            let base = adj(s, sp ? (sp.rate > 0 ? sp.rate : job.rate) : job.rate);
-            if (sp) base = applyPlus(base, sp.mode, sp.plus);
-            pay += (regular * f * base + ot * f * applyPlus(base, job.otMode, job.otPlus)) * (1 + s.diffPct / 100);
-          });
-        }
-        res.hours += h; res.pay += pay; res.otHours += ot; res.count++;
-        const bs = (res.byShift[s.id] = res.byShift[s.id] || { count: 0, hours: 0, pay: 0 });
-        bs.count++; bs.hours += h; bs.pay += pay;
+        res.hours += h; res.count++; any = true;
+        const bs = (res.byShift[s.id] = res.byShift[s.id] || { count: 0, hours: 0 });
+        bs.count++; bs.hours += h;
         const bk = (res.byKind[s.kind] = res.byKind[s.kind] || { count: 0, hours: 0 });
         bk.count++; bk.hours += h;
-        const bj = (res.byJob[job.id] = res.byJob[job.id] || { count: 0, hours: 0, pay: 0, otHours: 0 });
-        bj.count++; bj.hours += h; bj.pay += pay; bj.otHours += ot;
+        if (job) { const bj = (res.byJob[job.id] = res.byJob[job.id] || { count: 0, hours: 0 }); bj.count++; bj.hours += h; }
       }
+      if (any) res.days++;
     }
     return res;
+  }
+
+  /* ---- v1.39: medio de transporte de una entrada (la del día gana sobre la del turno). null si no hay o si el día dice '-'.
+     Devuelve { mode, dep, arr } con dep/arr 'HH:MM' o ''. Es lo que lee la Línea de tiempo para el recorrido. */
+  function entryTransport(shift, e) {
+    if (e && e.tr === '-') return null;
+    const mode = (e && trOk(e.tr) && e.tr) || (shift && trOk(shift.tr) && shift.tr) || '';
+    if (!mode) return null;
+    return { mode, dep: timeOr(e && e.trDep) || timeOr(shift && shift.trDep), arr: timeOr(e && e.trArr) || timeOr(shift && shift.trArr) };
+  }
+
+  /* ---- v1.43: trayecto de DESPUÉS del turno (al acabar: volver a Casa, ir a otro lugar o ir al siguiente turno). El del día gana
+     sobre el del turno; e.bk = '-' = ese día sin trayecto de después. Devuelve { mode, dep, arr, to } o null. to: '' = Casa,
+     '>' = el siguiente turno del día (si no hay, Casa) o el id de un lugar. dep vacío = sale a la hora en que acaba el turno. */
+  function entryReturn(shift, e) {
+    if (e && e.bk === '-') return null;
+    const own = e && trOk(e.bk), mode = own ? e.bk : (shift && trOk(shift.bk) && shift.bk) || '';
+    if (!mode) return null;
+    const src = own ? e : shift;
+    return { mode, dep: timeOr(e && e.bkDep) || timeOr(shift && shift.bkDep), arr: timeOr(e && e.bkArr) || timeOr(shift && shift.bkArr), to: typeof src.bkTo === 'string' ? src.bkTo : '' };
+  }
+  /* Trayectos de un día, en orden: [{ i, kind: 'go' | 'back', mode, dep, arr, to }] (i = posición en la lista del día).
+     'go' = llegar al turno i (su medio de llegada). Si el turno i no tiene llegada propia y el anterior dice «después: al siguiente
+     turno», ese trayecto es su llegada (enlazados: sale a la hora en que acaba el anterior). 'back' = después del turno i hacia
+     Casa u otro lugar; si dice «al siguiente turno» y no hay siguiente, va a Casa. to en 'go' = 'turno'. */
+  function dayLegs(list, shiftBy) {
+    const xs = (list || []).map((e, i) => ({ e, i, s: e && shiftBy[e.sid] })).filter((x) => x.s);
+    const tm = (x) => entryTimes(x.s, x.e);
+    xs.sort((a, b) => String(tm(a).start || '').localeCompare(String(tm(b).start || '')));
+    const out = [];
+    xs.forEach((x, j) => {
+      const prev = j ? xs[j - 1] : null, next = xs[j + 1] || null, go = entryTransport(x.s, x.e);
+      const pr = prev && entryReturn(prev.s, prev.e);
+      if (go) out.push({ i: x.i, kind: 'go', mode: go.mode, dep: go.dep, arr: go.arr, to: 'turno' });
+      else if (pr && pr.to === '>') out.push({ i: x.i, kind: 'go', mode: pr.mode, dep: pr.dep || tm(prev).end || '', arr: pr.arr, to: 'turno', linked: prev.i });
+      const bk = entryReturn(x.s, x.e);
+      if (bk && !(bk.to === '>' && next)) out.push({ i: x.i, kind: 'back', mode: bk.mode, dep: bk.dep || tm(x).end || '', arr: bk.arr, to: bk.to === '>' ? '' : bk.to });
+    });
+    return out;
+  }
+
+  /* ---- v1.39: cambiar un turno también en otros días. Dos entradas «coinciden» si son el mismo turno (sid) con el mismo
+     horario efectivo (hora de inicio y de fin, contando las del turno). Los turnos puntuales (o_…) nunca coinciden con otros.
+     sameEntries → [{ k, i }] de las otras entradas que coinciden (sin la propia); scope 'next' = solo las de después de k. */
+  const EDIT_KEYS = ['start', 'end', 'brk', 'pl', 'plx', 'tr', 'trDep', 'trArr', 'bk', 'bkDep', 'bkArr', 'bkTo'];
+  function sameEntries(data, k, i, scope) {
+    const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
+    const me = (data.days[k] || [])[i], s = me && shiftBy[me.sid];
+    if (!s || s.once || String(me.sid).startsWith('o_')) return [];
+    const tm = entryTimes(s, me), out = [];
+    for (const d of Object.keys(data.days).sort()) {
+      if (scope === 'next' && d < k) continue;
+      (data.days[d] || []).forEach((e, j) => {
+        if ((d === k && j === i) || !e || e.sid !== me.sid) return;
+        const t2 = entryTimes(s, e);
+        if (t2.start === tm.start && t2.end === tm.end) out.push({ k: d, i: j });
+      });
+    }
+    return out;
+  }
+  /* Aplica a la entrada (k, i) los campos nuevos de next (solo EDIT_KEYS; la nota no se copia, es de ese día) y, según scope
+     ('one' | 'next' | 'all'), a las que coinciden con ella ANTES del cambio. Devuelve el nº de entradas cambiadas.
+     Un campo que en next no está (o vale '') se quita de la entrada: así vuelve a usar el del turno. */
+  function applyEdit(data, k, i, next, scope) {
+    const prev = (data.days[k] || [])[i]; if (!prev) return 0;
+    const targets = [{ k, i }, ...(scope === 'next' || scope === 'all' ? sameEntries(data, k, i, scope) : [])];
+    const changed = EDIT_KEYS.filter((f) => JSON.stringify(prev[f]) !== JSON.stringify(next[f]));
+    for (const t of targets) {
+      const e = { ...data.days[t.k][t.i] };
+      if (t.k === k && t.i === i) { Object.assign(e, next); for (const f of EDIT_KEYS) if (next[f] === undefined || next[f] === '') delete e[f]; }
+      else for (const f of changed) { if (next[f] === undefined || next[f] === '') delete e[f]; else e[f] = next[f]; }
+      data.days[t.k] = data.days[t.k].map((x, j) => (j === t.i ? e : x));
+    }
+    return targets.length;
   }
 
   // ---- Rotaciones (A/B/C = turnos a asignar, '-' = libre). Definiciones habituales, editables en "personalizada".
@@ -229,7 +278,8 @@
       const list = (routine.kind === 'week' ? ((routine.week || {})[wd] || []) : (!wds.length || wds.includes(wd) ? routine.day || [] : [])).filter(ok);
       if (!list.length) continue;
       // v1.24: cada turno recuerda de qué rutina viene (rt) para verla junta en el calendario
-      const add = list.map((e) => ({ sid: e.sid, note: '', start: timeOr(e.start), end: timeOr(e.end), ...(typeof routine.id === 'string' && RE_ID.test(routine.id) ? { rt: routine.id } : {}) }));
+      // v1.43: la ruta tipo: cada turno de la rutina puede llevar su llegada y su trayecto de después
+      const add = list.map((e) => ({ sid: e.sid, note: '', start: timeOr(e.start), end: timeOr(e.end), ...(typeof routine.id === 'string' && RE_ID.test(routine.id) ? { rt: routine.id } : {}), ...trOf(e, true) }));
       const next = (opts.overwrite ? add : [...(data.days[k] || []), ...add]).slice(0, LIMITS.perDay);
       data.days[k] = next; n++;
     }
@@ -342,7 +392,7 @@
   }
 
   const api = {
-    LIMITS, KINDS, KIND_LABEL, defaultKinds, kindOk, applyRoutine, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;

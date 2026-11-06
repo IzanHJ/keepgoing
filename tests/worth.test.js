@@ -115,3 +115,21 @@ test('v1.23.4: saldos reales en otras monedas', () => {
   // sin cambio conocido, la moneda no suma
   assert.equal(W.series(saved, es, '2026-10-03', [], {}).rows[2].other, 0);
 });
+
+test('v1.36: cuentas con saldo propio; un traspaso vinculado no cambia el patrimonio', () => {
+  const L = require('../js/ledger.js');
+  const kinds = { card: 'card', b2: 'card', cash: 'cash' };
+  const opts = { accOf: e => e.acc || (e.method === 'cash' ? 'cash' : 'card'), kindOf: id => kinds[id] || 'card', starts: { b2: 30000 }, main: 'card', cash: 'cash' };
+  const saved = { date: '2026-01-01', digital: 100000, cash: 5000 };
+  const es = [
+    { id: 'a', date: '2026-01-02', type: 'expense', amountCents: 2000, method: 'card', acc: 'b2' },
+    { id: 'b', date: '2026-01-03', type: 'expense', amountCents: 10000, method: 'transfer', acc: 'card', link: 'x', xfer: 'x' },
+    { id: 'c', date: '2026-01-03', type: 'income', amountCents: 10000, method: 'transfer', acc: 'cash', link: 'x', xfer: 'x' }
+  ];
+  const { rows } = W.series(saved, L.netLinked(es), '2026-01-04', [], {}, opts);
+  const last = rows[rows.length - 1];
+  assert.deepStrictEqual(last.acc, { card: 60000, b2: 28000, cash: 15000 });
+  assert.strictEqual(last.digital, 88000); assert.strictEqual(last.cash, 15000);
+  assert.strictEqual(last.patrimony, 103000); // solo baja el gasto de 20 €
+  assert.strictEqual(last.expenses, 2000); assert.strictEqual(last.income, 0);
+});

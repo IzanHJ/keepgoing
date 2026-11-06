@@ -119,16 +119,29 @@
      main:    moneda principal de la Libreta. v1.22: lo que va en otra moneda se apunta en esa moneda (fx = { cur, cents, rate })
      existing: movimientos de la Libreta (los importados llevan extIds y, si van agrupados, extGroup)
      Devuelve { create: [...], update: [{ id, addCents, addIds }], dup, skipped, unanswered } */
+  /* v1.36: huella corta de una clave (FNV-1a de 32 bits en base 36, unos 7 caracteres). Al quitar un registro de la Libreta
+     sin borrar sus movimientos, las claves largas del banco se cambian por su huella (e.extH): ocupan mucho menos y siguen
+     sirviendo para no apuntar dos veces lo mismo. */
+  function shortKey(k) {
+    let h = 0x811c9dc5; const s = String(k);
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(36) + s.length.toString(36);
+  }
+  // Claves ya apuntadas (largas y huellas): para saber qué filas del CSV son nuevas
+  function knownKeys(existing) {
+    const known = new Set(), short = new Set();
+    for (const e of existing || []) { for (const k of e.extIds || []) known.add(k); for (const k of e.extH || []) short.add(k); }
+    return { has: k => known.has(k) || (short.size > 0 && short.has(shortKey(k))) };
+  }
+  // Movimientos con claves de fila dividida («clave~1»): la clave que se guarda es la de la fila original
+  const baseKey = k => String(k).replace(/(~\d+)+$/, '');
   function plan(rows, answers, rates, existing, main = 'EUR', convert = {}) {
-    const known = new Set(), groups = new Map();
-    for (const e of existing || []) {
-      for (const k of e.extIds || []) known.add(k);
-      if (e.extGroup) groups.set(e.extGroup, e);
-    }
+    const known = knownKeys(existing), groups = new Map();
+    for (const e of existing || []) if (e.extGroup) groups.set(e.extGroup, e);
     const create = [], upd = new Map(), bucket = new Map();
     let dup = 0, skipped = 0, unanswered = 0;
     for (const r of rows) {
-      if (known.has(r.key)) { dup++; continue; }
+      if (known.has(baseKey(r.key))) { dup++; continue; }
       // v1.23: un movimiento desglosado de su grupo lleva su propia respuesta ('row:' + clave) y se apunta suelto
       const own = (answers || {})['row:' + r.key], a = own || (answers || {})[groupId(r)];
       if (!a || !TYPES.includes(a.type)) { unanswered++; continue; }
@@ -143,7 +156,7 @@
       if (!r.cents) { skipped++; continue; }
       // v1.23: «Convertir» apunta el importe ya pasado a la moneda principal, sin guardar la moneda original
       const keepFx = foreign && !(convert || {})[r.currency];
-      const base = { type: a.type, categoryId: a.categoryId || 'other', method: r.kind === 'card' || r.kind === 'cardCredit' ? 'card' : 'transfer' };
+      const base = { type: a.type, categoryId: a.categoryId || 'other', method: (own && own.method) || a.method || (r.kind === 'card' || r.kind === 'cardCredit' ? 'card' : 'transfer') };
       if (!own && (a.group === 'day' || a.group === 'month')) {
         // Los agrupados en otra moneda van aparte (su propio grupo), para guardar el importe original
         const period = a.group === 'day' ? r.date : r.date.slice(0, 7), gk = ['t212', groupId(r), a.type, period, ...(keepFx ? [r.currency] : [])].join('|');
@@ -151,20 +164,28 @@
         if (ex) {
           const u = upd.get(ex.id) || { id: ex.id, addCents: 0, addIds: [], addFx: 0 };
           if (keepFx && ex.fx) { u.addFx += r.cents; u.addCents += Math.round(r.cents * (ex.fx.rate || rate)); } else u.addCents += c;
-          u.addIds.push(r.key); upd.set(ex.id, u); continue;
+          u.addIds.push(baseKey(r.key)); upd.set(ex.id, u); continue;
         }
         const b = bucket.get(gk) || { ...base, date: r.date, amountCents: 0, extIds: [], extGroup: gk, kind: r.kind, label: r.kind === 'card' ? r.mcat : r.kind === 'other' ? r.action : '', count: 0, ...(keepFx ? { fx: { cur: r.currency, cents: 0, rate } } : {}) };
         if (b.fx) { b.fx.cents += r.cents; b.amountCents = Math.round(b.fx.cents * rate); } else b.amountCents += c;
-        b.extIds.push(r.key); b.count++; if (r.date > b.date) b.date = r.date;
+        if (!b.extIds.includes(baseKey(r.key))) b.extIds.push(baseKey(r.key)); b.count++; if (r.date > b.date) b.date = r.date;
         bucket.set(gk, b);
         continue;
       }
-      create.push({ ...base, date: r.date, amountCents: c, extIds: [r.key], kind: r.kind, label: r.merchant || r.name || (r.kind === 'other' ? r.action : ''), count: 1, ...(keepFx ? { fx: { cur: r.currency, cents: r.cents, rate } } : {}) });
+      create.push({ ...base, date: r.date, amountCents: c, extIds: [baseKey(r.key)], ...(r.split ? { split: r.split } : {}), kind: r.kind, label: r.merchant || r.name || (r.kind === 'other' ? r.action : ''), count: 1, ...(keepFx ? { fx: { cur: r.currency, cents: r.cents, rate } } : {}) });
     }
     return { create: [...create, ...bucket.values()].sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0)), update: [...upd.values()], dup, skipped, unanswered };
   }
 
   // v1.23: filas de un grupo, para desglosarlo
   const rowsOf = (rows, id) => (rows || []).filter(r => groupId(r) === id);
-  return { parseCsv, detect, kindOf, localDate, read, questions, currencies, plan, groupId, rowsOf };
+  /* v1.36: dividir una fila en varias (p. ej. un ingreso de 2.400 € que son 2.200 de nómina y 200 de una devolución).
+     parts: importes en céntimos (positivos) que suman lo de la fila. Devuelve las filas nuevas o null si no cuadra.
+     Cada parte lleva clave «clave~n» y split = clave original; al importarla se guarda la clave original (no se duplica). */
+  function splitRow(row, parts) {
+    const ps = (parts || []).map(v => Math.round(+v)).filter(v => v > 0);
+    if (ps.length < 2 || ps.reduce((a, v) => a + v, 0) !== row.cents) return null;
+    return ps.map((c, i) => ({ ...row, key: row.key + '~' + (i + 1), split: baseKey(row.key), cents: c }));
+  }
+  return { parseCsv, detect, kindOf, localDate, read, questions, currencies, plan, groupId, rowsOf, shortKey, knownKeys, baseKey, splitRow };
 });

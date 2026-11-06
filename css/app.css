@@ -314,11 +314,11 @@ input[type="color"].swatch-input::-moz-color-swatch { border: 3px solid var(--su
   position: fixed; inset: 0; z-index: 100;
   background: rgba(0, 0, 0, .55);
   display: flex; align-items: flex-end; justify-content: center;
-  animation: fade .2s ease;
+  animation: fade .2s ease; overscroll-behavior: none;
 }
 .sheet {
   width: 100%; max-width: 640px; max-height: 92vh; max-height: 92dvh;
-  overflow: auto; overscroll-behavior: contain;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; /* v1.43: la hoja nunca se mueve hacia los lados */
   background: var(--surface); color: var(--fg);
   border-radius: 32px 32px 0 0;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, .4), var(--sh-in);
@@ -2548,3 +2548,124 @@ body.orb-open { overflow: hidden; }
 @media (min-width: 900px) { .orb-nav { --R: 176px; } }
 @media (orientation: landscape) and (max-height: 540px) { .orb-nav { --R: 132px; } }
 .moon-l { white-space: normal; width: max-content; max-width: 78px; text-align: center; line-height: 1.1; font-size: 10.5px; }
+
+/* v1.36: movimientos de un evento (quitar / añadir de fuera de sus fechas) */
+.ev-row { display: flex; gap: 6px; align-items: center; }
+.ev-row > .swipe { flex: 1; min-width: 0; }
+.ev-row.extra > .swipe { box-shadow: inset 3px 0 0 var(--accent); border-radius: var(--r-md); }
+.ev-row.out > .swipe { opacity: .55; }
+.ev-out { flex: none; opacity: .7; }
+.ev-pick { width: 100%; text-align: left; }
+.ev-pick.on { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ev-pick.on .led-ico { background: var(--accent); color: var(--accent-ink); }
+
+/* v1.36: seleccionar y fusionar movimientos del día */
+.ledger-day .ledger-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.ledger-list.selecting li { transition: transform .15s; }
+.ledger-list.selecting li .swipe-front { outline: 1.5px dashed var(--line); outline-offset: -2px; }
+.ledger-list.selecting li.picked .swipe-front { outline: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.ledger-list.selecting li.picked .led-ico { background: var(--accent); color: var(--accent-ink); }
+.merge-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
+.acc-row strong { white-space: nowrap; }
+.rg-cut { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
+
+/* v1.27: Organización — «Nombres» apagado también en Día y Semana, notas a la vista */
+.ly-notext .tf-blk > b { display: none; }
+.tf-blk-note { display: flex !important; gap: 3px; align-items: flex-start; white-space: normal !important; line-height: 1.25; overflow: hidden; }
+.tf-blk-note svg.i { width: 10px; height: 10px; flex: none; margin-top: 1px; }
+.tf-tl:not(.big) .tf-blk-note svg.i { display: none; }
+.tf-cell .n .tf-nn { display: inline-flex; align-items: center; gap: 1px; color: var(--muted); margin-left: auto; margin-right: 2px; }
+.tf-cell .n .tf-nn svg.i { width: 10px; height: 10px; }
+.tf-note-row { width: 100%; border: 0; text-align: left; cursor: pointer; font: inherit; }
+.tf-zclip.zooming { overflow: hidden; }
+/* v1.27: plantillas de notas */
+.tf-gapn[style*="--nc"] { border-color: var(--nc); background: color-mix(in srgb, var(--nc) 16%, var(--surface-2)); }
+.tf-gapn[style*="--nc"] > svg.i { color: var(--nc); }
+.tf-gapn-all { position: static; display: flex; margin-top: 2px; }
+.tf-all-note[style*="--nc"] { box-shadow: inset 3px 0 0 var(--nc); }
+.tf-all-note[style*="--nc"] > svg.i { color: var(--nc); }
+.tf-tpl-chip svg.i { color: var(--c); }
+.nt-ic { color: var(--nc); }
+.nt-icp[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.nt-prog { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 3px 0 0 var(--nc); }
+.nt-bar { height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--fg) 10%, transparent); overflow: hidden; }
+.nt-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--nc, var(--accent)); transition: width .3s ease; }
+.nt-rep { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); box-shadow: inset 3px 0 0 var(--nc); }
+.nt-key { display: flex; flex-direction: column; gap: 4px; }
+
+/* v1.39: Organización — Nombres apagado no deja ver ni nombre ni emoji en ningún sitio; las notas se ven también en el Mes del móvil */
+.ly-notext .tf-tl-allc .tf-tag { font-size: 0; height: 10px; min-height: 10px; padding: 0; }
+.ly-notext .tf-tag .tn, .ly-notext .tf-tag .ini { display: none; }
+@media (max-width: 520px) { .tf-cell .tf-dnote { display: -webkit-box; -webkit-line-clamp: 2; font-size: 8.5px; line-height: 1.15; } }
+.tf-cell .tf-dnote { border-left: 2px solid var(--accent); padding-left: 3px; }
+/* Trayecto (medio de transporte) en Día y Semana */
+.tf-trip { position: absolute; display: flex; gap: 4px; align-items: center; justify-content: center; padding: 0 3px; border-radius: 6px; border: 1.5px dashed var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--fg); font-size: 10px; overflow: hidden; pointer-events: none; z-index: 1; }
+.tf-tl.big .tf-trip { justify-content: flex-start; }
+.tf-trip svg.i { width: 11px; height: 11px; flex: none; color: var(--c); }
+.tf-trip small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Interruptor y chips de Medio de transporte */
+.tf-tr { padding: 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.tf-tr-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.tf-tr-m { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: 12px; cursor: pointer; }
+.tf-tr-m svg.i { width: 20px; height: 20px; }
+.tf-tr-m[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+/* Filas de turnos en el editor del día (se tocan para editar) */
+.tf-entry.tf-entry-row { display: flex; flex-direction: row; align-items: center; gap: 6px; }
+.tf-entry-open { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; }
+.tf-entry-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.tf-entry-meta > span { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.tf-blk[data-tf-ent] { cursor: pointer; }
+/* «Turnos y Rutinas»: widgets plegables y reordenables */
+.tf-w { border-radius: var(--r-lg); padding: 0; overflow: hidden; }
+.tf-w-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; cursor: pointer; list-style: none; }
+.tf-w-h::-webkit-details-marker { display: none; }
+.tf-w-t { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 16px; }
+.tf-w-n { font-size: 12px; color: var(--muted); background: var(--surface-2); border-radius: 99px; padding: 1px 8px; }
+.tf-w-mv { display: flex; gap: 2px; }
+.tf-w-mv .icon-btn[disabled] { opacity: .3; }
+.tf-w-b { padding: 0 12px 14px; gap: 12px; }
+.tf-w-b > .clay.card { background: var(--surface-2); box-shadow: none; }
+/* Notas modulares */
+.nm-seq { display: flex; flex-direction: column; gap: 6px; }
+.nm-fill { display: flex; flex-direction: column; gap: 6px; }
+.nm-fill-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nm-pre { font-weight: var(--fw-ui); }
+.nm-fill-row .input { flex: 1; min-width: 140px; }
+.nm-seq > .nm-arrow { align-self: center; color: var(--muted); line-height: 0; }
+.nm-step-row .nm-n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); font-size: 12px; flex: none; }
+.nm-prev { padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.nm-blank { font-style: normal; padding: 0 8px; border-bottom: 1.5px dashed var(--muted); color: var(--muted); }
+.nm-arrow { color: var(--accent); }
+
+.tf-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* v1.43: historial de una plantilla o nota modular (línea de tiempo por meses) */
+.nh-ser { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.nh-spark { width: 100%; height: 56px; display: block; overflow: visible; }
+.nh-spark polyline { fill: none; stroke: var(--c); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.nh-spark circle { fill: var(--c); }
+.nh-mon { margin: 6px 0 4px; font-size: 13px; text-transform: none; color: var(--muted); font-weight: 600; }
+.nh-list { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid color-mix(in srgb, var(--nc) 55%, transparent); display: flex; flex-direction: column; gap: 6px; }
+.nh-list li { position: relative; }
+.nh-list li::before { content: ''; position: absolute; left: -20px; top: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--nc); box-shadow: 0 0 0 3px var(--surface); }
+.nh-it { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; padding: 8px 10px; border-radius: var(--r-md); background: var(--surface-2); }
+.nh-d { display: flex; flex-direction: column; align-items: center; min-width: 34px; line-height: 1.1; }
+.nh-d b { font-size: 18px; } .nh-d small { color: var(--muted); font-size: 11px; text-transform: capitalize; }
+.nh-it .grow { display: flex; flex-direction: column; min-width: 0; }
+.nh-t { overflow-wrap: anywhere; }
+/* v1.43: trayecto de después del turno (a Casa, a otro lugar o al siguiente turno) */
+.tf-trip.bk { border-style: dotted; background: color-mix(in srgb, var(--c) 8%, transparent); }
+.tf-tpl-chip[data-def="1"] { box-shadow: 0 0 0 2px var(--c); }
+.nl-item { display: inline-flex; align-items: center; gap: 4px; padding-right: 4px; }
+.nl-item .icon-btn { width: 22px; height: 22px; }
+.nl-tag { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.nt-link select { flex: 1 1 160px; min-width: 0; }
+.chip[data-ntpick][aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); } /* v1.43: la opción elegida se ve */
+/* v1.43: reparto de respuestas en el historial, fichas de listas y chips pequeños */
+.nh-dist { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; align-items: center; gap: 8px; }
+.nh-dist .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nh-bar { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.nh-bar i { display: block; height: 100%; border-radius: 4px; background: var(--nc, var(--accent)); }
+.nl-open { border: 0; background: none; padding: 0; color: inherit; font: inherit; }
+.chip.xs { padding: 3px 9px; font-size: 12px; min-height: 0; }
+.rt-route { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--surface-3); } /* v1.43: ruta tipo en una rutina */

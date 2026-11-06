@@ -1,0 +1,89 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const W = require('../js/world.js');
+const C = W.decodeTopo(require('../data/world-110m.json'));
+
+test('el mapa se decodifica con códigos de país', () => {
+  assert.ok(C.length > 150);
+  assert.ok(C.find(c => c.a2 === 'ES'));
+  assert.ok(C.every(c => c.polys.length && c.polys[0][0].length > 2));
+});
+
+test('país de unas coordenadas, sin internet', () => {
+  assert.equal(W.countryAt(C, 37.389, -5.984).a2, 'ES'); // Sevilla
+  assert.equal(W.countryAt(C, 35.68, 139.69).a2, 'JP'); // Tokio
+  assert.equal(W.countryAt(C, 40.71, -74.0).a2, 'US'); // Nueva York
+  assert.equal(W.countryAt(C, -34.6, -58.38).a2, 'AR'); // Buenos Aires
+  assert.equal(W.countryAt(C, 48.85, 2.35).a2, 'FR'); // París
+  assert.equal(W.countryAt(C, 30, -40), null); // en medio del Atlántico
+  assert.equal(W.countryAt(C, NaN, 3), null);
+});
+
+test('geografía de un lugar: lo guardado gana a lo calculado', () => {
+  assert.deepEqual(W.geoOf({ lat: 37.389, lon: -5.984 }, C), { cc: 'ES', ccSt: 'calc', city: null, citySt: 'na' });
+  assert.deepEqual(W.geoOf({ cc: 'PT', city: 'Lisboa', lat: 37.389, lon: -5.984 }, C), { cc: 'PT', ccSt: 'reg', city: 'Lisboa', citySt: 'reg' });
+  assert.deepEqual(W.geoOf({ addr: 'Mi casa' }, C), { cc: null, ccSt: 'na', city: null, citySt: 'na' });
+  assert.deepEqual(W.fromOsmAddress({ town: 'Dos Hermanas', country_code: 'es' }), { city: 'Dos Hermanas', cc: 'ES' });
+  assert.deepEqual(W.fromOsmAddress(null), {});
+});
+
+test('momentos: orden, cambios de lugar y viajes sin inventar', () => {
+  const casa = { id: 'a', cc: 'ES' }, ofi = { id: 'b', cc: 'ES' }, hotel = { id: 'c', cc: 'JP' };
+  const geo = p => W.geoOf(p, C);
+  const ms = W.moments([
+    { date: '2026-03-02', min: 600, place: ofi, tr: 'bus' },
+    { date: '2026-03-02', min: 420, place: casa },
+    { date: '2026-03-02', min: 700, place: null }, // sin lugar: no se supone nada
+    { date: '2026-03-03', min: 480, place: hotel, tr: 'plane' },
+    { date: '2026-03-01', min: null, place: casa },
+  ], geo);
+  assert.deepEqual(ms.map(m => m.place && m.place.id), ['a', 'a', 'b', null, 'c']);
+  assert.equal(ms[1].move, false);
+  assert.equal(ms[2].move, true); assert.equal(ms[2].from.id, 'a'); assert.equal(ms[2].trip, null);
+  assert.equal(ms[3].move, false);
+  assert.deepEqual([ms[4].trip.from, ms[4].trip.to], ['ES', 'JP']);
+  const s = W.summary(ms);
+  assert.deepEqual(s.places.map(p => [p.place.id, p.n]), [['a', 2], ['b', 1], ['c', 1]]);
+  assert.deepEqual(s.countries.map(c => c.cc), ['ES', 'JP']);
+  assert.equal(s.trips.length, 1); assert.equal(s.unknown, 1);
+});
+
+test('globo: puntos en la esfera y arco que se levanta en el centro', () => {
+  const p = W.toXYZ(0, 0); assert.ok(Math.abs(Math.hypot(...p) - 1) < 1e-9);
+  const n = W.toXYZ(90, 0); assert.ok(Math.abs(n[1] - 1) < 1e-9);
+  const a = W.arc({ lat: 40, lon: -3 }, { lat: 35, lon: 139 }, 10);
+  assert.equal(a.length, 11);
+  assert.ok(Math.abs(Math.hypot(...a[0]) - 1) < 1e-9 && Math.abs(Math.hypot(...a[10]) - 1) < 1e-9);
+  assert.ok(Math.hypot(...a[5]) > 1.1);
+});
+
+test('catálogos', () => {
+  assert.ok(W.okScene('home') && !W.okScene('castle'));
+  assert.ok(W.okTransport('bus') && !W.okTransport('teleport'));
+  assert.equal(new Set(W.SCENE_IDS).size, W.SCENES.length);
+});
+
+test('v1.40 recorrido: trayectos con transporte, salida, llegada y duración', () => {
+  const casa = { id: 'a', name: 'Casa' }, ofi = { id: 'b', name: 'Oficina' }, gym = { id: 'c', name: 'Gym' };
+  const ms = W.moments([
+    { date: '2026-11-03', min: 480, kind: 'shift', name: 'Mañana', place: casa, tr: '' },
+    { date: '2026-11-03', min: 540, kind: 'shift', name: 'Trabajo', place: ofi, tr: 'bus', trDep: '08:20', trArr: '08:55' },
+    { date: '2026-11-03', min: 1100, kind: 'shift', name: 'Pesas', place: gym, tr: 'walk', trDep: '18:10' },
+    { date: '2026-11-04', min: 540, kind: 'shift', name: 'Trabajo', place: ofi, tr: 'bus', trDep: '23:50', trArr: '00:20' },
+    { date: '2026-11-04', min: 600, kind: 'shift', name: 'Sin lugar', place: null, tr: 'car' },
+  ], () => ({ cc: null, ccSt: 'na', city: null, citySt: 'na' }));
+  const L = W.legs(ms);
+  assert.equal(L.length, 4);
+  assert.deepEqual([L[0].tr, L[0].dep, L[0].arr, L[0].min, L[0].from.id, L[0].to.id], ['bus', '08:20', '08:55', 35, 'a', 'b']);
+  assert.equal(L[1].min, null); // falta la llegada: no se supone
+  assert.equal(L[2].min, 30); // cruza la medianoche
+  assert.equal(L[2].from.id, 'c');
+  assert.equal(L[3].to, null);
+  const S = W.legSummary(L);
+  assert.deepEqual(S.total, { n: 4, min: 65, nMin: 2 });
+  assert.equal(S.byTr[0].tr, 'bus'); assert.equal(S.byTr[0].n, 2);
+  assert.ok(S.routes.every(r => r.to)); // los trayectos sin destino no son rutas
+  const R = W.route(ms.filter(m => m.date === '2026-11-03'));
+  assert.deepEqual(R.map(r => [r.place.id, r.tr, r.min]), [['a', '', null], ['b', 'bus', 35], ['c', 'walk', null]]);
+  assert.equal(W.legDur('9:00', '10:00'), null);
+});
