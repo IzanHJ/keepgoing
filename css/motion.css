@@ -297,3 +297,21 @@
 .ppx .pp-sub { margin: 4px 0 12px; opacity: .85; }
 :root[data-motion="full"] .ppx .pp-crown { animation: ppPop .9s cubic-bezier(.2, 1.4, .4, 1) both .2s; }
 @keyframes ppPop { from { transform: scale(.2) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* v1.47: cabecera limpia (solo los botones de cada pestaña, a la derecha) y AJUSTES como lunita bajo el orbe.
+   Solo se ve con el orbe abierto: sale de detrás del orbe grande y se queda justo debajo. */
+.top-bar { justify-content: flex-end; }
+.gy-top-end { justify-content: flex-end; }
+.orb-gear { position: absolute; z-index: 2; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; color: var(--accent-ink);
+  background: radial-gradient(circle at 34% 28%, color-mix(in srgb, #fff 80%, var(--accent)) 0%, color-mix(in srgb, #fff 25%, var(--accent)) 35%, var(--accent) 70%, color-mix(in srgb, var(--accent) 50%, #000) 100%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 6px 18px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 -4px 9px rgba(0,0,0,.28), inset 0 3px 6px rgba(255,255,255,.35);
+  opacity: 0; visibility: hidden; pointer-events: none; transform: scale(.2);
+  transition: transform .5s cubic-bezier(.3, 1.5, .45, 1), opacity .2s, visibility 0s .5s; }
+.orb-gear svg.i { width: 20px; height: 20px; }
+.orb-nav.open .orb-gear { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(calc(var(--lift) + 98px)); transition-delay: .18s, .18s, 0s; }
+.orb-nav.open .orb-gear:active { transform: translateY(calc(var(--lift) + 98px)) scale(.9); }
+.orb-gear:focus-visible { outline: 3px solid var(--fg); outline-offset: 3px; }
+.orb.bump { animation: orbLand .55s cubic-bezier(.3, 1.6, .5, 1); }
+@media (orientation: landscape) and (max-height: 540px) { .orb-nav.open .orb-gear, .orb-nav.open .orb-gear:active { transform: translateY(calc(var(--lift) + 86px)); } }
+:root[data-motion="off"] .orb-nav.open .orb-gear { transition: none !important; }

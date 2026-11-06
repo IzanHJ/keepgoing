@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.45.2';
+  const VERSION = '1.47.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -790,7 +790,7 @@
     let gone = false;
     const end = () => {
       if (gone) return; gone = true;
-      const pill = $('.lvl-pill'), r = pill && pill.getBoundingClientRect();
+      const pill = $('.lvl-pill') || $('#orb'), r = pill && pill.getBoundingClientRect();
       if (r && !rm) { el.style.setProperty('--tx', (r.left + r.width / 2) + 'px'); el.style.setProperty('--ty', (r.top + r.height / 2) + 'px'); }
       el.classList.add('out');
       setTimeout(() => { el.remove(); if (pill) { pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump'); } }, rm ? 150 : 650);
@@ -846,11 +846,11 @@
 
   // «+2,5 pts» que sube junto a la insignia de nivel
   function pointsPop(n) {
-    const pill = $('.lvl-pill'); if (!pill) return;
+    const pill = $('.lvl-pill') || $('#orb'); if (!pill) return; // v1.47: sin insignia de nivel, el «+pts» sale del orbe
     pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
     const r = pill.getBoundingClientRect(), el = document.createElement('span');
     el.className = 'pts-pop'; el.setAttribute('aria-hidden', 'true'); el.textContent = `+${fmtPts(n)} pts`;
-    el.style.left = `${r.left + r.width / 2}px`; el.style.top = `${r.bottom + 4}px`;
+    el.style.left = `${r.left + r.width / 2}px`; el.style.top = `${pill.id === 'orb' ? r.top - 34 : r.bottom + 4}px`;
     document.body.appendChild(el); setTimeout(() => el.remove(), reducedMotion() ? 900 : 1300);
   }
   function tapDay(h, k) {
@@ -2378,7 +2378,7 @@
     const streak = GYM.weekStreak(state.gymWorkouts, tfWeekKeys, tk, Math.max(1, goal));
     const dow = tfDow();
     let html = `<div class="gy">`;
-    html += `<div class="gy-top"><h1 class="page-title grow" style="margin:0">${esc(t('gyTab'))}</h1><button class="icon-btn" data-gy="hist" aria-label="${esc(t('gyHistory'))}" title="${esc(t('gyHistory'))}">${ico('clock')}</button><button class="icon-btn" data-gy="lib" aria-label="${esc(t('gyLibrary'))}" title="${esc(t('gyLibrary'))}">${ico('search')}</button></div>`;
+    html += `<div class="gy-top gy-top-end"><button class="icon-btn" data-gy="hist" aria-label="${esc(t('gyHistory'))}" title="${esc(t('gyHistory'))}">${ico('clock')}</button><button class="icon-btn" data-gy="lib" aria-label="${esc(t('gyLibrary'))}" title="${esc(t('gyLibrary'))}">${ico('search')}</button></div>`;
     if (live) html += `<button class="gy-livebar clay" data-gy="resume"><span class="gy-pulse"></span><span class="grow"><b>${esc(live.name || t('gyFree'))}</b><span class="muted small" data-gy-clock="${live.start || 0}">${gyClock(Date.now() - (live.start || Date.now()))}</span></span>${ico('right')}</button>`;
     // Semana: anillo de días entrenados, tira de 7 días y cifras
     html += `<section class="gy-hero clay"><div class="gy-ring" style="--p:${pct}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="gy-ring-bg" cx="60" cy="60" r="52"/><circle class="gy-ring-fg" cx="60" cy="60" r="52" pathLength="100"/></svg><div class="gy-ring-in"><b class="gy-count" data-gy-cnt="${n}">${n}</b><span>/ ${goal} ${esc(t('gyDaysShort'))}</span></div></div>
@@ -4837,6 +4837,7 @@
       ${TABS.map(([id, ic, key], i) => `<button class="moon ${i === cur ? 'cur' : ''}" data-act="go" data-tab="${id}" style="--i:${i}" tabindex="${ORB.open ? 0 : -1}" ${i === cur ? 'aria-current="page"' : ''} aria-label="${esc(t(key))}">${ico(ic)}<span class="moon-l">${esc(t(key))}</span></button>`).join('')}
       <span class="orb-mini" aria-hidden="true"><i>${ico(TABS[cur][1])}</i></span>
       <div class="orb-talk" id="orb-talk" role="status" aria-live="polite" data-orb="talk"></div>
+      <button class="orb-gear" data-act="settings" tabindex="${ORB.open ? 0 : -1}" aria-label="${esc(t('settings'))}" title="${esc(t('settings'))}">${ico('gear')}</button>
       <button class="orb" id="orb" aria-expanded="${ORB.open}" aria-haspopup="true" aria-label="${esc(t('orbAria', { tab: t(TABS[cur][2]) }))}" title="${esc(t('orbAria', { tab: t(TABS[cur][2]) }))}">${KG_LOGO()}</button>
     </nav>`;
   }
@@ -4845,6 +4846,7 @@
     const n = $('#orb-nav'); if (!n) return;
     n.classList.toggle('open', open); $('#orb', n).setAttribute('aria-expanded', open);
     $$('.moon', n).forEach((m, i) => { m.tabIndex = open ? 0 : -1; m.classList.toggle('hot', i === ORB.hot); });
+    const g = $('.orb-gear', n); if (g) g.tabIndex = open ? 0 : -1;
     document.body.classList.toggle('orb-open', open);
     orbTalk(open);
   }
@@ -4945,6 +4947,7 @@
       if (e.target.closest && e.target.closest('[data-orb="talk"]')) { if (ORB.open) { clearInterval(ORBT.timer); ORBT.timer = setInterval(() => ORB.open ? orbTalkShow(ORBT.i + 1) : clearInterval(ORBT.timer), 5200); orbTalkShow(ORBT.i + 1); vibrate(6); } return; }
       if (e.target.closest && e.target.closest('[data-orb="veil"]')) { orbSet(false); return; }
       if (ORB.open && e.target.closest && e.target.closest('#orb-nav .moon')) { ORB.open = false; document.body.classList.remove('orb-open'); }
+      if (e.target.closest && e.target.closest('#orb-nav .orb-gear')) { vibrate(8); orbSet(false); } // y sigue hasta data-act="settings"
     }, true);
     document.addEventListener('keydown', e => {
       const n = $('#orb-nav'); if (!n) return;
@@ -4974,11 +4977,12 @@
     }
   }
 
-  // @nametag junto al nivel: abre tu perfil (insignias, logros, cartas…)
+  // Tu @nametag (el perfil se abre desde Maestrías y desde el Chat)
   const myTag = () => profileOf().tag || repState.nametag || '';
-  const tagPill = () => `<button class="tag-pill clay ${myTag() ? '' : 'tag-empty'}" data-act="profile" aria-label="${esc(t('profileTitle'))}" title="${esc(t('profileTitle'))}">${myTag() ? `<b>@</b>${esc(myTag())}` : `<b>@</b>${esc(t('tagPillEmpty'))}`}</button>`;
+  /* v1.47: la cabecera ya no enseña ajustes, nivel, puntos ni @nametag (los ajustes son la lunita bajo el orbe; el
+     nivel y el perfil siguen en Maestrías). Solo quedan los botones propios de cada pestaña, a la derecha. */
   function topBar(actions = '') {
-    return `<div class="top-bar"><div class="row top-left" style="gap:8px;min-width:0"><button class="icon-btn" data-act="settings" aria-label="${esc(t('settings'))}" title="${esc(t('settings'))}">${ico('gear')}</button>${state.habits.length ? levelPill() : ''}${tagPill()}</div>${actions ? `<div class="pill-group">${actions}</div>` : ''}</div>`;
+    return actions ? `<div class="top-bar"><div class="pill-group">${actions}</div></div>` : '';
   }
   const emptyState = (icon, title, sub, action = '') =>
     `<div class="empty"><div class="empty-art">${ico(icon)}</div><h2>${esc(title)}</h2><p>${esc(sub)}</p>${action}</div>`;
@@ -5017,7 +5021,6 @@
     let html = topBar(`<button class="icon-btn" data-act="create" aria-label="${esc(t('createTitle'))}">${ico('plus')}</button>`);
     const folder = openFolder();
     if (!folder && state.ui.folder) state.ui.folder = null;
-    html += `<h1 class="page-title">${esc(t('tabHabitsProjects'))}</h1>`;
     if (!active.length && !arch.length && !state.projects.length) {
       return html + contractBanner() + emptyState('checklist', t('habitsEmptyTitle'), t('habitsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button><button class="btn" data-act="packs">${ico('box')} ${esc(t('fromTemplate'))}</button><button class="btn" data-act="proj-new">${ico('target')} ${esc(t('newProject'))}</button></div>`);
     }
@@ -6276,7 +6279,6 @@
 
   function viewMastery() {
     let html = topBar(`<button class="icon-btn" data-act="ranks-info" aria-label="${esc(t('masteryRanks'))}">${ico('info')}</button>`);
-    html += `<h1 class="page-title">${esc(t('tabMastery'))}</h1>`;
     html += profileCardHtml();
     if (!state.habits.length) return html + emptyState('crown', t('tabMastery'), t('masteryEmptyPerfect'), `<button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button>`);
     const lv = levelInfo(), pi = pointsInfo(), pr = perfectRun(), got = perfectCount();
@@ -6798,7 +6800,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.47', [['1.47.0', 2]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -7880,10 +7882,6 @@
   const fmtPct = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 4 }).format(v) + ' %';
   const fmtPctIn = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 4, useGrouping: false }).format(v);
   const fmtPts = v => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 2 }).format(v);
-  function levelPill() {
-    const lv = levelInfo(), pi = pointsInfo();
-    return `<button class="lvl-pill clay" data-act="level" aria-label="${esc(t('lvTitle'))}"><span class="lvl-num">${lv.level}</span><span class="lvl-txt"><b>${esc(lv.title)}</b><span>${esc(t('ptsN', { n: fmtPts(pi.points) }))}</span></span></button>`;
-  }
   // El cambio de nivel solo afecta a los días futuros (desde mañana); en la configuración inicial o sin hábitos, desde hoy
   function setCommitment(lv) {
     const today = todayKey(), started = state.onboarded && state.habits.length > 0;
@@ -8431,7 +8429,6 @@
     const sel = state.ui.ledgerDay && state.ui.ledgerDay.startsWith(ym) ? state.ui.ledgerDay : (todayKey().startsWith(ym) ? todayKey() : null);
     const monthEntries = LED.inMonth(LV.entries, y, m), tot = LED.totals(NET(monthEntries)), days = LED.byDay(NET(monthEntries));
     let html = topBar(ledgerOpen() ? calcTopActions(false) : '');
-    html += `<h1 class="page-title">${esc(t('tabLedger'))}</h1>`;
     if (!ledgerOpen()) return html + ledgerLockedHtml();
     if (LV.bad) html += `<div class="banner clay">${ico('alert')}<span class="grow small">${esc(t('vaultBad', { n: LV.bad }))}</span></div>`;
     html += KGPlan.allows(PL(), 'worth') ? worthHtml() : planLockedCard('worth');
@@ -12805,7 +12802,6 @@
   function viewChat() {
     const v = state.ui.chatView === 'friends' ? 'friends' : 'chats';
     let html = topBar(auth ? `<button class="icon-btn" data-act="chat-friends" aria-label="${esc(t('friendAdd'))}" title="${esc(t('friendAdd'))}">${ico('user')}</button><button class="icon-btn" data-act="chat-new" aria-label="${esc(t('chatNewGroup'))}" title="${esc(t('chatNewGroup'))}">${ico('plus')}</button>` : '');
-    html += `<h1 class="page-title">${esc(t('tabChat'))}</h1>`;
     if (!auth) return html + emptyState('chat', t('chatLoginTitle'), t('chatLoginSub'), `<button class="btn primary" data-act="chat-login">${esc(t('signIn'))}</button>`);
     refreshMyGroups(); refreshChat();
     const fr = chatData.friends || [], inc = fr.filter(f => f.status === 'incoming').length;
