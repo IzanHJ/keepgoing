@@ -87,7 +87,7 @@
       kind: kindOk(s.kind) ? s.kind : 'work',
       start: timeOr(s.start), end: timeOr(s.end),
       breakMin: num(s.breakMin, 0, 720, 0), alarmMin: num(s.alarmMin, 0, 1440, 0),
-      ...(typeof s.placeId === 'string' && RE_ID.test(s.placeId) ? { placeId: s.placeId } : {}), ...trOf(s, false), ...(typeof s.ntp === 'string' && RE_ID.test(s.ntp) ? { ntp: s.ntp } : {}), // v1.43: nota que se propone en el turno
+      ...(typeof s.placeId === 'string' && RE_ID.test(s.placeId) ? { placeId: s.placeId } : {}), ...trOf(s, false), ...(typeof s.ntp === 'string' && RE_ID.test(s.ntp) ? { ntp: s.ntp } : {}), ...(s.ask === true ? { ask: true } : {}), // v1.43: nota que se propone en el turno
     }));
     const shiftIds = new Set(shifts.map((s) => s.id));
     const days = {};

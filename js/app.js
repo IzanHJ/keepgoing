@@ -3319,6 +3319,41 @@
       }
     });
   }
+  /* v1.43: «¿Cómo ha ido?». Si un turno tiene el interruptor encendido (s.ask), al acabar (hoy o ayer, si cruza la medianoche) y
+     sin nota suya todavía, la app pregunta una vez con su nota predeterminada primero. Lo ya preguntado va en calPrefs.askDone
+     ({ 'fecha|turno|hora': fecha }) y se limpia a la semana. Se mira al abrir la app, al volver a ella y cada minuto. */
+  let askBusy = false;
+  function tfAskCheck() {
+    if (askBusy || !state.onboarded || document.hidden || $('#modal-root').children.length || !state.calShifts.some(s => s.ask)) return;
+    const now = new Date(), tk = todayKey(), yk = TF.iso(TF.addDays(TF.parseISO(tk), -1)), done = { ...((state.calPrefs || {}).askDone || {}) };
+    for (const k of [yk, tk]) for (const e of state.calDays[k] || []) {
+      const s = tfShift(e.sid); if (!s || !s.ask) continue;
+      const tm = TF.entryTimes(s, e); if (!tm.end) continue;
+      const end = TF.parseISO(k); end.setHours(+tm.end.slice(0, 2), +tm.end.slice(3, 5), 0, 0); if (tm.start && tm.end <= tm.start) end.setDate(end.getDate() + 1);
+      const key = `${k}|${e.sid}|${tm.start || ''}`;
+      if (end > now || now - end > 36 * 3600e3 || done[key] || tfEntNotes(k, e, s).length) continue;
+      askBusy = true;
+      const mark = () => { const d2 = {}; for (const [x, v] of Object.entries({ ...done, [key]: k })) if (v >= TF.iso(TF.addDays(TF.parseISO(tk), -7))) d2[x] = v; state.calPrefs = { ...state.calPrefs, askDone: d2 }; save(); };
+      tfTplSeed();
+      const def = tfTpl(s.ntp), others = tfTplsQuick().filter(p => p !== def);
+      openModal({
+        title: `${ico('sparkle')} ${esc(t('askTitle', { s: s.name }))}`, cls: 'tf-sheet',
+        body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(tfLong(k))}${tm.start ? ' · ' + esc(tm.start + '–' + tm.end) : ''}</p><p style="margin:0">${esc(t('askBody'))}</p>
+          <div class="row wrap" style="gap:6px">${def ? tfTplChip(def, `data-ask-tp="${esc(def.id)}" data-def="1"`) : ''}${others.map(p => tfTplChip(p, `data-ask-tp="${esc(p.id)}"`)).join('')}</div>
+          <button class="btn ghost block" data-ask="later">${esc(t('askLater'))}</button></div>`,
+        onClose: () => { askBusy = false; mark(); },
+        onClick: (ev, close) => {
+          const b = ev.target.closest('[data-ask-tp]');
+          if (b) { close(); setTimeout(() => tfTplNote(k, -1, b.dataset.askTp, { a: tm.start || '', b: tm.end || '', sid: e.sid }, () => render()), 300); return; }
+          if (ev.target.closest('[data-ask="later"]')) close();
+        }
+      });
+      return;
+    }
+  }
+  setInterval(tfAskCheck, 60e3);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(tfAskCheck, 1500); });
+  setTimeout(tfAskCheck, 4000);
   /* v1.43: buscar en todas las notas (texto, con filtro de plantilla y de fechas). Tocar un resultado lo abre. */
   function tfNoteSearch(q0) {
     const st = { q: q0 || '', tp: '', from: '', to: '' }; let wref;
@@ -3626,7 +3661,7 @@
     // v1.43: notas modulares o con plantilla de este turno (la predeterminada del turno sale la primera)
     const drawNotes = w => {
       const box = $('#tfn-notes', w); if (!box) return;
-      const ns = tfEntNotes(k, cur, s), def = tfTpl(s.ntp), quick = tfTplsQuick().filter(p => p !== def);
+      tfTplSeed(); const ns = tfEntNotes(k, cur, s), def = tfTpl(s.ntp), quick = tfTplsQuick().filter(p => p !== def);
       box.innerHTML = `<div class="stack" style="gap:8px"><b>${ico('list', 'xs')} ${esc(t('ntpTitle'))}</b>
         ${ns.map(([g, j]) => `<button type="button" class="tf-all-note tf-note-row" data-tfn-gap="${j}" style="${tfNoteStyle(g)}">${tfNoteIco(g)} <span class="grow">${esc(g.t)}</span>${ico('edit', 'xs')}</button>`).join('')}
         <div class="row wrap" style="gap:6px">${def ? tfTplChip(def, `data-tfn-tp="${esc(def.id)}" data-def="1"`) : ''}${quick.map(p => tfTplChip(p, `data-tfn-tp="${esc(p.id)}"`)).join('')}</div>
@@ -4257,6 +4292,7 @@
         ${tfField(t('tfColor'), `<input class="tf-swatch" type="color" id="tfe-color" value="${tfColor(d.color)}" aria-label="${esc(t('tfColor'))}">`)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfe-place"', d.placeId || '', '', '', true), true)}
         ${tfField(t('ntpDef'), tfSel('id="tfe-ntp"', [['', t('ntpNone')], ...tfTplsQuick().map(p => [p.id, p.name])], d.ntp || ''), true)}
+        <label class="row full" style="gap:12px;grid-column:1/-1"><span class="switch"><input type="checkbox" id="tfe-ask" ${d.ask ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('askOn'))}</b><br><span class="muted small">${esc(t('askOnHint'))}</span></span></label>
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfe-start" value="${esc(d.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfe-end" value="${esc(d.end)}">`)}
         ${tfField(t('tfBreak'), `<input class="input" type="number" id="tfe-brk" min="0" max="720" value="${d.breakMin}">`)}${tfField(t('tfAlarm'), `<input class="input" type="number" id="tfe-alarm" min="0" max="1440" value="${d.alarmMin}">`)}</div>
         <div style="margin-top:14px">${tfTrBox({ on: !!d.tr, mode: d.tr || '', dep: d.trDep || '', arr: d.trArr || '', hint: t('trHintShift') })}</div>
@@ -4284,6 +4320,7 @@
         if (bk && bk.on) { d.bk = bk.mode; if (bk.dep) d.bkDep = bk.dep; if (bk.arr) d.bkArr = bk.arr; if (bk.to) d.bkTo = bk.to; }
         const pl = v('tfe-place'); if (tfPlace(pl)) d.placeId = pl; else delete d.placeId;
         const np = v('tfe-ntp'); if (tfTpl(np)) d.ntp = np; else delete d.ntp;
+        if ($('#tfe-ask', w).checked) d.ask = true; else delete d.ask;
         const i = state.calShifts.findIndex(x => x.id === d.id); if (i >= 0) state.calShifts[i] = d; else state.calShifts.push(d);
         close(); tfSave(); toast(t('saved'));
       }

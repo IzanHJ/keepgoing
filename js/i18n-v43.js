@@ -24,7 +24,9 @@
     help_cal_start: 'Abre el menú (icono de 4 cuadrados) → Turnos y crea tus turnos y tus lugares.|Toca el pincel (abajo a la derecha), elige un turno y toca o desliza por los días para ponerlo o quitarlo.|Toca un día para ver su detalle, cambiar sus horas o su descanso, añadir una nota o poner una rutina.|En Día y Semana, toca cualquier hueco libre para añadir un turno puntual o una nota en esa hora.|Para fichar, toca «Fichar entrada» en el Día de hoy o en el pincel, y «Fichar salida» al acabar.',
     ntRepeat: 'Repetir la del {d}', ntRepeated: 'Copiada la última nota: cámbiala si quieres.', nhYesOf: '{n} de {of}', nhTop: 'Lo que más se repite',
     nsTitle: 'Buscar en notas', nsPh: 'Busca una palabra, una persona, un sitio…', nsHint: 'Escribe algo o elige una plantilla para ver sus notas.', nsN: '{n} notas', nsN1: '1 nota', nsNone: 'No hay notas con eso.', nsAll: 'Todas',
-    nliSince: 'desde el {d}', nliNone: 'Todavía no sale en ninguna nota.'
+    nliSince: 'desde el {d}', nliNone: 'Todavía no sale en ninguna nota.',
+    askOn: 'Preguntar «¿Cómo ha ido?» al acabar', askOnHint: 'Al terminar este turno, la app te propone rellenar su nota (la predeterminada primero). Apágalo cuando quieras.',
+    askTitle: '¿Cómo ha ido {s}?', askBody: 'Apúntalo ahora que lo tienes fresco:', askLater: 'Ahora no'
   };
   const en = {
     nhTitle: 'History', nhEmpty: 'No notes in this period yet.', nhCount: '{n} notes', nhCount1: '1 note',
@@ -50,7 +52,9 @@
     help_cal_start: 'Open the menu (4-squares icon) → Shifts and create your shifts and your places.|Tap the brush (bottom right), pick a shift and tap or swipe across days to add or remove it.|Tap a day to see its detail, change its times or break, add a note or apply a routine.|In Day and Week, tap any free slot to add a one-off shift or a note at that time.|To clock in, tap “Clock in” on today’s Day view or in the brush, and “Clock out” when you finish.',
     ntRepeat: 'Repeat the one from {d}', ntRepeated: 'Last note copied: change it if you like.', nhYesOf: '{n} of {of}', nhTop: 'Most repeated',
     nsTitle: 'Search notes', nsPh: 'Search a word, a person, a place…', nsHint: 'Type something or pick a template to see its notes.', nsN: '{n} notes', nsN1: '1 note', nsNone: 'No notes match.', nsAll: 'All',
-    nliSince: 'since {d}', nliNone: 'It does not appear in any note yet.'
+    nliSince: 'since {d}', nliNone: 'It does not appear in any note yet.',
+    askOn: 'Ask “How did it go?” when it ends', askOnHint: 'When this shift ends, the app suggests filling in its note (the default one first). Turn it off any time.',
+    askTitle: 'How did {s} go?', askBody: 'Write it down while it is fresh:', askLater: 'Not now'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
