@@ -15,6 +15,9 @@
     ['home', 'house'], ['office', 'briefcase'], ['park', 'tree'], ['beach', 'beach'], ['gym', 'dumbbell'], ['restaurant', 'fork'],
     ['mall', 'bag'], ['university', 'cap'], ['library', 'book'], ['hospital', 'cross'], ['hotel', 'bed'], ['stadium', 'trophy'],
     ['station', 'train'], ['neighborhood', 'grid'], ['road', 'road'], ['airport', 'plane'],
+    // v1.42: 8 exteriores y 4 interiores (maqueta sin dos paredes)
+    ['supermarket', 'cart'], ['apartments', 'building'], ['cafe', 'cup'], ['school', 'school'], ['cinema', 'film'], ['pool', 'pool'],
+    ['mountain', 'mountain'], ['pharmacy', 'pill'], ['office_in', 'desk'], ['living', 'sofa'], ['bedroom', 'bed'], ['classroom', 'board'],
   ];
   const SCENE_IDS = SCENES.map(s => s[0]);
   const okScene = s => SCENE_IDS.includes(s);
