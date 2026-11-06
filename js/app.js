@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.43.0';
+  const VERSION = '1.44.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -233,6 +233,23 @@
     fence: '<path d="M5 21V6l1.5-2L8 6v15M11 21V6l1.5-2L14 6v15M17 21V6l1.5-2L20 6v15M3 10h18M3 16h18"/>',
     fountain: '<path d="M4 15h16l-2 5H6z"/><path d="M12 15V6M12 6c-2 0-4 2-4 5M12 6c2 0 4 2 4 5"/>',
     tent: '<path d="M3 20L12 4l9 16z"/><path d="M12 4v16M9 20l3-6 3 6"/>',
+    // v1.42: escenarios nuevos y piezas de interior
+    cart: '<path d="M3 4h2.5l2.2 10.5h10.6L20.5 7H6.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/>',
+    building: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h1.5M13.5 7H15M9 11h1.5M13.5 11H15M9 15h1.5M13.5 15H15M11 21v-3h2v3"/>',
+    cup: '<path d="M5 8h11v6a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5c0 1 1 1.5 1 2.5M12 3.5c0 1 1 1.5 1 2.5"/>',
+    school: '<path d="M3 21h18M5 21V10l7-4 7 4v11"/><path d="M12 6V2.5l3 1.2-3 1.2M10 21v-4h4v4"/><circle cx="12" cy="11.5" r="1.8"/>',
+    film: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M8 5v14M16 5v14"/>',
+    pool: '<path d="M3 16c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0M3 20c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0"/><path d="M8 13V5a2 2 0 0 1 4 0M14 13V5a2 2 0 0 1 4 0M8 9h6"/>',
+    mountain: '<path d="M2.5 20L9.5 7l4 7 2-3 6 9z"/><path d="M7.6 10.5l1.9 1.5 1.8-1.4"/>',
+    pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>',
+    desk: '<path d="M3 9h18M5 9v11M19 9v11M14 9v6h5"/><rect x="8" y="3" width="8" height="4.5" rx=".8"/>',
+    chair: '<path d="M7 3v9h10V3M6 12h12M7 12v8M17 12v8"/>',
+    sofa: '<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3"/><path d="M3 12a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3zM5 17v2M19 17v2"/>',
+    tv: '<rect x="3" y="5" width="18" height="12" rx="1.5"/><path d="M8 21h8M12 17v4"/>',
+    board: '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M7 20l2-4M17 20l-2-4M7 8h6M7 11h9"/>',
+    plant: '<path d="M7 14h10l-1.5 7h-7z"/><path d="M12 14V8M12 8c-3 0-5-2-5-5 3 0 5 2 5 5zM12 10c2.5 0 4.5-1.8 4.5-4.5-2.5 0-4.5 1.8-4.5 4.5z"/>',
+    rug: '<rect x="4" y="6" width="16" height="12" rx="1"/><path d="M4 9H2M4 12H2M4 15H2M20 9h2M20 12h2M20 15h2M8 10h8v4H8z"/>',
+    ptable: '<path d="M3 8h18M6 8v12M18 8v12M6 13h12"/>',
   };
   // v1.27: data-i = nombre del icono, para su micro animación propia al pasar el cursor o tocarlo
   const ico = (n, cls = '') => `<svg class="i ${cls}" data-i="${n}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1309,9 +1326,9 @@
   function tlUi() {
     const u = state.ui.tl && typeof state.ui.tl === 'object' ? state.ui.tl : {}, tk = todayKey();
     let at = KGT.isKey(u.at) && u.at <= tk ? u.at : tk;
-    if (!tlBoot) { tlBoot = true; at = tk; } // al abrir la app, la línea empieza hoy
+    let boot = false; if (!tlBoot) { tlBoot = true; at = tk; boot = true; } // al abrir la app, la línea empieza hoy
     const c = u.cmp && typeof u.cmp === 'object' ? u.cmp : {}, ok = KGT.isKey;
-    state.ui.tl = { sc: KGT.okScale(u.sc), at, panel: ['compare', 'world'].includes(u.panel) ? u.panel : 'progress', ws: ['place', 'tr', 'sc'].includes(u.ws) ? u.ws : 'place', pv: typeof u.pv === 'string' ? u.pv : 'general', open: !!u.open,
+    state.ui.tl = { sc: boot ? 'day' : KGT.okScale(u.sc), at, panel: ['compare', 'world'].includes(u.panel) ? u.panel : 'progress', ws: ['place', 'tr', 'sc'].includes(u.ws) ? u.ws : 'place', pv: typeof u.pv === 'string' ? u.pv : 'general', open: !!u.open,
       cmp: { mode: ['prev', 'year', 'custom'].includes(c.mode) ? c.mode : 'prev', a0: ok(c.a0) ? c.a0 : '', a1: ok(c.a1) ? c.a1 : '', b0: ok(c.b0) ? c.b0 : '', b1: ok(c.b1) ? c.b1 : '' } };
     return state.ui.tl;
   }
@@ -1487,11 +1504,13 @@
   const lwTrIco = tr => LW_TR_ICO[tr] || 'route';
   /* v1.40: escenarios 3D. Cada escenario tiene un color (state.lwStyle.colors) y se pueden crear escenarios propios
      con piezas low-poly sobre una rejilla (state.lwStyle.scenes, lógica en js/scenes.js) */
-  const lwSt = () => state.lwStyle || (state.lwStyle = KGScenes.normStyle(null));
+  const lwSt = () => { const st = state.lwStyle || (state.lwStyle = KGScenes.normStyle(null)); if (!st.over || typeof st.over !== 'object') st.over = {}; return st; };
   const lwCustom = id => KGScenes.isCustom(id) ? lwSt().scenes.find(x => x.id === id) || null : null;
   const lwSceneOk = id => KGWorld.okScene(id) || !!lwCustom(id);
   const lwSceneName = id => KGWorld.okScene(id) ? t('lwSc_' + id) : lwCustom(id) ? lwCustom(id).name : t('lwNoScene');
   const lwScIco = id => lwCustom(id) ? 'layers' : lwSceneIco(id);
+  // v1.42: lo que se pinta de un escenario (propio, de serie editado o de serie): todo son rejillas de piezas
+  const lwBuilt = (id, o = {}) => { const st = lwSt(), x = KGScenes.sceneOf(st, id); return x ? { type: 'scene', scene: id, cells: x.cells, g: x.g, sh: x.sh, color: x.color, mono: st.mono, ...o } : null; };
   const lwTrSpec = (tr, o = {}) => ({ type: 'travel', tr, color: KGScenes.colorOf(lwSt(), 'tr-' + tr), mono: lwSt().mono, ...o });
   const lwDur = m => m == null ? '' : m < 60 ? t('lwMin', { n: m }) : m % 60 ? t('lwHMin', { h: Math.floor(m / 60), m: m % 60 }) : t('lwH', { h: m / 60 });
   // El mapa del mundo (Natural Earth 110m) se descarga la primera vez que se abre Mundo y queda en la caché de la app
@@ -1530,13 +1549,12 @@
     });
   }
   const lwSceneSpec = p => {
-    const st = lwSt(), cs = p && lwCustom(p.scene);
-    if (cs) return { type: 'scene', scene: cs.id, cells: cs.cells, color: cs.color, mono: st.mono };
-    if (p && KGWorld.okScene(p.scene)) return { type: 'scene', scene: p.scene, color: KGScenes.colorOf(st, p.scene), mono: st.mono };
+    const b = p && lwSceneOk(p.scene) && lwBuilt(p.scene);
+    if (b) return b;
     return { type: 'scene', scene: 'pin', color: p ? tfColor(p.color) : '#8e8e93', mono: false };
   };
   // Qué se pinta para un momento en «Lugares»: solo su escenario (v1.40: el trayecto y el vuelo están aparte, en «Transporte»)
-  const lwSpecs = m => [m.place ? lwSceneSpec(m.place) : m.kind === 'gym' ? { type: 'scene', scene: 'gym', color: KGScenes.colorOf(lwSt(), 'gym'), mono: lwSt().mono } : { type: 'scene', scene: 'unknown' }];
+  const lwSpecs = m => [m.place ? lwSceneSpec(m.place) : m.kind === 'gym' ? lwBuilt('gym') : { type: 'scene', scene: 'unknown' }];
   // …y para un trayecto en «Transporte»: el vuelo en el globo si cambió de país (y se saben los dos sitios); si no, el vehículo en marcha
   function lwLegSpecs(l) {
     if (l.trip) { const a = lwLL(l.trip.fromPlace, lwGeo(l.trip.fromPlace)), b = lwLL(l.trip.toPlace, l.geo); if (a && b) return [{ type: 'globe', from: a, to: b }]; }
@@ -1548,18 +1566,18 @@
     LW.r = null; LW.cv = null;
   }
   // Versión fija (sin WebGL o sin poder cargar el 3D): el icono del escenario y su nombre
-  const lwStaticHtml = spec => spec.type === 'globe' ? `${ico('globe')}<span>${esc(t('lwTrips'))}</span>` : spec.type === 'travel' ? `${ico(lwTrIco(spec.tr))}<span>${esc(t('lwTr_' + spec.tr))}</span>` : `<span class="lw-st-c" style="--c:${esc(spec.color || 'transparent')}">${ico(spec.scene === 'unknown' ? 'info' : spec.cells ? 'layers' : lwSceneIco(spec.scene))}</span><span>${esc(spec.scene === 'unknown' ? t('lwNoPlace') : spec.scene === 'pin' ? t('lwNoScene') : spec.cells ? (LW.ed && LW.ed.id === spec.scene ? LW.ed.name : lwSceneName(spec.scene)) : t('lwSc_' + spec.scene))}</span>`;
+  const lwStaticHtml = spec => spec.type === 'globe' ? `${ico('globe')}<span>${esc(t('lwTrips'))}</span>` : spec.type === 'travel' ? `${ico(lwTrIco(spec.tr))}<span>${esc(t('lwTr_' + spec.tr))}</span>` : `<span class="lw-st-c" style="--c:${esc(spec.color || 'transparent')}">${ico(spec.scene === 'unknown' ? 'info' : lwScIco(spec.scene))}</span><span>${esc(spec.scene === 'unknown' ? t('lwNoPlace') : spec.scene === 'pin' ? t('lwNoScene') : LW.ed && LW.ed.id === spec.scene && !LW.ed.built ? LW.ed.name : lwSceneName(spec.scene))}</span>`;
   // Enseña una lista de vistas una tras otra (vuelo → lugar, trayecto → lugar)
   function lwPlay(list) {
     clearTimeout(LW.tm); LW.arrive = null;
-    const st = $('#lw-static'); if (!LW.r) { if (st) st.innerHTML = lwStaticHtml(list[list.length - 1]); return; }
+    const sg = LW.cv && LW.cv.closest('.lw-stage'), st = sg ? $('.lw-static', sg) : $('#lw-static'); if (!LW.r) { if (st) st.innerHTML = lwStaticHtml(list[list.length - 1]); return; }
     const [a, ...rest] = list; LW.r.show(a);
     if (!rest.length) return;
     if (a.type === 'globe') LW.arrive = () => { LW.tm = setTimeout(() => lwPlay(rest), 450); };
     else LW.tm = setTimeout(() => lwPlay(rest), 1800);
   }
-  async function lwStart(getList) {
-    const cv = $('#lw-cv'); if (!cv) return;
+  async function lwStart(getList, root) {
+    const cv = root ? $('.lw-stage canvas', root) : $('#lw-cv'); if (!cv) return;
     lwStop(); LW.cv = cv;
     const stage = cv.closest('.lw-stage');
     if (LW.fail || !KGLifeWorld.supported()) { stage.classList.add('static'); lwPlay(getList()); return; }
@@ -1589,6 +1607,8 @@
     const weekIdx = at => { const w = tfWeekKeys(at)[0], i = weeks.indexOf(w); return i < 0 ? 0 : i; };
     f = weekIdx(u.at);
     const R = () => tlRange(u.sc, u.at);
+    // v1.42: Progreso, Comparar, Estadísticas, Mundo y Ajustes van en una hoja; lo de dentro se busca en la hoja abierta
+    const pRoot = () => TLS.sheetEl || wref;
     /* -- Semana: el archivador. Cada semana es una carpeta grande con los 7 días, la nota visible y lo esencial -- */
     const frame = (w, i) => {
       const ks = tfWeekKeys(w), tk = todayKey(), rs = ks.map(dayRateOf).filter(v => v != null), avg = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null, note = jrNoteOf(ks[0]);
@@ -1720,14 +1740,17 @@
       const c = u.cmp, A = R();
       if (c.mode === 'custom') { const LYR = KGT.range(u.sc === 'all' ? 'year' : u.sc, KGT.lastYear(u.sc === 'all' ? todayKey() : A.from), { ws: tfWs() }), a0 = c.a0 || A.from, a1 = c.a1 || A.to, b0 = c.b0 || LYR.from, b1 = c.b1 || LYR.to; return { A: { from: a0 <= a1 ? a0 : a1, to: a0 <= a1 ? a1 : a0 }, B: { from: b0 <= b1 ? b0 : b1, to: b0 <= b1 ? b1 : b0 } }; }
       if (u.sc === 'all') return { A, B: null };
-      const at = c.mode === 'year' ? KGT.lastYear(u.at) : KGT.shift(u.sc, u.at, -1), B = KGT.range(u.sc, at, { ws: tfWs() }), tk = todayKey();
+      const tk = todayKey();
+      if (c.mode === 'prev') { const aTo = A.to > tk ? tk : A.to, n = tlDaysBetween(A.from, aTo) + 1; return { A: { from: A.from, to: aTo }, B: { from: addDays(A.from, -n), to: addDays(A.from, -1) }, n }; }
+      const at = KGT.lastYear(u.at), B = KGT.range(u.sc, at, { ws: tfWs() });
       // Si el periodo elegido aún no ha acabado, el otro se corta en el mismo punto (1–4 de noviembre frente a 1–4 de octubre)
       if (A.to > tk && A.from <= tk) { const cut = addDays(B.from, tlDaysBetween(A.from, tk)); if (cut < B.to) return { A, B: { from: B.from, to: cut }, cut: true }; }
       return { A, B };
     };
     const compare = () => {
-      const c = u.cmp, { A, B, cut } = cmpRanges();
+      const c = u.cmp, { A, B, cut, n } = cmpRanges();
       const head = `<div class="tl-vchips">${[['prev', 'tlCmpPrev'], ['year', 'tlCmpYear'], ['custom', 'tlCmpCustom']].map(([m, k]) => `<button class="chip sm ${c.mode === m ? 'on' : ''}" data-tl-cm="${m}" ${u.sc === 'all' && m !== 'custom' ? 'disabled' : ''}>${esc(t(k))}</button>`).join('')}</div>
+        ${c.mode === 'prev' && n ? `<p class="muted small">${ico('info', 'xs')} ${esc(t(n === 1 ? 'tlCmpPrev1' : 'tlCmpPrevN', { n }))}</p>` : ''}${c.mode !== 'custom' && u.sc !== 'all' ? `<div id="tl-rp2" class="tl-rp2">${rpBar()}</div>` : ''}
         ${c.mode === 'custom' ? `<div class="tl-cmp-in"><label><span>${esc(t('tlPeriodA'))}</span><span class="row" style="gap:6px"><input type="date" class="input" data-tl-ci="a0" value="${A.from}" max="${todayKey()}"><input type="date" class="input" data-tl-ci="a1" value="${A.to}"></span></label><label><span>${esc(t('tlPeriodB'))}</span><span class="row" style="gap:6px"><input type="date" class="input" data-tl-ci="b0" value="${B.from}" max="${todayKey()}"><input type="date" class="input" data-tl-ci="b1" value="${B.to}"></span></label></div>` : ''}`;
       if (!B) return head + `<p class="muted small">${esc(t('tlCmpAllHelp'))}</p>`;
       const ids = KGT.INDICATORS.filter(x => !x.noCompare).map(x => x.id);
@@ -1759,8 +1782,12 @@
     const lwCur = D => {
       if (LW.pick) return LW.pick.t === 'all' ? null : LW.pick;
       if (u.sc !== 'day') return null;
-      if (u.ws === 'tr') return D.L.length ? { t: 'm', i: 0 } : null;
-      return D.ms.length ? { t: 'm', i: Math.max(0, D.ms.findIndex(m => m.place)) } : null;
+      const now = u.at === todayKey() ? new Date().getHours() * 60 + new Date().getMinutes() : null;
+      const lastBefore = xs => { let j = -1; xs.forEach((m, i) => { if (m.min != null && m.min <= now) j = i; }); return j; };
+      if (u.ws === 'tr') { if (!D.L.length) return null; const j = now == null ? -1 : lastBefore(D.L.map(l => D.ms[l.i] || {})); return { t: 'm', i: Math.max(0, j) }; }
+      if (!D.ms.length) return null;
+      const j = now == null ? -1 : lastBefore(D.ms.map(m => (m.place ? m : { min: null })));
+      return { t: 'm', i: j >= 0 ? j : Math.max(0, D.ms.findIndex(m => m.place)) };
     };
     const lwGlobe = D => {
       // el globo mira al último sitio conocido del periodo
@@ -1864,11 +1891,11 @@
     const scColor = id => lwCustom(id) ? lwCustom(id).color : KGScenes.colorOf(lwSt(), id);
     function lwScSpec() {
       const st = lwSt();
-      if (LW.ed) return { type: 'scene', scene: LW.ed.id, cells: LW.ed.cells, color: LW.ed.color, mono: st.mono, instant: true };
+      if (LW.ed) return { type: 'scene', scene: LW.ed.id, cells: LW.ed.cells, g: LW.ed.g, sh: LW.ed.sh, color: LW.ed.color, mono: st.mono, instant: true };
       const id = scCur();
       if (id.startsWith('tr-')) return lwTrSpec(id.slice(3));
-      const cs = lwCustom(id); if (cs) return { type: 'scene', scene: id, cells: cs.cells, color: cs.color, mono: st.mono };
-      return { type: 'scene', scene: id, color: KGScenes.colorOf(st, id), mono: st.mono };
+      if (LW.alt && LW.alt.id === id) return lwBuilt(id, { cells: LW.alt.cells });
+      return lwBuilt(id) || { type: 'scene', scene: 'unknown' };
     }
     const swatches = (cur, attr) => `<div class="swatches lw-sw">${['#8e8e93', ...HABIT_COLORS].map(c => `<button type="button" class="sw ${cur === c ? 'on' : ''}" ${attr}="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="lw-color" value="${esc(cur)}" aria-label="${esc(t('themeCustom'))}"></div>`;
     const usedBy = id => (state.calPlaces || []).filter(pl => pl.scene === id);
@@ -1882,7 +1909,9 @@
       h += `<div class="lw-sec"><span class="jr-h">${ico('palette', 'xs')} ${esc(t('lwScColor'))}</span>${swatches(scColor(id), 'data-lw-c')}
         <label class="row lw-mono" style="gap:12px"><span class="switch"><input type="checkbox" id="lw-mono" ${st.mono ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('lwMono'))}</b><br><span class="muted">${esc(t('lwMonoHint'))}</span></span></label>
         ${!cs && st.colors[id] ? `<button class="chip sm ghost" data-lw-reset>${ico('refresh', 'xs')} ${esc(t('lwScReset'))}</button>` : ''}</div>`;
-      if (cs) h += `<div class="row wrap lw-acts"><button class="btn sm" data-lw-ed="${esc(id)}">${ico('edit')} ${esc(t('edit'))}</button><button class="btn sm ghost" data-lw-dup="${esc(id)}">${ico('copy')} ${esc(t('lwDup'))}</button><button class="btn sm ghost danger" data-lw-del="${esc(id)}">${ico('trash')} ${esc(t('delete'))}</button></div>`;
+      // v1.42: todos los escenarios de lugar se pueden editar y tienen «Alternativa»; los de serie editados, «Restaurar»
+      if (!isTr && LW.alt && LW.alt.id === id) h += `<div class="lw-alt"><span class="small"><b>${ico('sparkle', 'xs')} ${esc(t('lwAltN', { n: LW.alt.n }))}</b><br><span class="muted">${esc(t('lwAltHint'))}</span></span><div class="row wrap lw-acts"><button class="btn sm" data-lw-alt-next>${ico('refresh')} ${esc(t('lwAltOther'))}</button><span class="grow"></span><button class="btn sm ghost" data-lw-alt-cancel>${esc(t('cancel'))}</button><button class="btn sm primary" data-lw-alt-save>${ico('check')} ${esc(t('lwAltSave'))}</button></div></div>`;
+      else if (!isTr) h += `<div class="row wrap lw-acts"><button class="btn sm" data-lw-ed="${esc(id)}">${ico('edit')} ${esc(t('edit'))}</button><button class="btn sm" data-lw-alt="${esc(id)}">${ico('sparkle')} ${esc(t('lwAlt'))}</button>${cs ? `<button class="btn sm ghost" data-lw-dup="${esc(id)}">${ico('copy')} ${esc(t('lwDup'))}</button><button class="btn sm ghost danger" data-lw-del="${esc(id)}">${ico('trash')} ${esc(t('delete'))}</button>` : ''}${!cs && lwSt().over[id] ? `<button class="btn sm ghost" data-lw-restore="${esc(id)}">${ico('refresh')} ${esc(t('lwRestore'))}</button>` : ''}</div>`;
       if (!isTr) {
         const ub = usedBy(id), pls = (state.calPlaces || []).filter(pl => pl.scene !== id);
         h += `<div class="lw-sec"><span class="jr-h">${ico('pin', 'xs')} ${esc(t('lwUsedBy'))}</span>${ub.length ? `<div class="lw-cc">${ub.map(pl => `<span class="chip sm" style="--c:${tfColor(pl.color)}">${esc(pl.name)}</span>`).join('')}</div>` : `<span class="muted small">${esc(t('lwUsedNone'))}</span>`}
@@ -1893,15 +1922,19 @@
     };
     const tplPick = () => `<div class="lw-sec lw-tpl" id="lw-tpl"><span class="jr-h">${ico('layers', 'xs')} ${esc(t('lwFromTpl'))}</span><div class="lw-pl">${['', ...KGScenes.TEMPLATE_IDS].map(x => `<button class="lw-pc" data-lw-tpl="${x}" style="--c:var(--accent)">${ico(x ? 'layers' : 'plus', 'xs')}<span class="grow ellipsis">${esc(t(x ? 'lwTpl_' + x : 'lwTplEmpty'))}</span></button>`).join('')}</div></div>`;
     const edBody = () => {
-      const E = LW.ed, n = KGScenes.GRID, top = (x, z) => { const ks = E.cells.filter(k => k[0] === x && k[1] === z); return ks.find(k => KGScenes.topAsset(k[2])) || ks[0]; };
+      const E = LW.ed, n = KGScenes.GRID, top = (x, z) => { const ks = E.cells.filter(k => k[0] === x && k[1] === z); return ks.find(k => KGScenes.layer(k[2]) === 't') || ks.find(k => KGScenes.layer(k[2]) === 'g') || ks[0]; };
       const aIco = a => (KGScenes.ASSETS.find(x => x[0] === a) || [0, 'box'])[1];
-      const tools = `<div class="lw-tools" role="radiogroup" aria-label="${esc(t('lwPieces'))}">${KGScenes.ASSETS.map(([a, ic]) => `<button class="lw-tool ${E.tool === a ? 'on' : ''}" data-lw-tool="${a}" role="radio" aria-checked="${E.tool === a}">${ico(ic, 'xs')}<span>${esc(t('lwA_' + a))}</span></button>`).join('')}
+      const grp = KGScenes.GROUPS[E.grp] ? E.grp : 'build', inG = KGScenes.GROUPS[grp];
+      const grps = `<div class="seg seg-sm lw-grps" role="tablist">${KGScenes.GROUP_IDS.map(g => `<button role="tab" data-lw-grp="${g}" class="${grp === g ? 'on' : ''}" aria-selected="${grp === g}">${esc(t('lwG_' + g))}</button>`).join('')}</div>`;
+      const look = `<div class="lw-look"><span class="jr-h">${esc(t('lwGround'))}</span><div class="row wrap" style="gap:6px">${KGScenes.GROUNDS.map(g => `<button class="chip sm ${(E.g || 'tint') === g ? 'on' : ''}" data-lw-gr="${g}">${esc(t('lwGr_' + g))}</button>`).join('')}</div>
+        <span class="jr-h">${esc(t('lwShape'))}</span><div class="row wrap" style="gap:6px">${KGScenes.SHAPES.map(x => `<button class="chip sm ${(E.sh || 'sq') === x ? 'on' : ''}" data-lw-sh="${x}">${esc(t('lwSh_' + x))}</button>`).join('')}</div></div>`;
+      const tools = `${grps}<div class="lw-tools" role="radiogroup" aria-label="${esc(t('lwPieces'))}">${KGScenes.ASSETS.filter(([a]) => inG.includes(a)).map(([a, ic]) => `<button class="lw-tool ${E.tool === a ? 'on' : ''}" data-lw-tool="${a}" role="radio" aria-checked="${E.tool === a}">${ico(ic, 'xs')}<span>${esc(t('lwA_' + a))}</span></button>`).join('')}
           <button class="lw-tool ${E.tool === 'size' ? 'on' : ''}" data-lw-tool="size" role="radio" aria-checked="${E.tool === 'size'}">${ico('layers', 'xs')}<span>${esc(t('lwSize'))}</span></button>
           <button class="lw-tool ${E.tool === 'erase' ? 'on' : ''}" data-lw-tool="erase" role="radio" aria-checked="${E.tool === 'erase'}">${ico('trash', 'xs')}<span>${esc(t('lwErase'))}</span></button></div>`;
       let h = `<div class="lw-ed"><div class="lw-grid" style="--n:${n}" role="grid" aria-label="${esc(t('lwGridAria'))}">`;
       for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) { const k = top(x, z), both = E.cells.filter(c => c[0] === x && c[1] === z).length > 1; h += `<button class="lw-cell ${k ? 'on' : ''}" data-lw-cell="${x},${z}" style="--r:${k ? k[3] * 90 : 0}deg" aria-label="${esc(k ? t('lwA_' + k[2]) : t('lwEmptyCell'))}">${k ? ico(aIco(k[2]), 'xs') : ''}${k && k[4] !== 1 ? `<i class="lw-sz">${k[4] === 2 ? 'L' : 'S'}</i>` : ''}${both ? '<i class="lw-stack"></i>' : ''}</button>`; }
-      h += `</div><p class="muted small">${esc(t('lwEdHint'))}</p>${tools}
-        <input class="input" id="lw-ed-name" maxlength="${KGScenes.NAME_MAX}" value="${esc(E.name)}" placeholder="${esc(t('lwScNamePh'))}" aria-label="${esc(t('tfName'))}">
+      h += `</div><p class="muted small">${esc(t('lwEdHint'))}</p>${tools}${look}
+        ${E.built ? `<p class="muted small">${ico('info', 'xs')} ${esc(t('lwEdBuilt', { n: lwSceneName(E.id) }))}</p>` : `<input class="input" id="lw-ed-name" maxlength="${KGScenes.NAME_MAX}" value="${esc(E.name)}" placeholder="${esc(t('lwScNamePh'))}" aria-label="${esc(t('tfName'))}">`}
         ${swatches(E.color, 'data-lw-c')}
         <div class="row wrap lw-acts"><button class="btn sm ghost" data-lw-clear>${ico('x')} ${esc(t('lwClear'))}</button><span class="grow"></span><button class="btn sm ghost" data-lw-cancel>${esc(t('cancel'))}</button><button class="btn sm primary" data-lw-save>${ico('check')} ${esc(t('save'))}</button></div></div>`;
       return h;
@@ -1910,18 +1943,18 @@
     const worldBody = () => u.ws === 'sc' ? scBody() : u.ws === 'tr' ? trBody(lwData()) : placeBody(lwData());
     const world = () => `<div id="lw-subs">${subs()}</div><div class="lw-stage" id="lw-stage"><canvas id="lw-cv" role="img" aria-label="${esc(t('lwAria'))}"></canvas><div class="lw-static" id="lw-static" aria-hidden="true"></div><span class="lw-load muted small">${esc(t('lwLoading'))}</span></div><div id="lw-body">${worldBody()}</div>`;
     const worldInit = () => {
-      lwStart(lwList);
-      if (!LW.countries) lwLoadMap().then(c => { const b = wref && $('#lw-body', wref); if (c.length && b && u.panel === 'world') { b.innerHTML = worldBody(); lwPlay(lwList()); } });
+      lwStart(lwList, TLS.sheetEl); LW.host = 'sheet';
+      if (!LW.countries) lwLoadMap().then(c => { const b = pRoot() && $('#lw-body', pRoot()); if (c.length && b && TLS.sheet === 'world') { b.innerHTML = worldBody(); lwPlay(lwList()); } else if (c.length) heroPaint(); });
     };
     // Escenarios: guardar el estilo (se sincroniza con los ajustes) y volver a pintar
     const scSave = () => { state.lwStyle = KGScenes.normStyle(lwSt()); save(); };
     const scRefresh = (keepScroll = true) => {
-      const car = wref && $('#lw-car', wref), sl = car ? car.scrollLeft : 0;
+      const car = pRoot() && $('#lw-car', pRoot()), sl = car ? car.scrollLeft : 0;
       setPanel();
-      const c2 = wref && $('#lw-car', wref);
+      const c2 = pRoot() && $('#lw-car', pRoot());
       if (c2) { if (keepScroll) c2.scrollLeft = sl; const on = $('.lw-cc-i.on', c2); if (on && on.scrollIntoView) { const r = on.offsetLeft - c2.clientWidth / 2 + on.clientWidth / 2; c2.scrollTo({ left: r, behavior: reducedMotion() ? 'auto' : 'smooth' }); } }
     };
-    const scStep = d => { const xs = scItems(), i = xs.indexOf(scCur()); LW.sc = xs[(i + d + xs.length) % xs.length]; vibrate(5); sfx('tap'); scRefresh(); };
+    const scStep = d => { LW.alt = null; const xs = scItems(), i = xs.indexOf(scCur()); LW.sc = xs[(i + d + xs.length) % xs.length]; vibrate(5); sfx('tap'); scRefresh(); };
     const setColor = c => {
       if (!/^#[0-9a-f]{6}$/i.test(c)) return;
       c = c.toLowerCase();
@@ -1930,32 +1963,67 @@
     const edOpen = (cs, tpl) => {
       const st = lwSt();
       if (!cs && st.scenes.length >= KGScenes.MAX_SCENES) { toast(t('lwScMax', { n: KGScenes.MAX_SCENES })); return; }
-      LW.tplOpen = false;
-      LW.ed = cs ? { id: cs.id, name: cs.name, color: cs.color, cells: cs.cells.map(k => k.slice()), tool: 'house', isNew: false }
-        : { id: KGScenes.newId(Math.random, st.scenes.map(x => x.id)), name: tpl ? t('lwTpl_' + tpl) : t('lwMyScene'), color: KGScenes.CUSTOM_COLOR, cells: tpl ? KGScenes.template(tpl) : [], tool: 'house', isNew: true, tpl };
+      LW.tplOpen = false; LW.alt = null;
+      LW.ed = cs ? { id: cs.id, name: cs.name, color: cs.color, cells: cs.cells.map(k => k.slice()), g: cs.g || 'tint', sh: cs.sh || 'sq', tool: 'house', grp: 'build', isNew: false }
+        : { id: KGScenes.newId(Math.random, st.scenes.map(x => x.id)), name: tpl ? t('lwTpl_' + tpl) : t('lwMyScene'), color: KGScenes.CUSTOM_COLOR, cells: tpl ? KGScenes.template(tpl) : [], g: 'tint', sh: 'sq', tool: 'house', grp: 'build', isNew: true, tpl };
+      sfx('tap'); setPanel();
+    };
+    // v1.42: editar un escenario de serie. Se guarda como tu versión (state.lwStyle.over) y «Restaurar» vuelve a la original
+    const edOpenBuilt = id => {
+      const x = KGScenes.sceneOf(lwSt(), id); if (!x) return;
+      LW.tplOpen = false; LW.alt = null;
+      LW.ed = { id, built: true, name: lwSceneName(id), color: x.color, cells: x.cells.map(k => k.slice()), g: x.g, sh: x.sh, tool: KGScenes.GROUPS.indoor.includes((x.cells.find(k => KGScenes.BIG.includes(k[2])) || [])[2]) ? 'desk' : 'tree', grp: x.sh === 'room' ? 'indoor' : 'nature' };
       sfx('tap'); setPanel();
     };
     const edSave = () => {
-      const E = LW.ed, st = lwSt(), sc = KGScenes.normScene({ id: E.id, name: E.name, color: E.color, cells: E.cells, tpl: E.tpl });
+      const E = LW.ed, st = lwSt();
+      if (E.built) {
+        st.over[E.id] = { cells: KGScenes.normCells(E.cells), ...(E.g && E.g !== 'tint' ? { g: E.g } : {}), ...(E.sh && E.sh !== 'sq' ? { sh: E.sh } : {}) };
+        if (E.color !== KGScenes.colorOf(st, E.id)) st.colors[E.id] = E.color;
+        LW.ed = null; LW.scKind = 'place'; LW.sc = E.id; scSave(); sfx('success'); toast(t('saved')); scRefresh(false); return;
+      }
+      const sc = KGScenes.normScene({ id: E.id, name: E.name, color: E.color, cells: E.cells, g: E.g, sh: E.sh, tpl: E.tpl });
       if (!sc) return;
       const i = st.scenes.findIndex(x => x.id === E.id); if (i >= 0) st.scenes[i] = sc; else st.scenes.push(sc);
       LW.ed = null; LW.scKind = 'place'; LW.sc = sc.id; scSave(); sfx('success'); toast(t('saved')); scRefresh(false);
     };
+    // v1.42: «Alternativa»: las mismas piezas con otra disposición. Cada toque da una nueva; se guarda la que guste
+    const altNext = id => {
+      const x = KGScenes.sceneOf(lwSt(), id); if (!x) return;
+      const n = LW.alt && LW.alt.id === id ? LW.alt.n + 1 : 1, seed = (Date.now() ^ (n * 2654435761)) >>> 0;
+      LW.alt = { id, n, cells: KGScenes.variant(x.cells, seed, { room: x.sh === 'room' }), g: x.g, sh: x.sh };
+      vibrate(5); sfx('tlPick'); scRefresh();
+    };
+    const altSave = () => {
+      const A = LW.alt, st = lwSt(); if (!A) return;
+      const cs = lwCustom(A.id);
+      if (cs) cs.cells = KGScenes.normCells(A.cells);
+      else st.over[A.id] = { cells: KGScenes.normCells(A.cells), ...(A.g && A.g !== 'tint' ? { g: A.g } : {}), ...(A.sh && A.sh !== 'sq' ? { sh: A.sh } : {}) };
+      LW.alt = null; scSave(); sfx('success'); toast(t('saved')); scRefresh();
+    };
     // Repintar solo la rejilla y el 3D al editar (sin volver a crear el resto)
-    const edPaint = () => { const b = wref && $('#lw-body', wref); if (!b) return; const y = window.scrollY; b.innerHTML = edBody(); window.scrollTo(0, y); lwPlay([lwScSpec()]); };
+    const edPaint = () => { const b = pRoot() && $('#lw-body', pRoot()); if (!b) return; const sb = b.closest('.sheet-body'), y = sb ? sb.scrollTop : 0; b.innerHTML = edBody(); if (sb) sb.scrollTop = y; lwPlay([lwScSpec()]); };
     function lwClick(e) {
       const ws = e.target.closest('[data-lw-ws]'); if (ws) { if (u.ws === ws.dataset.lwWs) return true; u.ws = ws.dataset.lwWs; LW.pick = null; LW.ed = null; LW.tplOpen = false; save(); vibrate(5); sfx('tlPanel'); setPanel(); return true; }
       const lm = e.target.closest('[data-lw-m], [data-lw-p], [data-lw-t], [data-lw-tr], [data-lw-all]');
       if (lm) { const d = lm.dataset; LW.pick = d.lwM !== undefined ? { t: 'm', i: +d.lwM } : d.lwP !== undefined ? { t: 'p', id: d.lwP } : d.lwT !== undefined ? { t: 'trip', i: +d.lwT } : d.lwTr !== undefined ? { t: 'tr', tr: d.lwTr } : { t: 'all' }; vibrate(5); sfx('tlPick'); setPanel(); return true; }
       const le = e.target.closest('[data-lw-edit]'); if (le) { const pl = tfPlace(le.dataset.lwEdit); if (pl) tfEditPlace(pl, () => setPanel()); return true; }
       const sk = e.target.closest('[data-lw-sck]'); if (sk) { LW.scKind = sk.dataset.lwSck; LW.sc = null; LW.tplOpen = false; sfx('tap'); scRefresh(false); return true; }
-      const si = e.target.closest('[data-lw-sc]'); if (si) { LW.sc = si.dataset.lwSc; LW.tplOpen = false; vibrate(5); sfx('tlPick'); scRefresh(); return true; }
+      const si = e.target.closest('[data-lw-sc]'); if (si) { LW.sc = si.dataset.lwSc; LW.tplOpen = false; LW.alt = null; vibrate(5); sfx('tlPick'); scRefresh(); return true; }
       const sn = e.target.closest('[data-lw-scn]'); if (sn) { scStep(+sn.dataset.lwScn); return true; }
       const sw = e.target.closest('[data-lw-c]'); if (sw) { setColor(sw.dataset.lwC); sfx('tap'); if (LW.ed) edPaint(); else scRefresh(); return true; }
       if (e.target.closest('[data-lw-reset]')) { delete lwSt().colors[scCur()]; scSave(); sfx('tap'); scRefresh(); return true; }
-      if (e.target.closest('[data-lw-new]')) { LW.tplOpen = !LW.tplOpen; sfx('tap'); setPanel(); const tp = wref && $('#lw-tpl', wref); if (tp) tp.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); return true; }
+      if (e.target.closest('[data-lw-new]')) { LW.tplOpen = !LW.tplOpen; sfx('tap'); setPanel(); const tp = pRoot() && $('#lw-tpl', pRoot()); if (tp) tp.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); return true; }
       const tp = e.target.closest('[data-lw-tpl]'); if (tp) { edOpen(null, tp.dataset.lwTpl || ''); return true; }
-      const ed = e.target.closest('[data-lw-ed]'); if (ed) { const cs = lwCustom(ed.dataset.lwEd); if (cs) edOpen(cs); return true; }
+      const ed = e.target.closest('[data-lw-ed]'); if (ed) { const cs = lwCustom(ed.dataset.lwEd); if (cs) edOpen(cs); else if (KGWorld.okScene(ed.dataset.lwEd)) edOpenBuilt(ed.dataset.lwEd); return true; }
+      const al = e.target.closest('[data-lw-alt]'); if (al) { altNext(al.dataset.lwAlt); return true; }
+      if (e.target.closest('[data-lw-alt-next]') && LW.alt) { altNext(LW.alt.id); return true; }
+      if (e.target.closest('[data-lw-alt-cancel]')) { LW.alt = null; sfx('tap'); scRefresh(); return true; }
+      if (e.target.closest('[data-lw-alt-save]')) { altSave(); return true; }
+      const rs = e.target.closest('[data-lw-restore]'); if (rs) { confirmDialog(t('lwRestoreQ')).then(ok => { if (!ok) return; delete lwSt().over[rs.dataset.lwRestore]; scSave(); sfx('tap'); scRefresh(); }); return true; }
+      const gp = e.target.closest('[data-lw-grp]'); if (gp && LW.ed) { LW.ed.grp = gp.dataset.lwGrp; if (!KGScenes.GROUPS[LW.ed.grp].includes(LW.ed.tool)) LW.ed.tool = KGScenes.GROUPS[LW.ed.grp][0]; sfx('tap'); edPaint(); return true; }
+      const gr = e.target.closest('[data-lw-gr]'); if (gr && LW.ed) { LW.ed.g = gr.dataset.lwGr; sfx('tap'); edPaint(); return true; }
+      const shp = e.target.closest('[data-lw-sh]'); if (shp && LW.ed) { LW.ed.sh = shp.dataset.lwSh; sfx('tap'); edPaint(); return true; }
       const du = e.target.closest('[data-lw-dup]'); if (du) { const cs = lwCustom(du.dataset.lwDup); if (cs) { edOpen({ ...cs, id: KGScenes.newId(Math.random, lwSt().scenes.map(x => x.id)), name: (cs.name + ' 2').slice(0, KGScenes.NAME_MAX) }); if (LW.ed) LW.ed.isNew = true; } return true; }
       const dl = e.target.closest('[data-lw-del]'); if (dl) {
         const id = dl.dataset.lwDel, ub = usedBy(id);
@@ -1967,7 +2035,7 @@
         });
         return true;
       }
-      const tl = e.target.closest('[data-lw-tool]'); if (tl && LW.ed) { LW.ed.tool = tl.dataset.lwTool; sfx('tap'); $$('[data-lw-tool]', wref).forEach(b => { b.classList.toggle('on', b === tl); b.setAttribute('aria-checked', b === tl); }); return true; }
+      const tl = e.target.closest('[data-lw-tool]'); if (tl && LW.ed) { LW.ed.tool = tl.dataset.lwTool; sfx('tap'); $$('[data-lw-tool]', pRoot()).forEach(b => { b.classList.toggle('on', b === tl); b.setAttribute('aria-checked', b === tl); }); return true; }
       const ce = e.target.closest('[data-lw-cell]'); if (ce && LW.ed) {
         const [x, z] = ce.dataset.lwCell.split(',').map(Number), E = LW.ed;
         E.cells = E.tool === 'erase' ? KGScenes.erase(E.cells, x, z) : E.tool === 'size' ? KGScenes.resize(E.cells, x, z) : KGScenes.place(E.cells, x, z, E.tool);
@@ -1992,13 +2060,14 @@
       if (e.target.id === 'lw-color' && LW.ed) { LW.ed.color = e.target.value; lwPlay([lwScSpec()]); return true; }
       return false;
     }
-    const panel = () => u.panel === 'compare' ? compare() : u.panel === 'world' ? world() : progress();
+    const panel = () => TLS.sheet === 'compare' ? compare() : TLS.sheet === 'world' ? world() : TLS.sheet === 'stats' ? statsSheet() : TLS.sheet === 'settings' ? settingsSheet() : progress();
     // Cambiar lo de abajo. En Mundo, si el lienzo ya está, solo se cambia la lista y lo que se ve (no se crea otro 3D)
     const setPanel = () => {
-      const p = wref && $('#tl-panel', wref); if (!p) return;
-      if (u.panel === 'world' && LW.cv && p.contains(LW.cv)) { $('#lw-subs', p).innerHTML = subs(); $('#lw-body', p).innerHTML = worldBody(); lwPlay(lwList()); return; }
-      lwStop(); p.innerHTML = panel();
-      if (u.panel === 'world') worldInit();
+      const p = TLS.sheetEl && $('#tl-panel', TLS.sheetEl); if (!p) { heroPaint(); return; }
+      if (TLS.sheet === 'world' && LW.cv && p.contains(LW.cv)) { $('#lw-subs', p).innerHTML = subs(); $('#lw-body', p).innerHTML = worldBody(); lwPlay(lwList()); return; }
+      if (TLS.sheet === 'world') lwStop();
+      p.innerHTML = panel();
+      if (TLS.sheet === 'world') worldInit();
     };
     /* -- La barra de tiempo: todo el historial, con los acontecimientos y el periodo elegido -- */
     const track = () => {
@@ -2015,19 +2084,66 @@
       <button class="icon-btn sm" data-rp="start" aria-label="${esc(t('rpStart'))}" title="${esc(t('rpStart'))}">${ico('rewind')}</button>
       <button class="tl-rp-play ${RP.on ? 'on' : ''}" data-rp="play" aria-pressed="${RP.on}">${ico(RP.on ? 'pause' : 'play')}<span>${esc(t(RP.on ? 'rpPause' : 'rpPlay'))}</span></button>
       <div class="seg seg-sm tl-rp-sp" role="group" aria-label="${esc(t('rpSpeed'))}">${RP_SPEEDS.map(s => `<button data-rp-sp="${s}" class="${RP.sp === s ? 'on' : ''}" aria-pressed="${RP.sp === s}">${s}×</button>`).join('')}</div>
-      <span class="tl-rp-l small">${esc(t(u.sc === 'day' && u.panel === 'world' ? 'rpByMoment' : 'rpBy_' + u.sc))}</span></div>`;
+      <span class="tl-rp-l small">${esc(t(u.sc === 'day' && u.ws !== 'sc' ? 'rpByMoment' : 'rpBy_' + u.sc))}</span></div>`;
     const head = () => {
       const { from, to } = R(), tk = todayKey(), cur = from <= tk && tk <= to, mk = tlMarks(), prevM = KGT.nextMark(mk, from, to, -1), nextM = KGT.nextMark(mk, from, to, 1);
       return `<div class="tl-top"><div class="seg seg-sm tl-sc" role="group" aria-label="${esc(t('tlScaleAria'))}">${KGT.SCALES.map(s => `<button data-tl-sc="${s}" class="${u.sc === s ? 'on' : ''}" aria-pressed="${u.sc === s}">${esc(t('tlSc_' + s))}</button>`).join('')}</div>
-          ${u.sc === 'week' ? `<button class="icon-btn sm jr-ax" data-jr-ax aria-pressed="${ax === 'h'}" aria-label="${esc(t(ax === 'h' ? 'jrAxisH' : 'jrAxisV'))}" title="${esc(t(ax === 'h' ? 'jrAxisH' : 'jrAxisV'))}">${jrAxisIco()}</button>` : ''}</div>
+</div>
         <div class="tl-nav"><button class="icon-btn sm" data-tl-step="-1" ${u.sc === 'all' || from <= tlFirstKey() ? 'disabled' : ''} aria-label="${esc(t('tlPrev'))}" title="${esc(t('tlPrev'))}">${ico('left')}</button>
           <label class="tl-lbl"><span>${esc(tlLabel(u.sc, from, to))}</span>${u.sc === 'week' ? `<small>${esc(t('jrWeekN', { n: tfWeekNo(from) }))}</small>` : ''}<input type="date" id="tl-date" value="${u.at}" min="${tlFirstKey()}" max="${tk}" aria-label="${esc(t('tlPickDate'))}"></label>
           <button class="icon-btn sm" data-tl-step="1" ${u.sc === 'all' || to >= tk ? 'disabled' : ''} aria-label="${esc(t('tlNext'))}" title="${esc(t('tlNext'))}">${ico('right')}</button></div>
         <div class="tl-jumps">${cur || u.sc === 'all' ? '' : `<button class="chip sm" data-tl-today>${esc(t('tfToday'))}</button>`}${u.sc !== 'all' && prevM ? `<button class="chip sm ghost" data-tl-mk="${prevM}">${ico('left', 'xs')} ${esc(t('tlPrevMark'))}</button>` : ''}${u.sc !== 'all' && nextM ? `<button class="chip sm ghost" data-tl-mk="${nextM}">${esc(t('tlNextMark'))} ${ico('right', 'xs')}</button>` : ''}</div>`;
     };
-    const body = () => `<div id="tl-head">${head()}</div>${track()}<div id="tl-rp">${rpBar()}</div><div class="tl-main" id="tl-main" data-sc="${u.sc}">${mainView()}</div><div id="tl-sbox">${statsBox()}</div>
-      <div class="seg tl-panels" role="tablist">${[['progress', 'chart', 'tlProgress'], ['world', 'globe', 'lwTab'], ['compare', 'compare', 'tlCompare']].map(([p, ic, k]) => `<button role="tab" data-tl-panel="${p}" class="${u.panel === p ? 'on' : ''}" aria-selected="${u.panel === p}">${ico(ic, 'xs')} ${esc(t(k))}</button>`).join('')}</div>
-      <section class="tl-panel" id="tl-panel">${panel()}</section>`;
+    /* -- v1.42: arriba, el escenario donde estás. Día de hoy: el lugar del turno de ahora (o el último de hoy); otro día: el primero
+          con lugar (y en Replay, cada momento); Semana, Mes…: donde más veces estuviste. Sin lugares: tu Casa (o la de serie) -- */
+    const heroInfo = () => {
+      const D = lwData(), p = lwCur(D), tk = todayKey();
+      if (u.ws === 'tr' && p && p.t === 'm' && D.L[p.i]) { const l = D.L[p.i]; return { list: lwLegSpecs(l), ic: lwTrIco(l.tr), k: t('lwTr_' + l.tr), sub: [l.from && l.from.name, l.to && l.to.name].filter(Boolean).join(' → ') }; }
+      const ms = D.ms, m = p && p.t === 'm' ? ms[p.i] : null;
+      if (m && (m.place || m.kind === 'gym')) {
+        const nm = m.place ? m.place.name : m.name, now = u.at === tk && u.sc === 'day' && !LW.pick;
+        return { list: lwSpecs(m), ic: m.place ? lwScIco(m.place.scene) : 'dumbbell', k: now ? t('tlHeroNow') : (m.time || fmtDate(m.date, { day: 'numeric', month: 'short' })), name: nm, sub: m.name !== nm ? m.name : '' };
+      }
+      const top = D.S.places[0];
+      if (top) return { list: [lwSceneSpec(top.place)], ic: lwScIco(top.place.scene), k: t('tlHeroMost'), name: top.place.name, sub: t(top.n === 1 ? 'tlHeroTimes1' : 'tlHeroTimes', { n: top.n }) };
+      const home = (state.calPlaces || []).find(pl => pl.scene === 'home');
+      return { list: [home ? lwSceneSpec(home) : lwBuilt('home')], ic: 'house', k: t('tlHeroNone'), name: home ? home.name : t('lwSc_home'), sub: t('tlHeroHelp') };
+    };
+    const heroCap = x => `<span class="tl-hk">${ico(x.ic, 'xs')} ${esc(x.k)}</span>${x.name ? `<b class="ellipsis">${esc(x.name)}</b>` : ''}${x.sub ? `<small class="muted ellipsis">${esc(x.sub)}</small>` : ''}`;
+    const hero = () => `<div class="tl-hero-w" id="tl-hero-w"><div class="lw-stage tl-hero" id="tl-hero" role="button" tabindex="0" aria-label="${esc(t('tlHeroAria'))}"><canvas role="img" aria-label="${esc(t('lwAria'))}"></canvas><div class="lw-static" aria-hidden="true"></div><span class="lw-load muted small">${esc(t('lwLoading'))}</span></div>
+      <div class="tl-hcap" id="tl-hcap" aria-live="polite">${heroCap(heroInfo())}</div></div>`;
+    // La cabecera usa el mismo motor 3D que Mundo: mientras la hoja de Mundo está abierta, el 3D vive en la hoja
+    const heroStart = () => {
+      const r = wref && $('#tl-hero-w', wref); if (!r) return;
+      // lienzo nuevo: el anterior pudo perder su contexto WebGL al cerrar el 3D (al pasar a la hoja de Mundo y volver)
+      const old = $('canvas', r); if (LW.r || LW.cv) { lwStop(); } if (old && old.dataset.used) old.replaceWith(Object.assign(old.cloneNode(), {})); const cv = $('canvas', r); if (cv) cv.dataset.used = '1';
+      $('.lw-stage', r).classList.remove('static'); LW.host = 'hero'; lwStart(() => heroInfo().list, r);
+    };
+    const heroPaint = () => {
+      const c = wref && $('#tl-hcap', wref); if (!c) return;
+      const x = heroInfo(); c.innerHTML = heroCap(x);
+      if (LW.host === 'hero' && LW.cv && wref.contains(LW.cv)) lwPlay(x.list);
+    };
+    // La fila de botones (cada uno abre su hoja)
+    const SHEETS = [['world', 'globe', 'lwTab'], ['progress', 'chart', 'tlProgress'], ['compare', 'compare', 'tlCompare'], ['stats', 'ptable', 'tlStatsBtn'], ['settings', 'gear', 'tlSettings']];
+    const sheetBtns = () => `<div class="tl-btns" role="toolbar" aria-label="${esc(t('tlMore'))}">${SHEETS.map(([k, ic, l]) => `<button class="tl-btn" data-tl-sheet="${k}">${ico(ic)}<span>${esc(t(l))}</span></button>`).join('')}</div>`;
+    const sheetTitle = k => { const x = SHEETS.find(y => y[0] === k); return `${ico(x[1])} ${esc(k === 'stats' ? t('tlStats_' + u.sc) : t(x[2]))}`; };
+    function openSheet(k) {
+      if (!SHEETS.some(x => x[0] === k)) return;
+      if (TLS.sheetEl) { TLS.sheet = k; setPanel(); return; }
+      flush(); vibrate(5); sfx('tlPanel'); TLS.sheet = k; LW.pick = LW.pick || null;
+      openModal({ title: sheetTitle(k), cls: 'tl-sh', body: `<div class="tl tl-sheet" data-sheet="${k}"><section class="tl-panel" id="tl-panel">${panel()}</section></div>`,
+        onMount: wrap => { TLS.sheetEl = wrap; bind(wrap); if (k === 'world') worldInit(); },
+        onClose: () => { flush(); const wasWorld = LW.host === 'sheet'; TLS.sheet = null; TLS.sheetEl = null; TLS.edit = false; LW.ed = null; LW.alt = null; LW.tplOpen = false; if (wasWorld) heroStart(); else heroPaint(); } });
+    }
+    // Estadísticas (antes, el desplegable bajo la vista) y Ajustes de la Línea de tiempo
+    const statsSheet = () => `<div class="tl-sum">${statsSum() || ''}</div><div class="tl-stats-b ${u.sc === 'week' ? '' : 'gen'}" id="jr-d">${u.sc === 'week' ? weekDetail() : genericStats()}</div>`;
+    const settingsSheet = () => { const st = lwSt(); return `<div class="tl-set">
+        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="tl-ax" ${ax === 'h' ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('tlSetAxis'))}</b><br><span class="muted">${esc(t('tlSetAxisHint'))}</span></span></label>
+        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="lw-mono" ${st.mono ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('lwMono'))}</b><br><span class="muted">${esc(t('lwMonoHint'))}</span></span></label>
+        <button class="btn sm" data-tl-editviews>${ico('edit')} ${esc(t('tlSetViews'))}</button>
+        <button class="btn sm ghost" data-tl-sheet="world">${ico('layers')} ${esc(t('tlSetScenes'))}</button></div>`; };
+    const body = () => `${hero()}<div id="tl-head">${head()}</div>${track()}<div id="tl-rp">${rpBar()}</div><div class="tl-main" id="tl-main" data-sc="${u.sc}">${mainView()}</div>${sheetBtns()}`;
     const html = `<div class="jr tl" data-ax="${ax}" data-sc="${u.sc}"><div class="tl-bg" aria-hidden="true"><div class="jr-grid"></div></div><div class="tl-in" id="tl-in">${body()}</div></div>`;
     /* -- pintar de nuevo solo lo que cambia -- */
     const swap = (sel, h) => { const el = wref && $(sel, wref); if (el) el.outerHTML = h; };
@@ -2041,8 +2157,8 @@
       const m = $('#tl-main', wref);
       if (u.sc !== 'week' || opt.full || !$('#jr-stage', m)) { m.dataset.sc = u.sc; m.innerHTML = mainView(); if (u.sc === 'week') place(); if (!reducedMotion()) { m.classList.remove('tl-pop'); void m.offsetWidth; m.classList.add('tl-pop'); } }
       else place();
-      $('#tl-sbox', wref).innerHTML = statsBox();
-      if (!opt.keepPanel) setPanel();
+      heroPaint();
+      if (!opt.keepPanel && TLS.sheetEl) setPanel();
     };
     let rT = 0, tlTickAt = 0;
     const setAt = (k, opt = {}) => {
@@ -2054,18 +2170,18 @@
     };
     const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; vibrate(5); sfx('tlStep'); setAt(nf === 0 ? todayKey() : weeks[nf]); };
     /* -- Replay: avanza solo un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
-    const rpPaint = () => { const el = wref && $('#tl-rp', wref); if (el) el.innerHTML = rpBar(); };
+    const rpPaint = () => { const el = wref && $('#tl-rp', wref); if (el) el.innerHTML = rpBar(); const e2 = TLS.sheetEl && $('#tl-rp2', TLS.sheetEl); if (e2) e2.innerHTML = rpBar(); };
     const rpStop = () => { if (!RP.on) return; rpHalt(); save(); rpPaint(); };
     const rpNext = () => { clearTimeout(RP.tm); RP.tm = setTimeout(rpStep, RP_MS / RP.sp); };
     const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); if (RP.on) sfx('tlFrame'); };
-    const rpWorldDay = () => u.sc === 'day' && u.panel === 'world' && u.ws !== 'sc';
+    const rpWorldDay = () => u.sc === 'day' && u.ws !== 'sc';
     // Un paso: en Día con Mundo, el siguiente momento (o el primero del siguiente día que tenga alguno); si no, el siguiente periodo
     function rpStep() {
       RP.tm = 0; if (!RP.on || !wref || !wref.isConnected) return;
       const tk = todayKey();
       if (rpWorldDay()) {
         const D = lwData(), p = lwCur(D), i = p && p.t === 'm' ? p.i : -1;
-        if (i + 1 < lwSeq(D).length) { LW.pick = { t: 'm', i: i + 1 }; setPanel(); rpNext(); return; }
+        if (i + 1 < lwSeq(D).length) { LW.pick = { t: 'm', i: i + 1 }; setPanel(); heroPaint(); if (RP.on) sfx('tlFrame'); rpNext(); return; }
         let k = u.at, n = 0; do { k = addDays(k, 1); n++; } while (k <= tk && n < 3700 && !(u.ws === 'tr' ? KGWorld.legs(lwItems(k, k)) : lwItems(k, k)).length);
         if (k > tk || n >= 3700) { rpStop(); return; }
         LW.rk = 'day' + k + k + u.ws; LW.pick = { t: 'm', i: 0 }; rpGo(k); rpNext(); return;
@@ -2081,16 +2197,16 @@
       rpPaint(); rpNext();
     };
     const setScale = sc => { if (sc === u.sc) return; rpStop(); const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx(dir === 'out' ? 'tlZoomOut' : 'tlZoomIn'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
-    const flush = () => { if (!saveT) return; clearTimeout(saveT); saveT = 0; const ta = wref && $('#jr-note', wref); if (ta) commit(ta.value); };
+    const flush = () => { if (!saveT) return; clearTimeout(saveT); saveT = 0; const ta = pRoot() && $('#jr-note', pRoot()); if (ta) commit(ta.value); };
     const commit = v => {
       const w = tfWeekKeys(weeks[f])[0], had = Object.keys(state.jrNotes || {}).length; jrSetNote(w, v); save(); if (v.trim()) firstTime('journal', !had);
-      const st = wref && $('#jr-note-st', wref); if (st) st.textContent = t('saved');
+      const st = pRoot() && $('#jr-note-st', pRoot()); if (st) st.textContent = t('saved');
       const fr = wref && $(`.jr-f[data-jr-i="${f}"]`, wref); if (fr) { fr.outerHTML = frame(weeks[f], f); place(); }
     };
     const setAxis = a => {
       ax = a; try { localStorage.setItem(JR_AXIS_KEY, a); } catch (e) { /* nada */ }
       const root = wref && $('.jr', wref); if (root) root.dataset.ax = a;
-      const b = wref && $('[data-jr-ax]', wref); if (b) { b.setAttribute('aria-pressed', a === 'h'); b.title = b.ariaLabel = t(a === 'h' ? 'jrAxisH' : 'jrAxisV'); }
+      if (TLS.sheet === 'settings') setPanel();
       vibrate(8); sfx('tlToggle'); place();
     };
     // Editar las vistas de Progreso: se guarda la lista entera (las de serie pasan a ser tuyas al tocarlas)
@@ -2100,7 +2216,7 @@
       else if (op === 'done') TLS.edit = false;
       else if (op === 'reset') { state.tlViews = []; u.pv = 'general'; }
       else if (op === 'del') { const i = vs.indexOf(v); vs.splice(i, 1); state.tlViews = vs; u.pv = vs[0].id; }
-      else if (op === 'new') { const inp = $('#tl-vname', wref), name = (inp && inp.value.trim()) || t('tlMyView'); const nv = { id: 'v' + uid().replace(/[^A-Za-z0-9]/g, ''), name, ids: [...v.ids], main: [...v.main] }; vs.push(nv); state.tlViews = vs.slice(0, 20); u.pv = nv.id; }
+      else if (op === 'new') { const inp = $('#tl-vname', pRoot()), name = (inp && inp.value.trim()) || t('tlMyView'); const nv = { id: 'v' + uid().replace(/[^A-Za-z0-9]/g, ''), name, ids: [...v.ids], main: [...v.main] }; vs.push(nv); state.tlViews = vs.slice(0, 20); u.pv = nv.id; }
       else {
         const i = v.ids.indexOf(id);
         if (op === 'add' && i < 0) v.ids.push(id);
@@ -2113,7 +2229,7 @@
     };
     const mount = w => {
       wref = w; if (u.sc === 'week') place();
-      if (u.panel === 'world') worldInit();
+      TLS.sheet = null; TLS.sheetEl = null; heroStart();
       if (RP.on) rpNext(); // se volvió a pintar la pestaña con Replay en marcha: sigue
       // instantáneas de las semanas cerradas, cuando el navegador esté libre
       (window.requestIdleCallback || (fn => setTimeout(fn, 800)))(() => { try { tlSnapWeeks(weeks); } catch (e) { /* nada */ } });
@@ -2129,8 +2245,7 @@
       const up = () => { p0 = null; }; main.addEventListener('pointerup', up); main.addEventListener('pointercancel', up);
       // v1.40: en Escenarios, deslizar sobre el 3D pasa al escenario anterior o siguiente del carrusel
       let sx = null;
-      w.addEventListener('pointerdown', e => { sx = u.panel === 'world' && u.ws === 'sc' && !LW.ed && e.target.closest('#lw-stage') ? e.clientX : null; });
-      w.addEventListener('pointerup', e => { if (sx == null) return; const dx = e.clientX - sx; sx = null; if (Math.abs(dx) > 40) scStep(dx < 0 ? 1 : -1); });
+
       // Barra de tiempo: tocar o arrastrar elige la fecha; con el teclado, flechas
       const trackAt = e => { const tr = $('#tl-track', w); if (!tr) return; const r = tr.getBoundingClientRect(); setAt(KGT.keyAt((e.clientX - r.left) / r.width, tlFirstKey(), todayKey()), { lazy: true }); };
       w.addEventListener('pointerdown', e => { if (!e.target.closest('#tl-track') || u.sc === 'all') return; dragging = true; e.target.closest('#tl-track').setPointerCapture?.(e.pointerId); trackAt(e); });
@@ -2138,10 +2253,19 @@
       const end = () => { if (dragging) { dragging = false; vibrate(5); } }; w.addEventListener('pointerup', end); w.addEventListener('pointercancel', end);
       w.addEventListener('keydown', e => {
         if (!e.target.closest('.tl') || e.target.closest('textarea, input')) return;
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('#tl-hero')) { e.preventDefault(); openSheet('world'); return; }
         const back = e.key === 'ArrowLeft' || (u.sc === 'week' && e.key === 'ArrowUp'), fwd = e.key === 'ArrowRight' || (u.sc === 'week' && e.key === 'ArrowDown');
         if (back || fwd) { e.preventDefault(); setAt(KGT.shift(u.sc, u.at, back ? -1 : 1)); }
       });
+      bind(w);
+    };
+    // v1.42: los mismos manejadores en la pestaña y en la hoja abierta (Mundo, Progreso, Comparar, Estadísticas, Ajustes)
+    const bind = w => {
+      let sx = null;
+      w.addEventListener('pointerdown', e => { sx = TLS.sheet === 'world' && u.ws === 'sc' && !LW.ed && e.target.closest('#lw-stage') ? e.clientX : null; });
+      w.addEventListener('pointerup', e => { if (sx == null) return; const dx = e.clientX - sx; sx = null; if (Math.abs(dx) > 40) scStep(dx < 0 ? 1 : -1); });
       w.addEventListener('change', e => {
+        if (e.target.id === 'tl-ax') { setAxis(e.target.checked ? 'h' : 'v'); return; }
         if (e.target.id === 'tl-date' && KGT.isKey(e.target.value)) { setAt(e.target.value); return; }
         const ci = e.target.closest('[data-tl-ci]'); if (ci && KGT.isKey(ci.value)) { u.cmp[ci.dataset.tlCi] = ci.value; save(); setPanel(); return; }
         lwChange(e);
@@ -2151,7 +2275,8 @@
       w.addEventListener('focusout', e => { if (e.target.id === 'jr-note') flush(); });
       w.addEventListener('click', e => {
         if (!e.target.closest('.tl')) return;
-        if (e.target.closest('[data-jr-ax]')) { setAxis(ax === 'h' ? 'v' : 'h'); return; }
+        const sh = e.target.closest('[data-tl-sheet]'); if (sh) { if (sh.closest('.tl-set')) { u.ws = 'sc'; save(); } openSheet(sh.dataset.tlSheet); return; }
+        if (e.target.closest('#tl-hero')) { openSheet('world'); return; }
         const sc = e.target.closest('[data-tl-sc]'); if (sc) { setScale(sc.dataset.tlSc); return; }
         const rp = e.target.closest('[data-rp]'); if (rp) { vibrate(5); sfx(rp.dataset.rp === 'play' && !RP.on ? 'tlReplay' : 'tlPanel'); if (rp.dataset.rp === 'play') rpPlay(); else { LW.pick = null; rpGo(tlFirstKey()); if (RP.on) rpNext(); else save(); } return; }
         const rs = e.target.closest('[data-rp-sp]'); if (rs) { RP.sp = +rs.dataset.rpSp; sfx('tlPanel'); rpPaint(); if (RP.on) rpNext(); return; }
@@ -2160,9 +2285,9 @@
         const mk = e.target.closest('[data-tl-mk]'); if (mk) { sfx('tlMark'); setAt(mk.dataset.tlMk); return; }
         const lb = e.target.closest('.tl-lbl'); if (lb) { const di = $('#tl-date', w); if (di && di.showPicker) { e.preventDefault(); try { di.showPicker(); } catch (er) { di.focus(); } } return; }
         const gt = e.target.closest('[data-tl-go]'); if (gt) { flush(); u.at = gt.dataset.k > todayKey() ? todayKey() : gt.dataset.k; f = weekIdx(u.at); setScale(gt.dataset.tlGo); return; }
-        const nt = e.target.closest('[data-tl-note]'); if (nt && nt.closest('.jr-f.on')) { u.open = true; const sb = $('#tl-stats', w); if (sb) { sb.open = true; const ta = $('#jr-note', w); if (ta) { ta.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); ta.focus({ preventScroll: true }); } } return; }
+        const nt = e.target.closest('[data-tl-note]'); if (nt && nt.closest('.jr-f.on')) { openSheet('stats'); const ta = TLS.sheetEl && $('#jr-note', TLS.sheetEl); if (ta) { ta.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); ta.focus({ preventScroll: true }); } return; }
         const fr = e.target.closest('[data-jr-i]'); if (fr) { go(+fr.dataset.jrI); return; }
-        const pn = e.target.closest('[data-tl-panel]'); if (pn) { u.panel = pn.dataset.tlPanel; save(); sfx('tlPanel'); $$('[data-tl-panel]', w).forEach(b => { b.classList.toggle('on', b === pn); b.setAttribute('aria-selected', b === pn); }); setPanel(); return; }
+        if (e.target.closest('[data-tl-editviews]')) { TLS.edit = true; openSheet('progress'); return; }
         const pv = e.target.closest('[data-tl-pv]'); if (pv) { u.pv = pv.dataset.tlPv; save(); sfx('tlPanel'); setPanel(); return; }
         const ed = e.target.closest('[data-tl-ed]'); if (ed) { editView(ed.dataset.tlEd, ed.dataset.id); return; }
         // Mundo: apartados, momentos, lugares, trayectos, viajes y escenarios
@@ -6565,7 +6690,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);

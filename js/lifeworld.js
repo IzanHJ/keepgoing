@@ -100,15 +100,76 @@
       car: c => at(car(c), 0, 0, 0, 0, 0.42),
       person: c => at(person(c), 0, 0, 0, 0, 0.7),
     };
+    /* ---- v1.42: piezas nuevas (naturaleza, calle, edificios grandes e interior) ---- */
+    const WOOD = '#b07d4f', DARK = '#2b2f38', WALL = '#ece6dc';
+    const legs4 = (w, d, h, c) => group(...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => mesh(box(0.05, h, 0.05), c, a * (w / 2 - 0.05), h / 2, b * (d / 2 - 0.05))));
+    const tile = (c, y = 0.03) => mesh(box(CELL, y, CELL), c, 0, y / 2, 0);
+    const scaleTo = (o, s) => { o.scale.setScalar(s); return o; };
+    Object.assign(ASSET, {
+      mountain: c => group(mesh(cone(1.3, 2.2, 7), shade(c, -0.1), 0, 1.1, 0), mesh(cone(0.46, 0.62, 7), WHITE, 0, 1.92, 0), mesh(cone(0.85, 1.4, 6), shade(c, 0.08), 0.95, 0.7, 0.55), mesh(cone(0.3, 0.36, 6), WHITE, 0.95, 1.25, 0.55)),
+      umbrella: c => group(mesh(cyl(0.025, 0.025, 1, 5), WHITE, 0, 0.5, 0), mesh(cone(0.55, 0.25, 8), c, 0, 1.05, 0)),
+      sand: c => tile(c),
+      parking: c => group(tile(c), mesh(box(0.05, 0.035, CELL * 0.8), WHITE, -CELL / 2 + 0.06, 0.018, 0)),
+      rail: c => { const g = group(tile(c, 0.025)); for (let i = 0; i < 4; i++) g.add(mesh(box(0.08, 0.04, 0.6), '#6d5a4b', -0.32 + i * 0.21, 0.03, 0)); g.add(mesh(box(CELL, 0.05, 0.04), '#c9ced8', 0, 0.06, 0.18), mesh(box(CELL, 0.05, 0.04), '#c9ced8', 0, 0.06, -0.18)); return g; },
+      runway: c => group(tile(c), mesh(box(0.34, 0.035, 0.07), WHITE, 0, 0.018, 0)),
+      plane: c => { const p = fixPlane(plane(c)); p.position.y = 0.28; return scaleTo(group(p), 0.8); },
+      train: c => scaleTo(train(c), 0.42),
+      bhouse: c => house(c, 0.95),
+      office: c => group(mesh(box(1.3, 2.8, 1.3), c, 0, 1.4, 0), at(windows(1.3, 2.8, 1.3, 6, 3, GLASS), 0, 0, 0), mesh(box(0.9, 1.3, 0.9), shade(c, 0.3), 1.05, 0.65, 0.45), at(windows(0.9, 1.3, 0.9, 3, 2, GLASS), 1.05, 0, 0.45)),
+      gymb: c => group(mesh(box(2.2, 1.2, 1.5), c, 0, 0.6, 0), mesh(box(2.22, 0.3, 1.52), shade(c, -0.35), 0, 1.07, 0), at(group(mesh(cyl(0.05, 0.05, 1.3, 6), '#c9ced8'), mesh(cyl(0.25, 0.25, 0.15, 8), DARK, 0, 0.6, 0), mesh(cyl(0.25, 0.25, 0.15, 8), DARK, 0, -0.6, 0)), 0, 1.5, 0), mesh(box(0.45, 0.65, 0.05), GLASS, 0, 0.33, 0.77)),
+      restb: c => group(mesh(box(1.9, 1.15, 1.3), WHITE, 0, 0.58, 0), mesh(box(2, 0.07, 0.55), c, 0, 1.05, 0.9), mesh(box(1.4, 0.5, 0.05), GLASS, 0, 0.5, 0.66), mesh(box(0.8, 0.22, 0.06), c, 0, 1.35, 0.66)),
+      mallb: c => group(mesh(box(2.8, 1.1, 1.8), c, 0, 0.55, 0), mesh(box(2.82, 0.34, 1.82), GLASS, 0, 0.8, 0), mesh(box(1, 0.3, 0.05), WHITE, 0, 1.25, 0.91)),
+      unib: c => { const g = group(mesh(box(2.4, 0.2, 1.5), STONE, 0, 0.1, 0), mesh(box(2.4, 1.1, 1), c, 0, 0.75, -0.25)), r = mesh(cyl(1.4, 1.4, 1.3, 3), shade(c, -0.25), 0, 1.55, 0.1); r.rotation.set(Math.PI / 2, 0, Math.PI / 2); r.scale.set(0.3, 1.9, 1); g.add(r); for (let i = 0; i < 5; i++) g.add(mesh(cyl(0.07, 0.07, 1.1, 6), WHITE, -0.96 + i * 0.48, 0.75, 0.38)); return g; },
+      libb: c => { const g = group(mesh(box(2, 1.4, 1.4), shade(c, 0.45), 0, 0.7, 0), mesh(box(0.9, 0.6, 0.05), GLASS, 0, 0.4, 0.71)); [c, shade(c, -0.3), shade(c, 0.25), '#e94f4f', '#f5b83d'].forEach((x, i) => g.add(mesh(box(0.2, 0.62 + (i % 2) * 0.13, 0.5), x, -0.44 + i * 0.22, 1.75, 0))); return g; },
+      hospb: c => group(mesh(box(2.2, 1.8, 1.4), WHITE, 0, 0.9, 0), at(windows(2.2, 1.8, 1.4, 3, 4, GLASS), 0, 0, 0), mesh(box(0.6, 0.18, 0.08), c, 0, 2.1, 0.3), mesh(box(0.18, 0.6, 0.08), c, 0, 2.1, 0.3)),
+      hotelb: c => group(mesh(box(1.5, 3, 1.2), c, 0, 1.5, 0), at(windows(1.5, 3, 1.2, 7, 3, GLASS), 0, 0, 0), mesh(box(1.6, 0.07, 0.26), WHITE, 0, 1.05, 0.7), mesh(box(1.6, 0.07, 0.26), WHITE, 0, 1.95, 0.7)),
+      arena: c => { const g = group(mesh(cyl(1.9, 1.9, 0.05, 12), GRASS, 0, 0.03, 0)), r = mesh(torus(2, 0.36, 4, 14), c, 0, 0.3, 0); r.rotation.x = Math.PI / 2; r.scale.z = 0.9; g.add(r, mesh(box(1.2, 0.02, 0.05), WHITE, 0, 0.06, 0)); return g; },
+      stationb: c => group(mesh(box(3.4, 0.28, 1), shade(STONE, 0.2), 0, 0.14, 0), mesh(box(3.4, 0.08, 1.3), shade(c, -0.2), 0, 1.45, 0), mesh(cyl(0.05, 0.05, 1.2, 4), '#555', -1.4, 0.85, -0.35), mesh(cyl(0.05, 0.05, 1.2, 4), '#555', 1.4, 0.85, -0.35), mesh(box(1, 0.8, 0.6), c, 0, 0.68, -0.15)),
+      ctower: c => group(mesh(cyl(0.18, 0.24, 1.7, 6), WHITE, 0, 0.85, 0), mesh(cyl(0.36, 0.28, 0.38, 6), GLASS, 0, 1.88, 0), mesh(cyl(0.38, 0.38, 0.06, 6), c, 0, 2.1, 0)),
+      market: c => group(mesh(box(2.6, 1.05, 1.7), WHITE, 0, 0.53, 0), mesh(box(2.62, 0.22, 1.72), c, 0, 1.12, 0), mesh(box(1.8, 0.55, 0.05), GLASS, 0, 0.36, 0.86), mesh(box(1, 0.26, 0.06), c, 0, 1.4, 0.7), at(group(mesh(box(0.32, 0.18, 0.22), '#c9ced8', 0, 0.22, 0), at(wheel(0.05), 0.1, 0.05, 0.08), at(wheel(0.05), -0.1, 0.05, 0.08)), 1.05, 0, 1.05)),
+      flats: c => { const g = group(mesh(box(1.4, 2.6, 1.2), c, 0, 1.3, 0), at(windows(1.4, 2.6, 1.2, 5, 3, GLASS), 0, 0, 0), mesh(box(1.46, 0.1, 1.26), shade(c, -0.35), 0, 2.65, 0)); for (let i = 1; i < 5; i++) g.add(mesh(box(1.2, 0.05, 0.22), WHITE, 0, i * 0.52, 0.7)); return g; },
+      cafe: c => { const g = group(mesh(box(1.6, 1.05, 1.2), WALL, 0, 0.53, 0), mesh(box(1.1, 0.5, 0.05), GLASS, 0, 0.42, 0.61)); for (let i = 0; i < 5; i++) g.add(mesh(box(0.34, 0.06, 0.5), i % 2 ? WHITE : c, -0.68 + i * 0.34, 0.98, 0.8)); g.add(mesh(cyl(0.16, 0.13, 0.26, 8), c, 0.4, 1.2, 0), mesh(torus(0.08, 0.025, 4, 8), c, 0.58, 1.2, 0)); return g; },
+      school: c => group(mesh(box(2.6, 1.1, 1.2), c, 0, 0.55, 0), at(windows(2.6, 1.1, 1.2, 2, 6, GLASS), 0, 0, 0), mesh(box(0.7, 1.7, 0.8), shade(c, -0.2), 0, 0.85, 0.15), mesh(cyl(0.2, 0.2, 0.04, 12), WHITE, 0, 1.4, 0.56), mesh(cyl(0.02, 0.02, 0.9, 4), '#555', 1.1, 1.55, 0.3), mesh(box(0.3, 0.18, 0.02), '#e94f4f', 1.26, 1.9, 0.3)),
+      cinema: c => group(mesh(box(2.2, 1.5, 1.5), DARK, 0, 0.75, 0), mesh(box(2.3, 0.3, 0.3), c, 0, 1.05, 0.85), mesh(box(1.2, 0.5, 0.05), GLASS, 0, 0.42, 0.76), mesh(box(0.3, 1.1, 0.08), c, 0.9, 1.6, 0.6)),
+      pool: c => group(mesh(box(2.4, 0.1, 1.6), WHITE, 0, 0.05, 0), mesh(box(2.1, 0.06, 1.3), shade(c, 0.2), 0, 0.09, 0, { op: 0.88 }), mesh(box(0.04, 0.4, 0.04), '#c9ced8', 0.95, 0.25, -0.62), mesh(box(0.04, 0.4, 0.04), '#c9ced8', 0.75, 0.25, -0.62)),
+      pharmacy: c => group(mesh(box(1.7, 1.2, 1.3), WHITE, 0, 0.6, 0), mesh(box(1.1, 0.55, 0.05), GLASS, 0, 0.4, 0.66), mesh(box(0.42, 0.13, 0.08), c, 0, 1.0, 0.72), mesh(box(0.13, 0.42, 0.08), c, 0, 1.0, 0.72), mesh(box(1.72, 0.1, 1.32), c, 0, 1.25, 0)),
+      desk: c => group(mesh(box(0.8, 0.05, 0.45), c, 0, 0.42, 0), legs4(0.8, 0.45, 0.4, shade(c, -0.4)), mesh(box(0.32, 0.2, 0.03), DARK, 0, 0.6, -0.12), mesh(box(0.04, 0.12, 0.04), DARK, 0, 0.48, -0.12), mesh(box(0.25, 0.015, 0.1), DARK, 0, 0.45, 0.08)),
+      chair: c => group(mesh(box(0.34, 0.05, 0.34), c, 0, 0.25, 0), mesh(box(0.34, 0.32, 0.04), c, 0, 0.43, -0.15), legs4(0.34, 0.34, 0.23, shade(c, -0.4))),
+      sofa: c => group(mesh(box(1.3, 0.24, 0.5), c, 0, 0.17, 0), mesh(box(1.3, 0.36, 0.12), shade(c, -0.15), 0, 0.42, -0.2), mesh(box(0.12, 0.3, 0.5), shade(c, -0.15), -0.6, 0.3, 0), mesh(box(0.12, 0.3, 0.5), shade(c, -0.15), 0.6, 0.3, 0)),
+      tv: c => group(mesh(box(1, 0.3, 0.3), c, 0, 0.15, 0), mesh(box(0.9, 0.5, 0.04), DARK, 0, 0.6, -0.04), mesh(box(0.84, 0.44, 0.01), '#3a5a8c', 0, 0.6, -0.015)),
+      bed: c => group(mesh(box(0.95, 0.22, 1.5), WOOD, 0, 0.11, 0), mesh(box(0.9, 0.12, 1.42), WHITE, 0, 0.28, 0.02), mesh(box(0.92, 0.08, 0.95), c, 0, 0.36, 0.25), mesh(box(0.6, 0.1, 0.25), WHITE, 0, 0.38, -0.5), mesh(box(0.95, 0.55, 0.06), WOOD, 0, 0.28, -0.74)),
+      wardrobe: c => group(mesh(box(0.9, 1.5, 0.45), c, 0, 0.75, 0), mesh(box(0.02, 1.4, 0.02), shade(c, -0.4), 0, 0.75, 0.23), mesh(box(0.03, 0.14, 0.03), DARK, -0.06, 0.8, 0.24), mesh(box(0.03, 0.14, 0.03), DARK, 0.06, 0.8, 0.24)),
+      shelf: c => { const g = group(mesh(box(0.8, 1.1, 0.25), c, 0, 0.55, 0)); const bs = ['#e94f4f', '#f5b83d', '#5b8cff', '#3fbf6a', '#b06cff']; for (let r = 0; r < 3; r++) for (let i = 0; i < 4; i++) g.add(mesh(box(0.12, 0.24, 0.18), bs[(r + i) % 5], -0.26 + i * 0.17, 0.18 + r * 0.34, 0.04)); return g; },
+      plant: c => group(mesh(cyl(0.14, 0.11, 0.24, 7), '#c2853d', 0, 0.12, 0), mesh(ico(0.22, 0), c, 0, 0.4, 0), mesh(ico(0.15, 0), shade(c, 0.15), 0.08, 0.56, 0.04)),
+      rug: c => mesh(box(CELL * 0.92, 0.02, CELL * 0.92), c, 0, 0.01, 0),
+      board: c => group(mesh(box(1.5, 0.85, 0.05), WHITE, 0, 0.95, 0), mesh(box(1.58, 0.06, 0.08), c, 0, 0.52, 0.02), mesh(box(0.05, 0.6, 0.05), '#555', -0.6, 0.3, 0), mesh(box(0.05, 0.6, 0.05), '#555', 0.6, 0.3, 0)),
+      table: c => group(mesh(cyl(0.34, 0.34, 0.05, 10), c, 0, 0.4, 0), mesh(cyl(0.04, 0.04, 0.38, 5), shade(c, -0.4), 0, 0.2, 0), mesh(cyl(0.18, 0.18, 0.03, 8), shade(c, -0.4), 0, 0.015, 0)),
+      flamp: c => group(mesh(cyl(0.12, 0.12, 0.03, 8), DARK, 0, 0.015, 0), mesh(cyl(0.02, 0.02, 1.1, 4), DARK, 0, 0.55, 0), mesh(cone(0.18, 0.22, 8), c, 0, 1.15, 0)),
+    });
+    // Color natural de cada pieza (con «Monocromo» todo pasa a tonos del color del escenario). Lo que no está aquí lleva el color del escenario
+    const NAT = { tree: '#3fa45b', pine: '#2f8f55', bush: '#58b86a', rock: '#9aa3b2', hill: '#6fbf73', water: WATER, path: '#d9c9a3', road: '#7d8494', bench: TRUNK, lamp: '#8a93a6',
+      fence: '#c2a27a', fountain: '#b8c4d6', tent: '#ff9f43', car: '#ff4d6d', person: '#5b8cff', mountain: '#8d99ae', umbrella: '#ff6b6b', sand: SAND, parking: ASPHALT, rail: '#8b7d6b', runway: ASPHALT,
+      plane: WHITE, desk: WOOD, chair: '#3a3f4b', tv: WOOD, wardrobe: WOOD, shelf: '#a0703f', plant: '#3fa45b', board: '#3a3f4b', table: WOOD, flamp: '#f5b83d' };
+    const GROUND = { grass: GRASS, stone: STONE, sand: SAND, asphalt: ASPHALT, wood: '#c2915a', tile: '#d8dde6' };
     const SIZE = [0.72, 1, 1.38];
-    // Escenario propio: una losa cuadrada y las piezas en su casilla, con su giro y tamaño (coche y persona van encima del suelo de la casilla)
-    function custom(cells, c) {
-      const n = (opts.grid || 7), w = n * CELL + 0.5, g = group(mesh(box(w, 0.42, w), shade(c, 0.12), 0, -0.21, 0), mesh(box(w - 0.15, 0.5, w - 0.15), shade(c, -0.35), 0, -0.66, 0));
+    /* Escenario por rejilla: la losa (cuadrada, redonda u habitación con dos paredes) y las piezas en su casilla, con su giro y tamaño.
+       v1.40 pintaba cada pieza con el color del escenario; desde v1.42 cada pieza tiene su color natural y los edificios el del escenario
+       (con «Monocromo», que viene activado, todo queda en tonos de ese color igual que antes). */
+    function custom(cells, c, gr = 'tint', sh = 'sq') {
+      const n = (opts.grid || 7), w = n * CELL + 0.5, top = GROUND[gr] || shade(c, 0.12), g = new THREE.Group();
+      if (sh === 'round') g.add(mesh(cyl(4.15, 4.25, 0.42, 12), top, 0, -0.21, 0), mesh(cyl(4.25, 3.95, 0.5, 12), shade(top, -0.35), 0, -0.66, 0));
+      else g.add(mesh(box(w, 0.42, w), top, 0, -0.21, 0), mesh(box(w - 0.15, 0.5, w - 0.15), shade(top, -0.35), 0, -0.66, 0));
+      if (sh === 'room') { // paredes al fondo y a la izquierda (las que quedan lejos de la cámara), cada una con su ventana
+        const H = 1.7, wl = shade(WALL, 0), t = 0.12;
+        g.add(mesh(box(w, H, t), wl, 0, H / 2, -w / 2 + t / 2), mesh(box(t, H, w), wl, -w / 2 + t / 2, H / 2, 0));
+        g.add(mesh(box(1.4, 0.7, 0.02), GLASS, 1.2, 1.0, -w / 2 + t + 0.01), mesh(box(0.02, 0.7, 1.4), GLASS, -w / 2 + t + 0.01, 1.0, 1.2));
+        g.add(mesh(box(w, 0.08, 0.03), shade(wl, -0.3), 0, 0.04, -w / 2 + t + 0.015), mesh(box(0.03, 0.08, w), shade(wl, -0.3), -w / 2 + t + 0.015, 0.04, 0));
+      }
       for (const [x, z, a, r, s] of cells || []) {
         const make = ASSET[a]; if (!make) continue;
-        const flat = a === 'water' || a === 'path' || a === 'road';
-        const o = make(c); o.position.set((x - (n - 1) / 2) * CELL, flat ? 0.002 : 0, (z - (n - 1) / 2) * CELL); o.rotation.y = r * Math.PI / 2;
-        if (!flat) o.scale.setScalar(SIZE[s] ?? 1);
+        const flat = KGScenes.FLAT.includes(a);
+        const o = make(NAT[a] || c); o.position.set((x - (n - 1) / 2) * CELL, flat ? 0.002 : 0, (z - (n - 1) / 2) * CELL); o.rotation.y = r * Math.PI / 2;
+        if (!flat) o.scale.multiplyScalar(SIZE[s] ?? 1); // multiplica: algunas piezas ya traen su propia escala (coche, persona, árbol…)
         g.add(o);
       }
       return g;
@@ -167,7 +228,7 @@
         return g;
       }
       if (spec.type === 'travel') return withMono(spec.mono ? spec.color : null, () => buildTravel(spec));
-      return withMono(spec.mono ? spec.color : null, () => spec.cells ? custom(spec.cells, spec.color || '#5b8cff') : (BUILD[spec.scene] || BUILD.unknown)(spec.color || '#8e8e93'));
+      return withMono(spec.mono ? spec.color : null, () => spec.cells ? custom(spec.cells, spec.color || '#5b8cff', spec.g, spec.sh) : (BUILD[spec.scene] || BUILD.unknown)(spec.color || '#8e8e93'));
     }
     function buildTravel(spec) {
       {

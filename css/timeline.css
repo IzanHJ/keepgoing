@@ -292,3 +292,26 @@
 .lw-sz { position: absolute; right: 3px; bottom: 1px; font-size: 9px; font-style: normal; font-weight: 700; opacity: .75; }
 .lw-stack { position: absolute; left: 4px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 :root[data-motion="off"] .lw-cc-i, :root[data-motion="off"] .lw-cell svg.i { transition: none; }
+
+/* ---- v1.42: el escenario donde estás arriba, la fila de botones y las hojas ---- */
+.tl-hero-w { display: flex; flex-direction: column; gap: 8px; }
+.lw-stage.tl-hero { height: clamp(220px, 34vh, 320px); cursor: pointer; }
+.tl-hcap { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-height: 52px; max-width: 100%; }
+.tl-hcap .tl-hk { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.tl-hcap b { font-size: 18px; max-width: 100%; }
+.tl-hcap small { max-width: 100%; }
+.tl-btns { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.tl-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 64px; padding: 10px 2px; border-radius: 18px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); color: inherit; font: inherit; font-size: 10px; letter-spacing: -.01em; cursor: pointer; transition: transform .15s ease, background .15s ease; }
+.tl-btn:active { transform: scale(.96); background: rgba(255,255,255,.09); }
+.tl-btn span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-btn svg.i { width: 20px; height: 20px; }
+.tl-sheet { display: flex; flex-direction: column; gap: 12px; }
+.tl-sheet .tl-panel { margin: 0; }
+.tl-sheet .tl-stats-b { padding: 0; }
+.tl-sum { font-size: 13px; color: var(--muted, #9aa3b2); }
+.tl-set { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
+.tl-rp2 .tl-rp { margin: 0; }
+.lw-alt { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+.lw-grps { margin-bottom: 8px; }
+.lw-look { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
+:root[data-light="1"] .tl-btn, :root[data-light="1"] .lw-alt { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.08); }
