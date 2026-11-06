@@ -33,7 +33,17 @@
     const lumOf = c => { const h = hex(c), r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
     const monoOf = c => { const h = hex(c); if (!monoC || h === monoC) return h; const k = Math.max(-0.82, Math.min(0.85, (lumOf(h) - monoL) * 1.6)); return shadeRaw(monoC, k); };
     const withMono = (c, fn) => { const prev = [monoC, monoL]; monoC = c ? hex(c) : null; monoL = c ? lumOf(c) : 0.5; try { return fn(); } finally { [monoC, monoL] = prev; } };
-    const mat = (c0, o = {}) => { const c = monoOf(c0), k = hex(c) + (o.op ? '|' + o.op : ''); return M.get(k) || M.set(k, new THREE.MeshPhongMaterial({ color: hex(c), flatShading: true, shininess: 6, ...(o.op ? { transparent: true, opacity: o.op } : {}) })).get(k); };
+    const mat = (c0, o = {}) => { const c = monoOf(c0), k = hex(c) + (o.op ? '|' + o.op : ''); if (M.has(k)) return M.get(k); const m = new THREE.MeshPhongMaterial({ color: hex(c), flatShading: true, shininess: 6, ...(o.op ? { transparent: true, opacity: o.op } : {}) }); m.userData = { base: hex(c), glass: hex(c0) === GLASS_HEX }; M.set(k, m); tintMat(m); return m; };
+    /* v1.48: AMBIENTE VIVO. Cielo según la hora (amanecer, día, atardecer, noche con ventanas encendidas y estrellas) y estación según
+       el mes (nieve, hojas, pétalos, luciérnagas). Todo con lo que ya hay: luces, color de los materiales y unas partículas. */
+    const GLASS_HEX = '#a9d8ff', SEASON_TINT = { winter: ['#eef3f8', 0.62], autumn: ['#d98a2b', 0.5], spring: ['#86dc74', 0.12], summer: null };
+    let season = 'summer', glow = 0;
+    const isGreen = h => { const x = col(h); return x.g > x.r * 1.12 && x.g > x.b * 1.05; };
+    function tintMat(m) {
+      const b = col(m.userData.base), tn = SEASON_TINT[season];
+      m.color.copy(tn && isGreen(m.userData.base) ? b.lerp(col(tn[0]), tn[1]) : b);
+      if (m.userData.glass) { m.emissive = m.emissive || new THREE.Color(); m.emissive.set('#ffc861').multiplyScalar(glow * 0.95); }
+    }
     const mesh = (g, c, x = 0, y = 0, z = 0, o) => { const m = new THREE.Mesh(g, mat(c, o)); m.position.set(x, y, z); return m; };
     const group = (...xs) => { const g = new THREE.Group(); xs.forEach(x => x && g.add(x)); return g; };
     const at = (o, x, y, z, ry = 0, s = 1) => { o.position.set(x, y, z); o.rotation.y = ry; o.scale.setScalar(s); return o; };
@@ -194,11 +204,18 @@
     let cur = null, curKey = '', raf = 0, visible = true, alive = true, mode = 'idle', t0 = 0, anim = null, last = 0;
     const easeOutBack = x => 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
     const easeIn = x => x * x;
-    const setCam = (k) => {
-      if (k === 'globe') { camera.position.set(0, 0.6, 6.2); camera.lookAt(0, 0, 0); }
-      else if (k === 'travel') { camera.position.set(-4.6, 2.6, 4.2); camera.lookAt(0.6, 0.5, 0); }
-      else { camera.position.set(6.4, 5.2, 7.2); camera.lookAt(0, 0.8, 0); }
-    };
+    /* v1.48: la cámara gira alrededor de su punto (con el dedo o el ratón, y sola en el modo cine del Replay) */
+    const CAMS = { globe: [[0, 0.6, 6.2], [0, 0, 0]], travel: [[-4.6, 2.6, 4.2], [0.6, 0.5, 0]], scene: [[6.4, 5.2, 7.2], [0, 0.8, 0]] };
+    const ORB = { k: 'scene', pitch: 0, az: 0, vy: 0, drag: null, moved: false, idleAt: 0, cin: false, punch: 0 };
+    const tgt = new THREE.Vector3();
+    function applyCam(now = performance.now()) {
+      const [p, q] = CAMS[ORB.k]; tgt.set(q[0], q[1], q[2]);
+      const vx = p[0] - q[0], vy = p[1] - q[1], vz = p[2] - q[2], r0 = Math.hypot(vx, vy, vz);
+      const el = Math.max(0.06, Math.min(1.32, Math.asin(vy / r0) + (ORB.k === 'globe' ? 0 : ORB.pitch))), az = Math.atan2(vx, vz) + (ORB.k === 'globe' ? 0 : ORB.az);
+      const pk = ORB.punch ? Math.max(0, 1 - (now - ORB.punch) / 650) : 0, r = r0 * (1 - (ORB.cin ? 0.05 + 0.04 * Math.sin(now / 1900) : 0) - 0.1 * Math.sin(pk * Math.PI));
+      camera.position.set(q[0] + r * Math.cos(el) * Math.sin(az), q[1] + r * Math.sin(el), q[2] + r * Math.cos(el) * Math.cos(az)); camera.lookAt(tgt);
+    }
+    const setCam = k => { const ch = ORB.k !== k; ORB.k = k; applyCam(); if (ch && amb && amb.pal) paintAmb(amb.pal); };
     function resize() {
       const w = canvas.clientWidth || 300, h = canvas.clientHeight || 220;
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
@@ -207,6 +224,105 @@
       draw();
     }
     const draw = () => { if (alive) renderer.render(scene, camera); };
+
+    /* ---- ambiente: paleta por hora del día; se pasa de una a otra poco a poco ---- */
+    const hemi = scene.children.find(o => o.isHemisphereLight);
+    // hora, cielo arriba, cielo abajo, luz del cielo, intensidad, color del sol, intensidad del sol, noche (0-1)
+    const SKY = [[0, '#03050d', '#0b1230', '#4a5fa8', 0.5, '#8fa8ff', 0.32, 1], [5, '#05081a', '#14193d', '#4a5fa8', 0.55, '#8fa8ff', 0.35, 0.95],
+      [6.5, '#2b2f63', '#f2996b', '#ffd2b0', 0.95, '#ffae78', 1.05, 0.35], [8.5, '#3f7fd6', '#bfe0ff', '#e6eeff', 1.25, '#ffffff', 1.35, 0],
+      [17, '#3f7fd6', '#c7e4ff', '#e6eeff', 1.25, '#fff6e8', 1.35, 0], [19.5, '#3a2d6c', '#ff8a5c', '#ffc6a0', 0.95, '#ff9a60', 1.0, 0.4],
+      [21, '#070a1c', '#18204a', '#4a5fa8', 0.55, '#8fa8ff', 0.35, 0.95], [24, '#03050d', '#0b1230', '#4a5fa8', 0.5, '#8fa8ff', 0.32, 1]];
+    const palAt = h => {
+      h = ((h % 24) + 24) % 24; let i = 0; while (i < SKY.length - 2 && SKY[i + 1][0] <= h) i++;
+      const a = SKY[i], b = SKY[i + 1], k = (h - a[0]) / ((b[0] - a[0]) || 1), L = (x, y) => '#' + col(x).lerp(col(y), k).getHexString(), N = (x, y) => x + (y - x) * k;
+      return { top: L(a[1], b[1]), bot: L(a[2], b[2]), hc: L(a[3], b[3]), hi: N(a[4], b[4]), sc: L(a[5], b[5]), si: N(a[6], b[6]), night: N(a[7], b[7]), h };
+    };
+    let amb = { pal: palAt(13), from: null, to: null, t: 0, on: opts.ambient !== false };
+    const stage = canvas.parentElement;
+    // estrellas (siempre detrás) y nubes que pasan despacio
+    const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,.7)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); const t = new THREE.CanvasTexture(c); return t; })();
+    const starGeo = new THREE.BufferGeometry(), starPos = [];
+    for (let i = 0; i < (low ? 120 : 260); i++) { const th = Math.random() * Math.PI * 2, ph = Math.random() * 0.75 - 0.42, R = 38; starPos.push(R * Math.cos(ph) * Math.sin(th), R * Math.sin(ph), R * Math.cos(ph) * Math.cos(th)); }
+    starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.75, map: dotTex, transparent: true, opacity: 0, depthWrite: false, fog: false });
+    const stars = new THREE.Points(starGeo, starMat); scene.add(stars);
+    const clouds = new THREE.Group(); scene.add(clouds);
+    const cloudMat = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true, transparent: true, opacity: 0.9, shininess: 0 });
+    for (let i = 0; i < (low ? 3 : 4); i++) { const c = new THREE.Group(); for (let j = 0; j < 4; j++) { const m = new THREE.Mesh(ico(0.55 + (j % 2) * 0.25, 0), cloudMat); m.position.set(j * 0.6 - 0.9, (j % 2) * 0.25, (j % 3) * 0.2); c.add(m); } c.position.set(-9 + i * 5.5, 4.2 + (i % 2) * 0.9, -5 - (i % 3) * 1.5); c.userData.v = 0.25 + (i % 3) * 0.12; clouds.add(c); }
+    // partículas de la estación (nieve, hojas, pétalos o luciérnagas) alrededor del diorama
+    const PN = low ? 70 : 150, pGeo = new THREE.BufferGeometry(), pArr = new Float32Array(PN * 3), pSeed = [];
+    for (let i = 0; i < PN; i++) { pArr[i * 3] = (Math.random() - 0.5) * 9; pArr[i * 3 + 1] = Math.random() * 6; pArr[i * 3 + 2] = (Math.random() - 0.5) * 9; pSeed.push(Math.random() * 10); }
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pArr, 3));
+    const pMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.16, map: dotTex, transparent: true, opacity: 0, depthWrite: false });
+    const parts = new THREE.Points(pGeo, pMat); scene.add(parts);
+    const PSTYLE = { winter: ['#ffffff', 0.3, 0.9, 0.55], autumn: ['#f08a2a', 0.34, 0.85, 0.75], spring: ['#ffb7d5', 0.26, 0.8, 0.5], fireflies: ['#ffe66b', 0.26, 0, 0.12] };
+    let pKind = null;
+    function seasonOf(m) { return m === 12 || m <= 2 ? 'winter' : m <= 5 ? 'spring' : m <= 8 ? 'summer' : 'autumn'; }
+    function paintAmb(p) {
+      const onScene = ORB.k !== 'globe';
+      hemi.color.set(p.hc); hemi.intensity = p.hi; sun.color.set(p.sc); sun.intensity = p.si;
+      const a = (p.h / 24) * Math.PI * 2 - Math.PI / 2; sun.position.set(Math.cos(a) * 9 + 3, Math.max(2.5, Math.sin(a) * 10 + 4), 4);
+      starMat.opacity = onScene ? Math.max(0, p.night - 0.15) : 0; stars.visible = starMat.opacity > 0.01;
+      clouds.visible = onScene && p.night < 0.7; cloudMat.color.set(p.night > 0.3 ? '#8a90b8' : '#ffffff'); cloudMat.opacity = 0.85 * (1 - p.night * 0.6);
+      if (Math.abs(glow - p.night) > 0.02) { glow = p.night; M.forEach(m => m.userData.glass && tintMat(m)); }
+      if (stage) { if (onScene && amb.on) { stage.style.setProperty('--sky1', p.top); stage.style.setProperty('--sky2', p.bot); } else { stage.style.removeProperty('--sky1'); stage.style.removeProperty('--sky2'); } }
+      const pk = !onScene || motion !== 'full' ? null : season === 'summer' ? (p.night > 0.5 ? 'fireflies' : null) : season;
+      pKind = pk; parts.visible = !!pk && PN > 0;
+      if (pk) { const st = PSTYLE[pk]; pMat.color.set(st[0]); pMat.size = st[1]; pMat.opacity = st[2] || 0.9; }
+    }
+    // a: { h: hora 0-24, m: mes 1-12 }. Sin a (o con el ambiente apagado): de día y sin estación
+    function setAmbient(a) {
+      const on = amb.on && a, ns = on ? seasonOf(a.m) : 'summer', to = palAt(on ? a.h + ({ winter: 1.6, autumn: 0.8, spring: 0, summer: -0.8 })[ns] : 13);
+      if (ns !== season) { season = ns; M.forEach(tintMat); }
+      if (motion !== 'full' || !amb.pal) { amb.pal = to; amb.to = null; paintAmb(to); draw(); return; }
+      amb.from = amb.pal; amb.to = to; amb.t = performance.now(); kick();
+    }
+    function ambTick(now) {
+      if (!amb.to) return;
+      const k = Math.min(1, (now - amb.t) / 900), e = k * k * (3 - 2 * k), A = amb.from, B = amb.to, L = (x, y) => '#' + col(x).lerp(col(y), e).getHexString(), N = (x, y) => x + (y - x) * e;
+      amb.pal = { top: L(A.top, B.top), bot: L(A.bot, B.bot), hc: L(A.hc, B.hc), hi: N(A.hi, B.hi), sc: L(A.sc, B.sc), si: N(A.si, B.si), night: N(A.night, B.night), h: k < 1 ? A.h + (B.h - A.h) * e : B.h };
+      paintAmb(amb.pal); if (k >= 1) amb.to = null;
+    }
+    function partTick(now, dt) {
+      if (!pKind || !parts.visible) return;
+      const st = PSTYLE[pKind], fall = st[2] * dt, sway = st[3];
+      for (let i = 0; i < PN; i++) {
+        const j = i * 3, s = pSeed[i];
+        if (pKind === 'fireflies') { pArr[j] += Math.sin(now / 900 + s) * dt * 0.4; pArr[j + 1] = 0.6 + 1.6 * (0.5 + 0.5 * Math.sin(now / 1300 + s * 3)); pArr[j + 2] += Math.cos(now / 1100 + s) * dt * 0.4; continue; }
+        pArr[j + 1] -= fall * (0.7 + (s % 1) * 0.6); pArr[j] += Math.sin(now / 700 + s) * dt * sway; pArr[j + 2] += Math.cos(now / 900 + s) * dt * sway * 0.6;
+        if (pArr[j + 1] < -0.2) { pArr[j + 1] = 6; pArr[j] = (Math.random() - 0.5) * 9; pArr[j + 2] = (Math.random() - 0.5) * 9; }
+      }
+      pGeo.attributes.position.needsUpdate = true;
+      if (pKind === 'fireflies') pMat.opacity = 0.6 + 0.4 * Math.sin(now / 300);
+    }
+
+    /* ---- girar con el dedo o el ratón: horizontal gira el escenario (y el globo); con ratón, vertical sube o baja la vista ---- */
+    const spin = (dx, dy) => {
+      if (!cur) return;
+      if (cur.userData.flight || (globe && cur.children[0] === globe)) {
+        if (cur.userData.flight && mode === 'live') return; // el vuelo manda mientras dura
+        globe.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(AY, dx)); if (dy) globe.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(AX, dy));
+      } else { cur.rotation.y += dx; if (dy) ORB.pitch = Math.max(-0.7, Math.min(0.6, ORB.pitch + dy)); applyCam(); }
+    };
+    let eatClick = 0;
+    canvas.addEventListener('pointerdown', e => { if (e.button > 0) return; ORB.drag = { x: e.clientX, y: e.clientY, id: e.pointerId, mouse: e.pointerType === 'mouse' }; ORB.moved = false; ORB.vy = 0; });
+    canvas.addEventListener('pointermove', e => {
+      const d = ORB.drag; if (!d || e.pointerId !== d.id) return;
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (!ORB.moved) { if (Math.hypot(dx, dy) < 7) return; if (!d.mouse && Math.abs(dy) > Math.abs(dx)) { ORB.drag = null; return; } ORB.moved = true; try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* nada */ } stage && stage.classList.add('grabbing'); }
+      const a = dx * 0.011, b = d.mouse ? dy * 0.006 : 0; spin(a, b); ORB.vy = ORB.vy * 0.5 + a * 0.5; d.x = e.clientX; d.y = e.clientY; ORB.idleAt = performance.now();
+      if (motion === 'full') kick(); else draw();
+    });
+    const release = e => {
+      const d = ORB.drag; if (!d || (e && e.pointerId !== d.id)) return; ORB.drag = null; stage && stage.classList.remove('grabbing');
+      if (ORB.moved) { eatClick = performance.now(); ORB.idleAt = eatClick; if (motion !== 'full') ORB.vy = 0; kick(); }
+    };
+    canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release); canvas.addEventListener('lostpointercapture', release);
+    // tras girar, soltar no cuenta como toque (no abre Mundo)
+    canvas.addEventListener('click', e => { if (performance.now() - eatClick < 350) { e.stopPropagation(); e.preventDefault(); } }, true);
+    // modo cine del Replay: la cámara rodea despacio y da un pequeño empujón en cada paso
+    function cinema(on) { ORB.cin = !!on; if (!on) { ORB.az = 0; applyCam(); draw(); } else kick(); }
+    function pulse() { if (motion !== 'full') return; ORB.punch = performance.now(); kick(); }
 
     // Construye lo que toca mostrar. spec: { type: 'scene'|'travel'|'globe', scene, color, tr, from, to, dots: [{lat, lon}] }
     function build(spec) {
@@ -289,10 +405,16 @@
           if (p >= 1) { mode = 'idle'; if (opts.onArrive) opts.onArrive(anim.spec); }
         }
       }
-      // en reposo, giro muy lento del diorama (solo con calidad alta y animaciones completas)
-      if (mode === 'idle' && cur && !low && motion === 'full' && !(cur.userData.flight)) cur.rotation.y += dt * 0.12;
+      // v1.48: inercia al soltar, ambiente, partículas y cine
+      if (!ORB.drag && Math.abs(ORB.vy) > 0.0004) { spin(ORB.vy, 0); ORB.vy *= 0.93; }
+      ambTick(now); partTick(now, dt);
+      for (const c of clouds.children) { c.position.x += c.userData.v * dt; if (c.position.x > 11) c.position.x = -11; }
+      if (ORB.cin) ORB.az += dt * 0.22;
+      if (ORB.cin || ORB.punch) { applyCam(now); if (ORB.punch && now - ORB.punch > 650) ORB.punch = 0; }
+      // en reposo, giro muy lento del diorama (solo con calidad alta y animaciones completas); tras girarlo a mano, espera un poco
+      if (mode === 'idle' && cur && !low && motion === 'full' && !(cur.userData.flight) && !ORB.drag && !ORB.cin && now - ORB.idleAt > 4000) cur.rotation.y += dt * 0.12;
       draw();
-      if (mode !== 'idle' || (!low && motion === 'full')) raf = requestAnimationFrame(tick);
+      if (mode !== 'idle' || (!low && motion === 'full') || (pKind && parts.visible) || Math.abs(ORB.vy) > 0.0004 || amb.to || ORB.cin || ORB.punch) raf = requestAnimationFrame(tick);
     }
     const kick = () => { if (!raf && alive && visible && motion !== 'off') { last = 0; raf = requestAnimationFrame(tick); } };
     function setVisible(v) { visible = v; if (v) kick(); else if (raf) { cancelAnimationFrame(raf); raf = 0; } }
@@ -301,10 +423,11 @@
       scene.traverse(o => { if (o.geometry && ![...G.values()].includes(o.geometry)) o.geometry.dispose(); });
       G.forEach(g => g.dispose()); M.forEach(m => m.dispose());
       if (globe) { globe.userData.lineGeo.dispose(); globe.userData.lineMat.dispose(); }
+      starGeo.dispose(); starMat.dispose(); pGeo.dispose(); pMat.dispose(); cloudMat.dispose(); dotTex.dispose();
       renderer.dispose(); try { renderer.forceContextLoss(); } catch (e) { /* nada */ }
     }
-    resize();
-    return { show, resize, setVisible, dispose, draw };
+    paintAmb(amb.pal); resize();
+    return { show, resize, setVisible, dispose, draw, setAmbient, cinema, pulse, setAmbientOn: v => { amb.on = !!v; } };
   }
   // ¿Hay WebGL? Si no, Mundo usa su versión fija (iconos y texto)
   function supported() { try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch (e) { return false; } }
