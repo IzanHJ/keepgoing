@@ -148,7 +148,7 @@
     }
     return out;
   }
-  /* v1.42: historial de una plantilla o nota modular. Devuelve las notas de la más nueva a la más antigua agrupadas por mes
+  /* v1.43: historial de una plantilla o nota modular. Devuelve las notas de la más nueva a la más antigua agrupadas por mes
      ({ m: 'AAAA-MM', items: [{ k, g }] }), cuántas hay, la primera y la última fecha, y para cada campo de número o de
      valoración su serie por fecha (para dibujar la evolución): [{ id, label, unit, kind, pts: [{ k, v }] }]. */
   function history(gaps, tpl, from, to) {

@@ -1,4 +1,4 @@
-/* KeepGoing — textos de Organización v1.42: historial de notas, transporte de vuelta, notas en turnos y listas (ES / EN). */
+/* KeepGoing — textos de Organización v1.43: historial de notas, transporte de vuelta, notas en turnos y listas (ES / EN). */
 (function () {
   const es = {
     nhTitle: 'Historial', nhEmpty: 'Todavía no hay notas en este periodo.', nhCount: '{n} notas', nhCount1: '1 nota',

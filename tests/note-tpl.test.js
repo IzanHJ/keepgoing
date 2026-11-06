@@ -77,7 +77,7 @@ test('v1.39: notas modulares con secuencias', () => {
   assert.strictEqual(NT.sanitizeTpl({ id: 'nm3', kind: 'mod', name: 'X', fields: Array.from({ length: 20 }, (_, i) => ({ id: 's' + i, label: 'p' })) }).fields.length, 12);
 });
 
-test('v1.42: historial de una plantilla por meses y series', () => {
+test('v1.43: historial de una plantilla por meses y series', () => {
   const h = N.history(gaps, read);
   assert.equal(h.n, N.notesOf(gaps, 'tp_read').length);
   assert.ok(h.first <= h.last);

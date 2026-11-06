@@ -64,7 +64,7 @@
     if (trOk(x.tr) || (day && x.tr === '-')) o.tr = x.tr;
     if (o.tr && o.tr !== '-') { if (timeOr(x.trDep)) o.trDep = x.trDep; if (timeOr(x.trArr)) o.trArr = x.trArr; }
     else if (day && !o.tr) { if (timeOr(x.trDep)) o.trDep = x.trDep; if (timeOr(x.trArr)) o.trArr = x.trArr; }
-    // v1.42: trayecto de después del turno (bk = medio o '-' en el día, bkDep/bkArr = horas, bkTo = destino: '' Casa, '>' siguiente turno o id de lugar)
+    // v1.43: trayecto de después del turno (bk = medio o '-' en el día, bkDep/bkArr = horas, bkTo = destino: '' Casa, '>' siguiente turno o id de lugar)
     if (trOk(x.bk) || (day && x.bk === '-')) o.bk = x.bk;
     if (o.bk && o.bk !== '-') { if (timeOr(x.bkDep)) o.bkDep = x.bkDep; if (timeOr(x.bkArr)) o.bkArr = x.bkArr; }
     if (o.bk && o.bk !== '-' && typeof x.bkTo === 'string' && (x.bkTo === '>' || RE_ID.test(x.bkTo))) o.bkTo = x.bkTo;
@@ -87,7 +87,7 @@
       kind: kindOk(s.kind) ? s.kind : 'work',
       start: timeOr(s.start), end: timeOr(s.end),
       breakMin: num(s.breakMin, 0, 720, 0), alarmMin: num(s.alarmMin, 0, 1440, 0),
-      ...(typeof s.placeId === 'string' && RE_ID.test(s.placeId) ? { placeId: s.placeId } : {}), ...trOf(s, false), ...(typeof s.ntp === 'string' && RE_ID.test(s.ntp) ? { ntp: s.ntp } : {}), // v1.42: nota que se propone en el turno
+      ...(typeof s.placeId === 'string' && RE_ID.test(s.placeId) ? { placeId: s.placeId } : {}), ...trOf(s, false), ...(typeof s.ntp === 'string' && RE_ID.test(s.ntp) ? { ntp: s.ntp } : {}), // v1.43: nota que se propone en el turno
     }));
     const shiftIds = new Set(shifts.map((s) => s.id));
     const days = {};
@@ -167,7 +167,7 @@
     return { mode, dep: timeOr(e && e.trDep) || timeOr(shift && shift.trDep), arr: timeOr(e && e.trArr) || timeOr(shift && shift.trArr) };
   }
 
-  /* ---- v1.42: trayecto de DESPUÉS del turno (al acabar: volver a Casa, ir a otro lugar o ir al siguiente turno). El del día gana
+  /* ---- v1.43: trayecto de DESPUÉS del turno (al acabar: volver a Casa, ir a otro lugar o ir al siguiente turno). El del día gana
      sobre el del turno; e.bk = '-' = ese día sin trayecto de después. Devuelve { mode, dep, arr, to } o null. to: '' = Casa,
      '>' = el siguiente turno del día (si no hay, Casa) o el id de un lugar. dep vacío = sale a la hora en que acaba el turno. */
   function entryReturn(shift, e) {

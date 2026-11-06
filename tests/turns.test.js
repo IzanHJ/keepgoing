@@ -171,7 +171,7 @@ test('v1.39: cambiar un turno en este día, en los siguientes o en todos los igu
   assert.strictEqual(d.days['2026-11-01'][0].pl, undefined);
 });
 
-test('v1.42: trayecto de después del turno y trayectos enlazados del día', () => {
+test('v1.43: trayecto de después del turno y trayectos enlazados del día', () => {
   const T = require('../js/turns.js');
   const sh = { w: { id: 'w', start: '08:00', end: '12:00', tr: 'bus', trDep: '07:30', trArr: '07:55' }, p: { id: 'p', start: '12:30', end: '13:30' }, w2: { id: 'w2', start: '14:00', end: '18:00', bk: 'bus', bkTo: '' } };
   // Mañana en bus al trabajo; al acabar, andando al parque (enlazado); del parque andando al trabajo; al final, bus a Casa

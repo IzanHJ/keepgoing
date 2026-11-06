@@ -1502,7 +1502,7 @@
       const tk = todayKey(), end = to > tk ? tk : to, out = [], idOf = p => p ? (p.id ? p : { ...p, id: 'once:' + p.addr }) : null;
       const shBy = Object.fromEntries(tfData().shifts.map(x => [x.id, x]));
       for (let k = from; k <= end; k = addDays(k, 1)) {
-        // v1.42: trayectos del día (llegadas, enlazados y «después del turno» hacia Casa u otro lugar)
+        // v1.43: trayectos del día (llegadas, enlazados y «después del turno» hacia Casa u otro lugar)
         const list = state.calDays[k] || [], legs = TF.dayLegs(list, shBy), trv = l => ({ tr: l.mode, trDep: lwHM(l.dep), trArr: lwHM(l.arr) });
         list.forEach((e, j) => {
           const s = tfShift(e.sid); if (!s) return;
@@ -2647,7 +2647,7 @@
     return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? tfEntNotes(k, it.e, it.s).map(([g]) => `<small class="tf-blk-note">${tfNoteIco(g)} ${esc(g.t)}</small>`).join('') : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
   };
   // v1.39: el trayecto (de la salida a la llegada) se dibuja como una franja fina con su icono, en el carril de su turno
-  // v1.42: también el trayecto de después del turno y los enlazados (TF.dayLegs), cada uno en el carril de su turno
+  // v1.43: también el trayecto de después del turno y los enlazados (TF.dayLegs), cada uno en el carril de su turno
   const tfTrips = (k, Lk, big) => {
     const list = state.calDays[k] || [], legs = TF.dayLegs(list, Object.fromEntries(tfData().shifts.map(x => [x.id, x]))), w = 100 / Lk.lanes;
     return legs.map(l => {
@@ -3126,7 +3126,7 @@
     state.calPrefs = { ...state.calPrefs, tplSeed: true }; save();
   }
   const tfNum = n => new Intl.NumberFormat(state.lang, { maximumFractionDigits: 2 }).format(n);
-  /* v1.42: notas modulares o con plantilla de un turno del día: van en calGaps con sid (el turno) y sus horas. Si ese día el mismo
+  /* v1.43: notas modulares o con plantilla de un turno del día: van en calGaps con sid (el turno) y sus horas. Si ese día el mismo
      turno sale varias veces, cuenta la que empieza a la misma hora. Devuelve [[nota, índice en calGaps[k]]]. */
   const tfEntNotes = (k, e, s) => { const gs = tfGaps(k), many = (state.calDays[k] || []).filter(x => x.sid === e.sid).length > 1, st = s ? TF.entryTimes(s, e).start : ''; return gs.map((g, j) => [g, j]).filter(([g]) => g.sid === e.sid && (!many || !g.a || g.a === st)); };
   const tfIsEntNote = (k, g) => !!g.sid && (state.calDays[k] || []).some(e => e.sid === g.sid);
@@ -3205,7 +3205,7 @@
           const before = NT.progress(state.calGaps, tfTpl(p.id), kk, cur ? { skip: { k, i: cur } } : null);
           if (before.goal && !before.finished && before.done + (+vals[p.prog.amt] || 0) >= before.goal) fin = vals[p.prog.key];
         }
-        const sid = (cur && cur.sid) || (pre && pre.sid); // v1.42: nota de un turno (se ve dentro del turno)
+        const sid = (cur && cur.sid) || (pre && pre.sid); // v1.43: nota de un turno (se ve dentro del turno)
         const n = { a, b: z, t: NT.summary(p, vals, x, tfNum), tp: p.id, v: vals, ...(x ? { x } : {}), ...(sid ? { sid } : {}) };
         if (at >= 0) l[at] = n; else l.push(n);
         tfSetGaps(k, l); tfSave(); sfx(fin ? 'complete' : 'tap'); close(); after && after();
@@ -3213,7 +3213,7 @@
       }
     });
   }
-  /* v1.42: historial de una plantilla o nota modular: todas sus notas por fechas, como una línea de tiempo agrupada por meses
+  /* v1.43: historial de una plantilla o nota modular: todas sus notas por fechas, como una línea de tiempo agrupada por meses
      (de la más nueva a la más antigua), con un filtro de periodo y, en las plantillas con números o valoraciones, la evolución
      de cada campo. Tocar una nota la abre para editarla. */
   const TF_NH_R = { all: 0, y: 365, q: 90, m: 30 };
@@ -3502,12 +3502,12 @@
   function tfEditEntry(k, i, after) {
     const list0 = state.calDays[k] || [], cur = list0[i], s = cur && tfShift(cur.sid); if (!s) return;
     const tm = TF.entryTimes(s, cur), tr0 = TF.entryTransport(s, cur), bk0 = TF.entryReturn(s, cur);
-    // v1.42: el turno anterior y el siguiente de ese día (para enlazar trayectos)
+    // v1.43: el turno anterior y el siguiente de ese día (para enlazar trayectos)
     const legs = TF.dayLegs(list0, Object.fromEntries(tfData().shifts.map(x => [x.id, x]))), lnk = legs.find(l => l.i === i && l.kind === 'go' && l.linked != null);
     const ord = list0.map((e, j) => ({ e, j, s: tfShift(e.sid) })).filter(x => x.s).sort((a, b) => String(TF.entryTimes(a.s, a.e).start || '').localeCompare(String(TF.entryTimes(b.s, b.e).start || ''))), at = ord.findIndex(x => x.j === i), nx = ord[at + 1];
     const goHint = lnk && !tr0 ? t('bkLinkedHint', { m: tfTrName(lnk.mode), s: tfShift(list0[lnk.linked].sid).name }) : s.tr ? t('trHintDayInh', { m: tfTrName(s.tr) }) : t('trHint');
     const bkHint = nx ? t('bkHintNext', { s: nx.s.name }) : s.bk ? t('bkHintDayInh', { m: tfTrName(s.bk) }) : t('bkHint');
-    // v1.42: notas modulares o con plantilla de este turno (la predeterminada del turno sale la primera)
+    // v1.43: notas modulares o con plantilla de este turno (la predeterminada del turno sale la primera)
     const drawNotes = w => {
       const box = $('#tfn-notes', w); if (!box) return;
       const ns = tfEntNotes(k, cur, s), def = tfTpl(s.ntp), quick = tfTplsQuick().filter(p => p !== def);
@@ -3549,7 +3549,7 @@
         delete next.tr; delete next.trDep; delete next.trArr;
         if (tr.on) { if (!(s.tr === tr.mode && (s.trDep || '') === tr.dep && (s.trArr || '') === tr.arr)) { next.tr = tr.mode; if (tr.dep) next.trDep = tr.dep; if (tr.arr) next.trArr = tr.arr; } }
         else if (s.tr) next.tr = '-';
-        // v1.42: después del turno, igual: lo del turno no se repite en el día; apagado con el turno que lo tiene = '-'
+        // v1.43: después del turno, igual: lo del turno no se repite en el día; apagado con el turno que lo tiene = '-'
         delete next.bk; delete next.bkDep; delete next.bkArr; delete next.bkTo;
         if (bk.on) { if (!(s.bk === bk.mode && (s.bkDep || '') === bk.dep && (s.bkArr || '') === bk.arr && (s.bkTo || '') === bk.to)) { next.bk = bk.mode; if (bk.dep) next.bkDep = bk.dep; if (bk.arr) next.bkArr = bk.arr; if (bk.to) next.bkTo = bk.to; } }
         else if (s.bk) next.bk = '-';
@@ -4114,7 +4114,7 @@
      elegido en data-mode; tfTrRead la lee y tfTrWire hace que el interruptor y los chips funcionen dentro de un modal. */
   const TF_TR = ['bus', 'car', 'moto', 'walk', 'bike', 'train', 'plane'];
   const tfTrName = m => t('trM_' + m) !== 'trM_' + m ? t('trM_' + m) : t('lwTr_' + m);
-  /* v1.42: hay dos cajas: 'go' (cómo llegas al turno) y 'bk' (después del turno: a Casa, a otro lugar o al siguiente turno).
+  /* v1.43: hay dos cajas: 'go' (cómo llegas al turno) y 'bk' (después del turno: a Casa, a otro lugar o al siguiente turno).
      La de después lleva además el destino (data-to: '' = Casa, '>' = siguiente turno, o el id de un lugar). */
   const tfHome = () => state.calPlaces.find(p => p.scene === 'home') || state.calPlaces.find(p => /^(casa|home|mi casa)$/i.test(String(p.name || '').trim()));
   const tfBkToName = to => to === '>' ? t('bkToNext') : to && tfPlace(to) ? tfPlace(to).name : (tfHome() || { name: t('bkHome') }).name;
@@ -13316,7 +13316,7 @@
     if (isCard) cardZoom(wrap);
     return { close, el: wrap };
   }
-  /* v1.42: con una hoja abierta, el dedo solo mueve lo que de verdad se puede mover. En iPhone, si la hoja no tiene más
+  /* v1.43: con una hoja abierta, el dedo solo mueve lo que de verdad se puede mover. En iPhone, si la hoja no tiene más
      contenido (o ya está arriba del todo), el gesto pasaba a la página de detrás y la hoja se iba hacia los lados o se
      estiraba. Ahora: un gesto horizontal solo sirve en cajas que se desplazan a los lados (chips, carruseles…) y uno vertical
      solo desplaza la hoja (o una caja interior) mientras le quede recorrido. Los gestos propios (pincel, firmas, deslizar

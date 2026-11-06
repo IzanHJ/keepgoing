@@ -318,7 +318,7 @@ input[type="color"].swatch-input::-moz-color-swatch { border: 3px solid var(--su
 }
 .sheet {
   width: 100%; max-width: 640px; max-height: 92vh; max-height: 92dvh;
-  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; /* v1.42: la hoja nunca se mueve hacia los lados */
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; /* v1.43: la hoja nunca se mueve hacia los lados */
   background: var(--surface); color: var(--fg);
   border-radius: 32px 32px 0 0;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, .4), var(--sh-in);
@@ -2639,7 +2639,7 @@ body.orb-open { overflow: hidden; }
 
 .tf-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-/* v1.42: historial de una plantilla o nota modular (línea de tiempo por meses) */
+/* v1.43: historial de una plantilla o nota modular (línea de tiempo por meses) */
 .nh-ser { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); }
 .nh-spark { width: 100%; height: 56px; display: block; overflow: visible; }
 .nh-spark polyline { fill: none; stroke: var(--c); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
@@ -2653,6 +2653,6 @@ body.orb-open { overflow: hidden; }
 .nh-d b { font-size: 18px; } .nh-d small { color: var(--muted); font-size: 11px; text-transform: capitalize; }
 .nh-it .grow { display: flex; flex-direction: column; min-width: 0; }
 .nh-t { overflow-wrap: anywhere; }
-/* v1.42: trayecto de después del turno (a Casa, a otro lugar o al siguiente turno) */
+/* v1.43: trayecto de después del turno (a Casa, a otro lugar o al siguiente turno) */
 .tf-trip.bk { border-style: dotted; background: color-mix(in srgb, var(--c) 8%, transparent); }
 .tf-tpl-chip[data-def="1"] { box-shadow: 0 0 0 2px var(--c); }
