@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.47.0';
+  const VERSION = '1.51.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -758,7 +758,11 @@
     if (v > before && day.perfect && !snap.day.perfect && k === todayKey()) setTimeout(() => perfectFx(k), 160); // v1.27
     const gain = day.cpts - snap.day.cpts;
     if (gain > 1e-9) setTimeout(() => { pointsPop(gain); if (!(lvl > snap.lvl) && !(day.perfect && !snap.day.perfect) && !(done && !snap.done)) sfx('points'); }, 120);
-    if (lvl > snap.lvl) setTimeout(() => { toast(t('levelUpToast', { n: lvl, title: levelTitle(lvl) })); }, 200);
+    if (lvl > snap.lvl) setTimeout(() => {
+      const ev = orbStageOf(lvl) > orbStageOf(snap.lvl);
+      toast(t(ev ? 'orbEvolved' : 'levelUpToast', { n: lvl, title: levelTitle(lvl) }));
+      const o = $('#orb'); if (ev && o && !reducedMotion()) { o.classList.remove('evolve'); void o.offsetWidth; o.classList.add('evolve'); setTimeout(() => o.classList.remove('evolve'), 1400); }
+    }, 200);
   }
   /* v1.27: logo de KeepGoing en piezas para animarlo (las cinco llamas, las dos curvas y la cinta) */
   const KG_LOGO = () => `<svg class="kg-logo" viewBox="0 0 512 512" aria-hidden="true"><g transform="translate(44 30) scale(.828)">
@@ -777,7 +781,7 @@
     const el = document.createElement('div'); el.className = 'pfx'; el.setAttribute('role', 'status');
     el.style.setProperty('--ox', o.x + 'px'); el.style.setProperty('--oy', o.y + 'px');
     el.innerHTML = `<div class="pfx-bg"></div><div class="pfx-ring"></div><div class="pfx-in">${KG_LOGO()}<h2 class="pfx-t">${esc(t('perfectToday'))}</h2>
-      <div class="pfx-stats"><div><b data-cnt="${d.cpts}" data-pts="1">0</b><span>${esc(t('ptsToday'))}</span></div><div><b data-cnt="${run}">0</b><span>${esc(t('pfxRun'))}</span></div></div><p class="pfx-hint">${esc(t('pfxTap'))}</p></div>`;
+      <div class="pfx-stats"><div><b data-cnt="${pointsInfo().perfectDays}">0</b><span>${esc(t('perfectDays'))}</span></div><div><b data-cnt="${run}">0</b><span>${esc(t('pfxRun'))}</span></div></div><p class="pfx-hint">${esc(t('pfxTap'))}</p></div>`;
     document.body.appendChild(el);
     vibrate([15, 50, 15, 50, 30]);
     const rm = reducedMotion();
@@ -846,8 +850,9 @@
 
   // «+2,5 pts» que sube junto a la insignia de nivel
   function pointsPop(n) {
-    const pill = $('.lvl-pill') || $('#orb'); if (!pill) return; // v1.47: sin insignia de nivel, el «+pts» sale del orbe
+    const pill = $('.lvl-pill') || $('#orb'); if (!pill) return; // v1.47: sin insignia de nivel, el orbe da un saltito
     pill.classList.remove('bump'); void pill.offsetWidth; pill.classList.add('bump');
+    if (pill.id === 'orb') return; // v1.50: los puntos ya no se enseñan como números
     const r = pill.getBoundingClientRect(), el = document.createElement('span');
     el.className = 'pts-pop'; el.setAttribute('aria-hidden', 'true'); el.textContent = `+${fmtPts(n)} pts`;
     el.style.left = `${r.left + r.width / 2}px`; el.style.top = `${pill.id === 'orb' ? r.top - 34 : r.bottom + 4}px`;
@@ -1093,6 +1098,13 @@
       return { cur, best };
     });
   }
+  /* v1.50: el ORBE EVOLUCIONA con tu nivel: una fase por cada título (Novato, Constante… Mito). Los puntos dejan de
+     enseñarse como números; se notan en el orbe (anillos, halo, chispas que lo orbitan, oro en Leyenda, iridiscente en Mito). */
+  const orbStageOf = L => Math.max(0, LEVEL_TITLES.filter(([n]) => L >= n).length - 1);
+  const orbStage = () => state.habits.length ? orbStageOf(levelInfo().level) : 0;
+  const orbNextAt = L => { const x = LEVEL_TITLES.find(([n]) => n > L); return x ? x[0] : null; };
+  const orbStageTxt = L => orbNextAt(L) != null ? t('orbNextStage', { s: orbStageOf(L) + 1, n: orbNextAt(L) }) : t('orbMaxStage');
+  const orbAura = st => `<span class="orb-aura" aria-hidden="true">${st >= 4 ? Array.from({ length: st >= 5 ? 6 : 3 }, (_, i) => `<i style="--k:${i}"></i>`).join('') : ''}</span>`;
   const PSUBJ = () => ({ id: '__perfect', name: profileName(), perfect: true });
   const perfectCount = () => RANKS.filter(([r]) => state.perfectMastery[r]).length;
   function checkPerfectMastery(silent = false) {
@@ -4832,7 +4844,8 @@
   const ORB = { open: false, hot: -1 };
   function renderNav() {
     const cur = Math.max(0, TABS.findIndex(x => x[0] === state.ui.tab));
-    return `<nav class="orb-nav ${ORB.open ? 'open' : ''}" id="orb-nav" aria-label="KeepGoing" style="--n:${TABS.length}">
+    const st = orbStage();
+    return `<nav class="orb-nav ${ORB.open ? 'open' : ''}" id="orb-nav" aria-label="KeepGoing" data-stage="${st}" style="--n:${TABS.length}">${orbAura(st)}
       <div class="orb-veil" data-orb="veil" aria-hidden="true"></div><div class="orb-arc" aria-hidden="true"></div>
       ${TABS.map(([id, ic, key], i) => `<button class="moon ${i === cur ? 'cur' : ''}" data-act="go" data-tab="${id}" style="--i:${i}" tabindex="${ORB.open ? 0 : -1}" ${i === cur ? 'aria-current="page"' : ''} aria-label="${esc(t(key))}">${ico(ic)}<span class="moon-l">${esc(t(key))}</span></button>`).join('')}
       <span class="orb-mini" aria-hidden="true"><i>${ico(TABS[cur][1])}</i></span>
@@ -6282,7 +6295,7 @@
     html += profileCardHtml();
     if (!state.habits.length) return html + emptyState('crown', t('tabMastery'), t('masteryEmptyPerfect'), `<button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button>`);
     const lv = levelInfo(), pi = pointsInfo(), pr = perfectRun(), got = perfectCount();
-    html += `<button class="mastery-sum clay level-card" data-act="level"><div class="lvl-big">${lv.level}</div><div class="grow"><b>${esc(lv.title)}</b><div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))} · ${esc(t('ptsN', { n: fmtPts(pi.points) }))}</div><div class="bar" style="margin-top:8px;height:8px"><i style="width:${lv.pct}%"></i></div></div></button>`;
+    html += `<button class="mastery-sum clay level-card" data-act="level"><div class="lvl-big">${lv.level}</div><div class="grow"><b>${esc(lv.title)}</b><div class="muted small">${esc(orbStageTxt(lv.level))}</div><div class="bar" style="margin-top:8px;height:8px"><i style="width:${lv.pct}%"></i></div></div></button>`;
     // Racha actual y próxima carta
     const ni = RANKS.findIndex(([r]) => !state.perfectMastery[r]), next = ni >= 0 ? RANKS[ni] : null;
     const pct = next ? clamp(pr.cur / next[1] * 100, 0, 100) : 100;
@@ -6800,7 +6813,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.47', [['1.47.0', 2]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.51', [['1.51.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -7417,7 +7430,6 @@
         ${group(t('setGroupCommit'), [
           acc('contract', ico('doc'), t('setContract'), c ? (cLeft < 0 ? t('contractEnded') : t('contractActive', { n: cLeft })) : t('contractNone'), `<div class="row wrap"><button class="chip" data-s="contract">${esc(c ? t('contractView') : t('contractSignNow'))}</button>${c ? `<button class="chip" data-s="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}</div>`),
           acc('commit', '⭐', t('commitTitle'), t('commit_' + state.commitment), `<div id="st-commit">${commitSegHtml()}</div>`),
-          acc('caprice', '💶', t('capConverter'), `${t('capShort', { m: fmtMoney(CAP.tenPointsValue(state.caprice.income, capP())) })}`, capHtml()),
           acc('vac', '🏖️', t('vacTitle'), activeVacation() ? t('vacActive', { date: fmtDate(activeVacation().to) }) : '', `<div class="row wrap"><span class="grow muted small">${esc(t('vacHintShort'))}</span><button class="chip" data-s="vacations">${esc(t('vacManage'))}</button></div>`)
         ])}
         ${group(t('setGroupNotices'), [
@@ -7438,7 +7450,6 @@
         ])}
         <p class="muted small center" style="margin:0">KeepGoing · ${esc(t('version', { v: VERSION }))}</p>
       </div>`;
-      updateCap(wref);
     };
     openModal({
       title: esc(t('settings')), cls: 'wide', body: '<div id="st"></div>',
@@ -7446,7 +7457,6 @@
         wref = w; draw();
         w.addEventListener('toggle', e => { const d = e.target.closest && e.target.closest('details[data-acc]'); if (!d) return; if (d.open) openAcc.add(d.dataset.acc); else openAcc.delete(d.dataset.acc); }, true);
         bindThemeEditor(w, () => { $('#st-theme', w).innerHTML = themeEditorHtml(); render(); });
-        bindCap(w, () => render());
         w.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.auVol; if (!k) return; const b = $(`[data-au-v="${k}"]`, w); if (b) b.textContent = e.target.value + '%'; setAudioPref(k, +e.target.value / 100); });
         w.addEventListener('change', e => {
           if (e.target.id === 'st-file' && e.target.files[0]) importFile(e.target.files[0], w);
@@ -7913,38 +7923,15 @@
     if (hasLegacy) state.legacyShop = { date: todayKey(), starBalance: bal, rewards: state.rewards.length, redemptions: state.redemptions.length, seen: false };
     save();
   }
-  // Total de Dinero Caprichable: dinero VISUAL (no se suma ni se descuenta del saldo real)
-  function capTotalHtml() {
-    const pi = pointsInfo(), d = dayInfo(todayKey());
-    return `<div class="cap-total" role="group" aria-label="${esc(t('capTitle'))}">
-      <div class="cap-total-head"><span>${ico('wallet')} ${esc(t('capTitle'))}</span><span class="cap-badge">${esc(t('capBadge'))}</span></div>
-      <div class="cap-total-amount">${esc(money(pi.money))}</div>
-      <div class="small">${esc(t('capToday', { p: fmtPts(d.cpts), m: money(d.money) }))}</div>
-      <p class="muted small" style="margin:6px 0 0">${esc(t('capNotReal'))}</p>
-    </div>`;
-  }
 
-  /* v1.24: widget de la Libreta con dos partes independientes: Dinero Caprichable (puntos) y la Diferencia acumulada del
-     Presupuesto global desde su fecha «Desde» (la misma que se ve en Presupuesto). Con el interruptor se suman en un total. */
+  /* v1.24: Diferencia acumulada del Presupuesto global desde su fecha «Desde» (la misma que se ve en Presupuesto; la usa
+     exportación a Obsidian). */
   function capBudgetAcc() {
     const b = (LV.budgets || []).find(x => x.id === BUD_GLOBAL); if (!b) return null;
     const nowYm = todayKey().slice(0, 7), u = budUi(), first = LED.budgetFirst(b) || nowYm;
     const from = /^\d{4}-\d{2}$/.test(u.from[b.id] || '') ? u.from[b.id] : first;
     const rows = from <= nowYm ? LED.budgetRows(b, NET(LV.entries), from, nowYm) : [];
     return { acc: rows.length ? rows[rows.length - 1].acc : 0, from };
-  }
-  function capWidgetHtml() {
-    const pi = pointsInfo(), d = dayInfo(todayKey()), ba = capBudgetAcc(), on = !!state.ledgerPrefs.capSum && ba, priv = privacyOn();
-    const accE = ba ? ba.acc / 100 : 0, sign = v => (v > 0 ? '+' : v < 0 ? '−' : '') + money(Math.abs(v));
-    return `<section class="cap-wrap" aria-label="${esc(t('capTitle'))}">
-      <button class="cap-link" data-act="caprice" aria-label="${esc(t('capOpen'))}"><div class="cap-total"><div class="cap-total-head"><span>${ico('wallet')} ${esc(t('capTitle'))}</span><span class="cap-badge">${esc(t('capBadge'))}</span></div>
-        <div class="cap-total-amount">${esc(money(pi.money))}</div><div class="small">${esc(t('capToday', { p: fmtPts(d.cpts), m: money(d.money) }))}</div></div></button>
-      ${ba ? `<button class="cap-link cap-acc" data-act="ledger-budget"><div class="cap-total"><div class="cap-total-head"><span>${ico('budget')} ${esc(t('capAccTitle'))}</span></div>
-        <div class="cap-total-amount ${accE < 0 ? 'amt-out' : 'amt-in'} ${priv ? 'priv' : ''}">${esc(sign(accE))}</div><div class="small muted">${esc(t('budAccLabel', { m: budYmLabel(ba.from) }))}</div></div></button>
-        <label class="row cap-sum" style="gap:14px"><span class="switch"><input type="checkbox" data-led-opt="capsum" ${on ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('capSumQ'))}</b><br><span class="muted small">${esc(t('capSumHint'))}</span></span></label>
-        ${on ? `<div class="cap-total cap-sum-total"><div class="cap-total-head"><span>${ico('coins')} ${esc(t('capSumTitle'))}</span></div><div class="cap-total-amount ${priv ? 'priv' : ''}">${esc(money(pi.money + accE))}</div></div>` : ''}`
-        : `<p class="muted small center" style="margin:0">${esc(t('capAccNone'))}</p>`}
-      <p class="muted small center" style="margin:0">${esc(t('capNotReal'))}</p></section>`;
   }
   /* Conversor: 10 puntos = ingreso neto total × (porcentaje / 100). Cada nivel tiene su porcentaje (modificable).
      Los cambios se guardan desde hoy en un historial: no recalculan el Dinero Caprichable de días pasados. */
@@ -7958,94 +7945,6 @@
     c.history.sort((a, b) => a.from < b.from ? -1 : 1);
     save();
   }
-  function capHtml() {
-    const c = state.caprice;
-    return `<div class="cap-conv" data-cap>
-      <p class="muted small" style="margin-top:0">${esc(t('capFormula'))}</p>
-      <div class="cap-slider">
-        <div class="cap-track" role="slider" tabindex="0" aria-valuemin="0.1" aria-valuemax="1" aria-label="${esc(t('capSliderLabel'))}">
-          <span class="cap-line" aria-hidden="true"></span>
-          ${CAP.DOTS.map((d, i) => `<button type="button" class="cap-dot" data-cap-dot="${i}" style="left:${d.pos}%" tabindex="-1" aria-label="${esc(fmtPct(d.pct))}"><span>${i + 1}</span></button>`).join('')}
-          <span class="cap-thumb" aria-hidden="true"></span>
-        </div>
-        <div class="cap-labels" aria-hidden="true">${CAP.DOTS.map(d => `<span style="left:${d.pos}%">${esc(fmtPct(d.pct))}</span>`).join('')}</div>
-      </div>
-      <label class="field cap-pct"><span data-cap-pct-label></span><span class="cap-input"><input class="input" data-cap-pct inputmode="decimal" autocomplete="off"><b>%</b></span></label>
-      <p class="small cap-hint" data-cap-hint role="status"></p>
-      <div class="cap-preview">
-        <h4>${esc(t('capPreview'))}</h4>
-        <label class="field"><span>${esc(t('capIncome'))}</span><span class="cap-input"><input class="input" data-cap-income inputmode="decimal" autocomplete="off" value="${esc(fmtPctIn(c.income))}"><b>${esc(curSym())}</b></span></label>
-        ${monthIncome() > 0 ? `<button type="button" class="chip" data-cap-use-income style="margin-top:8px">${ico('briefcase')} ${esc(t('capUseIncome', { m: cents(monthIncome()) }))}</button>` : ''}
-        <p class="small" style="margin:10px 0 6px">${esc(t('capEquals'))}</p>
-        <ul class="cap-prev-list"><li data-cap-prev class="on"><span><small data-cap-prev-pct></small></span><b data-cap-prev-val></b></li></ul>
-      </div>
-    </div>`;
-  }
-  // Actualiza el conversor sin volver a pintarlo (para que el marcador se desplace con animación)
-  function updateCap(root) {
-    const box = $('[data-cap]', root); if (!box) return;
-    const c = state.caprice, pct = capP();
-    const inc = box._income != null ? box._income : c.income;
-    $('.cap-thumb', box).style.left = CAP.sliderPos(pct) + '%';
-    const tr = $('.cap-track', box);
-    tr.setAttribute('aria-valuenow', pct); tr.setAttribute('aria-valuetext', fmtPct(pct));
-    $('[data-cap-pct-label]', box).textContent = t('capPctOne');
-    const pi = $('[data-cap-pct]', box); if (document.activeElement !== pi) pi.value = fmtPctIn(pct);
-    $('[data-cap-hint]', box).textContent = pct > 1 ? t('capAbove') : pct < 0.1 ? t('capBelow') : '';
-    $$('[data-cap-prev]', box).forEach(li => {
-      $('[data-cap-prev-pct]', li).textContent = fmtPct(pct);
-      $('[data-cap-prev-val]', li).textContent = fmtMoney(CAP.tenPointsValue(inc, pct));
-    });
-  }
-  function bindCap(root, onSaved = () => {}) {
-    const box = () => $('[data-cap]', root);
-    const setPct = (v, animate = true) => {
-      const b = box(); if (!b) return;
-      b.classList.toggle('no-anim', !animate);
-      setCaprice({ p: v }); updateCap(root); onSaved();
-    };
-    root.addEventListener('click', e => {
-      const b = box(); if (!b) return; let el;
-      if ((el = e.target.closest('[data-cap-dot]'))) { setPct(CAP.DOTS[+el.dataset.capDot].pct); return; }
-      if (e.target.closest('[data-cap-use-income]')) { const v = monthIncome() / 100; b._income = v; setCaprice({ income: v }); $('[data-cap-income]', b).value = fmtPctIn(v); updateCap(root); onSaved(); toast(t('saved')); return; }
-    });
-    // Arrastrar o pulsar en la barra
-    root.addEventListener('pointerdown', e => {
-      const tr = e.target.closest('.cap-track'); if (!tr || e.target.closest('[data-cap-dot]')) return;
-      const r = tr.getBoundingClientRect(), at = x => CAP.pctFromPos((x - r.left) / r.width * 100);
-      tr.classList.add('dragging'); tr.setPointerCapture && tr.setPointerCapture(e.pointerId);
-      setPct(at(e.clientX), false);
-      const move = ev => setPct(at(ev.clientX), false);
-      const up = () => { tr.classList.remove('dragging'); tr.removeEventListener('pointermove', move); tr.removeEventListener('pointerup', up); tr.removeEventListener('pointercancel', up); };
-      tr.addEventListener('pointermove', move); tr.addEventListener('pointerup', up); tr.addEventListener('pointercancel', up);
-    });
-    // Teclado: ← más porcentaje (hacia Chill), → menos (hacia Locked-In)
-    root.addEventListener('keydown', e => {
-      const tr = e.target.closest('.cap-track'); if (!tr) return;
-      const cur = CAP.sliderPos(capP());
-      const pos = { ArrowLeft: cur - 2.5, ArrowDown: cur + 2.5, ArrowRight: cur + 2.5, ArrowUp: cur - 2.5, Home: 10, End: 90 }[e.key];
-      if (pos == null) return;
-      e.preventDefault(); setPct(CAP.pctFromPos(pos));
-    });
-    // Ingreso: la vista previa cambia al instante; se guarda si es válido
-    root.addEventListener('input', e => {
-      const b = box(); if (!b) return;
-      if (e.target.matches('[data-cap-income]')) {
-        const v = CAP.parseNumber(e.target.value);
-        b._income = v != null && v >= 0 ? v : 0; updateCap(root);
-        if (v != null && v > 0) { setCaprice({ income: v }); onSaved(); }
-      }
-    });
-    // Porcentaje escrito a mano: se acepta tal cual (aunque esté fuera de 0,1–1 %) y el marcador se desplaza despacio
-    root.addEventListener('change', e => {
-      const b = box(); if (!b || !e.target.matches('[data-cap-pct]')) return;
-      const v = CAP.parseNumber(e.target.value);
-      if (v == null || !(v > 0)) { toast(t('capPctInvalid')); e.target.value = fmtPctIn(capP()); return; }
-      setPct(v); e.target.value = fmtPctIn(v);
-    });
-    root.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-cap-pct], [data-cap-income]')) e.target.blur(); });
-    updateCap(root);
-  }
 
   function openLevel() {
     let wref;
@@ -8053,11 +7952,11 @@
       const lv = levelInfo(), pi = pointsInfo(), d = dayInfo(todayKey());
       $('#lvl', wref).innerHTML = `<div class="stack" style="gap:18px">
         <div class="row" style="gap:16px"><div class="lvl-big">${lv.level}</div><div class="grow"><div style="font-size:22px;font-weight:var(--fw-title)">${esc(lv.title)}</div>
-          <div class="muted small">${esc(t('lvXp', { a: fmtNum(lv.xp), b: fmtNum(lv.to) }))}</div><div class="bar" style="margin-top:8px"><i style="width:${lv.pct}%"></i></div></div></div>
-        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${fmtPts(d.cpts)}<small>/${d.max || 10}</small></b><span>${esc(t('ptsToday'))}</span></div><div class="kpi clay"><b>${fmtPts(pi.points)}</b><span>${esc(t('ptsTotal'))}</span></div><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div><div class="kpi clay"><b>${perfectPeriods().weeks}</b><span>${esc(t('perfectWeeks'))}</span></div><div class="kpi clay"><b>${perfectPeriods().months}</b><span>${esc(t('perfectMonths'))}</span></div></div>
+          <div class="muted small">${esc(orbStageTxt(lv.level))}</div><div class="bar" style="margin-top:8px"><i style="width:${lv.pct}%"></i></div></div></div>
+        <div class="kpis" style="margin:0"><div class="kpi clay"><b>${pi.perfectDays}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${pi.bestPerfectRun}</b><span>${esc(t('perfectRun'))}</span></div><div class="kpi clay"><b>${perfectPeriods().weeks}</b><span>${esc(t('perfectWeeks'))}</span></div><div class="kpi clay"><b>${perfectPeriods().months}</b><span>${esc(t('perfectMonths'))}</span></div></div>
         <p class="muted small" style="margin:0">${esc(t('perfectHow35'))}</p>
         <section><h3 class="section-title">${esc(t('commitTitle'))}</h3>${commitSegHtml()}</section>
-        <p class="muted small" style="margin:0">${esc(t('ptsHow', { since: fmtDate(state.pointsSince || todayKey()), since2: fmtDate(state.pointsV2 || todayKey()) }))}</p>
+        <p class="muted small" style="margin:0">${esc(t('orbHow'))}</p>
       </div>`;
     };
     openModal({
@@ -8463,12 +8362,9 @@
       .map(([act, i, l, n]) => `<button class="tool-btn" data-act="${act}"><span class="tool-ico">${ico(i)}${n ? `<b class="chip-n">${n}</b>` : ''}</span><span class="tool-lbl">${esc(t(l))}</span></button>`).join('')}</nav>`;
     html += eventsStripHtml();
     html += ledgerChartsHtml();
-    // v1.24: el Dinero Caprichable va al final de la Libreta, con la Diferencia acumulada del Presupuesto global
-    if (!capHidden()) html += capWidgetHtml();
-    // v1.23: opciones de la pestaña al final, debajo de «Gráficos»: privacidad y mostrar el Dinero Caprichable
+    // v1.50: el Dinero Caprichable se ha eliminado (state.caprice se conserva, pero ya no se ve en ningún sitio)
     html += `<div class="led-opts clay" role="group" aria-label="${esc(t('ledOptions'))}">
       <label class="check tgl"><input type="checkbox" data-led-opt="privacy" ${priv ? 'checked' : ''}> ${ico(priv ? 'eyeOff' : 'eye')} ${esc(t('privacyModeLabel'))}</label>
-      <label class="check tgl"><input type="checkbox" data-led-opt="cap" ${capHidden() ? '' : 'checked'}> ${ico('wallet')} ${esc(t('capShowWidget'))}</label>
     </div>`;
     return html;
   }
@@ -9931,7 +9827,6 @@
   /* ---------- Libreta: gráficas (tarta por categorías y evolución de ingresos y gastos) ---------- */
   const PIE_COLORS = ['#ff6b6b', '#4cc9f0', '#f7c948', '#c77dff', '#3ddc97', '#ff8a5b', '#5b8cff', '#ff5d8f', '#a3e635', '#2ec4b6', '#b8b8c8'];
   const IN_C = '#2fbf71', OUT_C = '#e5484d', INV_C = '#d8d8de';
-  const capHidden = () => !!(state.ledgerPrefs && state.ledgerPrefs.capHidden);
   // Tarta (anillo) con leyenda; en modo privacidad se ocultan los importes
   // «Mostrar porcentajes» (casilla bajo cada tarta): etiquetas sobre el anillo y en la leyenda
   const showPct = () => !(state.ledgerPrefs && state.ledgerPrefs.showPct === false);
@@ -10033,18 +9928,6 @@
       <p class="muted small" style="margin:8px 0 4px">${esc(t('ledFilterCount', { n: fl.length }))}</p>
       ${twoDotChart(frows, { aria: t('ledFilterTitle') })}</section>`;
     return html + '</details>';
-  }
-  // Dinero Caprichable: solo en la Libreta. Ventana con el total, el conversor y la opción de ocultarlo.
-  function openCaprice() {
-    openModal({
-      title: `${ico('wallet')} ${esc(t('capTitle'))}`, cls: 'wide',
-      body: `<div class="stack" style="gap:18px"><div id="cap-total">${capTotalHtml()}</div><section><h3 class="section-title">${esc(t('capConverter'))}</h3>${capHtml()}</section>
-        <label class="check tgl"><input type="checkbox" data-cap-hide ${capHidden() ? 'checked' : ''}> ${esc(t('capHideWidget'))}</label></div>`,
-      onMount: w => {
-        bindCap(w, () => { const el = $('#cap-total', w); if (el) el.innerHTML = capTotalHtml(); render(); });
-        w.addEventListener('change', e => { if (e.target.matches('[data-cap-hide]')) { state.ledgerPrefs = { ...state.ledgerPrefs, capHidden: e.target.checked }; save(); render(); } });
-      }
-    });
   }
   // Importe corto para las celdas del calendario (sin decimales si es redondo)
   const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: FX.AUTO.includes(ledgerMain()) ? ledgerMain() : 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
@@ -11575,7 +11458,7 @@
     const di = dayInfo(todayKey());
     let html = hidW('dayrate') ? '' : dayRateHtml();
     if (activeVacation()) html += `<div class="banner clay">${ico('beach')}<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span></div>`;
-    if (di.perfect && items.length) html += `<div class="perfect-banner clay">${ico('party')} <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small">+${fmtPts(di.cpts)} pts</span></div>`;
+    if (di.perfect && items.length) html += `<div class="perfect-banner clay">${ico('party')} <b class="grow">${esc(t('perfectToday'))}</b><span class="muted small"></span></div>`;
     const routs = state.routines.filter(r => r.habitIds.some(id => { const h = getHabit(id); return h && !h.archived && todayStatus(h).due; }));
     const groups = TOD.map(tod => {
       const rs = routs.filter(r => (r.timeOfDay || 'any') === tod);
@@ -11944,7 +11827,7 @@
     openModal({
       title: `${ico('doc')} ${esc(t('reviewTitle'))}`,
       body: `<p class="muted" style="margin-top:0">${esc(t('reviewWeek', { a: fmtDate(week, { day: 'numeric', month: 'short' }), b: fmtDate(addDays(week, 6), { day: 'numeric', month: 'short' }) }))}</p>
-        <div class="kpis" style="margin-bottom:14px"><div class="kpi clay"><b>${s.rate == null ? '—' : s.rate + '%'}</b><span>${esc(t('kpiRate'))}</span></div><div class="kpi clay"><b>${s.perfect}</b><span>${esc(t('perfectDays'))}</span></div><div class="kpi clay"><b>${fmtPts(s.pts)}</b><span>${esc(t('ptsEarned'))}</span></div></div>
+        <div class="kpis" style="margin-bottom:14px"><div class="kpi clay"><b>${s.rate == null ? '—' : s.rate + '%'}</b><span>${esc(t('kpiRate'))}</span></div><div class="kpi clay"><b>${s.perfect}</b><span>${esc(t('perfectDays'))}</span></div></div>
         <div class="stack">
           <label class="field"><span>${esc(t('reviewGood'))}</span><textarea class="input" id="rv-good" maxlength="500">${esc(prev.good || '')}</textarea></label>
           <label class="field"><span>${esc(t('reviewAdjust'))}</span><textarea class="input" id="rv-adj" maxlength="500">${esc(prev.adjust || '')}</textarea></label>
@@ -12003,7 +11886,7 @@
       <body><div class="rep">
         <div class="row" style="justify-content:space-between;align-items:flex-end;flex-wrap:wrap"><div><div class="muted" style="font-weight:var(--fw-label);letter-spacing:.15em">KEEPGOING</div><h1>${esc(t('reportOf', { m: monthName }))}</h1>${state.contract ? `<div class="muted">${esc(state.contract.name)}</div>` : ''}</div><div class="no-print"><button class="btn primary" id="rep-print">${esc(t('reportSave'))}</button></div></div>
         <h2>${esc(t('reportSummary'))}</h2>
-        <div class="kpis">${kpi(rateP == null ? '—' : rateP + '%', t('kpiRate'))}${kpi(perfect, t('perfectDays'))}${kpi(fmtPts(pts), t('ptsEarned'))}${kpi(entries, t('kpiTotal'))}${kpi(act.size, t('kpiActiveDays'))}${kpi(en.length ? fmtNum(Math.round(en.reduce((a, b) => a + b, 0) / en.length * 10) / 10) + '/10' : '—', t('rateAvg'))}</div>
+        <div class="kpis">${kpi(rateP == null ? '—' : rateP + '%', t('kpiRate'))}${kpi(perfect, t('perfectDays'))}${kpi(entries, t('kpiTotal'))}${kpi(act.size, t('kpiActiveDays'))}${kpi(en.length ? fmtNum(Math.round(en.reduce((a, b) => a + b, 0) / en.length * 10) / 10) + '/10' : '—', t('rateAvg'))}</div>
         <div class="chart-grid"><section class="chart-card clay"><h3>${esc(t('chartDaily'))}</h3>${lineChart(linePts, { min: 0, max: 100, fmt: v => Math.round(v) + '%' })}</section>
           <section class="chart-card clay"><h3>${esc(t('chartWeekday'))}</h3>${barChart(wdBars, { max: 100, fmt: v => Math.round(v) + '%' })}</section></div>
         <h2>${esc(t('chartTable'))}</h2>
@@ -12235,8 +12118,6 @@
     const q = active.filter(isQuit).map(h => [h, currentStreak(h)]).sort((a, b) => b[1] - a[1])[0];
     if (q && q[1] >= 1) out.push(t('petQuit', { n: q[1], h: q[0].name }));
     const c = state.contract; if (c) { const left = diffDays(today, c.endsAt); if (left >= 0 && left <= 3) out.push(t('petContract', { n: left })); }
-    const pi = pointsInfo();
-    out.push(t('petPoints', { n: fmtPts(pi.points) }));
     return out;
   }
   const profileName = () => (state.contract && state.contract.name) || firstName() || t('profileYou');
@@ -14328,7 +14209,6 @@
       case 'level': openLevel(); break;
       case 'perfect-rules': openPerfectRules(); break;
       case 'privacy': setPrivacy(!privacyOn()); render(); sfx('toggle'); toast(t(privacyOn() ? 'privacyOnToast' : 'privacyOffToast')); break;
-      case 'caprice': openCaprice(); break;
       case 'vault-sec': openVaultSecurity(); break;
       case 'vault-bio': unlockWithBio(); break;
       case 'vault-usepw': pwMode = true; pinBuf = ''; render(); setTimeout(() => $('#vault-pw')?.focus(), 50); break;
@@ -14404,8 +14284,6 @@
       const o = e.target.dataset.ledOpt, on = e.target.checked;
       if (o === 'privacy') { setPrivacy(on); render(); sfx('toggle'); toast(t(on ? 'privacyOnToast' : 'privacyOffToast')); }
       if (o === 'flip') setFlip(on);
-      if (o === 'cap') { state.ledgerPrefs = { ...state.ledgerPrefs, capHidden: !on }; save(); render(); }
-      if (o === 'capsum') { state.ledgerPrefs = { ...state.ledgerPrefs, capSum: on }; save(); render(); }
       if (o === 'orgdays') { state.ledgerPrefs = { ...state.ledgerPrefs, orgDays: on }; save(); render(); }
     }
     if (e.target.matches('[data-ledger-m], [data-ledger-y]')) {
