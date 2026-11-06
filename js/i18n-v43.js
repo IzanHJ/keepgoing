@@ -28,7 +28,12 @@
     askOn: 'Preguntar «¿Cómo ha ido?» al acabar', askOnHint: 'Al terminar este turno, la app te propone rellenar su nota (la predeterminada primero). Apágalo cuando quieras.',
     askTitle: '¿Cómo ha ido {s}?', askBody: 'Apúntalo ahora que lo tienes fresco:', askLater: 'Ahora no',
     rtrTitle: 'Ruta', rtrGo: 'Llegada', rtrNone: 'Sin trayecto', rtrSameM: 'La del turno ({m})', rtrSameNone: 'La del turno (ninguna)',
-    rtrSaveDay: 'Guardar este día como rutina (con su ruta)'
+    rtrSaveDay: 'Guardar este día como rutina (con su ruta)',
+    wn_1_43_0_6: 'Ruta tipo|En una rutina, cada turno puede llevar su llegada y su trayecto de después. Desde un día, «Guardar este día como rutina» lo copia con su ruta.',
+    wn_1_43_0_7: '¿Cómo ha ido?|Enciende «Preguntar al acabar» en un turno y, al terminar, la app te propone rellenar su nota. Se apaga igual de fácil.',
+    wn_1_43_0_8: 'Buscar en notas|Busca una palabra, persona o sitio en todas tus notas, con filtro de plantilla y de fechas.',
+    wn_1_43_0_9: 'Ficha de cada elemento|Toca a «Alba» en una Lista para ver cuántas veces sale, desde cuándo y en qué notas.',
+    wn_1_43_0_10: 'Repetir y comparar|«Repetir la del…» copia tu última nota de esa plantilla, y el Historial muestra las respuestas que más se repiten. Las Categorías desaparecen: el turno puntual elige si suma horas.'
   };
   const en = {
     nhTitle: 'History', nhEmpty: 'No notes in this period yet.', nhCount: '{n} notes', nhCount1: '1 note',
@@ -58,7 +63,12 @@
     askOn: 'Ask “How did it go?” when it ends', askOnHint: 'When this shift ends, the app suggests filling in its note (the default one first). Turn it off any time.',
     askTitle: 'How did {s} go?', askBody: 'Write it down while it is fresh:', askLater: 'Not now',
     rtrTitle: 'Route', rtrGo: 'Arrival', rtrNone: 'No trip', rtrSameM: 'The shift’s ({m})', rtrSameNone: 'The shift’s (none)',
-    rtrSaveDay: 'Save this day as a routine (with its route)'
+    rtrSaveDay: 'Save this day as a routine (with its route)',
+    wn_1_43_0_6: 'Route template|In a routine, each shift can carry its arrival and after-trip. From a day, “Save this day as a routine” copies it with its route.',
+    wn_1_43_0_7: 'How did it go?|Turn on “Ask when it ends” on a shift and, when it ends, the app suggests filling in its note. Just as easy to turn off.',
+    wn_1_43_0_8: 'Search notes|Search a word, person or place across all your notes, with template and date filters.',
+    wn_1_43_0_9: 'Card for each item|Tap “Alba” in a List to see how often she appears, since when and in which notes.',
+    wn_1_43_0_10: 'Repeat and compare|“Repeat the one from…” copies your last note of that template, and History shows the most repeated answers. Categories are gone: a one-off shift chooses whether it counts hours.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
