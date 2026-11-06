@@ -13230,6 +13230,30 @@
     if (isCard) cardZoom(wrap);
     return { close, el: wrap };
   }
+  /* v1.42: con una hoja abierta, el dedo solo mueve lo que de verdad se puede mover. En iPhone, si la hoja no tiene más
+     contenido (o ya está arriba del todo), el gesto pasaba a la página de detrás y la hoja se iba hacia los lados o se
+     estiraba. Ahora: un gesto horizontal solo sirve en cajas que se desplazan a los lados (chips, carruseles…) y uno vertical
+     solo desplaza la hoja (o una caja interior) mientras le quede recorrido. Los gestos propios (pincel, firmas, deslizar
+     una fila, 3D…) siguen funcionando porque no dependen del desplazamiento nativo. Las barras deslizantes (range) no se tocan. */
+  let mgT = null;
+  const mgScroll = (el, ax) => { const cs = getComputedStyle(el), ov = ax === 'x' ? cs.overflowX : cs.overflowY; return /(auto|scroll)/.test(ov) && (ax === 'x' ? el.scrollWidth > el.clientWidth + 1 : el.scrollHeight > el.clientHeight + 1); };
+  document.addEventListener('touchstart', e => {
+    const t0 = e.touches[0], bd = e.touches.length === 1 && e.target.closest && e.target.closest('.backdrop');
+    mgT = bd && !e.target.closest('input[type="range"], [contenteditable]') ? { x: t0.clientX, y: t0.clientY, ly: t0.clientY, ax: null } : null;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!mgT || e.touches.length !== 1) { mgT = null; return; }
+    const p = e.touches[0], dx = p.clientX - mgT.x, dy = p.clientY - mgT.y, step = p.clientY - mgT.ly; mgT.ly = p.clientY;
+    if (!mgT.ax) { if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return; mgT.ax = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'; }
+    for (let el = e.target; el && el.nodeType === 1 && !el.classList.contains('backdrop'); el = el.parentElement) {
+      if (!mgScroll(el, mgT.ax)) continue;
+      if (mgT.ax === 'x') return;
+      const top = el.scrollTop <= 0, end = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+      if ((step > 0 && !top) || (step < 0 && !end) || step === 0) return;
+    }
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('touchend', () => { mgT = null; }, { passive: true });
   /* v1.23: aviso al cerrar un editor con cambios sin guardar. snap() devuelve el estado del formulario; si no ha cambiado
      se cierra sin preguntar. «Guardar cambios y salir» pulsa el botón Guardar del editor (que valida y cierra). */
   function unsavedGuard(snap) {
