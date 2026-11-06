@@ -315,3 +315,56 @@
 .lw-grps { margin-bottom: 8px; }
 .lw-look { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
 :root[data-light="1"] .tl-btn, :root[data-light="1"] .lw-alt { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.08); }
+
+/* =========================================================
+   v1.48: AMBIENTE VIVO, ESCENARIO QUE SE GIRA Y REPLAY DE CINE (de hoy hacia atrás)
+   ========================================================= */
+.lw-stage[style*="--sky1"] { background: radial-gradient(120% 70% at 50% 108%, color-mix(in srgb, var(--sky2) 70%, #000) 0%, transparent 60%), linear-gradient(180deg, var(--sky1) 0%, var(--sky2) 82%); }
+.lw-stage canvas { cursor: grab; }
+.lw-stage.grabbing canvas { cursor: grabbing; }
+.tl-hero-w { position: relative; }
+.tl-spin-h { position: absolute; right: 10px; top: 10px; display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px; background: rgba(5,8,18,.45); color: rgba(238,241,246,.82); font-size: 11.5px; pointer-events: none; opacity: 0; animation: tlSpinHint 5.5s ease 1.2s 1 both; backdrop-filter: blur(6px); }
+.tl-spin-h svg.i { width: 11px; height: 11px; }
+@keyframes tlSpinHint { 0% { opacity: 0; transform: translateY(-4px); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.tl-hero-w.cine .tl-spin-h { display: none; }
+
+/* modo cine: bandas negras, viñeta, líneas de rebobinado y la fecha que rueda */
+.tl-cine { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 6px; padding: 0 16px 16px; opacity: 0; transition: opacity .3s ease; }
+.tl-hero-w.cine .tl-cine { opacity: 1; }
+.tl-hero-w .lw-stage.tl-hero::before, .tl-hero-w .lw-stage.tl-hero::after { content: ''; position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 1; transition: height .45s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
+.tl-hero-w .lw-stage.tl-hero::before { top: 0; }
+.tl-hero-w .lw-stage.tl-hero::after { bottom: 0; }
+.tl-hero-w.cine .lw-stage.tl-hero::before, .tl-hero-w.cine .lw-stage.tl-hero::after { height: 9%; }
+.tl-hero-w.cine .tl-cine { background: radial-gradient(130% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.55) 100%), repeating-linear-gradient(180deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px); z-index: 2; padding-bottom: calc(9% + 10px); }
+.tl-cine-k { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 60%, transparent); }
+.tl-cine-k svg.i { width: 12px; height: 12px; animation: tlRw 1s steps(2) infinite; }
+@keyframes tlRw { 50% { opacity: .35; } }
+.tl-odo { display: flex; flex-wrap: wrap; font-size: clamp(22px, 6.4vw, 34px); font-weight: 800; letter-spacing: -.01em; line-height: 1.05; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,.6); font-variant-numeric: tabular-nums; overflow: hidden; }
+.tl-odo span { display: inline-block; }
+.tl-odo span.roll { animation: tlRoll .42s cubic-bezier(.2,.9,.25,1.15) both; animation-delay: calc(var(--i) * 14ms); }
+@keyframes tlRoll { from { transform: translateY(-85%); opacity: 0; filter: blur(3px); } to { transform: none; opacity: 1; filter: none; } }
+.tl-cine-bar { position: relative; width: min(260px, 70%); height: 3px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; }
+.tl-cine-bar i { position: absolute; right: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--accent); box-shadow: 0 0 10px var(--accent); transition: width .5s ease; }
+/* destello en cada paso: barrido de rebobinado de derecha a izquierda */
+.tl-hero-w.flash .lw-stage.tl-hero { animation: tlFlash .5s ease-out; }
+.tl-hero-w.flash .tl-cine::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.16) 45%, color-mix(in srgb, var(--accent) 22%, transparent) 50%, transparent 56%); animation: tlSweep .55s ease-out both; }
+@keyframes tlFlash { 0% { filter: saturate(1.6) contrast(1.15) hue-rotate(-8deg); } 100% { filter: none; } }
+@keyframes tlSweep { from { transform: translateX(70%); opacity: 1; } to { transform: translateX(-80%); opacity: 0; } }
+.tl-hero-w.cine .tl-rp-play, .tl-rp-play.on svg.i { animation: none; }
+
+/* tarjeta final del Replay */
+.tl-rpend { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 14px; background: rgba(3,5,12,.62); backdrop-filter: blur(8px); cursor: default; animation: tlEndIn .45s cubic-bezier(.2,.8,.2,1) both; }
+.tl-rpend[hidden] { display: none; }
+.tl-rpend-in { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 380px; text-align: center; color: #fff; }
+.tl-rpend-t { font-size: 15px; }
+.tl-rpend-g { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+.tl-rpend-c { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 14px; background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); animation: tlEndIn .5s cubic-bezier(.2,.9,.25,1.2) both; animation-delay: calc(.15s + var(--d) * 90ms); }
+.tl-rpend-c svg.i { width: 14px; height: 14px; color: var(--accent); }
+.tl-rpend-c b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.tl-rpend-c small { font-size: 10.5px; opacity: .75; line-height: 1.15; }
+.tl-rpend-b { display: flex; gap: 8px; }
+@keyframes tlEndIn { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+@media (max-width: 360px) { .tl-rpend-g { grid-template-columns: repeat(2, 1fr); } }
+:root:is([data-motion="soft"], [data-motion="off"]) :is(.tl-spin-h, .tl-odo span.roll, .tl-cine-k svg.i, .tl-rpend, .tl-rpend-c, .tl-hero-w.flash .lw-stage.tl-hero, .tl-hero-w.flash .tl-cine::after) { animation: none; }
+:root:is([data-motion="soft"], [data-motion="off"]) .tl-spin-h { opacity: 0; }
+:root[data-motion="off"] :is(.tl-cine, .tl-cine-bar i, .tl-hero-w .lw-stage.tl-hero::before, .tl-hero-w .lw-stage.tl-hero::after) { transition: none; }

@@ -2680,7 +2680,7 @@ body.orb-open { overflow: hidden; }
 .tf-drop-into { outline: 3px solid var(--accent) !important; outline-offset: 1px; filter: brightness(1.12); z-index: 3; }
 body.tf-dragging, body.tf-dragging * { cursor: grabbing !important; }
 
-/* v1.46: ampliar los gráficos por tiempo */
+/* v1.49: ampliar los gráficos por tiempo */
 .zc { position: relative; }
 .zc svg { touch-action: pan-y; }
 .zc.on svg { cursor: grab; }
@@ -2692,7 +2692,7 @@ body.zc-grabbing, body.zc-grabbing * { cursor: grabbing !important; user-select:
 .zc-bar .icon-btn:disabled { opacity: .35; pointer-events: none; }
 .zc-nav { position: relative; height: 18px; margin-top: 4px; border-radius: 999px; background: var(--surface-2); touch-action: none; cursor: pointer; }
 .zc-thumb { position: absolute; top: 3px; bottom: 3px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 70%, transparent); cursor: grab; min-width: 14px; }
-/* v1.46: «Importar» con respuestas pendientes no se apaga del todo: lleva a la primera que falta */
+/* v1.49: «Importar» con respuestas pendientes no se apaga del todo: lleva a la primera que falta */
 .btn.rg-go-off { opacity: .55; }
 @keyframes rgFlash { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 30% { box-shadow: 0 0 0 3px var(--accent); } }
 .rg-flash { animation: rgFlash 1.2s ease 2; }
