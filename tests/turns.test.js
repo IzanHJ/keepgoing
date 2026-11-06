@@ -190,3 +190,12 @@ test('v1.43: trayecto de después del turno y trayectos enlazados del día', () 
   assert.deepStrictEqual([d.shifts[0].bk, d.shifts[0].bkDep, d.shifts[0].bkTo], ['bus', '18:05', 'pl1']);
   assert.deepStrictEqual(d.days['2026-11-06'].map(e => [e.bk, e.bkTo]), [['walk', '>'], ['-', undefined]]);
 });
+
+test('v1.43: una rutina pone también su ruta (llegada y después)', () => {
+  const T = require('../js/turns.js');
+  const data = { shifts: [{ id: 'w', start: '08:00', end: '12:00' }, { id: 'p', start: '12:30', end: '13:30' }], days: {} };
+  const r = { id: 'r1', kind: 'day', day: [{ sid: 'w', tr: 'bus', bk: 'walk', bkTo: '>' }, { sid: 'p', bk: 'bus', bkTo: '' }] };
+  T.applyRoutine(data, r, { from: '2026-11-09', to: '2026-11-09' });
+  assert.deepStrictEqual(data.days['2026-11-09'].map(e => [e.sid, e.tr, e.bk, e.bkTo]), [['w', 'bus', 'walk', '>'], ['p', undefined, 'bus', undefined]]);
+  assert.deepStrictEqual(T.dayLegs(data.days['2026-11-09'], Object.fromEntries(data.shifts.map(s => [s.id, s]))).map(l => [l.i, l.kind, l.mode]), [[0, 'go', 'bus'], [1, 'go', 'walk'], [1, 'back', 'bus']]);
+});

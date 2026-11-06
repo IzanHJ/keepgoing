@@ -278,7 +278,8 @@
       const list = (routine.kind === 'week' ? ((routine.week || {})[wd] || []) : (!wds.length || wds.includes(wd) ? routine.day || [] : [])).filter(ok);
       if (!list.length) continue;
       // v1.24: cada turno recuerda de qué rutina viene (rt) para verla junta en el calendario
-      const add = list.map((e) => ({ sid: e.sid, note: '', start: timeOr(e.start), end: timeOr(e.end), ...(typeof routine.id === 'string' && RE_ID.test(routine.id) ? { rt: routine.id } : {}) }));
+      // v1.43: la ruta tipo: cada turno de la rutina puede llevar su llegada y su trayecto de después
+      const add = list.map((e) => ({ sid: e.sid, note: '', start: timeOr(e.start), end: timeOr(e.end), ...(typeof routine.id === 'string' && RE_ID.test(routine.id) ? { rt: routine.id } : {}), ...trOf(e, true) }));
       const next = (opts.overwrite ? add : [...(data.days[k] || []), ...add]).slice(0, LIMITS.perDay);
       data.days[k] = next; n++;
     }

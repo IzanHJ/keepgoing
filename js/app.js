@@ -3747,6 +3747,7 @@
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button class="tf-pal" data-tfd-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}<button class="chip" data-tfd="once-new">${ico('plus')} ${esc(t('tfOnceNew'))}</button></div>
         <h3 class="section-title" style="margin:4px 0 0">${ico('doc', 'xs')} ${esc(t('tfNotes27'))}</h3><div class="stack" style="gap:6px">${tfGaps(k).map((g, j) => `<button type="button" class="tf-all-note tf-note-row" data-tfd-gap="${j}" style="${tfNoteStyle(g)}">${tfNoteIco(g)} <span class="grow"><b>${g.a ? `${esc(g.a)}–${esc(g.b)}` : esc(t('tfAllDay'))}</b> ${esc(g.t)}</span>${ico('edit', 'xs')}</button>`).join('')}<div class="row wrap" style="gap:6px"><button class="chip" data-tfd="gap-new">${ico('plus')} ${esc(t('tfGapNew'))}</button>${tfTplsQuick().map(p => tfTplChip(p, `data-tfd-tp="${esc(p.id)}"`)).join('')}</div></div>
         <h3 class="section-title" style="margin:4px 0 0">${ico('sparkle', 'xs')} ${esc(t('rateTitle'))}</h3>${rateRowHtml(k)}
+        ${list.some(e => tfShift(e.sid) && !tfShift(e.sid).once) ? `<div><button class="chip" data-tfd="save-rt">${ico('layers')} ${esc(t('rtrSaveDay'))}</button></div>` : ''}
         ${state.calRoutines.some(r => r.kind === 'day') ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('tfRtQuick'))}</h3><div class="tf-rt-quick">${state.calRoutines.filter(r => r.kind === 'day').map(r => `<button class="chip" data-tfd-rt="${esc(r.id)}">${ico('layers')} ${esc(r.name)}</button>`).join('')}</div>` : ''}
         ${comp.length ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('tfMates'))}</h3><div class="stack" style="gap:8px">${comp.map(({ f, ids }) => `<div class="tf-item"><b>${esc(f.name)}</b><div class="row wrap grow" style="gap:6px">${ids.map(id => { const s = f.shifts.find(x => x.id === id); return s ? tfTag(s) : ''; }).join('')}</div></div>`).join('')}</div>` : ''}
         ${ext.length ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('tfExtEvents'))}</h3><div class="stack" style="gap:8px">${ext.map(e => `<div class="tf-item">${ico('calendar', 'xs')} ${tfExtHtml(e)}</div>`).join('')}</div>` : ''}</div>`;
@@ -3784,6 +3785,11 @@
         if (en) { tfEditEntry(k, +en.dataset.tfdEnt, draw); return; }
         const oe = e.target.closest('[data-tfd="once-edit"]');
         if (oe) { tfOnceEditor(k, +oe.closest('[data-i]').dataset.i, draw); return; }
+        if (e.target.closest('[data-tfd="save-rt"]')) {
+          const K = ['start', 'end', 'tr', 'trDep', 'trArr', 'bk', 'bkDep', 'bkArr', 'bkTo'];
+          const day = tfSorted([...(state.calDays[k] || [])]).filter(x => state.calShifts.some(s => s.id === x.sid)).map(x => { const o = { sid: x.sid }; K.forEach(f => { if (x[f]) o[f] = x[f]; }); return o; });
+          tfEditRoutine(null, { kind: 'day', day }); return;
+        }
         const rx = e.target.closest('[data-tfd-rtx]');
         if (rx) { tfSetDay(k, (state.calDays[k] || []).filter(x => x.rt !== rx.dataset.tfdRtx)); tfSave(false); draw(); return; }
         const rt = e.target.closest('[data-tfd-rt]');
@@ -4161,8 +4167,16 @@
     state.calRoutines.push(r); tfSave(); toast(t('tfRtAdded'));
     tfEditRoutine(r);
   }
-  function tfEditRoutine(r0) {
-    const isNew = !r0, d = r0 ? JSON.parse(JSON.stringify(r0)) : { id: TF.uid(), name: '', kind: 'day', day: [], week: {} };
+  // v1.43: ruta tipo. En cada turno de una rutina: llegada y después ('' = lo del turno, '-' = sin) y el destino de después
+  const TF_RT_TR = ['bus', 'car', 'moto', 'walk', 'bike', 'train', 'plane'];
+  const tfRtTrHtml = (e, s) => {
+    const sameL = (m) => m ? t('rtrSameM', { m: tfTrName(m) }) : t('rtrSameNone');
+    return `<div class="rt-route"><span class="muted small">${ico('pin', 'xs')} ${esc(t('rtrTitle'))}</span>
+      <div class="tf-form">${tfField(t('rtrGo'), tfSel('data-tfr-tr="tr"', [['', sameL(s.tr)], ['-', t('rtrNone')], ...TF_RT_TR.map(m => [m, tfTrName(m)])], e.tr || ''))}${tfField(t('bkTitle'), tfSel('data-tfr-tr="bk"', [['', sameL(s.bk)], ['-', t('rtrNone')], ...TF_RT_TR.map(m => [m, tfTrName(m)])], e.bk || ''))}</div>
+      ${e.bk && e.bk !== '-' ? tfField(t('bkTo'), tfBkToSel(e.bkTo || '').replace('data-tftr-to', 'data-tfr-tr="bkTo"'), true) : ''}</div>`;
+  };
+  function tfEditRoutine(r0, pre) {
+    const isNew = !r0, d = r0 ? JSON.parse(JSON.stringify(r0)) : { id: TF.uid(), name: '', kind: 'day', day: [], week: {}, ...(pre || {}) };
     for (let i = 0; i < 7; i++) if (!Array.isArray(d.week[i])) d.week[i] = [];
     let wref, wd = 0;
     const guard = unsavedGuard(() => { if (wref && $('#tfr-name', wref)) d.name = $('#tfr-name', wref).value; return JSON.stringify(d); });
@@ -4175,7 +4189,7 @@
         ${d.kind === 'week' ? `<div class="seg seg-sm tf-rt-wd" role="group">${W.map((n, i) => `<button type="button" data-tfr-wd="${i}" class="${wd === i ? 'on' : ''}">${esc(n)}${d.week[i].length ? ` <span class="badge-n">${d.week[i].length}</span>` : ''}</button>`).join('')}</div>` : ''}
         ${list.length ? '' : `<p class="muted" style="margin:0">${esc(t('tfNoShifts'))}</p>`}
         ${list.map((e, i) => { const s = tfShift(e.sid); if (!s) return ''; return `<div class="tf-entry" data-i="${i}"><div class="row" style="justify-content:space-between">${tfTag(s, 'big')}<button type="button" class="icon-btn sm danger-text" data-tfr="del" aria-label="${esc(t('tfRemoveShift'))}">${ico('x')}</button></div>
-          <div class="row" style="gap:8px"><input class="input grow" type="time" data-tfr-t="start" value="${esc(e.start || s.start || '')}" aria-label="${esc(t('tfStart'))}"><input class="input grow" type="time" data-tfr-t="end" value="${esc(e.end || s.end || '')}" aria-label="${esc(t('tfEnd'))}"></div></div>`; }).join('')}
+          <div class="row" style="gap:8px"><input class="input grow" type="time" data-tfr-t="start" value="${esc(e.start || s.start || '')}" aria-label="${esc(t('tfStart'))}"><input class="input grow" type="time" data-tfr-t="end" value="${esc(e.end || s.end || '')}" aria-label="${esc(t('tfEnd'))}"></div>${tfRtTrHtml(e, s)}</div>`; }).join('')}
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button type="button" class="tf-pal" data-tfr-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}</div>
         ${d.kind === 'week' && list.length ? `<div class="row wrap" style="gap:6px"><button type="button" class="chip sm" data-tfr="copy-wk">${ico('copy')} ${esc(t('tfRtCopyWk'))}</button><button type="button" class="chip sm" data-tfr="copy-all">${ico('copy')} ${esc(t('tfRtCopyAll'))}</button></div>` : ''}</div>`;
     };
@@ -4197,6 +4211,10 @@
       onMount: w => {
         wref = w; draw(); guard.start();
         w.addEventListener('change', e => {
+          const row0 = e.target.closest('[data-i]');
+          if (row0 && e.target.matches('[data-tfr-tr]')) { const en = cur()[+row0.dataset.i]; if (!en) return; const f = e.target.dataset.tfrTr, v = e.target.value;
+            if (f === 'bkTo') { if (v) en.bkTo = v; else delete en.bkTo; } else { if (v) en[f] = v; else delete en[f]; delete en[f + 'Dep']; delete en[f + 'Arr']; if (f === 'bk' && (!v || v === '-')) delete en.bkTo; }
+            d.name = $('#tfr-name', wref).value; draw(); return; }
           const row = e.target.closest('[data-i]'); if (!row || !e.target.matches('[data-tfr-t]')) return;
           const en = cur()[+row.dataset.i], s = en && tfShift(en.sid); if (!s) return;
           const which = e.target.dataset.tfrT; en[which] = e.target.value === s[which] ? '' : e.target.value;

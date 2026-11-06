@@ -2668,3 +2668,4 @@ body.orb-open { overflow: hidden; }
 .nh-bar i { display: block; height: 100%; border-radius: 4px; background: var(--nc, var(--accent)); }
 .nl-open { border: 0; background: none; padding: 0; color: inherit; font: inherit; }
 .chip.xs { padding: 3px 9px; font-size: 12px; min-height: 0; }
+.rt-route { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--surface-3); } /* v1.43: ruta tipo en una rutina */

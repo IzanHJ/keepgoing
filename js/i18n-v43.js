@@ -26,7 +26,9 @@
     nsTitle: 'Buscar en notas', nsPh: 'Busca una palabra, una persona, un sitio…', nsHint: 'Escribe algo o elige una plantilla para ver sus notas.', nsN: '{n} notas', nsN1: '1 nota', nsNone: 'No hay notas con eso.', nsAll: 'Todas',
     nliSince: 'desde el {d}', nliNone: 'Todavía no sale en ninguna nota.',
     askOn: 'Preguntar «¿Cómo ha ido?» al acabar', askOnHint: 'Al terminar este turno, la app te propone rellenar su nota (la predeterminada primero). Apágalo cuando quieras.',
-    askTitle: '¿Cómo ha ido {s}?', askBody: 'Apúntalo ahora que lo tienes fresco:', askLater: 'Ahora no'
+    askTitle: '¿Cómo ha ido {s}?', askBody: 'Apúntalo ahora que lo tienes fresco:', askLater: 'Ahora no',
+    rtrTitle: 'Ruta', rtrGo: 'Llegada', rtrNone: 'Sin trayecto', rtrSameM: 'La del turno ({m})', rtrSameNone: 'La del turno (ninguna)',
+    rtrSaveDay: 'Guardar este día como rutina (con su ruta)'
   };
   const en = {
     nhTitle: 'History', nhEmpty: 'No notes in this period yet.', nhCount: '{n} notes', nhCount1: '1 note',
@@ -54,7 +56,9 @@
     nsTitle: 'Search notes', nsPh: 'Search a word, a person, a place…', nsHint: 'Type something or pick a template to see its notes.', nsN: '{n} notes', nsN1: '1 note', nsNone: 'No notes match.', nsAll: 'All',
     nliSince: 'since {d}', nliNone: 'It does not appear in any note yet.',
     askOn: 'Ask “How did it go?” when it ends', askOnHint: 'When this shift ends, the app suggests filling in its note (the default one first). Turn it off any time.',
-    askTitle: 'How did {s} go?', askBody: 'Write it down while it is fresh:', askLater: 'Not now'
+    askTitle: 'How did {s} go?', askBody: 'Write it down while it is fresh:', askLater: 'Not now',
+    rtrTitle: 'Route', rtrGo: 'Arrival', rtrNone: 'No trip', rtrSameM: 'The shift’s ({m})', rtrSameNone: 'The shift’s (none)',
+    rtrSaveDay: 'Save this day as a routine (with its route)'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
