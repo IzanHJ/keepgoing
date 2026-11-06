@@ -170,3 +170,23 @@ test('v1.39: cambiar un turno en este día, en los siguientes o en todos los igu
   T.applyEdit(d, '2026-11-02', 0, { sid: 'm', note: 'hoy' }, 'all');
   assert.strictEqual(d.days['2026-11-01'][0].pl, undefined);
 });
+
+test('v1.42: trayecto de después del turno y trayectos enlazados del día', () => {
+  const T = require('../js/turns.js');
+  const sh = { w: { id: 'w', start: '08:00', end: '12:00', tr: 'bus', trDep: '07:30', trArr: '07:55' }, p: { id: 'p', start: '12:30', end: '13:30' }, w2: { id: 'w2', start: '14:00', end: '18:00', bk: 'bus', bkTo: '' } };
+  // Mañana en bus al trabajo; al acabar, andando al parque (enlazado); del parque andando al trabajo; al final, bus a Casa
+  const day = [{ sid: 'w', bk: 'walk', bkTo: '>' }, { sid: 'p', bk: 'walk', bkTo: '>' }, { sid: 'w2' }];
+  const legs = T.dayLegs(day, sh);
+  assert.deepStrictEqual(legs.map(l => [l.i, l.kind, l.mode, l.dep, l.to]), [[0, 'go', 'bus', '07:30', 'turno'], [1, 'go', 'walk', '12:00', 'turno'], [2, 'go', 'walk', '13:30', 'turno'], [2, 'back', 'bus', '18:00', '']]);
+  assert.strictEqual(legs[1].linked, 0);
+  // La llegada propia del siguiente turno gana sobre el enlace
+  assert.deepStrictEqual(T.dayLegs([{ sid: 'w', bk: 'walk', bkTo: '>' }, { sid: 'p', tr: 'car' }], sh).map(l => [l.i, l.kind, l.mode]), [[0, 'go', 'bus'], [1, 'go', 'car']]);
+  // «Al siguiente turno» sin siguiente = a Casa; '-' en el día lo quita
+  assert.deepStrictEqual(T.dayLegs([{ sid: 'p', bk: 'walk', bkTo: '>' }], sh).map(l => [l.kind, l.to]), [['back', '']]);
+  assert.strictEqual(T.entryReturn(sh.w2, { bk: '-' }), null);
+  assert.deepStrictEqual(T.entryReturn(sh.w2, {}), { mode: 'bus', dep: '', arr: '', to: '' });
+  // Se conserva al validar una copia de seguridad
+  const d = T.sanitize({ jobs: [{ id: 'j', name: 'J' }], shifts: [{ id: 'w2', jobId: 'j', name: 'T', bk: 'bus', bkDep: '18:05', bkTo: 'pl1' }], days: { '2026-11-06': [{ sid: 'w2', bk: 'walk', bkTo: '>' }, { sid: 'w2', bk: '-' }] } });
+  assert.deepStrictEqual([d.shifts[0].bk, d.shifts[0].bkDep, d.shifts[0].bkTo], ['bus', '18:05', 'pl1']);
+  assert.deepStrictEqual(d.days['2026-11-06'].map(e => [e.bk, e.bkTo]), [['walk', '>'], ['-', undefined]]);
+});

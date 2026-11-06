@@ -64,6 +64,10 @@
     if (trOk(x.tr) || (day && x.tr === '-')) o.tr = x.tr;
     if (o.tr && o.tr !== '-') { if (timeOr(x.trDep)) o.trDep = x.trDep; if (timeOr(x.trArr)) o.trArr = x.trArr; }
     else if (day && !o.tr) { if (timeOr(x.trDep)) o.trDep = x.trDep; if (timeOr(x.trArr)) o.trArr = x.trArr; }
+    // v1.42: trayecto de después del turno (bk = medio o '-' en el día, bkDep/bkArr = horas, bkTo = destino: '' Casa, '>' siguiente turno o id de lugar)
+    if (trOk(x.bk) || (day && x.bk === '-')) o.bk = x.bk;
+    if (o.bk && o.bk !== '-') { if (timeOr(x.bkDep)) o.bkDep = x.bkDep; if (timeOr(x.bkArr)) o.bkArr = x.bkArr; }
+    if (o.bk && o.bk !== '-' && typeof x.bkTo === 'string' && (x.bkTo === '>' || RE_ID.test(x.bkTo))) o.bkTo = x.bkTo;
     return o;
   };
 
@@ -163,10 +167,40 @@
     return { mode, dep: timeOr(e && e.trDep) || timeOr(shift && shift.trDep), arr: timeOr(e && e.trArr) || timeOr(shift && shift.trArr) };
   }
 
+  /* ---- v1.42: trayecto de DESPUÉS del turno (al acabar: volver a Casa, ir a otro lugar o ir al siguiente turno). El del día gana
+     sobre el del turno; e.bk = '-' = ese día sin trayecto de después. Devuelve { mode, dep, arr, to } o null. to: '' = Casa,
+     '>' = el siguiente turno del día (si no hay, Casa) o el id de un lugar. dep vacío = sale a la hora en que acaba el turno. */
+  function entryReturn(shift, e) {
+    if (e && e.bk === '-') return null;
+    const own = e && trOk(e.bk), mode = own ? e.bk : (shift && trOk(shift.bk) && shift.bk) || '';
+    if (!mode) return null;
+    const src = own ? e : shift;
+    return { mode, dep: timeOr(e && e.bkDep) || timeOr(shift && shift.bkDep), arr: timeOr(e && e.bkArr) || timeOr(shift && shift.bkArr), to: typeof src.bkTo === 'string' ? src.bkTo : '' };
+  }
+  /* Trayectos de un día, en orden: [{ i, kind: 'go' | 'back', mode, dep, arr, to }] (i = posición en la lista del día).
+     'go' = llegar al turno i (su medio de llegada). Si el turno i no tiene llegada propia y el anterior dice «después: al siguiente
+     turno», ese trayecto es su llegada (enlazados: sale a la hora en que acaba el anterior). 'back' = después del turno i hacia
+     Casa u otro lugar; si dice «al siguiente turno» y no hay siguiente, va a Casa. to en 'go' = 'turno'. */
+  function dayLegs(list, shiftBy) {
+    const xs = (list || []).map((e, i) => ({ e, i, s: e && shiftBy[e.sid] })).filter((x) => x.s);
+    const tm = (x) => entryTimes(x.s, x.e);
+    xs.sort((a, b) => String(tm(a).start || '').localeCompare(String(tm(b).start || '')));
+    const out = [];
+    xs.forEach((x, j) => {
+      const prev = j ? xs[j - 1] : null, next = xs[j + 1] || null, go = entryTransport(x.s, x.e);
+      const pr = prev && entryReturn(prev.s, prev.e);
+      if (go) out.push({ i: x.i, kind: 'go', mode: go.mode, dep: go.dep, arr: go.arr, to: 'turno' });
+      else if (pr && pr.to === '>') out.push({ i: x.i, kind: 'go', mode: pr.mode, dep: pr.dep || tm(prev).end || '', arr: pr.arr, to: 'turno', linked: prev.i });
+      const bk = entryReturn(x.s, x.e);
+      if (bk && !(bk.to === '>' && next)) out.push({ i: x.i, kind: 'back', mode: bk.mode, dep: bk.dep || tm(x).end || '', arr: bk.arr, to: bk.to === '>' ? '' : bk.to });
+    });
+    return out;
+  }
+
   /* ---- v1.39: cambiar un turno también en otros días. Dos entradas «coinciden» si son el mismo turno (sid) con el mismo
      horario efectivo (hora de inicio y de fin, contando las del turno). Los turnos puntuales (o_…) nunca coinciden con otros.
      sameEntries → [{ k, i }] de las otras entradas que coinciden (sin la propia); scope 'next' = solo las de después de k. */
-  const EDIT_KEYS = ['start', 'end', 'brk', 'pl', 'plx', 'tr', 'trDep', 'trArr'];
+  const EDIT_KEYS = ['start', 'end', 'brk', 'pl', 'plx', 'tr', 'trDep', 'trArr', 'bk', 'bkDep', 'bkArr', 'bkTo'];
   function sameEntries(data, k, i, scope) {
     const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
     const me = (data.days[k] || [])[i], s = me && shiftBy[me.sid];
@@ -357,7 +391,7 @@
   }
 
   const api = {
-    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, sameEntries, applyEdit, EDIT_KEYS, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;

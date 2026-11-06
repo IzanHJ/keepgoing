@@ -2653,3 +2653,5 @@ body.orb-open { overflow: hidden; }
 .nh-d b { font-size: 18px; } .nh-d small { color: var(--muted); font-size: 11px; text-transform: capitalize; }
 .nh-it .grow { display: flex; flex-direction: column; min-width: 0; }
 .nh-t { overflow-wrap: anywhere; }
+/* v1.42: trayecto de después del turno (a Casa, a otro lugar o al siguiente turno) */
+.tf-trip.bk { border-style: dotted; background: color-mix(in srgb, var(--c) 8%, transparent); }
