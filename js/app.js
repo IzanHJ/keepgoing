@@ -233,6 +233,23 @@
     fence: '<path d="M5 21V6l1.5-2L8 6v15M11 21V6l1.5-2L14 6v15M17 21V6l1.5-2L20 6v15M3 10h18M3 16h18"/>',
     fountain: '<path d="M4 15h16l-2 5H6z"/><path d="M12 15V6M12 6c-2 0-4 2-4 5M12 6c2 0 4 2 4 5"/>',
     tent: '<path d="M3 20L12 4l9 16z"/><path d="M12 4v16M9 20l3-6 3 6"/>',
+    // v1.42: escenarios nuevos y piezas de interior
+    cart: '<path d="M3 4h2.5l2.2 10.5h10.6L20.5 7H6.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/>',
+    building: '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h1.5M13.5 7H15M9 11h1.5M13.5 11H15M9 15h1.5M13.5 15H15M11 21v-3h2v3"/>',
+    cup: '<path d="M5 8h11v6a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5c0 1 1 1.5 1 2.5M12 3.5c0 1 1 1.5 1 2.5"/>',
+    school: '<path d="M3 21h18M5 21V10l7-4 7 4v11"/><path d="M12 6V2.5l3 1.2-3 1.2M10 21v-4h4v4"/><circle cx="12" cy="11.5" r="1.8"/>',
+    film: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M8 5v14M16 5v14"/>',
+    pool: '<path d="M3 16c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0M3 20c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0"/><path d="M8 13V5a2 2 0 0 1 4 0M14 13V5a2 2 0 0 1 4 0M8 9h6"/>',
+    mountain: '<path d="M2.5 20L9.5 7l4 7 2-3 6 9z"/><path d="M7.6 10.5l1.9 1.5 1.8-1.4"/>',
+    pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>',
+    desk: '<path d="M3 9h18M5 9v11M19 9v11M14 9v6h5"/><rect x="8" y="3" width="8" height="4.5" rx=".8"/>',
+    chair: '<path d="M7 3v9h10V3M6 12h12M7 12v8M17 12v8"/>',
+    sofa: '<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3"/><path d="M3 12a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3zM5 17v2M19 17v2"/>',
+    tv: '<rect x="3" y="5" width="18" height="12" rx="1.5"/><path d="M8 21h8M12 17v4"/>',
+    board: '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M7 20l2-4M17 20l-2-4M7 8h6M7 11h9"/>',
+    plant: '<path d="M7 14h10l-1.5 7h-7z"/><path d="M12 14V8M12 8c-3 0-5-2-5-5 3 0 5 2 5 5zM12 10c2.5 0 4.5-1.8 4.5-4.5-2.5 0-4.5 1.8-4.5 4.5z"/>',
+    rug: '<rect x="4" y="6" width="16" height="12" rx="1"/><path d="M4 9H2M4 12H2M4 15H2M20 9h2M20 12h2M20 15h2M8 10h8v4H8z"/>',
+    ptable: '<path d="M3 8h18M6 8v12M18 8v12M6 13h12"/>',
   };
   // v1.27: data-i = nombre del icono, para su micro animación propia al pasar el cursor o tocarlo
   const ico = (n, cls = '') => `<svg class="i ${cls}" data-i="${n}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1475,11 +1492,13 @@
   const lwTrIco = tr => LW_TR_ICO[tr] || 'route';
   /* v1.40: escenarios 3D. Cada escenario tiene un color (state.lwStyle.colors) y se pueden crear escenarios propios
      con piezas low-poly sobre una rejilla (state.lwStyle.scenes, lógica en js/scenes.js) */
-  const lwSt = () => state.lwStyle || (state.lwStyle = KGScenes.normStyle(null));
+  const lwSt = () => { const st = state.lwStyle || (state.lwStyle = KGScenes.normStyle(null)); if (!st.over || typeof st.over !== 'object') st.over = {}; return st; };
   const lwCustom = id => KGScenes.isCustom(id) ? lwSt().scenes.find(x => x.id === id) || null : null;
   const lwSceneOk = id => KGWorld.okScene(id) || !!lwCustom(id);
   const lwSceneName = id => KGWorld.okScene(id) ? t('lwSc_' + id) : lwCustom(id) ? lwCustom(id).name : t('lwNoScene');
   const lwScIco = id => lwCustom(id) ? 'layers' : lwSceneIco(id);
+  // v1.42: lo que se pinta de un escenario (propio, de serie editado o de serie): todo son rejillas de piezas
+  const lwBuilt = (id, o = {}) => { const st = lwSt(), x = KGScenes.sceneOf(st, id); return x ? { type: 'scene', scene: id, cells: x.cells, g: x.g, sh: x.sh, color: x.color, mono: st.mono, ...o } : null; };
   const lwTrSpec = (tr, o = {}) => ({ type: 'travel', tr, color: KGScenes.colorOf(lwSt(), 'tr-' + tr), mono: lwSt().mono, ...o });
   const lwDur = m => m == null ? '' : m < 60 ? t('lwMin', { n: m }) : m % 60 ? t('lwHMin', { h: Math.floor(m / 60), m: m % 60 }) : t('lwH', { h: m / 60 });
   // El mapa del mundo (Natural Earth 110m) se descarga la primera vez que se abre Mundo y queda en la caché de la app
@@ -1511,13 +1530,12 @@
     });
   }
   const lwSceneSpec = p => {
-    const st = lwSt(), cs = p && lwCustom(p.scene);
-    if (cs) return { type: 'scene', scene: cs.id, cells: cs.cells, color: cs.color, mono: st.mono };
-    if (p && KGWorld.okScene(p.scene)) return { type: 'scene', scene: p.scene, color: KGScenes.colorOf(st, p.scene), mono: st.mono };
+    const b = p && lwSceneOk(p.scene) && lwBuilt(p.scene);
+    if (b) return b;
     return { type: 'scene', scene: 'pin', color: p ? tfColor(p.color) : '#8e8e93', mono: false };
   };
   // Qué se pinta para un momento en «Lugares»: solo su escenario (v1.40: el trayecto y el vuelo están aparte, en «Transporte»)
-  const lwSpecs = m => [m.place ? lwSceneSpec(m.place) : m.kind === 'gym' ? { type: 'scene', scene: 'gym', color: KGScenes.colorOf(lwSt(), 'gym'), mono: lwSt().mono } : { type: 'scene', scene: 'unknown' }];
+  const lwSpecs = m => [m.place ? lwSceneSpec(m.place) : m.kind === 'gym' ? lwBuilt('gym') : { type: 'scene', scene: 'unknown' }];
   // …y para un trayecto en «Transporte»: el vuelo en el globo si cambió de país (y se saben los dos sitios); si no, el vehículo en marcha
   function lwLegSpecs(l) {
     if (l.trip) { const a = lwLL(l.trip.fromPlace, lwGeo(l.trip.fromPlace)), b = lwLL(l.trip.toPlace, l.geo); if (a && b) return [{ type: 'globe', from: a, to: b }]; }
@@ -1529,7 +1547,7 @@
     LW.r = null; LW.cv = null;
   }
   // Versión fija (sin WebGL o sin poder cargar el 3D): el icono del escenario y su nombre
-  const lwStaticHtml = spec => spec.type === 'globe' ? `${ico('globe')}<span>${esc(t('lwTrips'))}</span>` : spec.type === 'travel' ? `${ico(lwTrIco(spec.tr))}<span>${esc(t('lwTr_' + spec.tr))}</span>` : `<span class="lw-st-c" style="--c:${esc(spec.color || 'transparent')}">${ico(spec.scene === 'unknown' ? 'info' : spec.cells ? 'layers' : lwSceneIco(spec.scene))}</span><span>${esc(spec.scene === 'unknown' ? t('lwNoPlace') : spec.scene === 'pin' ? t('lwNoScene') : spec.cells ? (LW.ed && LW.ed.id === spec.scene ? LW.ed.name : lwSceneName(spec.scene)) : t('lwSc_' + spec.scene))}</span>`;
+  const lwStaticHtml = spec => spec.type === 'globe' ? `${ico('globe')}<span>${esc(t('lwTrips'))}</span>` : spec.type === 'travel' ? `${ico(lwTrIco(spec.tr))}<span>${esc(t('lwTr_' + spec.tr))}</span>` : `<span class="lw-st-c" style="--c:${esc(spec.color || 'transparent')}">${ico(spec.scene === 'unknown' ? 'info' : lwScIco(spec.scene))}</span><span>${esc(spec.scene === 'unknown' ? t('lwNoPlace') : spec.scene === 'pin' ? t('lwNoScene') : LW.ed && LW.ed.id === spec.scene && !LW.ed.built ? LW.ed.name : lwSceneName(spec.scene))}</span>`;
   // Enseña una lista de vistas una tras otra (vuelo → lugar, trayecto → lugar)
   function lwPlay(list) {
     clearTimeout(LW.tm); LW.arrive = null;
@@ -1845,11 +1863,11 @@
     const scColor = id => lwCustom(id) ? lwCustom(id).color : KGScenes.colorOf(lwSt(), id);
     function lwScSpec() {
       const st = lwSt();
-      if (LW.ed) return { type: 'scene', scene: LW.ed.id, cells: LW.ed.cells, color: LW.ed.color, mono: st.mono, instant: true };
+      if (LW.ed) return { type: 'scene', scene: LW.ed.id, cells: LW.ed.cells, g: LW.ed.g, sh: LW.ed.sh, color: LW.ed.color, mono: st.mono, instant: true };
       const id = scCur();
       if (id.startsWith('tr-')) return lwTrSpec(id.slice(3));
-      const cs = lwCustom(id); if (cs) return { type: 'scene', scene: id, cells: cs.cells, color: cs.color, mono: st.mono };
-      return { type: 'scene', scene: id, color: KGScenes.colorOf(st, id), mono: st.mono };
+      if (LW.alt && LW.alt.id === id) return lwBuilt(id, { cells: LW.alt.cells });
+      return lwBuilt(id) || { type: 'scene', scene: 'unknown' };
     }
     const swatches = (cur, attr) => `<div class="swatches lw-sw">${['#8e8e93', ...HABIT_COLORS].map(c => `<button type="button" class="sw ${cur === c ? 'on' : ''}" ${attr}="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="lw-color" value="${esc(cur)}" aria-label="${esc(t('themeCustom'))}"></div>`;
     const usedBy = id => (state.calPlaces || []).filter(pl => pl.scene === id);
@@ -1863,7 +1881,9 @@
       h += `<div class="lw-sec"><span class="jr-h">${ico('palette', 'xs')} ${esc(t('lwScColor'))}</span>${swatches(scColor(id), 'data-lw-c')}
         <label class="row lw-mono" style="gap:12px"><span class="switch"><input type="checkbox" id="lw-mono" ${st.mono ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('lwMono'))}</b><br><span class="muted">${esc(t('lwMonoHint'))}</span></span></label>
         ${!cs && st.colors[id] ? `<button class="chip sm ghost" data-lw-reset>${ico('refresh', 'xs')} ${esc(t('lwScReset'))}</button>` : ''}</div>`;
-      if (cs) h += `<div class="row wrap lw-acts"><button class="btn sm" data-lw-ed="${esc(id)}">${ico('edit')} ${esc(t('edit'))}</button><button class="btn sm ghost" data-lw-dup="${esc(id)}">${ico('copy')} ${esc(t('lwDup'))}</button><button class="btn sm ghost danger" data-lw-del="${esc(id)}">${ico('trash')} ${esc(t('delete'))}</button></div>`;
+      // v1.42: todos los escenarios de lugar se pueden editar y tienen «Alternativa»; los de serie editados, «Restaurar»
+      if (!isTr && LW.alt && LW.alt.id === id) h += `<div class="lw-alt"><span class="small"><b>${ico('sparkle', 'xs')} ${esc(t('lwAltN', { n: LW.alt.n }))}</b><br><span class="muted">${esc(t('lwAltHint'))}</span></span><div class="row wrap lw-acts"><button class="btn sm" data-lw-alt-next>${ico('refresh')} ${esc(t('lwAltOther'))}</button><span class="grow"></span><button class="btn sm ghost" data-lw-alt-cancel>${esc(t('cancel'))}</button><button class="btn sm primary" data-lw-alt-save>${ico('check')} ${esc(t('lwAltSave'))}</button></div></div>`;
+      else if (!isTr) h += `<div class="row wrap lw-acts"><button class="btn sm" data-lw-ed="${esc(id)}">${ico('edit')} ${esc(t('edit'))}</button><button class="btn sm" data-lw-alt="${esc(id)}">${ico('sparkle')} ${esc(t('lwAlt'))}</button>${cs ? `<button class="btn sm ghost" data-lw-dup="${esc(id)}">${ico('copy')} ${esc(t('lwDup'))}</button><button class="btn sm ghost danger" data-lw-del="${esc(id)}">${ico('trash')} ${esc(t('delete'))}</button>` : ''}${!cs && lwSt().over[id] ? `<button class="btn sm ghost" data-lw-restore="${esc(id)}">${ico('refresh')} ${esc(t('lwRestore'))}</button>` : ''}</div>`;
       if (!isTr) {
         const ub = usedBy(id), pls = (state.calPlaces || []).filter(pl => pl.scene !== id);
         h += `<div class="lw-sec"><span class="jr-h">${ico('pin', 'xs')} ${esc(t('lwUsedBy'))}</span>${ub.length ? `<div class="lw-cc">${ub.map(pl => `<span class="chip sm" style="--c:${tfColor(pl.color)}">${esc(pl.name)}</span>`).join('')}</div>` : `<span class="muted small">${esc(t('lwUsedNone'))}</span>`}
@@ -1874,15 +1894,19 @@
     };
     const tplPick = () => `<div class="lw-sec lw-tpl" id="lw-tpl"><span class="jr-h">${ico('layers', 'xs')} ${esc(t('lwFromTpl'))}</span><div class="lw-pl">${['', ...KGScenes.TEMPLATE_IDS].map(x => `<button class="lw-pc" data-lw-tpl="${x}" style="--c:var(--accent)">${ico(x ? 'layers' : 'plus', 'xs')}<span class="grow ellipsis">${esc(t(x ? 'lwTpl_' + x : 'lwTplEmpty'))}</span></button>`).join('')}</div></div>`;
     const edBody = () => {
-      const E = LW.ed, n = KGScenes.GRID, top = (x, z) => { const ks = E.cells.filter(k => k[0] === x && k[1] === z); return ks.find(k => KGScenes.topAsset(k[2])) || ks[0]; };
+      const E = LW.ed, n = KGScenes.GRID, top = (x, z) => { const ks = E.cells.filter(k => k[0] === x && k[1] === z); return ks.find(k => KGScenes.layer(k[2]) === 't') || ks.find(k => KGScenes.layer(k[2]) === 'g') || ks[0]; };
       const aIco = a => (KGScenes.ASSETS.find(x => x[0] === a) || [0, 'box'])[1];
-      const tools = `<div class="lw-tools" role="radiogroup" aria-label="${esc(t('lwPieces'))}">${KGScenes.ASSETS.map(([a, ic]) => `<button class="lw-tool ${E.tool === a ? 'on' : ''}" data-lw-tool="${a}" role="radio" aria-checked="${E.tool === a}">${ico(ic, 'xs')}<span>${esc(t('lwA_' + a))}</span></button>`).join('')}
+      const grp = KGScenes.GROUPS[E.grp] ? E.grp : 'build', inG = KGScenes.GROUPS[grp];
+      const grps = `<div class="seg seg-sm lw-grps" role="tablist">${KGScenes.GROUP_IDS.map(g => `<button role="tab" data-lw-grp="${g}" class="${grp === g ? 'on' : ''}" aria-selected="${grp === g}">${esc(t('lwG_' + g))}</button>`).join('')}</div>`;
+      const look = `<div class="lw-look"><span class="jr-h">${esc(t('lwGround'))}</span><div class="row wrap" style="gap:6px">${KGScenes.GROUNDS.map(g => `<button class="chip sm ${(E.g || 'tint') === g ? 'on' : ''}" data-lw-gr="${g}">${esc(t('lwGr_' + g))}</button>`).join('')}</div>
+        <span class="jr-h">${esc(t('lwShape'))}</span><div class="row wrap" style="gap:6px">${KGScenes.SHAPES.map(x => `<button class="chip sm ${(E.sh || 'sq') === x ? 'on' : ''}" data-lw-sh="${x}">${esc(t('lwSh_' + x))}</button>`).join('')}</div></div>`;
+      const tools = `${grps}<div class="lw-tools" role="radiogroup" aria-label="${esc(t('lwPieces'))}">${KGScenes.ASSETS.filter(([a]) => inG.includes(a)).map(([a, ic]) => `<button class="lw-tool ${E.tool === a ? 'on' : ''}" data-lw-tool="${a}" role="radio" aria-checked="${E.tool === a}">${ico(ic, 'xs')}<span>${esc(t('lwA_' + a))}</span></button>`).join('')}
           <button class="lw-tool ${E.tool === 'size' ? 'on' : ''}" data-lw-tool="size" role="radio" aria-checked="${E.tool === 'size'}">${ico('layers', 'xs')}<span>${esc(t('lwSize'))}</span></button>
           <button class="lw-tool ${E.tool === 'erase' ? 'on' : ''}" data-lw-tool="erase" role="radio" aria-checked="${E.tool === 'erase'}">${ico('trash', 'xs')}<span>${esc(t('lwErase'))}</span></button></div>`;
       let h = `<div class="lw-ed"><div class="lw-grid" style="--n:${n}" role="grid" aria-label="${esc(t('lwGridAria'))}">`;
       for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) { const k = top(x, z), both = E.cells.filter(c => c[0] === x && c[1] === z).length > 1; h += `<button class="lw-cell ${k ? 'on' : ''}" data-lw-cell="${x},${z}" style="--r:${k ? k[3] * 90 : 0}deg" aria-label="${esc(k ? t('lwA_' + k[2]) : t('lwEmptyCell'))}">${k ? ico(aIco(k[2]), 'xs') : ''}${k && k[4] !== 1 ? `<i class="lw-sz">${k[4] === 2 ? 'L' : 'S'}</i>` : ''}${both ? '<i class="lw-stack"></i>' : ''}</button>`; }
-      h += `</div><p class="muted small">${esc(t('lwEdHint'))}</p>${tools}
-        <input class="input" id="lw-ed-name" maxlength="${KGScenes.NAME_MAX}" value="${esc(E.name)}" placeholder="${esc(t('lwScNamePh'))}" aria-label="${esc(t('tfName'))}">
+      h += `</div><p class="muted small">${esc(t('lwEdHint'))}</p>${tools}${look}
+        ${E.built ? `<p class="muted small">${ico('info', 'xs')} ${esc(t('lwEdBuilt', { n: lwSceneName(E.id) }))}</p>` : `<input class="input" id="lw-ed-name" maxlength="${KGScenes.NAME_MAX}" value="${esc(E.name)}" placeholder="${esc(t('lwScNamePh'))}" aria-label="${esc(t('tfName'))}">`}
         ${swatches(E.color, 'data-lw-c')}
         <div class="row wrap lw-acts"><button class="btn sm ghost" data-lw-clear>${ico('x')} ${esc(t('lwClear'))}</button><span class="grow"></span><button class="btn sm ghost" data-lw-cancel>${esc(t('cancel'))}</button><button class="btn sm primary" data-lw-save>${ico('check')} ${esc(t('save'))}</button></div></div>`;
       return h;
@@ -1902,7 +1926,7 @@
       const c2 = wref && $('#lw-car', wref);
       if (c2) { if (keepScroll) c2.scrollLeft = sl; const on = $('.lw-cc-i.on', c2); if (on && on.scrollIntoView) { const r = on.offsetLeft - c2.clientWidth / 2 + on.clientWidth / 2; c2.scrollTo({ left: r, behavior: reducedMotion() ? 'auto' : 'smooth' }); } }
     };
-    const scStep = d => { const xs = scItems(), i = xs.indexOf(scCur()); LW.sc = xs[(i + d + xs.length) % xs.length]; vibrate(5); sfx('tap'); scRefresh(); };
+    const scStep = d => { LW.alt = null; const xs = scItems(), i = xs.indexOf(scCur()); LW.sc = xs[(i + d + xs.length) % xs.length]; vibrate(5); sfx('tap'); scRefresh(); };
     const setColor = c => {
       if (!/^#[0-9a-f]{6}$/i.test(c)) return;
       c = c.toLowerCase();
@@ -1911,16 +1935,43 @@
     const edOpen = (cs, tpl) => {
       const st = lwSt();
       if (!cs && st.scenes.length >= KGScenes.MAX_SCENES) { toast(t('lwScMax', { n: KGScenes.MAX_SCENES })); return; }
-      LW.tplOpen = false;
-      LW.ed = cs ? { id: cs.id, name: cs.name, color: cs.color, cells: cs.cells.map(k => k.slice()), tool: 'house', isNew: false }
-        : { id: KGScenes.newId(Math.random, st.scenes.map(x => x.id)), name: tpl ? t('lwTpl_' + tpl) : t('lwMyScene'), color: KGScenes.CUSTOM_COLOR, cells: tpl ? KGScenes.template(tpl) : [], tool: 'house', isNew: true, tpl };
+      LW.tplOpen = false; LW.alt = null;
+      LW.ed = cs ? { id: cs.id, name: cs.name, color: cs.color, cells: cs.cells.map(k => k.slice()), g: cs.g || 'tint', sh: cs.sh || 'sq', tool: 'house', grp: 'build', isNew: false }
+        : { id: KGScenes.newId(Math.random, st.scenes.map(x => x.id)), name: tpl ? t('lwTpl_' + tpl) : t('lwMyScene'), color: KGScenes.CUSTOM_COLOR, cells: tpl ? KGScenes.template(tpl) : [], g: 'tint', sh: 'sq', tool: 'house', grp: 'build', isNew: true, tpl };
+      sfx('tap'); setPanel();
+    };
+    // v1.42: editar un escenario de serie. Se guarda como tu versión (state.lwStyle.over) y «Restaurar» vuelve a la original
+    const edOpenBuilt = id => {
+      const x = KGScenes.sceneOf(lwSt(), id); if (!x) return;
+      LW.tplOpen = false; LW.alt = null;
+      LW.ed = { id, built: true, name: lwSceneName(id), color: x.color, cells: x.cells.map(k => k.slice()), g: x.g, sh: x.sh, tool: KGScenes.GROUPS.indoor.includes((x.cells.find(k => KGScenes.BIG.includes(k[2])) || [])[2]) ? 'desk' : 'tree', grp: x.sh === 'room' ? 'indoor' : 'nature' };
       sfx('tap'); setPanel();
     };
     const edSave = () => {
-      const E = LW.ed, st = lwSt(), sc = KGScenes.normScene({ id: E.id, name: E.name, color: E.color, cells: E.cells, tpl: E.tpl });
+      const E = LW.ed, st = lwSt();
+      if (E.built) {
+        st.over[E.id] = { cells: KGScenes.normCells(E.cells), ...(E.g && E.g !== 'tint' ? { g: E.g } : {}), ...(E.sh && E.sh !== 'sq' ? { sh: E.sh } : {}) };
+        if (E.color !== KGScenes.colorOf(st, E.id)) st.colors[E.id] = E.color;
+        LW.ed = null; LW.scKind = 'place'; LW.sc = E.id; scSave(); sfx('success'); toast(t('saved')); scRefresh(false); return;
+      }
+      const sc = KGScenes.normScene({ id: E.id, name: E.name, color: E.color, cells: E.cells, g: E.g, sh: E.sh, tpl: E.tpl });
       if (!sc) return;
       const i = st.scenes.findIndex(x => x.id === E.id); if (i >= 0) st.scenes[i] = sc; else st.scenes.push(sc);
       LW.ed = null; LW.scKind = 'place'; LW.sc = sc.id; scSave(); sfx('success'); toast(t('saved')); scRefresh(false);
+    };
+    // v1.42: «Alternativa»: las mismas piezas con otra disposición. Cada toque da una nueva; se guarda la que guste
+    const altNext = id => {
+      const x = KGScenes.sceneOf(lwSt(), id); if (!x) return;
+      const n = LW.alt && LW.alt.id === id ? LW.alt.n + 1 : 1, seed = (Date.now() ^ (n * 2654435761)) >>> 0;
+      LW.alt = { id, n, cells: KGScenes.variant(x.cells, seed, { room: x.sh === 'room' }), g: x.g, sh: x.sh };
+      vibrate(5); sfx('tlPick'); scRefresh();
+    };
+    const altSave = () => {
+      const A = LW.alt, st = lwSt(); if (!A) return;
+      const cs = lwCustom(A.id);
+      if (cs) cs.cells = KGScenes.normCells(A.cells);
+      else st.over[A.id] = { cells: KGScenes.normCells(A.cells), ...(A.g && A.g !== 'tint' ? { g: A.g } : {}), ...(A.sh && A.sh !== 'sq' ? { sh: A.sh } : {}) };
+      LW.alt = null; scSave(); sfx('success'); toast(t('saved')); scRefresh();
     };
     // Repintar solo la rejilla y el 3D al editar (sin volver a crear el resto)
     const edPaint = () => { const b = wref && $('#lw-body', wref); if (!b) return; const y = window.scrollY; b.innerHTML = edBody(); window.scrollTo(0, y); lwPlay([lwScSpec()]); };
@@ -1930,13 +1981,21 @@
       if (lm) { const d = lm.dataset; LW.pick = d.lwM !== undefined ? { t: 'm', i: +d.lwM } : d.lwP !== undefined ? { t: 'p', id: d.lwP } : d.lwT !== undefined ? { t: 'trip', i: +d.lwT } : d.lwTr !== undefined ? { t: 'tr', tr: d.lwTr } : { t: 'all' }; vibrate(5); sfx('tlPick'); setPanel(); return true; }
       const le = e.target.closest('[data-lw-edit]'); if (le) { const pl = tfPlace(le.dataset.lwEdit); if (pl) tfEditPlace(pl, () => setPanel()); return true; }
       const sk = e.target.closest('[data-lw-sck]'); if (sk) { LW.scKind = sk.dataset.lwSck; LW.sc = null; LW.tplOpen = false; sfx('tap'); scRefresh(false); return true; }
-      const si = e.target.closest('[data-lw-sc]'); if (si) { LW.sc = si.dataset.lwSc; LW.tplOpen = false; vibrate(5); sfx('tlPick'); scRefresh(); return true; }
+      const si = e.target.closest('[data-lw-sc]'); if (si) { LW.sc = si.dataset.lwSc; LW.tplOpen = false; LW.alt = null; vibrate(5); sfx('tlPick'); scRefresh(); return true; }
       const sn = e.target.closest('[data-lw-scn]'); if (sn) { scStep(+sn.dataset.lwScn); return true; }
       const sw = e.target.closest('[data-lw-c]'); if (sw) { setColor(sw.dataset.lwC); sfx('tap'); if (LW.ed) edPaint(); else scRefresh(); return true; }
       if (e.target.closest('[data-lw-reset]')) { delete lwSt().colors[scCur()]; scSave(); sfx('tap'); scRefresh(); return true; }
       if (e.target.closest('[data-lw-new]')) { LW.tplOpen = !LW.tplOpen; sfx('tap'); setPanel(); const tp = wref && $('#lw-tpl', wref); if (tp) tp.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); return true; }
       const tp = e.target.closest('[data-lw-tpl]'); if (tp) { edOpen(null, tp.dataset.lwTpl || ''); return true; }
-      const ed = e.target.closest('[data-lw-ed]'); if (ed) { const cs = lwCustom(ed.dataset.lwEd); if (cs) edOpen(cs); return true; }
+      const ed = e.target.closest('[data-lw-ed]'); if (ed) { const cs = lwCustom(ed.dataset.lwEd); if (cs) edOpen(cs); else if (KGWorld.okScene(ed.dataset.lwEd)) edOpenBuilt(ed.dataset.lwEd); return true; }
+      const al = e.target.closest('[data-lw-alt]'); if (al) { altNext(al.dataset.lwAlt); return true; }
+      if (e.target.closest('[data-lw-alt-next]') && LW.alt) { altNext(LW.alt.id); return true; }
+      if (e.target.closest('[data-lw-alt-cancel]')) { LW.alt = null; sfx('tap'); scRefresh(); return true; }
+      if (e.target.closest('[data-lw-alt-save]')) { altSave(); return true; }
+      const rs = e.target.closest('[data-lw-restore]'); if (rs) { confirmDialog(t('lwRestoreQ')).then(ok => { if (!ok) return; delete lwSt().over[rs.dataset.lwRestore]; scSave(); sfx('tap'); scRefresh(); }); return true; }
+      const gp = e.target.closest('[data-lw-grp]'); if (gp && LW.ed) { LW.ed.grp = gp.dataset.lwGrp; if (!KGScenes.GROUPS[LW.ed.grp].includes(LW.ed.tool)) LW.ed.tool = KGScenes.GROUPS[LW.ed.grp][0]; sfx('tap'); edPaint(); return true; }
+      const gr = e.target.closest('[data-lw-gr]'); if (gr && LW.ed) { LW.ed.g = gr.dataset.lwGr; sfx('tap'); edPaint(); return true; }
+      const shp = e.target.closest('[data-lw-sh]'); if (shp && LW.ed) { LW.ed.sh = shp.dataset.lwSh; sfx('tap'); edPaint(); return true; }
       const du = e.target.closest('[data-lw-dup]'); if (du) { const cs = lwCustom(du.dataset.lwDup); if (cs) { edOpen({ ...cs, id: KGScenes.newId(Math.random, lwSt().scenes.map(x => x.id)), name: (cs.name + ' 2').slice(0, KGScenes.NAME_MAX) }); if (LW.ed) LW.ed.isNew = true; } return true; }
       const dl = e.target.closest('[data-lw-del]'); if (dl) {
         const id = dl.dataset.lwDel, ub = usedBy(id);
