@@ -1122,6 +1122,7 @@
     if (!state.calJobs.length) { state.calJobs.push({ ...TF.defaults().jobs[0], name: t('tfDefJob') }); save(); }
     if (!p.kindsMig) tfMigrateKinds();
     if (!p.payMig) tfMigratePay();
+    if (!state.calPrefs.jobMig) tfMigrateJobs();
     tfTplSeed();
   }
   // v1.26 pasaba la tarifa de los Tipos a los turnos; desde la v1.39 no hay paga, así que solo queda la marca
@@ -1129,6 +1130,16 @@
   /* v1.39: fuera la paga (migración forzosa: no hay usuarios reales). Una sola vez: las categorías «… · sin paga» que creó la v1.26
      se juntan con su categoría original (sus turnos pasan a ella) y se quitan de categorías, turnos y tipos los campos de paga
      (tarifa, horas extra, tarifas especiales, paid, diffPct, rateMode, rateV). */
+  /* v1.43: fuera las Categorías de los turnos (decisión de Izan). Queda una sola interna para que las horas se sumen igual: todos
+     los turnos pasan a ella, el turno puntual con categoría pasa a «Suma horas» y se quita la categoría distinta de un día. */
+  function tfMigrateJobs() {
+    const keep = state.calJobs[0] || { ...TF.defaults().jobs[0], name: t('tfDefJob') };
+    state.calJobs = [keep];
+    state.calShifts = state.calShifts.map(s => s.jobId === keep.id ? s : { ...s, jobId: keep.id });
+    for (const [k, l] of Object.entries(state.calDays)) if (Array.isArray(l) && l.some(e => e && (e.job || (e.once && e.once.jobId && e.once.jobId !== keep.id)))) state.calDays[k] = l.map(e => { const { job, ...o } = e; if (o.once && o.once.jobId) o.once = { ...o.once, jobId: keep.id }; return o; });
+    state.calPrefs = { ...state.calPrefs, jobMig: 1 };
+    save();
+  }
   function tfMigratePay() {
     const p = state.calPrefs, ids = new Set(state.calJobs.map(j => j.id)), merge = {};
     for (const j of state.calJobs) if (j.unpaidOf && ids.has(j.unpaidOf)) merge[j.id] = j.unpaidOf;
@@ -3473,7 +3484,7 @@
         <div class="tf-form">${tfField(t('tfClockIn'), `<input class="input" type="time" id="tfc-start" value="${esc(f.start)}">`)}${tfField(t('tfClockOutL'), `<input class="input" type="time" id="tfc-end" value="${esc(f.end)}">`)}</div>
         <div class="seg seg-sm" role="group">${[['list', 'tfClockFromList'], ['once', 'tfOnce']].map(([m, l]) => `<button type="button" data-tfc-m="${m}" class="${mode === m ? 'on' : ''}" ${m === 'list' && !state.calShifts.length ? 'disabled' : ''}>${esc(t(l))}</button>`).join('')}</div>
         <div class="tf-form">${mode === 'list' ? tfField(t('tfPdfShift'), tfSel('id="tfc-sid"', state.calShifts.map(x => [x.id, (x.emoji ? x.emoji + ' ' : '') + x.name]), sid), true) : tfField(t('tfName'), `<input class="input" id="tfc-name" maxlength="40" value="${esc(f.name)}">`, true)}
-        ${tfField(t('tfJob'), tfSel('id="tfc-job"', [...(mode === 'once' ? [['', t('tfOnceNoJob')]] : []), ...state.calJobs.map(j => [j.id, j.name])], f.job), true)}
+        ${mode === 'once' ? tfField(t('tfSumH'), tfSel('id="tfc-job"', [[state.calJobs[0].id, t('tfSumYes')], ['', t('tfSumNo')]], f.job ? state.calJobs[0].id : ''), true) : ''}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfc-place"', f.place, mode === 'list' ? t('tfPlSame', { p: (tfPlace(s && s.placeId) || { name: t('tfPlNone') }).name }) : '', f.plx), true)}</div>
         <textarea class="input" id="tfc-note" rows="2" maxlength="${TF.LIMITS.note}" placeholder="${esc(t('tfNotePh'))}">${esc(f.note)}</textarea></div>`;
     };
@@ -3535,7 +3546,7 @@
       body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(t('tfOnceHint'))}</p>
         <div class="tf-form">${tfField(t('tfName'), `<input class="input" id="tfo-name" maxlength="40" value="${esc(o.name)}" placeholder="${esc(t('tfOncePh'))}">`)}${tfField(t('tfEmoji'), `<input class="input" id="tfo-emoji" maxlength="8" value="${esc(o.emoji)}">`)}
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfo-start" value="${esc(o.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfo-end" value="${esc(o.end)}">`)}
-        ${tfField(t('tfOnceJob'), tfSel('id="tfo-job"', [['', t('tfOnceNoJob')], ...state.calJobs.map(j => [j.id, j.name])], o.jobId), true)}
+        ${tfField(t('tfSumH'), tfSel('id="tfo-job"', [[state.calJobs[0].id, t('tfSumYes')], ['', t('tfSumNo')]], o.jobId ? state.calJobs[0].id : ''), true)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfo-place"', o.placeId || '', '', o.plx && o.plx.addr), true)}</div>
         <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${cols.map(c => `<button type="button" class="sw ${o.color === c ? 'on' : ''}" data-tfo-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="tfo-color" value="${tfColor(o.color)}" aria-label="${esc(t('themeCustom'))}"></div></div></div>`,
       foot: `<button class="btn primary block" data-tfo="save">${ico('check')} ${esc(t('save'))}</button>`,
@@ -3847,7 +3858,6 @@
     const r = TFS.rep, [from, to] = tfRepRange(), res = TF.report(tfData(), from, to, tfWs(), () => true, null);
     const shortD = k => fmtDate(k, { day: 'numeric', month: 'short', year: 'numeric' });
     const byShift = Object.entries(res.byShift).map(([id, v]) => { const s = tfShift(id); return s ? `<tr><td>${tfTag(s)}</td><td>${v.count}</td><td>${tfH(v.hours)}</td></tr>` : ''; }).join('');
-    const byKind = Object.entries(res.byJob).map(([id, v]) => { const j = state.calJobs.find(x => x.id === id); return j ? `<tr><td><span class="tf-dot sm" style="--c:${tfColor(j.color)}"></span> ${esc(j.name)}</td><td>${v.count}</td><td>${tfH(v.hours)}</td></tr>` : ''; }).join('');
     const empty = `<p class="muted" style="margin:0">${esc(t('tfNoData'))}</p>`;
     return `${tfSub(t('tfReports'))}
       <div class="seg" role="group">${[['week', 'tfWeek'], ['month', 'tfMonth'], ['year', 'tfYear'], ['custom', 'tfCustom']].map(([v, k]) => `<button data-tf-rm="${v}" class="${r.mode === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
@@ -3855,18 +3865,15 @@
         : `<div class="row" style="justify-content:space-between"><button class="icon-btn sm" data-tf="rprev" aria-label="${esc(t('tfPrev'))}">${ico('left')}</button><b>${esc(shortD(from))} – ${esc(shortD(to))}</b><button class="icon-btn sm" data-tf="rnext" aria-label="${esc(t('tfNext'))}">${ico('right')}</button></div>`}</section>
       <div class="tf-kpis ${privacyOn() ? 'priv' : ''}">${[['tfHours', tfH(res.hours)], ['tfShiftsN', String(res.count)], ['tfDaysN', String(res.days)]].map(([k, v]) => `<div class="kpi clay"><span class="muted small">${esc(t(k))}</span><b>${v}</b></div>`).join('')}</div>
       <section class="clay card"><h3 class="section-title" style="margin-top:0">${esc(t('tfByShift'))}</h3>${byShift ? `<table class="tf-table"><tr><th>${esc(t('tfPdfShift'))}</th><th>${esc(t('tfNum'))}</th><th>${esc(t('tfHours'))}</th></tr>${byShift}</table>` : empty}</section>
-      <section class="clay card"><h3 class="section-title" style="margin-top:0">${esc(t('tfByJob'))}</h3>${byKind ? `<table class="tf-table"><tr><th>${esc(t('tfJob'))}</th><th>${esc(t('tfNum'))}</th><th>${esc(t('tfHours'))}</th></tr>${byKind}</table>` : empty}</section>
       ${tfTplReport(from, to)}
       <p class="muted small">${esc(t('tfRepHint'))}</p>`;
   }
 
   /* ---------- Turnos y trabajos ---------- */
   function tfShiftsView(inner) {
-    const jobs = state.calJobs.map(j => `<div class="tf-item"><span class="tf-dot" style="--c:${tfColor(j.color)}"></span><span class="grow"><b>${esc(j.name)}</b><br><span class="muted small">${esc((n => t(n === 1 ? 'tfJobUses1' : 'tfJobUses', { n }))(state.calShifts.filter(s => s.jobId === j.id).length))}</span></span><button class="btn sm" data-tf-job="${esc(j.id)}">${esc(t('edit'))}</button></div>`).join('');
-    const list = state.calShifts.map(s => { const h = TF.entryHours(s, {}); return `<div class="tf-item">${tfTag(s, 'big')}<span class="grow muted small">${esc(s.start ? s.start + '–' + s.end : t('tfAllDay'))}${h ? ' · ' + tfH(h) + ' h' : ''}${(j => j ? ' · ' + esc(j.name) : '')(state.calJobs.find(j => j.id === s.jobId))}</span><button class="btn sm" data-tf-shift="${esc(s.id)}">${esc(t('edit'))}</button></div>`; }).join('');
+    const list = state.calShifts.map(s => { const h = TF.entryHours(s, {}); return `<div class="tf-item">${tfTag(s, 'big')}<span class="grow muted small">${esc(s.start ? s.start + '–' + s.end : t('tfAllDay'))}${h ? ' · ' + tfH(h) + ' h' : ''}</span><button class="btn sm" data-tf-shift="${esc(s.id)}">${esc(t('edit'))}</button></div>`; }).join('');
     return `${inner ? '' : tfSub(t('tfShifts'))}
       <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${esc(t('tfTemplates'))}</h2><button class="icon-btn sm" data-tf-shift="" aria-label="${esc(t('tfNewShift'))}" title="${esc(t('tfNewShift'))}">${ico('plus')}</button></div><div class="stack" style="gap:8px">${list}</div></section>
-      <section class="clay card stack ${privacyOn() ? 'priv' : ''}" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${esc(t('tfJobs'))}</h2><button class="icon-btn sm" data-tf-job="" aria-label="${esc(t('tfNewJob'))}" title="${esc(t('tfNewJob'))}">${ico('plus')}</button></div><div class="stack" style="gap:8px">${jobs}</div></section>
       <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${esc(t('tfPlaces'))}</h2><button class="icon-btn sm" data-tf-place="" aria-label="${esc(t('tfNewPlace'))}" title="${esc(t('tfNewPlace'))}">${ico('plus')}</button></div><div class="stack" style="gap:8px">${state.calPlaces.length ? state.calPlaces.map(p => `<div class="tf-item">${tfPlBadge(p, 'big')}<span class="grow"><b>${esc(p.name)}</b><br><span class="muted small">${esc([p.addr, (n => t(n === 1 ? 'tfPlUses1' : 'tfPlUses', { n }))(tfPlUses(p.id))].filter(Boolean).join(' · '))}</span></span><button class="btn sm" data-tf-place="${esc(p.id)}">${esc(t('edit'))}</button></div>`).join('') : `<p class="muted small" style="margin:0">${esc(t('tfPlEmpty'))}</p>`}</div></section>`;
   }
   /* v1.26: Lugares (sustituyen a los Tipos). Nombre, icono (texto o emoji) sobre un color y dirección. La dirección se busca aquí
@@ -4208,7 +4215,7 @@
     openModal({
       title: esc(t(isNew ? 'tfNewShift' : 'tfEditShift')), cls: 'tf-sheet',
       body: `<div class="tf-form">${tfField(t('tfName'), `<input class="input" id="tfe-name" maxlength="100" value="${esc(d.name)}">`)}${tfField(t('tfEmoji'), `<input class="input" id="tfe-emoji" maxlength="8" value="${esc(d.emoji)}">`)}
-        ${tfField(t('tfColor'), `<input class="tf-swatch" type="color" id="tfe-color" value="${tfColor(d.color)}" aria-label="${esc(t('tfColor'))}">`)}${tfField(t('tfJob'), tfSel('id="tfe-job"', state.calJobs.map(j => [j.id, j.name]), d.jobId))}
+        ${tfField(t('tfColor'), `<input class="tf-swatch" type="color" id="tfe-color" value="${tfColor(d.color)}" aria-label="${esc(t('tfColor'))}">`)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfe-place"', d.placeId || '', '', '', true), true)}
         ${tfField(t('ntpDef'), tfSel('id="tfe-ntp"', [['', t('ntpNone')], ...tfTplsQuick().map(p => [p.id, p.name])], d.ntp || ''), true)}
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfe-start" value="${esc(d.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfe-end" value="${esc(d.end)}">`)}
@@ -4230,7 +4237,7 @@
         if (!!v('tfe-start') !== !!v('tfe-end')) { toast(t('tfBothTimes')); return; }
         if (isNew && state.calShifts.length >= TF.LIMITS.shifts) { toast(t('tfMaxShifts', { n: TF.LIMITS.shifts })); return; }
         const tr = tfTrRead(w), bk = tfTrRead(w, 'bk'); if (!tfTrOk(tr) || !tfTrOk(bk)) return;
-        Object.assign(d, { name: name.slice(0, 100), emoji: v('tfe-emoji').trim().slice(0, 8), color: tfColor(v('tfe-color')), jobId: v('tfe-job'), start: v('tfe-start'), end: v('tfe-end'),
+        Object.assign(d, { name: name.slice(0, 100), emoji: v('tfe-emoji').trim().slice(0, 8), color: tfColor(v('tfe-color')), jobId: state.calJobs[0].id, start: v('tfe-start'), end: v('tfe-end'),
           breakMin: clamp(+v('tfe-brk') || 0, 0, 720), alarmMin: clamp(+v('tfe-alarm') || 0, 0, 1440) });
         delete d.diffPct; delete d.rateMode; delete d.rateV; delete d.tr; delete d.trDep; delete d.trArr;
         if (tr && tr.on) { d.tr = tr.mode; if (tr.dep) d.trDep = tr.dep; if (tr.arr) d.trArr = tr.arr; }
