@@ -297,3 +297,48 @@
 .ppx .pp-sub { margin: 4px 0 12px; opacity: .85; }
 :root[data-motion="full"] .ppx .pp-crown { animation: ppPop .9s cubic-bezier(.2, 1.4, .4, 1) both .2s; }
 @keyframes ppPop { from { transform: scale(.2) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* v1.47: cabecera limpia (solo los botones de cada pestaña, a la derecha) y AJUSTES como lunita bajo el orbe.
+   Solo se ve con el orbe abierto: sale de detrás del orbe grande y se queda justo debajo. */
+.top-bar { justify-content: flex-end; }
+.gy-top-end { justify-content: flex-end; }
+.orb-gear { position: absolute; z-index: 2; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; color: var(--accent-ink);
+  background: radial-gradient(circle at 34% 28%, color-mix(in srgb, #fff 80%, var(--accent)) 0%, color-mix(in srgb, #fff 25%, var(--accent)) 35%, var(--accent) 70%, color-mix(in srgb, var(--accent) 50%, #000) 100%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 6px 18px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 -4px 9px rgba(0,0,0,.28), inset 0 3px 6px rgba(255,255,255,.35);
+  opacity: 0; visibility: hidden; pointer-events: none; transform: scale(.2);
+  transition: transform .5s cubic-bezier(.3, 1.5, .45, 1), opacity .2s, visibility 0s .5s; }
+.orb-gear svg.i { width: 20px; height: 20px; }
+.orb-nav.open .orb-gear { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(calc(var(--lift) + 98px)); transition-delay: .18s, .18s, 0s; }
+.orb-nav.open .orb-gear:active { transform: translateY(calc(var(--lift) + 98px)) scale(.9); }
+.orb-gear:focus-visible { outline: 3px solid var(--fg); outline-offset: 3px; }
+.orb.bump { animation: orbLand .55s cubic-bezier(.3, 1.6, .5, 1); }
+@media (orientation: landscape) and (max-height: 540px) { .orb-nav.open .orb-gear, .orb-nav.open .orb-gear:active { transform: translateY(calc(var(--lift) + 86px)); } }
+:root[data-motion="off"] .orb-nav.open .orb-gear { transition: none !important; }
+
+/* v1.51: el ORBE EVOLUCIONA con el nivel (data-stage 0-7 en #orb-nav, una fase por título).
+   1 Constante: anillo fino · 2 Disciplinado: halo que respira · 3 Enfocado: segundo anillo que gira · 4 Imparable: 3 chispas
+   que lo orbitan · 5 Inquebrantable: 6 chispas y más halo · 6 Leyenda: anillos dorados · 7 Mito: anillo iridiscente. */
+.orb-aura { position: absolute; z-index: 1; inset: -10px; border-radius: 50%; pointer-events: none; transition: opacity .25s; --ring: color-mix(in srgb, var(--accent) 55%, transparent); }
+.orb-nav.open .orb-aura { opacity: 0; }
+.orb-aura::before, .orb-aura::after { content: ""; position: absolute; border-radius: 50%; opacity: 0; }
+.orb-aura::before { inset: 2px; border: 1.5px solid var(--ring); }
+.orb-aura::after { inset: -6px; border: 1.5px dashed var(--ring); }
+.orb-nav[data-stage]:not([data-stage="0"]) .orb-aura::before { opacity: .9; }
+.orb-nav:is([data-stage="2"], [data-stage="3"], [data-stage="4"], [data-stage="5"], [data-stage="6"], [data-stage="7"]) .orb-aura { animation: orbHalo 3.6s ease-in-out infinite; }
+.orb-nav:is([data-stage="3"], [data-stage="4"], [data-stage="5"], [data-stage="6"], [data-stage="7"]) .orb-aura::after { opacity: .8; animation: orbArcSpin 18s linear infinite; }
+.orb-aura i { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: color-mix(in srgb, #fff 55%, var(--accent)); box-shadow: 0 0 8px var(--accent);
+  animation: orbSpark 6s linear infinite; animation-delay: calc(var(--k) * -1s); }
+.orb-nav[data-stage="4"] .orb-aura i { animation-delay: calc(var(--k) * -2s); }
+.orb-nav:is([data-stage="5"], [data-stage="6"], [data-stage="7"]) .orb-aura { box-shadow: 0 0 34px color-mix(in srgb, var(--accent) 45%, transparent); }
+.orb-nav:is([data-stage="6"], [data-stage="7"]) .orb-aura { --ring: #e9c46a; }
+.orb-nav[data-stage="6"] .orb-aura i { background: #ffe39a; box-shadow: 0 0 8px #e9c46a; }
+.orb-nav[data-stage="7"] .orb-aura::before { border: 0; inset: 0; padding: 2px; background: conic-gradient(from 0deg, #ff6ec7, #ffd166, #6ef3c5, #6ec8ff, #b07bff, #ff6ec7);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation: orbArcSpin 8s linear infinite; }
+.orb-nav[data-stage="7"] .orb-aura i { background: #fff; box-shadow: 0 0 10px #b07bff; }
+.orb.evolve { animation: orbEvolve 1.3s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes orbHalo { 50% { box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 40%, transparent); } }
+@keyframes orbSpark { from { transform: rotate(0deg) translateX(46px); } to { transform: rotate(360deg) translateX(46px); } }
+@keyframes orbEvolve { 0% { transform: scale(1); filter: none; } 30% { transform: scale(.82); filter: brightness(1.6); } 60% { transform: scale(1.2); filter: brightness(1.3) saturate(1.4); } 100% { transform: none; filter: none; } }
+:root:is([data-motion="soft"], [data-motion="off"]) :is(.orb-aura, .orb-aura::after, .orb-aura::before, .orb-aura i) { animation: none !important; }
+:root:is([data-motion="soft"], [data-motion="off"]) .orb-aura i { transform: rotate(calc(var(--k) * 60deg)) translateX(46px); }
