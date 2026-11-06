@@ -314,11 +314,11 @@ input[type="color"].swatch-input::-moz-color-swatch { border: 3px solid var(--su
   position: fixed; inset: 0; z-index: 100;
   background: rgba(0, 0, 0, .55);
   display: flex; align-items: flex-end; justify-content: center;
-  animation: fade .2s ease;
+  animation: fade .2s ease; overscroll-behavior: none;
 }
 .sheet {
   width: 100%; max-width: 640px; max-height: 92vh; max-height: 92dvh;
-  overflow: auto; overscroll-behavior: contain;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; /* v1.43: la hoja nunca se mueve hacia los lados */
   background: var(--surface); color: var(--fg);
   border-radius: 32px 32px 0 0;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, .4), var(--sh-in);
@@ -2638,3 +2638,34 @@ body.orb-open { overflow: hidden; }
 .nm-arrow { color: var(--accent); }
 
 .tf-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* v1.43: historial de una plantilla o nota modular (línea de tiempo por meses) */
+.nh-ser { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.nh-spark { width: 100%; height: 56px; display: block; overflow: visible; }
+.nh-spark polyline { fill: none; stroke: var(--c); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.nh-spark circle { fill: var(--c); }
+.nh-mon { margin: 6px 0 4px; font-size: 13px; text-transform: none; color: var(--muted); font-weight: 600; }
+.nh-list { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid color-mix(in srgb, var(--nc) 55%, transparent); display: flex; flex-direction: column; gap: 6px; }
+.nh-list li { position: relative; }
+.nh-list li::before { content: ''; position: absolute; left: -20px; top: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--nc); box-shadow: 0 0 0 3px var(--surface); }
+.nh-it { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; padding: 8px 10px; border-radius: var(--r-md); background: var(--surface-2); }
+.nh-d { display: flex; flex-direction: column; align-items: center; min-width: 34px; line-height: 1.1; }
+.nh-d b { font-size: 18px; } .nh-d small { color: var(--muted); font-size: 11px; text-transform: capitalize; }
+.nh-it .grow { display: flex; flex-direction: column; min-width: 0; }
+.nh-t { overflow-wrap: anywhere; }
+/* v1.43: trayecto de después del turno (a Casa, a otro lugar o al siguiente turno) */
+.tf-trip.bk { border-style: dotted; background: color-mix(in srgb, var(--c) 8%, transparent); }
+.tf-tpl-chip[data-def="1"] { box-shadow: 0 0 0 2px var(--c); }
+.nl-item { display: inline-flex; align-items: center; gap: 4px; padding-right: 4px; }
+.nl-item .icon-btn { width: 22px; height: 22px; }
+.nl-tag { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.nt-link select { flex: 1 1 160px; min-width: 0; }
+.chip[data-ntpick][aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); } /* v1.43: la opción elegida se ve */
+/* v1.43: reparto de respuestas en el historial, fichas de listas y chips pequeños */
+.nh-dist { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; align-items: center; gap: 8px; }
+.nh-dist .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nh-bar { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.nh-bar i { display: block; height: 100%; border-radius: 4px; background: var(--nc, var(--accent)); }
+.nl-open { border: 0; background: none; padding: 0; color: inherit; font: inherit; }
+.chip.xs { padding: 3px 9px; font-size: 12px; min-height: 0; }
+.rt-route { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--surface-3); } /* v1.43: ruta tipo en una rutina */
