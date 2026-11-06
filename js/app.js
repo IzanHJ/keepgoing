@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.45.1';
+  const VERSION = '1.45.2';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -2776,12 +2776,15 @@
      hora del primer turno (o la de ahora). La altura de cada hora (--ph) se amplía pellizcando en vertical o con Ctrl + rueda. */
   const TF_PH = { d: [52, 22, 180], w: [32, 16, 140] };
   const tfPh = big => { const [def, lo, hi] = TF_PH[big ? 'd' : 'w'], v = +((state.ui.tfPh || {})[big ? 'd' : 'w']); return v ? clamp(v, lo, hi) : def; };
+  // v1.45.2: lo que se puede arrastrar (mantener pulsado) lleva el día y su posición en la lista de ese día
+  const tfDragAttr = (k, e) => { const i = (state.calDays[k] || []).indexOf(e); return i >= 0 ? ` data-tf-dk="${k}" data-tf-di="${i}"` : ''; };
+  const tfDragTag = (k, e, html) => html.replace('<span class="tf-tag', `<span${tfDragAttr(k, e)} class="tf-tag`);
   const tfBlock = (it, k, lanes, ph, big) => {
     const h = (it.b - it.a) * ph / 60, w = 100 / lanes, c = tfColor(it.s.color);
     const pl = tfLayers().places ? tfPlaceOf(it.s, it.e) : null;
     const label = `${it.s.emoji ? esc(it.s.emoji) + ' ' : ''}${esc(it.s.name)}${tfPlBadge(pl)}`;
     const ek = it.cont ? TF.iso(TF.addDays(TF.parseISO(k), -1)) : k, ei = (state.calDays[ek] || []).indexOf(it.e);
-    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? tfEntNotes(k, it.e, it.s).map(([g]) => `<small class="tf-blk-note">${tfNoteIco(g)} ${esc(g.t)}</small>`).join('') : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
+    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''}${ei >= 0 && !it.cont ? tfDragAttr(ek, it.e) : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? tfEntNotes(k, it.e, it.s).map(([g]) => `<small class="tf-blk-note">${tfNoteIco(g)} ${esc(g.t)}</small>`).join('') : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
   };
   // v1.39: el trayecto (de la salida a la llegada) se dibuja como una franja fina con su icono, en el carril de su turno
   // v1.43: también el trayecto de después del turno y los enlazados (TF.dayLegs), cada uno en el carril de su turno
@@ -2801,7 +2804,7 @@
     const anyAll = L.some(x => x.allDay.length) || dayN.some(x => x.length);
     const first = Math.min(...L.flatMap(x => x.timed.map(it => it.a)), keys.includes(tk) ? nowM : 1440);
     let html = `<div class="tf-tl ${big ? 'big' : ''}" style="--cols:${keys.length};--ph:${ph}px" data-tl="${big ? 'd' : 'w'}" data-tl-first="${first < 1440 ? first : 480}">`;
-    if (anyAll) html += `<div class="tf-tl-all"><span class="tf-tl-h muted small">${esc(t('tfAllDay'))}</span>${keys.map((k, i) => `<button class="tf-tl-allc" data-tf-day="${k}" aria-label="${esc(tfLong(k))}">${L[i].allDay.map(({ s, e }) => tfTag(s, '', undefined, e)).join('')}${dayN[i].map(([g, j]) => `<span class="tf-gapn tf-gapn-all" role="button" data-tf-gapn="${k}" data-i="${j}" style="${tfNoteStyle(g)}" title="${esc(g.t)}">${tfNoteIco(g)}<span>${esc(g.t)}</span></span>`).join('')}</button>`).join('')}</div>`;
+    if (anyAll) html += `<div class="tf-tl-all"><span class="tf-tl-h muted small">${esc(t('tfAllDay'))}</span>${keys.map((k, i) => `<button class="tf-tl-allc" data-tf-day="${k}" aria-label="${esc(tfLong(k))}">${L[i].allDay.map(({ s, e }) => tfDragTag(k, e, tfTag(s, '', undefined, e))).join('')}${dayN[i].map(([g, j]) => `<span class="tf-gapn tf-gapn-all" role="button" data-tf-gapn="${k}" data-i="${j}" style="${tfNoteStyle(g)}" title="${esc(g.t)}">${tfNoteIco(g)}<span>${esc(g.t)}</span></span>`).join('')}</button>`).join('')}</div>`;
     html += `<div class="tf-tl-body"><div class="tf-tl-hours">${hours.map(h => `<span>${pad(h)}:00</span>`).join('')}</div>`;
     html += keys.map((k, i) => `<button class="tf-tl-col ${k === tk ? 'today' : ''}" data-tf-day="${k}" data-tf-tl="${k}" aria-label="${esc(tfLong(k) + (L[i].timed.length ? ': ' + L[i].timed.map(it => it.s.name + ' ' + it.start + '–' + it.end).join(', ') : ''))}">${L[i].timed.map(it => tfBlock(it, k, L[i].lanes, ph, big)).join('')}${tfLayers().transport && tfLayers().shifts ? tfTrips(k, L[i], big) : ''}${tfLayers().notes ? tfGaps(k).map((g, j) => { if (!g.a || tfIsEntNote(k, g)) return ''; const a = tfMin(g.a), b = Math.max(a + 15, tfMin(g.b)); return `<span class="tf-gapn" role="button" data-tf-gapn="${k}" data-i="${j}" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:calc(var(--ph) * ${+((b - a) / 60).toFixed(4)});${tfNoteStyle(g)}" title="${esc(g.a + '–' + g.b + ' · ' + g.t)}">${tfNoteIco(g)}<span>${big ? `<b>${esc(g.a)}–${esc(g.b)}</b> ` : ''}${esc(g.t)}</span></span>`; }).join('') : ''}${(c => { if (!c || TF.iso(new Date(c.at)) !== k) return ''; const d = new Date(c.at), a = d.getHours() * 60 + d.getMinutes(), b = k === tk ? Math.max(a + 10, nowM) : 1440; return `<span class="tf-blk tf-clock-blk" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:calc(var(--ph) * ${+((b - a) / 60).toFixed(4)});left:0;width:100%"><b>${esc(t('tfClockName'))}</b>${big ? `<small>${esc(tfClockHm(d))}–…</small>` : ''}</span>`; })(tfClock())}${k === tk ? `<i class="tf-now" style="top:calc(var(--ph) * ${+(nowM / 60).toFixed(4)})" aria-hidden="true"></i>` : ''}</button>`).join('');
     return html + '</div></div>';
@@ -2988,6 +2991,111 @@
   }, true);
   document.addEventListener('pointerup', e => { if (tfPaintS && e.pointerId === tfPaintS.id) tfPaintEnd(); }, true);
   document.addEventListener('pointercancel', e => { if (tfPaintS && e.pointerId === tfPaintS.id) tfPaintEnd(); }, true);
+  /* ---------- v1.45.2: mantener pulsado un turno y arrastrarlo ----------
+     Día y Semana: a otra hora (y en Semana a otro día), en tramos de 15 min. Mes: a otro día con la misma hora. Si se suelta
+     encima de otro turno, ese se divide alrededor (TF.dropEntry); si es de trabajo, se pregunta antes (decisión de Izan). */
+  let tfDrag = null, tfDragTimer = null, tfDragBlock = false;
+  const tfDragEls = () => tfDrag ? [tfDrag.on, tfDrag.into].filter(Boolean) : [];
+  document.addEventListener('pointerdown', e => {
+    if (state.ui.tab !== 'cal' || e.button || TFS.quick || tfDrag || tfUi().cv === 'year') return;
+    const el = e.target.closest('.tf-zoom [data-tf-dk]'); if (!el || e.target.closest('[data-tf-extmap]')) return;
+    const sx = e.clientX, sy = e.clientY, id = e.pointerId;
+    clearTimeout(tfDragTimer);
+    tfDragTimer = setTimeout(() => { tfDragTimer = null; tfDragStart(el, sx, sy, id); }, 420);
+    const cancel = ev => { if (ev.pointerId === id && tfDragTimer && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { clearTimeout(tfDragTimer); tfDragTimer = null; } };
+    const stop = ev => { if (ev.pointerId !== id) return; clearTimeout(tfDragTimer); tfDragTimer = null; document.removeEventListener('pointermove', cancel); document.removeEventListener('pointerup', stop, true); document.removeEventListener('pointercancel', stop, true); };
+    document.addEventListener('pointermove', cancel); document.addEventListener('pointerup', stop, true); document.addEventListener('pointercancel', stop, true);
+  });
+  function tfDragStart(el, x, y, id) {
+    if (!document.body.contains(el) || tfPinch) return;
+    const k = el.dataset.tfDk, i = +el.dataset.tfDi, e = (state.calDays[k] || [])[i], s = e && tfShift(e.sid); if (!s) return;
+    mSw = null; tfPaintEnd(false);
+    const r = el.getBoundingClientRect(), tm = TF.entryTimes(s, e);
+    let dur = 0; if (tm.start && tm.end) { dur = tfMin(tm.end) - tfMin(tm.start); if (dur <= 0) dur += 1440; }
+    const ghost = el.cloneNode(true);
+    ghost.removeAttribute('data-tf-dk'); ghost.classList.add('tf-drag-ghost');
+    Object.assign(ghost.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', margin: 0, zIndex: 60, pointerEvents: 'none' });
+    ghost.insertAdjacentHTML('beforeend', '<em class="tf-drag-time"></em>');
+    document.body.appendChild(ghost); el.classList.add('tf-drag-src'); document.body.classList.add('tf-dragging');
+    tfDrag = { el, ghost, k, i, e, s, dur, id, x, y, ox: x - r.left, oy: y - r.top, on: null, into: null, dst: null, raf: 0 };
+    vibrate(25); sfx('tap');
+    const loop = () => {
+      if (!tfDrag) return;
+      // Cerca del borde de la caja de horas (o de la pantalla en el Mes), se desplaza sola
+      const body = tfDrag.el.closest('.tf-tl-body'), edge = 60;
+      if (body) { const b = body.getBoundingClientRect(), v = tfDrag.y < b.top + edge ? -(b.top + edge - tfDrag.y) / 5 : tfDrag.y > b.bottom - edge ? (tfDrag.y - b.bottom + edge) / 5 : 0; if (v) body.scrollTop += v; }
+      else { const v = tfDrag.y < edge ? -(edge - tfDrag.y) / 6 : tfDrag.y > innerHeight - edge ? (tfDrag.y - innerHeight + edge) / 6 : 0; if (v) scrollBy(0, v); }
+      tfDragMove(); tfDrag.raf = requestAnimationFrame(loop);
+    };
+    tfDrag.raf = requestAnimationFrame(loop);
+  }
+  function tfDragMove() {
+    const d = tfDrag, g = d.ghost;
+    g.style.transform = `translate(${d.x - d.ox - parseFloat(g.style.left)}px, ${d.y - d.oy - parseFloat(g.style.top)}px) scale(1.04)`;
+    const under = document.elementFromPoint(d.x, d.y);
+    const col = under && under.closest('.tf-zoom .tf-tl-col[data-tf-tl]'), cell = !col && under && under.closest('.tf-zoom .tf-cell[data-tf-day], .tf-zoom .tf-tl-allc[data-tf-day]');
+    let into = under && under.closest('.tf-zoom [data-tf-dk]');
+    if (into && (into === d.el || into.classList.contains('tf-drag-ghost'))) into = null;
+    let dst = null;
+    if (col) {
+      const k = col.dataset.tfTl, ph = parseFloat(getComputedStyle(col.closest('.tf-tl')).getPropertyValue('--ph')) || 40;
+      dst = { k, a: d.dur ? clamp(Math.round((d.y - d.oy - col.getBoundingClientRect().top) / ph * 4) * 15, 0, 1425) : undefined };
+    } else if (cell) dst = { k: cell.dataset.tfDay };
+    if (into && dst && into.dataset.tfDk !== dst.k) into = null;
+    if (dst && into) dst.split = +into.dataset.tfDi;
+    const on = col || cell || null;
+    if (on !== d.on) { d.on && d.on.classList.remove('tf-drop-on'); on && on.classList.add('tf-drop-on'); d.on = on; }
+    if (into !== d.into) { d.into && d.into.classList.remove('tf-drop-into'); into && into.classList.add('tf-drop-into'); if (into) vibrate(10); d.into = into; }
+    d.dst = dst;
+    // La hora a la que quedaría (o el día, en el Mes)
+    const tm = TF.entryTimes(d.s, d.e), a = dst && Number.isFinite(dst.a) ? dst.a : (tm.start ? tfMin(tm.start) : null);
+    const lbl = !dst ? '' : a != null && d.dur ? `${tfHm(a)}–${tfHm(a + d.dur)}` : '';
+    const day = dst && dst.k !== d.k ? fmtShort(dst.k) : '';
+    $('.tf-drag-time', g).textContent = [day, lbl].filter(Boolean).join(' · ');
+  }
+  document.addEventListener('pointermove', e => { if (!tfDrag || e.pointerId !== tfDrag.id) return; e.preventDefault(); tfDrag.x = e.clientX; tfDrag.y = e.clientY; }, true);
+  // En el móvil, mientras se arrastra no se desplaza la página
+  document.addEventListener('touchmove', e => { if (tfDrag && e.cancelable) e.preventDefault(); }, { passive: false });
+  ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, ev => {
+    const d = tfDrag; if (!d || ev.pointerId !== d.id) return;
+    tfDrag = null; cancelAnimationFrame(d.raf);
+    d.ghost.remove(); d.el.classList.remove('tf-drag-src'); document.body.classList.remove('tf-dragging');
+    [d.on, d.into].forEach(x => x && x.classList.remove('tf-drop-on', 'tf-drop-into'));
+    tfDragBlock = true; setTimeout(() => { tfDragBlock = false; }, 350);
+    if (ev.type !== 'pointerup' || !d.dst) return;
+    const dst = d.dst, tm = TF.entryTimes(d.s, d.e);
+    if (dst.k === d.k && (dst.split == null || dst.split === d.i) && (!Number.isFinite(dst.a) || (tm.start && dst.a === tfMin(tm.start)))) return;
+    const tgt = dst.split != null ? (state.calDays[dst.k] || [])[dst.split] : null, ts = tgt && tfShift(tgt.sid);
+    if (ts && !ts.once && ts.kind === 'work') {
+      openModal({
+        title: esc(t('tfDragWorkQ', { a: ts.name })), cls: 'tf-sheet',
+        body: `<p class="muted" style="margin:0">${esc(t('tfDragWorkHint', { b: d.s.name }))}</p>`,
+        foot: `<button class="btn" data-tfdw="side">${esc(t('tfDragBeside'))}</button><button class="btn primary" data-tfdw="split">${esc(t('tfDragDoSplit'))}</button>`,
+        onClick: (e, close) => { const b = e.target.closest('[data-tfdw]'); if (!b) return; close(); tfDragApply(d, b.dataset.tfdw === 'split' ? dst : { ...dst, split: undefined }); }
+      });
+      return;
+    }
+    tfDragApply(d, dst);
+  }, true));
+  function tfDragApply(d, dst) {
+    if ((state.calDays[d.k] || [])[d.i] !== d.e) return; // cambió mientras tanto
+    const days = state.calDays, by = {};
+    for (const k of new Set([d.k, dst.k])) for (const e of days[k] || []) { const s = tfShift(e.sid); if (s) by[e.sid] = s; }
+    const tgt = dst.split != null ? (days[dst.k] || [])[dst.split] : null, tName = tgt && by[tgt.sid] ? by[tgt.sid].name : '';
+    const out = TF.dropEntry(days, by, { k: d.k, i: d.i }, dst, () => 'o_' + uid());
+    if (!out) { toast(t('tfRtFull')); return; }
+    const split = !!tgt && !out[dst.k].includes(tgt); // el turno de debajo se cambió por sus trozos
+    const ne = out[dst.k][out[dst.k].length - 1]; // dropEntry deja el turno movido al final de la lista
+    // Primero se guardan tal cual (los turnos puntuales leen su hora de aquí) y luego se ordenan por hora
+    Object.entries(out).forEach(([k, l]) => { state.calDays[k] = l; }); tfOnceGen++;
+    Object.entries(out).forEach(([k, l]) => tfSetDay(k, l));
+    tfSave(); sfx('complete'); vibrate([10, 30, 10]);
+    if (split) toast(t('tfDragSplit', { a: tName, b: d.s.name }));
+    else { const tm = TF.entryTimes(tfShift(ne.sid) || d.s, ne); toast(t('tfDragMoved', { t: (dst.k !== d.k ? fmtShort(dst.k) + ' ' : '') + (tm.start ? tm.start + '–' + tm.end : '') })); }
+    requestAnimationFrame(() => tfRipple(dst.k));
+  }
+  window.addEventListener('click', e => { if (tfDragBlock) { e.preventDefault(); e.stopPropagation(); tfDragBlock = false; } }, true);
+  document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.tf-zoom [data-tf-dk]')) e.preventDefault(); });
   function tfDow() {
     const ws = tfWs(), base = new Date(2024, 0, 7); // domingo
     return Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(state.lang, { weekday: 'short' }).format(TF.addDays(base, (ws + i) % 7)));
@@ -3015,7 +3123,7 @@
       const dks = tfDksOf(k), evs = evd[k] || []; if (inMonth) dks.forEach(d => usedDk.add(d));
       // v1.25: tipos de día y eventos comparten los colores de la casilla (1 entero, 2 en diagonal, 3 como una tarta)
       const cs = LY.days ? tfDayColors(k) : [], notes = LY.notes ? tfCellNotes(k, items) : [], rv = LY.rates ? dayRateOf(k) : null;
-      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''} ${cs.length ? 'dk' : ''} ${cs.length > 1 ? 'dk-multi' : ''}" data-tf-day="${k}" ${cs.length ? `style="${tfTintStyle(cs)}"` : ''} aria-label="${esc(dks.map(d => tfDkName(d) + ' · ').join('') + aria + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}"><span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}${notes.length ? `<i class="tf-nn" title="${esc(notes.join('\n'))}">${ico('doc', 'xs')}${notes.length > 1 ? notes.length : ''}</i>` : ''}${rv != null ? `<b class="tf-rate" style="--rc:${rateColor(rv)}">${rv}</b>` : ''}</span><span class="tf-items">${LY.shifts ? items.map((it, j) => it.r ? tfRtTag(it.r) : it.who ? tfGhost(it.s, it.who) : tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < items.length - 1 ? 'jb' : ''} ${LY.notes && it.note ? 'has-note' : ''}`, undefined, it.e)).join('') : ''}${notes.map(n => `<span class="tf-dnote">${esc(n)}</span>`).join('')}</span></button>`;
+      html += `<button class="tf-cell ${inMonth ? '' : 'out'} ${k === today ? 'today' : ''} ${cs.length ? 'dk' : ''} ${cs.length > 1 ? 'dk-multi' : ''}" data-tf-day="${k}" ${cs.length ? `style="${tfTintStyle(cs)}"` : ''} aria-label="${esc(dks.map(d => tfDkName(d) + ' · ').join('') + aria + (evs.length ? ' · ' + evs.map(v => v.name).join(', ') : ''))}"><span class="n">${date.getDate()}${ext.length ? `<i title="${esc(ext.map(e => e.title).join('\n'))}">● ${ext.length}</i>` : ''}${notes.length ? `<i class="tf-nn" title="${esc(notes.join('\n'))}">${ico('doc', 'xs')}${notes.length > 1 ? notes.length : ''}</i>` : ''}${rv != null ? `<b class="tf-rate" style="--rc:${rateColor(rv)}">${rv}</b>` : ''}</span><span class="tf-items">${LY.shifts ? items.map((it, j) => it.r ? tfRtTag(it.r) : it.who ? tfGhost(it.s, it.who) : tfDragTag(k, it.e, tfTag(it.s, `${it.jt && j ? 'jt' : ''} ${it.jb && j < items.length - 1 ? 'jb' : ''} ${LY.notes && it.note ? 'has-note' : ''}`, undefined, it.e))).join('') : ''}${notes.map(n => `<span class="tf-dnote">${esc(n)}</span>`).join('')}</span></button>`;
     }
     html += '</div>';
     if (usedDk.size) html += `<div class="tf-dk-legend">${[...usedDk].map(d => `<span><i style="--c:${tfColor(d.color)}"></i>${esc(tfDkName(d))}</span>`).join('')}</div>`;
@@ -6690,7 +6798,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.45', [['1.45.0', 2], ['1.45.1', 1]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);

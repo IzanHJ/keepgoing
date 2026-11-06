@@ -1,6 +1,6 @@
 /* KeepGoing — corona 3D de la valoración del día (v1.39), con three.js (MIT, copiado en js/vendor; solo se descarga al
    abrir la valoración). Modelo propio hecho en código: aro de oro con ocho puntas que se abren hacia fuera, dos molduras,
-   ocho joyas, perlas en las puntas, terciopelo dentro y un orbe con cruz arriba.
+   ocho joyas, perlas en las puntas, terciopelo dentro y un orbe arriba (v1.45.2: sin cruz).
    Cambia con la nota igual que la corona plana de antes: con 0-3 es de bronce apagado, pequeña, ladeada y temblorosa;
    desde el 5 se endereza y se dora; las joyas se encienden según la nota y con 8 o más brillan las perlas.
    Gira sola despacio (más rápido cuanto mejor el día) y se puede girar con el dedo. Con «Animaciones: apagadas» no gira
@@ -81,12 +81,10 @@
     // Molduras abajo y a la altura de la banda
     const trim = (y, r, t) => { const m = new THREE.Mesh(new THREE.TorusGeometry(r, t, 12, 120), gold); m.rotation.x = Math.PI / 2; m.position.y = y; body.add(m); };
     trim(.02, R * 1.005, .05); trim(band, R * (1 + prof.flare * band) - .01, .04);
-    // Terciopelo dentro y orbe con cruz
+    // Terciopelo dentro y orbe (v1.45.2: sin cruz, a petición de Izan)
     const cap = new THREE.Mesh(new THREE.SphereGeometry(R * .92, 40, 16, 0, TAU, 0, Math.PI / 2), velvet); cap.scale.y = .72; cap.position.y = band * .55; body.add(cap);
     const capTop = band * .55 + R * .92 * .72;
     const orb = new THREE.Mesh(new THREE.SphereGeometry(.11, 24, 16), gold); orb.position.y = capTop + .08; body.add(orb);
-    const cv = new THREE.Mesh(new THREE.BoxGeometry(.045, .26, .045), gold); cv.position.y = capTop + .3; body.add(cv);
-    const ch = new THREE.Mesh(new THREE.BoxGeometry(.18, .045, .045), gold); ch.position.y = capTop + .33; body.add(ch);
     // Joyas (una por punta, en la banda) y perlas (en cada punta)
     const gems = [], pearls = [], gemG = new THREE.OctahedronGeometry(.1, 0), pearlG = new THREE.SphereGeometry(.058, 16, 12);
     for (let i = 0; i < 8; i++) {
