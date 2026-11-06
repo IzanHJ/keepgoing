@@ -190,12 +190,42 @@
      ({ m: 'AAAA-MM', items: [{ k, g }] }), cuántas hay, la primera y la última fecha, y para cada campo de número o de
      valoración su serie por fecha (para dibujar la evolución): [{ id, label, unit, kind, pts: [{ k, v }] }]. */
   function history(gaps, tpl, from, to) {
-    if (!tpl) return { n: 0, first: '', last: '', months: [], series: [] };
+    if (!tpl) return { n: 0, first: '', last: '', months: [], series: [], dist: [] };
     const l = notesOf(gaps, tpl.id, from, to), months = [];
     for (let i = l.length - 1; i >= 0; i--) { const m = l[i].k.slice(0, 7); if (!months.length || months[months.length - 1].m !== m) months.push({ m, items: [] }); months[months.length - 1].items.push(l[i]); }
     const series = tpl.kind === 'mod' ? [] : tpl.fields.filter(f => f.type === 'num' || f.type === 'rate').map(f => ({ id: f.id, label: f.label, unit: f.unit || '', kind: f.type,
       pts: l.map(x => ({ k: x.k, v: x.g.v && x.g.v[f.id] })).filter(x => Number.isFinite(+x.v) && x.v !== undefined && x.v !== '').map(x => ({ k: x.k, v: +x.v })) })).filter(x => x.pts.length);
-    return { n: l.length, first: l.length ? l[0].k : '', last: l.length ? l[l.length - 1].k : '', months, series };
+    // v1.43: reparto de las respuestas de texto, lista y sí/no (las más repetidas primero)
+    const dist = tpl.fields.filter(f => f.type === 'text' || f.type === 'pick' || f.type === 'bool').map(f => {
+      const c = new Map();
+      for (const { g } of l) { const x = g.v && g.v[f.id]; if (x === undefined || x === '') continue; const kk = f.type === 'bool' ? 'si' : keyOf(x); const e = c.get(kk) || { label: f.type === 'bool' ? f.label : String(x), n: 0 }; e.n++; c.set(kk, e); }
+      return { id: f.id, label: f.label, kind: f.type, top: [...c.values()].sort((a, b) => b.n - a.n).slice(0, 6).map(e => [e.label, e.n]), of: l.length };
+    }).filter(x => x.top.length);
+    return { n: l.length, first: l.length ? l[0].k : '', last: l.length ? l[l.length - 1].k : '', months, series, dist };
+  }
+  /* v1.43: dónde sale un elemento de una Lista (p. ej. «Alba» en Personas): todas las notas de plantillas con un campo unido a esa
+     lista cuya respuesta es ese elemento, de la más nueva a la más antigua: [{ k, g, tpl, field }]. */
+  function mentions(gaps, tpls, listId, item) {
+    const kk = keyOf(item), out = []; if (!kk) return out;
+    for (const tpl of tpls || []) {
+      const fs = tpl.fields.filter(f => f.list === listId); if (!fs.length) continue;
+      for (const { k, g } of notesOf(gaps, tpl.id)) { const f = fs.find(f2 => g.v && keyOf(g.v[f2.id]) === kk); if (f) out.push({ k, g, tpl, field: f }); }
+    }
+    return out.sort((a, b) => b.k.localeCompare(a.k) || String(b.g.a || '').localeCompare(String(a.g.a || '')));
+  }
+  /* v1.43: buscar en las notas. Sin tildes ni mayúsculas; cada palabra tiene que salir. Devuelve [{ k, j, g }] (j = posición en
+     gaps[k]) de la más nueva a la más antigua, con un máximo de max. */
+  const fold = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  function search(gaps, q, opts) {
+    const words = fold(q).split(/\s+/).filter(Boolean), o = opts || {}, out = [];
+    if (!words.length && !o.tp) return out;
+    for (const k of Object.keys(gaps || {}).sort().reverse()) {
+      if ((o.from && k < o.from) || (o.to && k > o.to)) continue;
+      const l = gaps[k]; if (!Array.isArray(l)) continue;
+      l.forEach((g, j) => { if (!g || (o.tp && g.tp !== o.tp)) return; const hay = fold([g.t, g.x].join(' ')); if (words.every(w => hay.includes(w))) out.push({ k, j, g }); });
+      if (out.length >= (o.max || 200)) break;
+    }
+    return out.slice(0, o.max || 200);
   }
   // Plantillas de serie (ids fijos: si se crean en dos dispositivos, la sincronización las junta en vez de duplicarlas)
   function seeds(L) {
@@ -206,5 +236,5 @@
       { id: 'tp_date', name: L.date, icon: 'users', color: '#b06ad9', fields: [{ id: 'who', label: L.who, type: 'text' }, { id: 'where', label: L.where, type: 'text' }, { id: 'done', label: L.done, type: 'bool' }], prog: null, goals: {} }
     ].map(sanitizeTpl);
   }
-  return { TYPES, ICONS, LIM, keyOf, sanitizeList, optsFor, grow, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
+  return { TYPES, ICONS, LIM, keyOf, sanitizeList, optsFor, grow, mentions, search, fold, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
 });

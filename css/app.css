@@ -2661,3 +2661,10 @@ body.orb-open { overflow: hidden; }
 .nl-tag { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; }
 .nt-link select { flex: 1 1 160px; min-width: 0; }
 .chip[data-ntpick][aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); } /* v1.43: la opción elegida se ve */
+/* v1.43: reparto de respuestas en el historial, fichas de listas y chips pequeños */
+.nh-dist { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; align-items: center; gap: 8px; }
+.nh-dist .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nh-bar { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.nh-bar i { display: block; height: 100%; border-radius: 4px; background: var(--nc, var(--accent)); }
+.nl-open { border: 0; background: none; padding: 0; color: inherit; font: inherit; }
+.chip.xs { padding: 3px 9px; font-size: 12px; min-height: 0; }

@@ -86,7 +86,8 @@ test('v1.43: historial de una plantilla por meses y series', () => {
   assert.equal(h.months[0].items[0].k, h.last);
   assert.deepEqual(h.series.map(s => s.id), ['pages']);
   assert.equal(h.series[0].pts.length, h.n);
-  assert.deepEqual(N.history(gaps, null), { n: 0, first: '', last: '', months: [], series: [] });
+  assert.deepEqual(N.history(gaps, null), { n: 0, first: '', last: '', months: [], series: [], dist: [] });
+  assert.deepEqual(h.dist.map(d => d.id), ['book']);
 });
 
 test('v1.43: listas propias que crecen y opciones que dependen de otra respuesta', () => {
@@ -107,4 +108,15 @@ test('v1.43: listas propias que crecen y opciones que dependen de otra respuesta
   assert.deepEqual(N.sanitizeVals(gym, { g: 'Pierna', e: 'Prensa' }), { g: 'Pierna', e: 'Prensa' });
   assert.deepEqual(N.sanitizeVals(gym, { g: 'Pecho', e: 'Prensa' }), { g: 'Pecho' });
   assert.equal(N.sanitizeTpl({ id: 'tx', name: 'X', fields: [{ id: 'e', label: 'E', type: 'pick', opts: [], dep: 'zz', by: { a: ['b'] } }] }).fields.length, 0);
+});
+
+test('v1.43: dónde sale un elemento de una lista y buscar en notas', () => {
+  const met = N.sanitizeTpl({ id: 'nm1', kind: 'mod', name: 'Conocer', fields: [{ id: 'a', label: 'Conocí a', list: 'lp', grow: true }] });
+  const talk = N.sanitizeTpl({ id: 'nm2', kind: 'mod', name: 'Charla', fields: [{ id: 'a', label: 'Charla con', list: 'lp' }] });
+  const g = { '2026-11-01': [{ a: '', b: '', t: 'Conocí a Alba', tp: 'nm1', v: { a: 'Alba' } }], '2026-11-03': [{ a: '10:00', b: '11:00', t: 'Charla con alba — café en el Bar Pepe', tp: 'nm2', v: { a: 'alba' }, x: 'café' }, { a: '', b: '', t: 'Charla con Luis', tp: 'nm2', v: { a: 'Luis' } }] };
+  assert.deepEqual(N.mentions(g, [met, talk], 'lp', 'ALBA').map(m => [m.k, m.tpl.id]), [['2026-11-03', 'nm2'], ['2026-11-01', 'nm1']]);
+  assert.deepEqual(N.search(g, 'cafe bar').map(r => [r.k, r.j]), [['2026-11-03', 0]]);
+  assert.deepEqual(N.search(g, 'charla').map(r => r.j), [0, 1]);
+  assert.deepEqual(N.search(g, '', { tp: 'nm1' }).map(r => r.k), ['2026-11-01']);
+  assert.deepEqual(N.search(g, ''), []);
 });
