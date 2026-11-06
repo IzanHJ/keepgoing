@@ -391,8 +391,60 @@
     return { name: str(raw.name, 40, 'Compañero'), updated: str(raw.updated_at, 40), shifts, days };
   }
 
+
+  /* ---- v1.45.2: arrastrar un turno. Mueve la entrada src = { k, i } al día dst.k empezando en el minuto dst.a (misma duración;
+     sin dst.a o sin hora, solo cambia de día). Si dst.split es el índice de otra entrada de dst.k (sobre la que se suelta), esa se
+     divide alrededor: libre 14:00-17:30 + peluquería 15:00-15:45 → libre 14:00-15:00, peluquería, libre 15:45-17:30.
+     El trozo de después lleva el trayecto de vuelta y el de antes la ida y la nota. Devuelve { [fecha]: lista } con los días
+     cambiados (sin ordenar) o null si no se puede (no existe o el día se llena). newId() da el sid de un trozo puntual nuevo. */
+  const hm = (m) => { m = ((m % 1440) + 1440) % 1440; return pad(Math.floor(m / 60)) + ':' + pad(m % 60); };
+  function withTimes(e, s, start, end) {
+    const n = { ...e };
+    if (e.once) { n.once = { ...e.once, start, end }; n.start = ''; n.end = ''; }
+    else if (start === s.start && end === s.end) { n.start = ''; n.end = ''; }
+    else { n.start = start; n.end = end; }
+    return n;
+  }
+  function dropEntry(days, shiftBy, src, dst, newId) {
+    const sl = (days[src.k] || []).slice(), e = sl[src.i], s = e && shiftBy[e.sid];
+    if (!s) return null;
+    const same = src.k === dst.k, dl0 = days[dst.k] || [], target = dst.split != null && dst.split >= 0 ? dl0[dst.split] : null;
+    const tm = entryTimes(s, e);
+    let ne = { ...e }, na = null, nb = null;
+    if (tm.start && tm.end && Number.isFinite(dst.a)) {
+      const a0 = toMin(tm.start); let b0 = toMin(tm.end); if (b0 <= a0) b0 += 1440;
+      na = Math.max(0, Math.min(1439, Math.round(dst.a))); nb = na + (b0 - a0);
+      ne = withTimes(e, s, hm(na), hm(nb));
+    } else if (tm.start && tm.end) { na = toMin(tm.start); nb = toMin(tm.end); if (nb <= na) nb += 1440; }
+    if (!same) delete ne.rt;
+    sl.splice(src.i, 1);
+    const dl = same ? sl : dl0.slice();
+    dl.push(ne);
+    if (target && target !== e && na != null) {
+      const sx = shiftBy[target.sid], xt = sx && entryTimes(sx, target);
+      const xa = xt && xt.start ? toMin(xt.start) : null, xb = xt && xt.end ? toMin(xt.end) : null;
+      // Solo se divide si el turno soltado cae dentro (o pisa un lado) y no lo tapa entero; los que pasan de las 00:00, no
+      if (xa != null && xb != null && xb > xa && nb <= 1440 && na < xb && nb > xa && !(na <= xa && nb >= xb)) {
+        const pieces = [];
+        if (na > xa) { const l = withTimes(target, sx, hm(xa), hm(na)); if (nb < xb) { delete l.bk; delete l.bkDep; delete l.bkArr; delete l.bkTo; if (sx.bk) l.bk = '-'; } pieces.push(l); }
+        if (nb < xb) {
+          const r = withTimes(target, sx, hm(nb), hm(xb));
+          if (na > xa) {
+            r.note = ''; delete r.brk; delete r.tr; delete r.trDep; delete r.trArr; if (sx.tr) r.tr = '-';
+            if (target.once) r.sid = newId();
+          }
+          pieces.push(r);
+        }
+        const j = dl.indexOf(target);
+        if (j >= 0) dl.splice(j, 1, ...pieces);
+      }
+    }
+    if (dl.length > LIMITS.perDay) return null;
+    return same ? { [dst.k]: dl } : { [src.k]: sl, [dst.k]: dl };
+  }
+
   const api = {
-    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, dropEntry, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;

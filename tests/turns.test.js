@@ -199,3 +199,28 @@ test('v1.43: una rutina pone también su ruta (llegada y después)', () => {
   assert.deepStrictEqual(data.days['2026-11-09'].map(e => [e.sid, e.tr, e.bk, e.bkTo]), [['w', 'bus', 'walk', '>'], ['p', undefined, 'bus', undefined]]);
   assert.deepStrictEqual(T.dayLegs(data.days['2026-11-09'], Object.fromEntries(data.shifts.map(s => [s.id, s]))).map(l => [l.i, l.kind, l.mode]), [[0, 'go', 'bus'], [1, 'go', 'walk'], [1, 'back', 'bus']]);
 });
+
+test('v1.45.2: arrastrar un turno puntual sobre el tiempo libre lo divide alrededor', () => {
+  const lib = { id: 'free', name: 'Tiempo libre', kind: 'off', start: '14:00', end: '17:30', breakMin: 0 };
+  const work = { id: 'w', name: 'Trabajo', kind: 'work', start: '09:00', end: '14:00', breakMin: 30, tr: 'bus', bk: 'walk' };
+  const pel = { sid: 'o_peluqueria', note: '', start: '', end: '', once: { name: 'Peluquería', start: '15:00', end: '15:45' } };
+  const shiftBy = { free: lib, w: work, o_peluqueria: { id: 'o_peluqueria', kind: 'work', start: '15:00', end: '15:45', once: true } };
+  const days = { '2026-11-09': [{ sid: 'w', note: '', start: '', end: '' }, { sid: 'free', note: 'leer', start: '', end: '' }, pel] };
+  // Se suelta encima del libre a la misma hora
+  const out = T.dropEntry(days, shiftBy, { k: '2026-11-09', i: 2 }, { k: '2026-11-09', a: 900, split: 1 }, () => 'o_x');
+  const l = out['2026-11-09'];
+  const times = l.map(e => [e.sid, (e.once || {}).start || e.start, (e.once || {}).end || e.end]);
+  assert.deepStrictEqual(times, [['w', '', ''], ['free', '14:00', '15:00'], ['free', '15:45', '17:30'], ['o_peluqueria', '15:00', '15:45']]);
+  assert.strictEqual(l[1].note, 'leer'); assert.strictEqual(l[2].note, '');
+  // Moverlo a otra hora y otro día sin dividir: misma duración
+  const out2 = T.dropEntry(days, shiftBy, { k: '2026-11-09', i: 2 }, { k: '2026-11-10', a: 1080 }, () => 'o_y');
+  assert.strictEqual(out2['2026-11-09'].length, 2);
+  assert.deepStrictEqual(out2['2026-11-10'][0].once, { name: 'Peluquería', start: '18:00', end: '18:45' });
+  // Dividir un trabajo: ida en el primer trozo, vuelta en el segundo
+  const days3 = { k: [{ sid: 'w', note: 'n', start: '', end: '' }, { sid: 'o_peluqueria', note: '', start: '', end: '', once: { name: 'P', start: '10:00', end: '11:00' } }] };
+  const l3 = T.dropEntry(days3, { ...shiftBy, o_peluqueria: { id: 'o_peluqueria', start: '10:00', end: '11:00', once: true } }, { k: 'k', i: 1 }, { k: 'k', a: 600, split: 0 }, () => 'z').k;
+  assert.deepStrictEqual(l3.slice(0, 2).map(e => [e.start, e.end, e.bk, e.tr]), [['09:00', '10:00', '-', undefined], ['11:00', '14:00', undefined, '-']]);
+  // Si lo tapa entero, no se divide; volver a la hora del turno quita la hora propia
+  const l4 = T.dropEntry({ k: [{ sid: 'free', note: '', start: '15:00', end: '18:30' }, { sid: 'w', note: '', start: '', end: '' }] }, shiftBy, { k: 'k', i: 0 }, { k: 'k', a: 840 }, () => 'z').k;
+  assert.deepStrictEqual([l4[1].start, l4[1].end], ['', '']);
+});
