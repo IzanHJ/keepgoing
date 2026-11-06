@@ -13,7 +13,12 @@
     nlNew: 'Nueva lista', nlEdit: 'Editar lista', nlNamePh: 'Por ejemplo, Personas', nlAddPh: 'Añadir a la lista', nlEmpty: 'Lista vacía', nlUsedBy: 'La usan: {n}',
     nlDelQ: '¿Borrar la lista «{name}»? Las notas que ya escribiste no cambian.', nlMax: 'Has llegado al máximo de listas.', nlLink: 'Lista', nlNone: 'Sin lista', nlUse: 'Lista: {l}',
     nlGrow: 'Añadir respuestas nuevas a la lista', nlGrowShort: 'añade lo nuevo', nlAdded: 'Añadido a {l}: {x}',
-    ndDep: 'Depende de', ndNone: 'Nada (opciones fijas)', ndHint: 'Escribe las opciones para cada respuesta, separadas por comas.', ndIf: 'Si eliges «{o}»', ndFirst: 'Elige antes «{f}».'
+    ndDep: 'Depende de', ndNone: 'Nada (opciones fijas)', ndHint: 'Escribe las opciones para cada respuesta, separadas por comas.', ndIf: 'Si eliges «{o}»', ndFirst: 'Elige antes «{f}».',
+    wn_1_43_0_1: 'Después del turno|Cada turno puede tener su trayecto de después: volver a Casa, ir a otro lugar o enlazarlo con el siguiente turno, sin crear un turno «Casa». Se ve en Día, Semana y en la Línea de tiempo.',
+    wn_1_43_0_2: 'Notas en los turnos|Al editar un turno puedes rellenarle una nota modular o una plantilla, que se ve dentro del turno. Cada turno puede proponer su nota (por ejemplo, Gimnasio → Entreno).',
+    wn_1_43_0_3: 'Listas que crecen|Crea Listas (Personas, Sitios…) y úsalas en cualquier nota. Con «Añadir respuestas nuevas», «Conocí a Alba» añade a Alba para elegirla luego en «Charla con…».',
+    wn_1_43_0_4: 'Opciones que dependen|En una plantilla, una lista puede cambiar según lo que elegiste antes (Grupo: Pierna → Sentadilla, Prensa).',
+    wn_1_43_0_5: 'Historial de cada nota|Toca el reloj de una nota modular o plantilla para ver todas sus notas por fechas, con la evolución de números y valoraciones. Además, las hojas ya no se mueven hacia los lados.'
   };
   const en = {
     nhTitle: 'History', nhEmpty: 'No notes in this period yet.', nhCount: '{n} notes', nhCount1: '1 note',
@@ -28,7 +33,12 @@
     nlNew: 'New list', nlEdit: 'Edit list', nlNamePh: 'For example, People', nlAddPh: 'Add to the list', nlEmpty: 'Empty list', nlUsedBy: 'Used by: {n}',
     nlDelQ: 'Delete the list “{name}”? Notes you already wrote do not change.', nlMax: 'You have reached the maximum number of lists.', nlLink: 'List', nlNone: 'No list', nlUse: 'List: {l}',
     nlGrow: 'Add new answers to the list', nlGrowShort: 'adds new ones', nlAdded: 'Added to {l}: {x}',
-    ndDep: 'Depends on', ndNone: 'Nothing (fixed options)', ndHint: 'Write the options for each answer, separated by commas.', ndIf: 'If you pick “{o}”', ndFirst: 'Pick “{f}” first.'
+    ndDep: 'Depends on', ndNone: 'Nothing (fixed options)', ndHint: 'Write the options for each answer, separated by commas.', ndIf: 'If you pick “{o}”', ndFirst: 'Pick “{f}” first.',
+    wn_1_43_0_1: 'After the shift|Each shift can have an after-trip: back home, to another place or linked to the next shift, without creating a “Home” shift. You see it in Day, Week and the Timeline.',
+    wn_1_43_0_2: 'Notes on shifts|When editing a shift you can fill in a modular note or a template, shown inside the shift. Each shift can suggest its own note (e.g. Gym → Workout).',
+    wn_1_43_0_3: 'Lists that grow|Create Lists (People, Places…) and use them in any note. With “Add new answers”, “I met Alba” adds Alba so you can pick her later in “Chat with…”.',
+    wn_1_43_0_4: 'Dependent options|In a template, a list can change with what you picked before (Group: Legs → Squat, Leg press).',
+    wn_1_43_0_5: 'History of each note|Tap the clock on a modular note or template to see all its notes by date, with how numbers and ratings evolve. Sheets no longer slide sideways either.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
