@@ -67,10 +67,17 @@ test('Plantillas: totales del periodo', () => {
   assert.deepEqual(g.fields.find(f => f.id === 'kind').value, [['Cardio', 2]]);
 });
 
-test('v1.39: notas modulares con secuencias', () => {
+test('v1.39 → v1.45.3: las notas modulares pasan a notas normales que se leen como frase', () => {
   const NT = require('../js/note-tpl.js');
   const p = NT.sanitizeTpl({ id: 'nm1', kind: 'mod', name: 'Conocer', fields: [{ id: 'a', label: 'Conocer a' }, { id: 'b', label: 'en el lugar' }, { id: 'c', label: '' }] });
-  assert.strictEqual(p.kind, 'mod'); assert.strictEqual(p.fields.length, 3); assert.strictEqual(p.icon, 'list');
+  assert.strictEqual(p.kind, undefined); assert.strictEqual(p.seq, true); assert.strictEqual(p.fields.length, 3); assert.strictEqual(p.icon, 'list');
+  assert.deepStrictEqual(p.fields.map(f => f.type), ['text', 'text', 'text']);
+  // Ya convertida, sigue igual al volver a pasar por sanitizeTpl
+  assert.deepStrictEqual(NT.sanitizeTpl(p), p);
+  // Una frase puede mezclar tipos
+  const q = NT.sanitizeTpl({ id: 'nm9', seq: true, name: 'Leer', fields: [{ id: 'a', label: 'Leí', type: 'text' }, { id: 'b', label: '', type: 'num', unit: 'págs' }, { id: 'c', label: 'Me gustó', type: 'rate' }] });
+  assert.strictEqual(q.fields.length, 2); // un número sin texto no vale
+  assert.strictEqual(NT.summary(q, { a: 'Dune', c: 8 }), 'Leí Dune → Me gustó 8/10');
   assert.strictEqual(NT.summary(p, NT.sanitizeVals(p, { a: 'Ana', b: 'Bar Pepe' })), 'Conocer a Ana → en el lugar Bar Pepe');
   assert.strictEqual(NT.summary(p, { b: 'Bar', c: 'feliz' }, 'genial'), 'en el lugar Bar → feliz — genial');
   assert.strictEqual(NT.sanitizeTpl({ id: 'nm2', kind: 'mod', name: 'X', fields: [] }), null);

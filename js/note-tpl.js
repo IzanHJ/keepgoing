@@ -7,7 +7,9 @@
    Una nota con plantilla vive en state.calGaps[fecha] como { a, b, t, tp, v, x }:
      a / b: horas 'HH:MM' o '' si es del día entero; tp: id de la plantilla; v: { idCampo: valor }; x: texto libre;
      t: el resumen ya escrito («Leer · Dune · 30 págs»), para que se vea igual en todas partes (Día, Mes, «Ver más» y PDF).
-   v1.39: Notas modulares = plantilla con kind: 'mod'. Sus fields son las secuencias, en orden: label es el texto fijo que va antes
+   v1.45.3: un solo tipo de nota (decisión de Izan). Las antiguas «modulares» (kind: 'mod') pasan a ser notas normales con
+   seq: true («Leer como una frase»): sus pasos son campos de texto (label puede ir vacío) y el resumen va con flechas.
+   v1.39 (histórico): Notas modulares = plantilla con kind: 'mod'. Sus fields son las secuencias, en orden: label es el texto fijo que va antes
    del hueco («Conocer a», «en el lugar») y siempre son de texto. La nota se lee «Conocer a Ana → en el lugar Bar Pepe». */
 (function (root, factory) {
   const api = factory();
@@ -17,7 +19,7 @@
   'use strict';
   const TYPES = ['text', 'num', 'bool', 'rate', 'pick'];
   const ICONS = ['doc', 'book', 'dumbbell', 'cap', 'heart', 'calendar', 'clock', 'pin', 'users', 'sparkle', 'target', 'flame', 'smile', 'play', 'tag', 'list'];
-  const LIM = { lists: 30, items: 300, tpls: 30, fields: 8, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, extra: 300, sum: 500 };
+  const LIM = { lists: 30, items: 300, tpls: 30, fields: 12, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, extra: 300, sum: 500 };
   const str = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
   const keyOf = v => str(v, LIM.text).toLowerCase();
   const isHex = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
@@ -54,10 +56,10 @@
     }
     return { lists: out, added };
   }
-  function sanitizeField(f, i) {
+  function sanitizeField(f, i, seq) {
     if (!f || typeof f !== 'object') return null;
-    const label = str(f.label, LIM.label); if (!label) return null;
     const type = TYPES.includes(f.type) ? f.type : 'text';
+    const label = str(f.label, LIM.label); if (!label && !(seq && type === 'text')) return null; // en una frase, un hueco puede ir sin texto delante
     const out = { id: idOk(f.id) ? f.id : 'f' + i, label, type };
     if (type === 'num') out.unit = str(f.unit, LIM.unit);
     if (type === 'text') linkOf(f, out);
@@ -77,18 +79,13 @@
     if (!t || typeof t !== 'object' || !idOk(t.id)) return null;
     const name = str(t.name, LIM.name); if (!name) return null;
     const ids = new Set();
-    if (t.kind === 'mod') {
-      const steps = (Array.isArray(t.fields) ? t.fields : []).filter(f => f && typeof f === 'object').map((f, i) => linkOf(f, { id: idOk(f.id) ? f.id : 's' + i, label: str(f.label, LIM.label), type: 'text' }))
-        .filter(f => !ids.has(f.id) && ids.add(f.id)).slice(0, LIM.steps);
-      if (!steps.length) return null;
-      const o = { id: t.id, kind: 'mod', name, icon: ICONS.includes(t.icon) ? t.icon : 'list', color: isHex(t.color) ? t.color : '#7c8cff', fields: steps, prog: null, goals: {} };
-      if (Number.isFinite(t.mt)) o.mt = t.mt;
-      return o;
-    }
-    const fields = (Array.isArray(t.fields) ? t.fields : []).map(sanitizeField).filter(f => f && !ids.has(f.id) && ids.add(f.id)).slice(0, LIM.fields);
+    const seq = t.seq === true || t.kind === 'mod';
+    const fields = (Array.isArray(t.fields) ? t.fields : []).map((f, i) => sanitizeField(f && t.kind === 'mod' ? { ...f, type: 'text' } : f, i, seq)).filter(f => f && !ids.has(f.id) && ids.add(f.id)).slice(0, LIM.fields);
+    if (t.kind === 'mod' && !fields.length) return null;
     fields.forEach((f, j) => { if (!f.dep) return; const par = fields.slice(0, j).find(x => x.id === f.dep && x.type === 'pick' && !x.dep); if (par) { for (const k of Object.keys(f.by)) if (!par.opts.includes(k)) delete f.by[k]; } if (!par || !Object.keys(f.by).length) { delete f.dep; delete f.by; } });
     for (let j = fields.length - 1; j >= 0; j--) if (fields[j].type === 'pick' && !fields[j].opts.length && !fields[j].dep) fields.splice(j, 1);
-    const out = { id: t.id, name, icon: ICONS.includes(t.icon) ? t.icon : 'doc', color: isHex(t.color) ? t.color : '#7c8cff', fields, prog: null, goals: {} };
+    const out = { id: t.id, name, icon: ICONS.includes(t.icon) ? t.icon : seq ? 'list' : 'doc', color: isHex(t.color) ? t.color : '#7c8cff', fields, prog: null, goals: {} };
+    if (seq) out.seq = true;
     const p = t.prog && typeof t.prog === 'object' ? t.prog : null;
     const fk = p && fields.find(f => f.id === p.key && f.type === 'text'), fa = p && fields.find(f => f.id === p.amt && f.type === 'num');
     if (fk && fa) out.prog = { key: fk.id, amt: fa.id };
@@ -115,8 +112,10 @@
   // Resumen de una nota: «Leer · Dune · 30 págs — me encantó»
   function summary(tpl, v, extra, fmt) {
     fmt = fmt || fmtDef;
-    if (tpl.kind === 'mod') {
-      const seq = tpl.fields.map(f => { const x = v && v[f.id]; return x === undefined ? '' : (f.label ? f.label + ' ' : '') + x; }).filter(Boolean);
+    if (tpl.seq || tpl.kind === 'mod') {
+      // Como frase: «Conocí a Ana → en el lugar Bar Pepe → Páginas 30 págs»
+      const val = (f, x) => f.type === 'num' ? fmt(x) + (f.unit ? ' ' + f.unit : '') : f.type === 'bool' ? '' : f.type === 'rate' ? x + '/10' : x;
+      const seq = tpl.fields.map(f => { const x = v && v[f.id]; if (x === undefined) return ''; const y = val(f, x); return f.label ? f.label + (y === '' ? '' : ' ' + y) : y; }).filter(Boolean);
       const e0 = str(extra, LIM.extra);
       return ((seq.length ? seq.join(' → ') : tpl.name) + (e0 ? ' — ' + e0 : '')).slice(0, LIM.sum);
     }
@@ -193,7 +192,7 @@
     if (!tpl) return { n: 0, first: '', last: '', months: [], series: [], dist: [] };
     const l = notesOf(gaps, tpl.id, from, to), months = [];
     for (let i = l.length - 1; i >= 0; i--) { const m = l[i].k.slice(0, 7); if (!months.length || months[months.length - 1].m !== m) months.push({ m, items: [] }); months[months.length - 1].items.push(l[i]); }
-    const series = tpl.kind === 'mod' ? [] : tpl.fields.filter(f => f.type === 'num' || f.type === 'rate').map(f => ({ id: f.id, label: f.label, unit: f.unit || '', kind: f.type,
+    const series = tpl.fields.filter(f => f.type === 'num' || f.type === 'rate').map(f => ({ id: f.id, label: f.label, unit: f.unit || '', kind: f.type,
       pts: l.map(x => ({ k: x.k, v: x.g.v && x.g.v[f.id] })).filter(x => Number.isFinite(+x.v) && x.v !== undefined && x.v !== '').map(x => ({ k: x.k, v: +x.v })) })).filter(x => x.pts.length);
     // v1.43: reparto de las respuestas de texto, lista y sí/no (las más repetidas primero)
     const dist = tpl.fields.filter(f => f.type === 'text' || f.type === 'pick' || f.type === 'bool').map(f => {
