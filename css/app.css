@@ -2679,6 +2679,11 @@ body.orb-open { overflow: hidden; }
 .tf-drop-on { outline: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
 .tf-drop-into { outline: 3px solid var(--accent) !important; outline-offset: 1px; filter: brightness(1.12); z-index: 3; }
 body.tf-dragging, body.tf-dragging * { cursor: grabbing !important; }
+/* v1.45.2: en iPhone, los campos de hora tienen un ancho propio que no encoge: salida y llegada se pisaban y se salían de la caja */
+.tf-form > .field, .tf-form > label { min-width: 0; }
+.input[type="time"], .input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; box-sizing: border-box; display: block; }
+.input[type="time"]::-webkit-date-and-time-value, .input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.tf-tr .tf-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* v1.49: ampliar los gráficos por tiempo */
 .zc { position: relative; }

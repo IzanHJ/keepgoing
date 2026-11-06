@@ -443,8 +443,25 @@
     return same ? { [dst.k]: dl } : { [src.k]: sl, [dst.k]: dl };
   }
 
+  /* ---- v1.45.2: fuera los descansos (decisión de Izan: desde hoy, sin tocar el pasado). Los días anteriores a «today» guardan en
+     cada entrada el descanso que restaban (e.brk) para que sus horas no cambien; desde «today» se quita e.brk. Después la app pone
+     breakMin = 0 en los turnos. Devuelve los días nuevos sin tocar los de entrada. */
+  function freezeBreaks(days, shiftBy, today) {
+    const out = {};
+    for (const [k, l] of Object.entries(days || {})) {
+      if (!Array.isArray(l)) { out[k] = l; continue; }
+      out[k] = l.map((e) => {
+        if (!e) return e;
+        if (k >= today) { if (e.brk === undefined) return e; const { brk, ...o } = e; return o; }
+        const s = shiftBy[e.sid]; if (!s || Number.isFinite(e.brk)) return e;
+        const b = entryBreak(s, e, l); return b > 0 ? { ...e, brk: b } : e;
+      });
+    }
+    return out;
+  }
+
   const api = {
-    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, dropEntry, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;

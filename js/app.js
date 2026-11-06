@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.49.0';
+  const VERSION = '1.50.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1141,7 +1141,17 @@
     if (!p.kindsMig) tfMigrateKinds();
     if (!p.payMig) tfMigratePay();
     if (!state.calPrefs.jobMig) tfMigrateJobs();
+    if (!state.calPrefs.brkMig) tfMigrateBreaks();
     tfTplSeed();
+  }
+  /* v1.45.2: fuera los descansos (si alguien quiere uno, lo pone como un turno más). Desde hoy, sin tocar el pasado: los días de
+     antes guardan su descanso en la entrada (e.brk) y sus horas no cambian; desde hoy, y en los turnos, ya no hay descanso. */
+  function tfMigrateBreaks() {
+    const by = Object.fromEntries(state.calShifts.map(s => [s.id, s]));
+    state.calDays = TF.freezeBreaks(state.calDays, by, todayKey()); tfOnceGen++;
+    state.calShifts = state.calShifts.map(s => s.breakMin ? { ...s, breakMin: 0 } : s);
+    state.calPrefs = { ...state.calPrefs, brkMig: 1 };
+    save();
   }
   // v1.26 pasaba la tarifa de los Tipos a los turnos; desde la v1.39 no hay paga, así que solo queda la marca
   function tfMigrateKinds() { state.calPrefs = { ...state.calPrefs, kindsMig: 1 }; save(); }
@@ -2829,11 +2839,11 @@
   const tfDragAttr = (k, e) => { const i = (state.calDays[k] || []).indexOf(e); return i >= 0 ? ` data-tf-dk="${k}" data-tf-di="${i}"` : ''; };
   const tfDragTag = (k, e, html) => html.replace('<span class="tf-tag', `<span${tfDragAttr(k, e)} class="tf-tag`);
   const tfBlock = (it, k, lanes, ph, big) => {
-    const h = (it.b - it.a) * ph / 60, w = 100 / lanes, c = tfColor(it.s.color);
+    const w = 100 / lanes, c = tfColor(it.s.color);
     const pl = tfLayers().places ? tfPlaceOf(it.s, it.e) : null;
     const label = `${it.s.emoji ? esc(it.s.emoji) + ' ' : ''}${esc(it.s.name)}${tfPlBadge(pl)}`;
     const ek = it.cont ? TF.iso(TF.addDays(TF.parseISO(k), -1)) : k, ei = (state.calDays[ek] || []).indexOf(it.e);
-    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''}${ei >= 0 && !it.cont ? tfDragAttr(ek, it.e) : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? tfEntNotes(k, it.e, it.s).map(([g]) => `<small class="tf-blk-note">${tfNoteIco(g)} ${esc(g.t)}</small>`).join('') : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
+    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''}${ei >= 0 && !it.cont ? tfDragAttr(ek, it.e) : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? tfEntNotes(k, it.e, it.s).map(([g]) => `<small class="tf-blk-note">${tfNoteIco(g)} ${esc(g.t)}</small>`).join('') : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
   };
   // v1.39: el trayecto (de la salida a la llegada) se dibuja como una franja fina con su icono, en el carril de su turno
   // v1.43: también el trayecto de después del turno y los enlazados (TF.dayLegs), cada uno en el carril de su turno
@@ -3409,7 +3419,7 @@
   const NT = window.KGNoteTpl;
   const tfTpls = () => state.calTpls;
   // Para los chips de un toque: primero las Notas modulares y luego las plantillas
-  const tfTplsQuick = () => [...state.calTpls.filter(p => p.kind === 'mod'), ...state.calTpls.filter(p => p.kind !== 'mod')];
+  const tfTplsQuick = () => state.calTpls; // v1.45.3: un solo tipo de nota
   const tfTpl = id => id ? state.calTpls.find(x => x.id === id) : null;
   const tfTplLabels = () => ({ read: t('ntRead'), book: t('ntBook'), pages: t('ntPages'), pagesU: t('ntPagesU'), gym: t('ntGym'), gymKind: t('ntGymKind'), gymOpts: t('ntGymOpts').split('|'), minutes: t('ntMinutes'), sets: t('ntSets'), effort: t('ntEffort'), study: t('ntStudy'), subject: t('ntSubject'), hours: t('ntHours'), date: t('ntDate'), who: t('ntWho'), where: t('ntWhere'), done: t('ntDone') });
   // Las 4 de serie se ponen una sola vez (calPrefs.tplSeed se sincroniza: si las borras no vuelven)
@@ -3436,18 +3446,18 @@
     const cur = i >= 0 ? tfGaps(k)[i] : null, p = tfTpl(cur ? cur.tp : tpId); if (!p) return;
     const last = cur ? {} : NT.lastVals(state.calGaps, p.id);
     // Lo último se propone en los campos de texto y de lista; en los números sale como pista
-    const mod = p.kind === 'mod'; // v1.39: Nota modular (frase con huecos en secuencia); no se propone lo último, solo chips
+    const mod = !!p.seq; // v1.45.3: nota que se lee como frase (antes «Nota modular»): no se propone lo último, solo chips
     const v = cur ? { ...(cur.v || {}) } : mod ? {} : Object.fromEntries(p.fields.filter(f => (f.type === 'text' || f.type === 'pick') && last[f.id] !== undefined).map(f => [f.id, last[f.id]]));
     // v1.43: la última nota de esta plantilla (hasta este día) para repetirla con un toque
     const prevN = cur ? null : (l => l.length ? l[l.length - 1] : null)(NT.notesOf(state.calGaps, p.id, '', k));
-    const st = { allDay: cur ? !cur.a : !(pre && pre.a), a: (cur && cur.a) || (pre && pre.a) || '', b: (cur && cur.b) || (pre && pre.b) || '', x: (cur && cur.x) || '' };
+    const st = { allDay: cur ? !cur.a : true, a: (cur && cur.a) || (pre && pre.a) || '', b: (cur && cur.b) || (pre && pre.b) || '', x: (cur && cur.x) || '' };
     let wref;
     const fieldHtml = f => {
       const val = v[f.id], id = `ntf-${esc(f.id)}`;
       // v1.43: con una Lista propia unida, se eligen sus elementos (los más nuevos primero); si no, lo último que pusiste
       const pickOf = n => { const l = tfList(f.list); return (l ? [...l.items].reverse().slice(0, 24) : NT.recent(state.calGaps, p.id, f.id, n)).filter(x => NT.keyOf(x) !== NT.keyOf(val)); };
       const lnote = () => { const l = tfList(f.list); return l ? `<span class="muted small nl-tag">${ico('users', 'xs')} ${esc(l.name)}${f.grow ? ' · ' + esc(t('nlGrowShort')) : ''}</span>` : ''; };
-      if (mod) { const rec = pickOf(4); return `<div class="nm-fill"><label class="nm-fill-row">${f.label ? `<span class="nm-pre">${esc(f.label)}</span>` : ''}<input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.text}" value="${esc(val || '')}" autocomplete="off" placeholder="${esc(t('nmBlank'))}" aria-label="${esc(f.label || t('nmBlank'))}"></label>${lnote()}${rec.length ? `<div class="row wrap" style="gap:6px">${rec.map(r => `<button type="button" class="chip sm" data-ntr="${esc(f.id)}" data-val="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}</div>`; }
+      if (mod && f.type === 'text') { const rec = pickOf(4); return `<div class="nm-fill"><label class="nm-fill-row">${f.label ? `<span class="nm-pre">${esc(f.label)}</span>` : ''}<input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.text}" value="${esc(val || '')}" autocomplete="off" placeholder="${esc(t('nmBlank'))}" aria-label="${esc(f.label || t('nmBlank'))}"></label>${lnote()}${rec.length ? `<div class="row wrap" style="gap:6px">${rec.map(r => `<button type="button" class="chip sm" data-ntr="${esc(f.id)}" data-val="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}</div>`; }
       if (f.type === 'text') { const rec = pickOf(5); return `<label class="field"><span>${esc(f.label)} ${lnote()}</span><input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.text}" value="${esc(val || '')}" autocomplete="off"></label>${rec.length ? `<div class="row wrap" style="gap:6px;margin-top:-4px">${rec.map(r => `<button type="button" class="chip sm" data-ntr="${esc(f.id)}" data-val="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}`; }
       if (f.type === 'num') return `<label class="field"><span>${esc(f.label)}${f.unit ? ` <span class="muted">(${esc(f.unit)})</span>` : ''}</span><input class="input" id="${id}" data-ntf="${esc(f.id)}" type="number" inputmode="decimal" min="0" step="any" value="${val !== undefined ? esc(String(val)) : ''}" placeholder="${last[f.id] !== undefined ? esc(t('ntLast', { v: tfNum(last[f.id]) })) : ''}"></label>`;
       if (f.type === 'bool') return `<label class="row" style="gap:12px"><span class="switch"><input type="checkbox" data-ntf="${esc(f.id)}" ${val ? 'checked' : ''}><span></span></span><b class="grow">${esc(f.label)}</b></label>`;
@@ -3464,7 +3474,7 @@
     };
     const draw = () => {
       $('#ntb', wref).innerHTML = `<div class="stack" style="gap:12px"><div class="row" style="justify-content:space-between;gap:8px"><p class="muted small" style="margin:0">${esc(tfLong(k))}</p><div class="row wrap" style="gap:6px;justify-content:flex-end">${prevN ? `<button type="button" class="chip sm" data-ntrep>${ico('repeat', 'xs')} ${esc(t('ntRepeat', { d: fmtDate(prevN.k, { day: 'numeric', month: 'short' }) }))}</button>` : ''}${NT.notesOf(state.calGaps, p.id).length ? `<button type="button" class="chip sm" data-nth>${ico('clock', 'xs')} ${esc(t('nhTitle'))}</button>` : ''}</div></div>
-        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="nt-all" ${st.allDay ? 'checked' : ''}><span></span></span><b class="grow">${esc(t('tfAllDay'))}</b></label>
+        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="nt-all" ${st.allDay ? '' : 'checked'}><span></span></span><b class="grow">${esc(t('ntWithTime'))}</b></label>
         ${st.allDay ? '' : `<div class="tf-form">${tfField(t('tfStart'), `<input class="input" type="time" id="tfg-a" value="${esc(st.a)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfg-b" value="${esc(st.b)}">`)}</div>`}
         ${mod ? `<div class="nm-seq">${p.fields.map(fieldHtml).join(`<span class="nm-arrow" aria-hidden="true">${ico('down', 'xs')}</span>`)}</div>` : p.fields.map(fieldHtml).join('')}<div id="nt-prog">${progHtml()}</div>
         <textarea class="input" id="nt-x" rows="2" maxlength="${NT.LIM.extra}" placeholder="${esc(t('ntExtraPh'))}">${esc(st.x)}</textarea></div>`;
@@ -3479,7 +3489,7 @@
       foot: `${cur ? `<button class="btn danger" data-ntg="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-ntg="save">${ico('check')} ${esc(t('save'))}</button>`,
       onMount: w => {
         wref = w; draw();
-        w.addEventListener('change', e => { if (e.target.id === 'nt-all') { read(); st.allDay = e.target.checked; if (!st.allDay && !st.a) { const s = tfFreeSlot(k, new Date().getHours() * 60 + 60); st.a = s.a; st.b = s.b; } draw(); } });
+        w.addEventListener('change', e => { if (e.target.id === 'nt-all') { read(); st.allDay = !e.target.checked; if (!st.allDay && !st.a) { const s = tfFreeSlot(k, new Date().getHours() * 60 + 60); st.a = s.a; st.b = s.b; } draw(); } });
         w.addEventListener('input', e => { if (p.prog && e.target.dataset && (e.target.dataset.ntf === p.prog.key || e.target.dataset.ntf === p.prog.amt)) { read(); $('#nt-prog', w).innerHTML = progHtml(); } });
       },
       onClick: (e, close, w) => {
@@ -3673,56 +3683,16 @@
   const tfModLine = p => p.fields.map(f => (f.label ? f.label + ' ' : '') + '…').join(' → ');
   function tfTplsView(inner) {
     tfTplSeed();
-    const row = p => `<div class="tf-item"><span class="tf-rt-ic nt-ic" style="--nc:${tfColor(p.color)}">${ico(p.icon)}</span><span class="grow"><b>${esc(p.name)}</b><br><span class="muted small">${esc(p.kind === 'mod' ? tfModLine(p) : (p.fields.map(f => f.label).join(' · ') || t('ntNoFields')) + (p.prog ? ' · ' + t('ntHasProg') : ''))}</span></span><button class="icon-btn sm" data-tf-tp="hist" data-id="${esc(p.id)}" aria-label="${esc(t('nhTitle') + ': ' + p.name)}" title="${esc(t('nhTitle'))}">${ico('clock')}</button><button class="btn sm" data-tf-tp="edit" data-id="${esc(p.id)}">${esc(t('edit'))}</button></div>`;
-    const mods = tfTpls().filter(p => p.kind === 'mod'), tpls = tfTpls().filter(p => p.kind !== 'mod');
+    const row = p => `<div class="tf-item"><span class="tf-rt-ic nt-ic" style="--nc:${tfColor(p.color)}">${ico(p.icon)}</span><span class="grow"><b>${esc(p.name)}</b><br><span class="muted small">${esc(p.seq ? tfModLine(p) : (p.fields.map(f => f.label).join(' · ') || t('ntNoFields')) + (p.prog ? ' · ' + t('ntHasProg') : ''))}</span></span><button class="icon-btn sm" data-tf-tp="hist" data-id="${esc(p.id)}" aria-label="${esc(t('nhTitle') + ': ' + p.name)}" title="${esc(t('nhTitle'))}">${ico('clock')}</button><button class="btn sm" data-tf-tp="edit" data-id="${esc(p.id)}">${esc(t('edit'))}</button></div>`;
+    const tpls = tfTpls();
     return `${inner ? '' : tfSub(t('ntNotes'))}
       <button class="btn block" data-tf-tp="search">${ico('search')} ${esc(t('nsTitle'))}</button>
-      <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${ico('list', 'xs')} ${esc(t('nmTitle'))}</h2><button class="icon-btn sm" data-tf-tp="newmod" aria-label="${esc(t('nmNew'))}" title="${esc(t('nmNew'))}">${ico('plus')}</button></div>
-        <p class="muted small" style="margin:0">${esc(t('nmIntro'))}</p>
-        ${mods.length ? `<div class="stack" style="gap:8px">${mods.map(row).join('')}</div>` : `<button class="btn block" data-tf-tp="newmod">${ico('plus')} ${esc(t('nmNew'))}</button>`}</section>
       <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${ico('doc', 'xs')} ${esc(t('ntTitle'))}</h2><button class="icon-btn sm" data-tf-tp="new" aria-label="${esc(t('ntNew'))}" title="${esc(t('ntNew'))}">${ico('plus')}</button></div>
         <p class="muted small" style="margin:0">${esc(t('ntIntro'))}</p>
-        ${tpls.length ? `<div class="stack" style="gap:8px">${tpls.map(row).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('ntNone'))}</p>`}</section>
+        ${tpls.length ? `<div class="stack" style="gap:8px">${tpls.map(row).join('')}</div>` : `<button class="btn block" data-tf-tp="new">${ico('plus')} ${esc(t('ntNew'))}</button>`}</section>
       <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${ico('users', 'xs')} ${esc(t('nlTitle'))}</h2><button class="icon-btn sm" data-tf-tp="newlist" aria-label="${esc(t('nlNew'))}" title="${esc(t('nlNew'))}">${ico('plus')}</button></div>
         <p class="muted small" style="margin:0">${esc(t('nlIntro'))}</p>
         ${state.calLists.length ? `<div class="stack" style="gap:8px">${state.calLists.map(l => `<div class="tf-item"><span class="grow"><b>${esc(l.name)}</b><br>${l.items.length ? `<span class="row wrap" style="gap:4px;margin-top:4px">${l.items.slice(-8).reverse().map(x => `<button type="button" class="chip xs" data-tf-tp="item" data-id="${esc(l.id)}" data-val="${esc(x)}">${esc(x)}</button>`).join('')}</span>` : `<span class="muted small">${esc(t('nlEmpty'))}</span>`}</span><button class="btn sm" data-tf-tp="list" data-id="${esc(l.id)}">${esc(t('edit'))}</button></div>`).join('')}</div>` : `<button class="btn block" data-tf-tp="newlist">${ico('plus')} ${esc(t('nlNew'))}</button>`}</section>`;
-  }
-  // Editor de una Nota modular: nombre, icono, color y sus secuencias (el texto que va antes de cada hueco)
-  function tfEditMod(p0) {
-    if (!p0 && tfTpls().length >= NT.LIM.tpls) { toast(t('ntMax')); return; }
-    const f = p0 ? JSON.parse(JSON.stringify(p0)) : { id: 'nm' + uid().replace(/[^A-Za-z0-9]/g, '').slice(0, 12), kind: 'mod', name: '', icon: 'list', color: HABIT_COLORS[2], fields: [{ id: 's' + Date.now().toString(36), label: '' }, { id: 's' + (Date.now() + 1).toString(36), label: '' }] };
-    let wref;
-    const read = () => { f.name = $('#nme-name', wref).value; $$('[data-nme-step]', wref).forEach(el => { const q = f.fields[+el.dataset.nmeStep]; if (q) q.label = el.value; }); $$('[data-nml]', wref).forEach(b => { const q = f.fields[+b.dataset.nml]; if (q) tfLinkRead(b, q); }); };
-    const prev = () => f.fields.map(q => `${q.label ? `<span>${esc(q.label)}</span> ` : ''}<i class="nm-blank">${esc(t('nmBlank'))}</i>`).join(' <b class="nm-arrow">→</b> ');
-    const draw = () => {
-      $('#nme', wref).innerHTML = `<div class="stack" style="gap:12px">
-        <label class="field"><span>${esc(t('ntName'))}</span><input class="input" id="nme-name" maxlength="${NT.LIM.name}" value="${esc(f.name)}" placeholder="${esc(t('nmNamePh'))}"></label>
-        <div class="field"><span>${esc(t('ntIcon'))}</span><div class="row wrap" style="gap:6px">${NT.ICONS.map(n => `<button type="button" class="icon-btn sm nt-icp" data-nme-ic="${n}" aria-pressed="${f.icon === n}" aria-label="${n}">${ico(n)}</button>`).join('')}</div></div>
-        <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${HABIT_COLORS.map(c => `<button type="button" class="sw ${f.color === c ? 'on' : ''}" data-nme-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}</div></div>
-        <h3 class="section-title" style="margin:4px 0 0">${esc(t('nmSteps'))}</h3><p class="muted small" style="margin:0">${esc(t('nmStepsHint'))}</p>
-        ${f.fields.map((q, j) => `<div class="row nm-step-row" style="gap:8px"><span class="nm-n">${j + 1}</span><input class="input grow" data-nme-step="${j}" maxlength="${NT.LIM.label}" value="${esc(q.label)}" placeholder="${esc(t(j ? 'nmStepPh2' : 'nmStepPh1'))}" aria-label="${esc(t('nmStepN', { n: j + 1 }))}"><button type="button" class="icon-btn sm" data-nme-mv="${j}:-1" ${j ? '' : 'disabled'} aria-label="${esc(t('nmUp'))}">${ico('up')}</button><button type="button" class="icon-btn sm danger-text" data-nme-del="${j}" ${f.fields.length > 1 ? '' : 'disabled'} aria-label="${esc(t('delete'))}">${ico('x')}</button></div>${tfLinkCtl(q, `data-nml="${j}"`)}`).join('')}
-        ${f.fields.length < NT.LIM.steps ? `<div><button type="button" class="chip" data-nme="add">${ico('plus')} ${esc(t('nmAddStep'))}</button></div>` : ''}
-        <div class="nm-prev"><span class="muted small">${esc(t('tfPreview'))}</span><p id="nme-prev" style="margin:4px 0 0">${prev()}</p></div></div>`;
-    };
-    openModal({
-      title: `${ico('list')} ${esc(t(p0 ? 'nmEdit' : 'nmNew'))}`, cls: 'tf-sheet', body: '<div id="nme"></div>',
-      foot: `${p0 ? `<button class="btn danger" data-nme="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-nme="save">${ico('check')} ${esc(t('save'))}</button>`,
-      onMount: w => { wref = w; draw(); w.addEventListener('input', e => { if (e.target.dataset.nmeStep !== undefined) { read(); $('#nme-prev', w).innerHTML = prev(); } }); w.addEventListener('change', e => { if (e.target.matches('[data-lk="grow"]')) read(); }); tfLinkWire(w, b => f.fields[+b.dataset.nml], read, draw); },
-      onClick: (e, close) => {
-        const ic = e.target.closest('[data-nme-ic]'); if (ic) { read(); f.icon = ic.dataset.nmeIc; draw(); return; }
-        const c = e.target.closest('[data-nme-c]'); if (c) { read(); f.color = c.dataset.nmeC; draw(); return; }
-        const d = e.target.closest('[data-nme-del]'); if (d) { read(); f.fields.splice(+d.dataset.nmeDel, 1); draw(); return; }
-        const mv = e.target.closest('[data-nme-mv]'); if (mv) { read(); const [j] = mv.dataset.nmeMv.split(':').map(Number); if (j > 0) [f.fields[j - 1], f.fields[j]] = [f.fields[j], f.fields[j - 1]]; draw(); return; }
-        const b = e.target.closest('[data-nme]'); if (!b || b.tagName !== 'BUTTON') return;
-        if (b.dataset.nme === 'add') { read(); f.fields.push({ id: 's' + Date.now().toString(36), label: '' }); draw(); setTimeout(() => { const l = $$('[data-nme-step]', wref); l[l.length - 1]?.focus(); }, 30); return; }
-        if (b.dataset.nme === 'del') { state.calTpls = state.calTpls.filter(x => x.id !== f.id); save(); close(); render(); return; }
-        read();
-        if (!f.fields.some(q => q.label.trim())) { toast(t('nmNeedStep')); return; }
-        const clean = NT.sanitizeTpl(f); if (!clean) { toast(t('ntNeedName')); return; }
-        state.calTpls = p0 ? state.calTpls.map(x => x.id === f.id ? clean : x) : [...state.calTpls, clean];
-        save(); sfx('tap'); close(); render();
-      }
-    });
   }
   /* v1.39: «Turnos y Rutinas». Tres widgets plegables (Turnos, Rutinas y Notas) que se reordenan con las flechas. El orden va en
      calPrefs.tfW (se sincroniza) y lo plegado en state.ui.tfWOpen (solo este dispositivo). */
@@ -3750,7 +3720,6 @@
   document.addEventListener('toggle', e => { const d = e.target; if (!d || !d.matches || !d.matches('details[data-tfw]')) return; state.ui.tfWOpen = { ...(state.ui.tfWOpen || {}), [d.dataset.tfw]: d.open }; save(); }, true);
   const tfTplFieldBy = (f, id) => f.fields.find(x => x.id === id && x.type === 'pick');
   function tfEditTpl(p0) {
-    if (p0 && p0.kind === 'mod') return tfEditMod(p0);
     if (!p0 && tfTpls().length >= NT.LIM.tpls) { toast(t('ntMax')); return; }
     const f = p0 ? JSON.parse(JSON.stringify(p0)) : { id: 'tp' + uid().replace(/[^A-Za-z0-9]/g, '').slice(0, 12), name: '', icon: 'doc', color: HABIT_COLORS[1], fields: [{ id: 'f' + Date.now().toString(36), label: '', type: 'text' }], prog: null, goals: {} };
     let wref;
@@ -3769,8 +3738,10 @@
         <label class="field"><span>${esc(t('ntName'))}</span><input class="input" id="nte-name" maxlength="${NT.LIM.name}" value="${esc(f.name)}" placeholder="${esc(t('ntNamePh'))}"></label>
         <div class="field"><span>${esc(t('ntIcon'))}</span><div class="row wrap" style="gap:6px">${NT.ICONS.map(n => `<button type="button" class="icon-btn sm nt-icp" data-nte-ic="${n}" aria-pressed="${f.icon === n}" aria-label="${n}">${ico(n)}</button>`).join('')}</div></div>
         <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${HABIT_COLORS.map(c => `<button type="button" class="sw ${f.color === c ? 'on' : ''}" data-nte-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}</div></div>
+        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="nte-seq" ${f.seq ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('ntSeq'))}</b><br><span class="muted small">${esc(t('ntSeqHint'))}</span></span></label>
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('ntFields'))}</h3>
-        ${f.fields.map((q, j) => `<div class="tf-entry" data-nte-row="${j}"><div class="row" style="gap:8px"><input class="input grow" data-nte="label" maxlength="${NT.LIM.label}" value="${esc(q.label)}" placeholder="${esc(t('ntFieldPh'))}" aria-label="${esc(t('ntFieldPh'))}"><button type="button" class="icon-btn sm danger-text" data-nte-del="${j}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>
+        ${f.seq ? `<p class="muted small" style="margin:0">${esc(t('nmStepsHint'))}</p>` : ''}
+        ${f.fields.map((q, j) => `<div class="tf-entry" data-nte-row="${j}"><div class="row" style="gap:8px"><input class="input grow" data-nte="label" maxlength="${NT.LIM.label}" value="${esc(q.label)}" placeholder="${esc(f.seq ? t(j ? 'nmStepPh2' : 'nmStepPh1') : t('ntFieldPh'))}" aria-label="${esc(t('ntFieldPh'))}"><button type="button" class="icon-btn sm danger-text" data-nte-del="${j}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>
           <div class="row" style="gap:8px"><select class="input grow" data-nte="type" aria-label="${esc(t('ntType'))}">${TY.map(y => `<option value="${y}" ${q.type === y ? 'selected' : ''}>${esc(t('ntT_' + y))}</option>`).join('')}</select>${q.type === 'num' ? `<input class="input" data-nte="unit" style="width:110px" maxlength="${NT.LIM.unit}" value="${esc(q.unit || '')}" placeholder="${esc(t('ntUnit'))}" aria-label="${esc(t('ntUnit'))}">` : ''}</div>
           ${q.type === 'text' ? tfLinkCtl(q, `data-ntl="${j}"`) : ''}
           ${q.type === 'pick' ? (() => { const pars = f.fields.slice(0, j).filter(x => x.type === 'pick' && !x.dep && x.label.trim() && (x.opts || []).length), par = q.dep && tfTplFieldBy(f, q.dep);
@@ -3783,7 +3754,7 @@
     openModal({
       title: `${ico('doc')} ${esc(t(p0 ? 'ntEdit' : 'ntNew'))}`, cls: 'tf-sheet', body: '<div id="nte"></div>',
       foot: `${p0 ? `<button class="btn danger" data-nte="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-nte="save">${ico('check')} ${esc(t('save'))}</button>`,
-      onMount: w => { wref = w; draw(); w.addEventListener('change', e => { if (e.target.matches('[data-nte="type"], [data-nte="dep"], [data-lk="grow"], #nte-pk, #nte-pa')) { read(); draw(); } }); tfLinkWire(w, b => f.fields[+b.dataset.ntl], read, draw); },
+      onMount: w => { wref = w; draw(); w.addEventListener('change', e => { if (e.target.id === 'nte-seq') { read(); f.seq = e.target.checked; draw(); return; } if (e.target.matches('[data-nte="type"], [data-nte="dep"], [data-lk="grow"], #nte-pk, #nte-pa')) { read(); draw(); } }); tfLinkWire(w, b => f.fields[+b.dataset.ntl], read, draw); },
       onClick: (e, close) => {
         const ic = e.target.closest('[data-nte-ic]'); if (ic) { read(); f.icon = ic.dataset.nteIc; draw(); return; }
         const c = e.target.closest('[data-nte-c]'); if (c) { read(); f.color = c.dataset.nteC; draw(); return; }
@@ -3792,7 +3763,10 @@
         if (b.dataset.nte === 'add') { read(); f.fields.push({ id: 'f' + Date.now().toString(36), label: '', type: 'text' }); draw(); setTimeout(() => { const l = $$('[data-nte="label"]', wref); l[l.length - 1]?.focus(); }, 30); return; }
         if (b.dataset.nte === 'del') { state.calTpls = state.calTpls.filter(x => x.id !== f.id); save(); close(); render(); return; }
         read();
-        const clean = NT.sanitizeTpl({ ...f, fields: f.fields.filter(q => q.label.trim()) });
+        // En una frase, un hueco de texto puede ir sin nada delante; si no, cada campo necesita su texto
+        const keep = f.fields.filter(q => q.label.trim() || (f.seq && q.type === 'text'));
+        if (f.seq && !keep.length) { toast(t('nmNeedStep')); return; }
+        const clean = NT.sanitizeTpl({ ...f, seq: !!f.seq, fields: keep });
         if (!clean) { toast(t('ntNeedName')); return; }
         if (f.fields.some(q => q.type === 'pick' && q.label.trim() && !(q.opts || []).length && !(q.dep && Object.keys(q.by || {}).length))) { toast(t('ntNeedOpts')); return; }
         state.calTpls = p0 ? state.calTpls.map(x => x.id === f.id ? clean : x) : [...state.calTpls, clean];
@@ -3953,7 +3927,6 @@
       title: `${tfTag(s, 'big')}`, cls: 'tf-sheet',
       body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(tfLong(k))}${s.once ? ' · ' + esc(t('tfOnce')) : ''}</p>
         ${s.once ? `<button type="button" class="btn sm" data-tfn="once">${ico('edit')} ${esc(t('tfOnceEditBtn'))}</button>` : `<div class="tf-form">${tfField(t('tfStart'), `<input class="input" type="time" id="tfn-start" value="${esc(tm.start || '')}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfn-end" value="${esc(tm.end || '')}">`)}
-        ${tfField(t('tfBrkDay'), `<input class="input" type="number" inputmode="numeric" id="tfn-brk" min="0" max="720" value="${Number.isFinite(cur.brk) ? cur.brk : ''}" placeholder="${TF.entryBreak(s, { sid: cur.sid }, list0)}">`)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfn-pl"', cur.pl || '', t('tfPlSame', { p: (tfPlace(s.placeId) || { name: t('tfPlNone') }).name }), cur.plx && cur.plx.addr), true)}</div>`}
         ${tfTrBox({ on: !!tr0, mode: tr0 ? tr0.mode : '', dep: tr0 ? tr0.dep : '', arr: tr0 ? tr0.arr : '', hint: goHint })}
         ${tfTrBox({ k: 'bk', on: !!bk0, mode: bk0 ? bk0.mode : '', dep: bk0 ? bk0.dep : '', arr: bk0 ? bk0.arr : '', to: bk0 ? bk0.to : nx ? '>' : '', depPh: tm.end || '', hint: bkHint })}
@@ -3973,7 +3946,6 @@
           const a = $('#tfn-start', w).value, z = $('#tfn-end', w).value;
           if (!!a !== !!z) { toast(t('tfBothTimes')); return; }
           next.start = a === s.start ? '' : a; next.end = z === s.end ? '' : z;
-          const bv = $('#tfn-brk', w).value.trim(); if (bv === '') delete next.brk; else next.brk = clamp(Math.round(+bv) || 0, 0, 720);
           const sel = $('#tfn-pl', w); delete next.pl; delete next.plx;
           if (sel.value !== '+' && !(sel.value === '*' && !sel.dataset.plx)) { const r = tfPlRead(sel); if (r.plx) next.plx = r.plx; else if (r.pl === '-' || tfPlace(r.pl)) next.pl = r.pl; }
           else if (cur.pl) next.pl = cur.pl; else if (cur.plx) next.plx = cur.plx;
@@ -4594,7 +4566,7 @@
         ${tfField(t('ntpDef'), tfSel('id="tfe-ntp"', [['', t('ntpNone')], ...tfTplsQuick().map(p => [p.id, p.name])], d.ntp || ''), true)}
         <label class="row full" style="gap:12px;grid-column:1/-1"><span class="switch"><input type="checkbox" id="tfe-ask" ${d.ask ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('askOn'))}</b><br><span class="muted small">${esc(t('askOnHint'))}</span></span></label>
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfe-start" value="${esc(d.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfe-end" value="${esc(d.end)}">`)}
-        ${tfField(t('tfBreak'), `<input class="input" type="number" id="tfe-brk" min="0" max="720" value="${d.breakMin}">`)}${tfField(t('tfAlarm'), `<input class="input" type="number" id="tfe-alarm" min="0" max="1440" value="${d.alarmMin}">`)}</div>
+        ${tfField(t('tfAlarm'), `<input class="input" type="number" id="tfe-alarm" min="0" max="1440" value="${d.alarmMin}">`)}</div>
         <div style="margin-top:14px">${tfTrBox({ on: !!d.tr, mode: d.tr || '', dep: d.trDep || '', arr: d.trArr || '', hint: t('trHintShift') })}</div>
         <div style="margin-top:14px">${tfTrBox({ k: 'bk', on: !!d.bk, mode: d.bk || '', dep: d.bkDep || '', arr: d.bkArr || '', to: d.bkTo || '', depPh: d.end || '', hint: t('bkHintShift') })}</div>`,
       foot: `${isNew ? '' : `<button class="btn danger" data-tfe="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-tfe="save">${esc(t('save'))}</button>`,
@@ -4613,7 +4585,7 @@
         if (isNew && state.calShifts.length >= TF.LIMITS.shifts) { toast(t('tfMaxShifts', { n: TF.LIMITS.shifts })); return; }
         const tr = tfTrRead(w), bk = tfTrRead(w, 'bk'); if (!tfTrOk(tr) || !tfTrOk(bk)) return;
         Object.assign(d, { name: name.slice(0, 100), emoji: v('tfe-emoji').trim().slice(0, 8), color: tfColor(v('tfe-color')), jobId: state.calJobs[0].id, start: v('tfe-start'), end: v('tfe-end'),
-          breakMin: clamp(+v('tfe-brk') || 0, 0, 720), alarmMin: clamp(+v('tfe-alarm') || 0, 0, 1440) });
+          breakMin: 0, alarmMin: clamp(+v('tfe-alarm') || 0, 0, 1440) });
         delete d.diffPct; delete d.rateMode; delete d.rateV; delete d.tr; delete d.trDep; delete d.trArr;
         if (tr && tr.on) { d.tr = tr.mode; if (tr.dep) d.trDep = tr.dep; if (tr.arr) d.trArr = tr.arr; }
         delete d.bk; delete d.bkDep; delete d.bkArr; delete d.bkTo;
@@ -4750,7 +4722,7 @@
     if (el.dataset.tfJob !== undefined) { tfEditJob(state.calJobs.find(j => j.id === el.dataset.tfJob) || null); return true; }
     if (el.dataset.tfPlace !== undefined) { tfEditPlace(tfPlace(el.dataset.tfPlace)); return true; }
     if (el.dataset.tfRt !== undefined) { tfRoutineAct(el.dataset.tfRt, el.dataset.id); return true; }
-    if (el.dataset.tfTp !== undefined) { if (el.dataset.tfTp === 'hist') tfTplHistory(el.dataset.id); else if (el.dataset.tfTp === 'search') tfNoteSearch(); else if (el.dataset.tfTp === 'item') tfListItem(el.dataset.id, el.dataset.val); else if (el.dataset.tfTp === 'newlist') tfEditList(null); else if (el.dataset.tfTp === 'list') tfEditList(tfList(el.dataset.id)); else if (el.dataset.tfTp === 'newmod') tfEditMod(null); else tfEditTpl(el.dataset.tfTp === 'edit' ? tfTpl(el.dataset.id) : null); return true; }
+    if (el.dataset.tfTp !== undefined) { if (el.dataset.tfTp === 'hist') tfTplHistory(el.dataset.id); else if (el.dataset.tfTp === 'search') tfNoteSearch(); else if (el.dataset.tfTp === 'item') tfListItem(el.dataset.id, el.dataset.val); else if (el.dataset.tfTp === 'newlist') tfEditList(null); else if (el.dataset.tfTp === 'list') tfEditList(tfList(el.dataset.id)); else tfEditTpl(el.dataset.tfTp === 'edit' ? tfTpl(el.dataset.id) : null); return true; }
     switch (el.dataset.tf) {
       case 'menu': TFS.menu = !TFS.menu; render(); break;
       case 'prev': case 'next': {
@@ -6847,7 +6819,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);

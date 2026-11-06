@@ -224,3 +224,16 @@ test('v1.45.2: arrastrar un turno puntual sobre el tiempo libre lo divide alrede
   const l4 = T.dropEntry({ k: [{ sid: 'free', note: '', start: '15:00', end: '18:30' }, { sid: 'w', note: '', start: '', end: '' }] }, shiftBy, { k: 'k', i: 0 }, { k: 'k', a: 840 }, () => 'z').k;
   assert.deepStrictEqual([l4[1].start, l4[1].end], ['', '']);
 });
+
+test('v1.45.2: quitar los descansos desde hoy sin cambiar las horas del pasado', () => {
+  const w = { id: 'w', kind: 'work', start: '09:00', end: '17:00', breakMin: 30 };
+  const days = { '2026-11-01': [{ sid: 'w', note: '' }], '2026-11-02': [{ sid: 'w', note: '' }, { sid: 'w', note: '', start: '18:00', end: '20:00' }], '2026-11-06': [{ sid: 'w', note: '', brk: 15 }], '2026-11-07': [{ sid: 'w', note: '' }] };
+  const out = T.freezeBreaks(days, { w }, '2026-11-06');
+  assert.strictEqual(out['2026-11-01'][0].brk, 30);
+  assert.strictEqual(out['2026-11-02'][0].brk, undefined); // jornada partida: ya no restaba
+  assert.strictEqual(out['2026-11-06'][0].brk, undefined);
+  const w0 = { ...w, breakMin: 0 };
+  assert.strictEqual(T.entryHours(w0, out['2026-11-01'][0], out['2026-11-01']), 7.5);
+  assert.strictEqual(T.entryHours(w0, out['2026-11-07'][0], out['2026-11-07']), 8);
+  assert.strictEqual(days['2026-11-06'][0].brk, 15);
+});
