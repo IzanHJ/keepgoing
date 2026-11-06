@@ -2655,3 +2655,4 @@ body.orb-open { overflow: hidden; }
 .nh-t { overflow-wrap: anywhere; }
 /* v1.42: trayecto de después del turno (a Casa, a otro lugar o al siguiente turno) */
 .tf-trip.bk { border-style: dotted; background: color-mix(in srgb, var(--c) 8%, transparent); }
+.tf-tpl-chip[data-def="1"] { box-shadow: 0 0 0 2px var(--c); }
