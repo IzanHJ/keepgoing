@@ -2679,3 +2679,26 @@ body.orb-open { overflow: hidden; }
 .tf-drop-on { outline: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
 .tf-drop-into { outline: 3px solid var(--accent) !important; outline-offset: 1px; filter: brightness(1.12); z-index: 3; }
 body.tf-dragging, body.tf-dragging * { cursor: grabbing !important; }
+/* v1.45.2: en iPhone, los campos de hora tienen un ancho propio que no encoge: salida y llegada se pisaban y se salían de la caja */
+.tf-form > .field, .tf-form > label { min-width: 0; }
+.input[type="time"], .input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; box-sizing: border-box; display: block; }
+.input[type="time"]::-webkit-date-and-time-value, .input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.tf-tr .tf-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* v1.49: ampliar los gráficos por tiempo */
+.zc { position: relative; }
+.zc svg { touch-action: pan-y; }
+.zc.on svg { cursor: grab; }
+body.zc-grabbing, body.zc-grabbing * { cursor: grabbing !important; user-select: none; }
+.zc-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px; min-height: 34px; }
+.zc-bar .zc-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zc-bar .icon-btn.sm { width: 32px; height: 32px; }
+.zc-bar .icon-btn.sm svg.i { width: 16px; height: 16px; }
+.zc-bar .icon-btn:disabled { opacity: .35; pointer-events: none; }
+.zc-nav { position: relative; height: 18px; margin-top: 4px; border-radius: 999px; background: var(--surface-2); touch-action: none; cursor: pointer; }
+.zc-thumb { position: absolute; top: 3px; bottom: 3px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 70%, transparent); cursor: grab; min-width: 14px; }
+/* v1.49: «Importar» con respuestas pendientes no se apaga del todo: lleva a la primera que falta */
+.btn.rg-go-off { opacity: .55; }
+@keyframes rgFlash { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 30% { box-shadow: 0 0 0 3px var(--accent); } }
+.rg-flash { animation: rgFlash 1.2s ease 2; }
+:root:is([data-motion="soft"], [data-motion="off"]) .rg-flash { outline: 3px solid var(--accent); }

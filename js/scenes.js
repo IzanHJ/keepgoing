@@ -103,7 +103,7 @@
     // v1.42: escenarios de serie editados (o elegidos con «Alternativa»)
     const over = {};
     for (const [k, v] of Object.entries(r.over && typeof r.over === 'object' && !Array.isArray(r.over) ? r.over : {})) if (LAYOUTS[k] && v && typeof v === 'object') over[k] = { cells: normCells(v.cells), ...normLook(v) };
-    return { colors, scenes, mono: r.mono !== false, over };
+    return { colors, scenes, mono: r.mono !== false, amb: r.amb !== false, over };
   }
   // Color de un escenario (de lugar o 'tr-…'): el elegido o el de serie
   const colorOf = (style, key) => (style && style.colors && style.colors[key]) || DEFAULT_COLORS[key] || CUSTOM_COLOR;

@@ -219,6 +219,7 @@
     walk: '<circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2-6 2.5 2.5V21M12 15l1-6-3.5 1.5L8 14M13 9l2 3 3 1"/>',
     moto: '<circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M5.5 16.5h6l3-5h-5M14.5 11.5l4 5M13 7h3l1.5 4.5"/>',
     rewind: '<path d="M11.5 6.5L5 12l6.5 5.5zM19.5 6.5L13 12l6.5 5.5z"/><path d="M4 6v12"/>',
+    toEnd: '<path d="M12.5 6.5L19 12l-6.5 5.5zM4.5 6.5L11 12l-6.5 5.5z"/><path d="M20 6v12"/>',
     route: '<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/>',
     heart: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/>',
     // v1.40: piezas del creador de escenarios
@@ -1152,7 +1153,17 @@
     if (!p.kindsMig) tfMigrateKinds();
     if (!p.payMig) tfMigratePay();
     if (!state.calPrefs.jobMig) tfMigrateJobs();
+    if (!state.calPrefs.brkMig) tfMigrateBreaks();
     tfTplSeed();
+  }
+  /* v1.45.2: fuera los descansos (si alguien quiere uno, lo pone como un turno más). Desde hoy, sin tocar el pasado: los días de
+     antes guardan su descanso en la entrada (e.brk) y sus horas no cambian; desde hoy, y en los turnos, ya no hay descanso. */
+  function tfMigrateBreaks() {
+    const by = Object.fromEntries(state.calShifts.map(s => [s.id, s]));
+    state.calDays = TF.freezeBreaks(state.calDays, by, todayKey()); tfOnceGen++;
+    state.calShifts = state.calShifts.map(s => s.breakMin ? { ...s, breakMin: 0 } : s);
+    state.calPrefs = { ...state.calPrefs, brkMig: 1 };
+    save();
   }
   // v1.26 pasaba la tarifa de los Tipos a los turnos; desde la v1.39 no hay paga, así que solo queda la marca
   function tfMigrateKinds() { state.calPrefs = { ...state.calPrefs, kindsMig: 1 }; save(); }
@@ -1583,6 +1594,7 @@
   function lwPlay(list) {
     clearTimeout(LW.tm); LW.arrive = null;
     const sg = LW.cv && LW.cv.closest('.lw-stage'), st = sg ? $('.lw-static', sg) : $('#lw-static'); if (!LW.r) { if (st) st.innerHTML = lwStaticHtml(list[list.length - 1]); return; }
+    if (LW.ambFn && LW.r.setAmbient) { try { LW.r.setAmbient(LW.ambFn()); } catch (e) { /* nada */ } } // v1.48: hora y estación
     const [a, ...rest] = list; LW.r.show(a);
     if (!rest.length) return;
     if (a.type === 'globe') LW.arrive = () => { LW.tm = setTimeout(() => lwPlay(rest), 450); };
@@ -1597,7 +1609,7 @@
     try {
       const [THREE, countries] = await Promise.all([LW.three || (LW.three = import(new URL('js/vendor/three.module.min.js', document.baseURI).href)), lwLoadMap()]);
       if (LW.cv !== cv || !cv.isConnected) return;
-      LW.r = KGLifeWorld.create(THREE, cv, { grid: KGScenes.GRID, quality: KGLifeWorld.quality(), motion: motionMode(), countries, accent: lwAccent(), onArrive: () => { const f = LW.arrive; LW.arrive = null; if (f) f(); } });
+      LW.r = KGLifeWorld.create(THREE, cv, { grid: KGScenes.GRID, quality: KGLifeWorld.quality(), motion: motionMode(), countries, accent: lwAccent(), ambient: lwSt().amb !== false, onArrive: () => { const f = LW.arrive; LW.arrive = null; if (f) f(); } });
     } catch (e) { LW.three = null; LW.fail = true; if (LW.cv === cv) { stage.classList.add('static'); lwPlay(getList()); } return; }
     finally { stage.classList.remove('loading'); }
     // solo se mueve mientras se ve: fuera de pantalla o con la app en segundo plano se para
@@ -1609,9 +1621,9 @@
     lwPlay(getList());
   }
 
-  /* ---- v1.38: Replay. Reproduce la línea de tiempo hacia delante: la vista, las estadísticas, Progreso y Mundo van a la vez ---- */
-  const RP = { on: false, sp: 1, tm: 0 }, RP_SPEEDS = [1, 5, 20], RP_MS = 1600;
-  const rpHalt = () => { clearTimeout(RP.tm); RP.tm = 0; RP.on = false; };
+  /* ---- v1.38: Replay. v1.48: va desde HOY hacia atrás (la vista, las estadísticas, Progreso y Mundo a la vez), en modo cine ---- */
+  const RP = { on: false, sp: 1, tm: 0, n: 0, held: '', from: '', lbl: '' }, RP_SPEEDS = [1, 5, 20], RP_MS = 1600;
+  const rpHalt = () => { clearTimeout(RP.tm); RP.tm = 0; RP.on = false; if (LW.r && LW.r.cinema) LW.r.cinema(false); };
 
   /* ---- la pestaña ---- */
   function makeTimeline() {
@@ -2093,10 +2105,10 @@
     };
     // Replay: la fila de controles (el resto, más abajo)
     const rpBar = () => u.sc === 'all' ? '' : `<div class="tl-rp" role="group" aria-label="${esc(t('rpAria'))}">
-      <button class="icon-btn sm" data-rp="start" aria-label="${esc(t('rpStart'))}" title="${esc(t('rpStart'))}">${ico('rewind')}</button>
-      <button class="tl-rp-play ${RP.on ? 'on' : ''}" data-rp="play" aria-pressed="${RP.on}">${ico(RP.on ? 'pause' : 'play')}<span>${esc(t(RP.on ? 'rpPause' : 'rpPlay'))}</span></button>
+      <button class="icon-btn sm" data-rp="today" ${u.at >= todayKey() ? 'disabled' : ''} aria-label="${esc(t('rpToday'))}" title="${esc(t('rpToday'))}">${ico('toEnd')}</button>
+      <button class="tl-rp-play ${RP.on ? 'on' : ''}" data-rp="play" aria-pressed="${RP.on}">${ico(RP.on ? 'pause' : 'rewind')}<span>${esc(t(RP.on ? 'rpPause' : 'rpPlay'))}</span></button>
       <div class="seg seg-sm tl-rp-sp" role="group" aria-label="${esc(t('rpSpeed'))}">${RP_SPEEDS.map(s => `<button data-rp-sp="${s}" class="${RP.sp === s ? 'on' : ''}" aria-pressed="${RP.sp === s}">${s}×</button>`).join('')}</div>
-      <span class="tl-rp-l small">${esc(t(u.sc === 'day' && u.ws !== 'sc' ? 'rpByMoment' : 'rpBy_' + u.sc))}</span></div>`;
+      <span class="tl-rp-l small">${esc(t('rpBackBy', { by: t(u.sc === 'day' && u.ws !== 'sc' ? 'rpByMoment' : 'rpBy_' + u.sc) }))}</span></div>`;
     const head = () => {
       const { from, to } = R(), tk = todayKey(), cur = from <= tk && tk <= to, mk = tlMarks(), prevM = KGT.nextMark(mk, from, to, -1), nextM = KGT.nextMark(mk, from, to, 1);
       return `<div class="tl-top"><div class="seg seg-sm tl-sc" role="group" aria-label="${esc(t('tlScaleAria'))}">${KGT.SCALES.map(s => `<button data-tl-sc="${s}" class="${u.sc === s ? 'on' : ''}" aria-pressed="${u.sc === s}">${esc(t('tlSc_' + s))}</button>`).join('')}</div>
@@ -2108,6 +2120,21 @@
     };
     /* -- v1.42: arriba, el escenario donde estás. Día de hoy: el lugar del turno de ahora (o el último de hoy); otro día: el primero
           con lugar (y en Replay, cada momento); Semana, Mes…: donde más veces estuviste. Sin lugares: tu Casa (o la de serie) -- */
+    // v1.48: ambiente del escenario. La hora del momento que se ve (o la de ahora en el periodo actual) y el mes de la fecha;
+    // en el Replay por periodos, el sol va hacia atrás con cada paso
+    const tlAmb = () => {
+      const tk = todayKey(), nd = new Date(), nowH = nd.getHours() + nd.getMinutes() / 60;
+      let k = u.at > tk ? tk : u.at, h = null;
+      if (!(TLS.sheet === 'world' && u.ws === 'sc')) {
+        const D = lwData(), p = lwCur(D);
+        if (p && p.t === 'm') { const m = u.ws === 'tr' ? D.L[p.i] && D.ms[D.L[p.i].i] : D.ms[p.i]; if (m) { if (m.min != null) h = m.min / 60; if (m.date) k = m.date; } }
+      }
+      if (h == null) {
+        const { from, to } = R();
+        h = RP.on ? ((13 - RP.n * 3.5) % 24 + 24) % 24 : from <= tk && tk <= to ? nowH : 13;
+      }
+      return { h, m: +String(k).slice(5, 7) || 1 };
+    };
     const heroInfo = () => {
       const D = lwData(), p = lwCur(D), tk = todayKey();
       if (u.ws === 'tr' && p && p.t === 'm' && D.L[p.i]) { const l = D.L[p.i]; return { list: lwLegSpecs(l), ic: lwTrIco(l.tr), k: t('lwTr_' + l.tr), sub: [l.from && l.from.name, l.to && l.to.name].filter(Boolean).join(' → ') }; }
@@ -2122,7 +2149,7 @@
       return { list: [home ? lwSceneSpec(home) : lwBuilt('home')], ic: 'house', k: t('tlHeroNone'), name: home ? home.name : t('lwSc_home'), sub: t('tlHeroHelp') };
     };
     const heroCap = x => `<span class="tl-hk">${ico(x.ic, 'xs')} ${esc(x.k)}</span>${x.name ? `<b class="ellipsis">${esc(x.name)}</b>` : ''}${x.sub ? `<small class="muted ellipsis">${esc(x.sub)}</small>` : ''}`;
-    const hero = () => `<div class="tl-hero-w" id="tl-hero-w"><div class="lw-stage tl-hero" id="tl-hero" role="button" tabindex="0" aria-label="${esc(t('tlHeroAria'))}"><canvas role="img" aria-label="${esc(t('lwAria'))}"></canvas><div class="lw-static" aria-hidden="true"></div><span class="lw-load muted small">${esc(t('lwLoading'))}</span></div>
+    const hero = () => `<div class="tl-hero-w" id="tl-hero-w"><div class="lw-stage tl-hero" id="tl-hero" role="button" tabindex="0" aria-label="${esc(t('tlHeroAria'))}"><canvas role="img" aria-label="${esc(t('lwAria'))}"></canvas><div class="lw-static" aria-hidden="true"></div><span class="lw-load muted small">${esc(t('lwLoading'))}</span><div class="tl-cine" id="tl-cine" aria-live="polite"></div><div class="tl-rpend" id="tl-rpend" hidden></div><span class="tl-spin-h" aria-hidden="true">${ico('refresh', 'xs')} ${esc(t('lwSpinHint'))}</span></div>
       <div class="tl-hcap" id="tl-hcap" aria-live="polite">${heroCap(heroInfo())}</div></div>`;
     // La cabecera usa el mismo motor 3D que Mundo: mientras la hoja de Mundo está abierta, el 3D vive en la hoja
     const heroStart = () => {
@@ -2153,6 +2180,7 @@
     const settingsSheet = () => { const st = lwSt(); return `<div class="tl-set">
         <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="tl-ax" ${ax === 'h' ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('tlSetAxis'))}</b><br><span class="muted">${esc(t('tlSetAxisHint'))}</span></span></label>
         <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="lw-mono" ${st.mono ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('lwMono'))}</b><br><span class="muted">${esc(t('lwMonoHint'))}</span></span></label>
+        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="lw-amb" ${st.amb !== false ? 'checked' : ''}><span></span></span><span class="grow small"><b>${esc(t('lwAmb'))}</b><br><span class="muted">${esc(t('lwAmbHint'))}</span></span></label>
         <button class="btn sm" data-tl-editviews>${ico('edit')} ${esc(t('tlSetViews'))}</button>
         <button class="btn sm ghost" data-tl-sheet="world">${ico('layers')} ${esc(t('tlSetScenes'))}</button></div>`; };
     const body = () => `${hero()}<div id="tl-head">${head()}</div>${track()}<div id="tl-rp">${rpBar()}</div><div class="tl-main" id="tl-main" data-sc="${u.sc}">${mainView()}</div>${sheetBtns()}`;
@@ -2181,31 +2209,61 @@
       if (opt.lazy) { cancelAnimationFrame(rT); rT = requestAnimationFrame(() => redraw()); } else redraw();
     };
     const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; vibrate(5); sfx('tlStep', nf > f ? 1 : -1); setAt(nf === 0 ? todayKey() : weeks[nf]); };
-    /* -- Replay: avanza solo un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
+    /* -- Replay (v1.48): desde HOY hacia atrás, un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
     const rpPaint = () => { const el = wref && $('#tl-rp', wref); if (el) el.innerHTML = rpBar(); const e2 = TLS.sheetEl && $('#tl-rp2', TLS.sheetEl); if (e2) e2.innerHTML = rpBar(); };
-    const rpStop = () => { if (!RP.on) return; rpHalt(); save(); rpPaint(); };
-    const rpNext = () => { clearTimeout(RP.tm); RP.tm = setTimeout(rpStep, RP_MS / RP.sp); };
-    const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); if (RP.on) sfx('tlFrame'); };
     const rpWorldDay = () => u.sc === 'day' && u.ws !== 'sc';
-    // Un paso: en Día con Mundo, el siguiente momento (o el primero del siguiente día que tenga alguno); si no, el siguiente periodo
+    // Modo cine: rótulo con la fecha que rueda como un cuentakilómetros, barra de lo recorrido y destello de rebobinado en cada paso
+    const cinePaint = tick => {
+      const el = wref && $('#tl-cine', wref), w = wref && $('#tl-hero-w', wref); if (!el || !w) return;
+      w.classList.toggle('cine', RP.on);
+      if (!RP.on) { el.innerHTML = ''; RP.lbl = ''; return; }
+      const { from, to } = R(), lbl = u.sc === 'day' ? fmtDate(u.at, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : tlLabel(u.sc, from, to);
+      const prev = [...(RP.lbl || '')], cs = [...lbl]; RP.lbl = lbl;
+      const tk = todayKey(), first = tlFirstKey(), pos = first >= tk ? 0 : 1 - KGT.posOf(u.at > tk ? tk : u.at < first ? first : u.at, first, tk);
+      el.innerHTML = `<span class="tl-cine-k">${ico('rewind', 'xs')} ${esc(t('rpCineK'))} · ${RP.sp}×</span><b class="tl-odo">${cs.map((c, i) => `<span class="${tick && c !== prev[i] ? 'roll' : ''}" style="--i:${i}">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')}</b><span class="tl-cine-bar"><i style="width:${(pos * 100).toFixed(1)}%"></i></span>`;
+      if (tick && !reducedMotion()) { w.classList.remove('flash'); void w.offsetWidth; w.classList.add('flash'); }
+    };
+    const rpFx = () => { RP.n++; cinePaint(true); if (LW.r && LW.r.pulse) LW.r.pulse(); if (RP.on) sfx('tlFrame'); };
+    const rpStop = () => { if (!RP.on) return; rpHalt(); RP.held = u.sc + u.ws + u.at; save(); rpPaint(); cinePaint(false); heroPaint(); };
+    const rpNext = () => { clearTimeout(RP.tm); RP.tm = setTimeout(rpStep, RP_MS / RP.sp); };
+    const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); if (RP.on) rpFx(); };
+    const dayCount = k => (u.ws === 'tr' ? KGWorld.legs(lwItems(k, k)) : lwItems(k, k)).length;
+    // Un paso hacia atrás: en Día con Mundo, el momento anterior (o el último del día anterior que tenga alguno); si no, el periodo anterior
     function rpStep() {
       RP.tm = 0; if (!RP.on || !wref || !wref.isConnected) return;
-      const tk = todayKey();
+      const fk = tlFirstKey();
       if (rpWorldDay()) {
-        const D = lwData(), p = lwCur(D), i = p && p.t === 'm' ? p.i : -1;
-        if (i + 1 < lwSeq(D).length) { LW.pick = { t: 'm', i: i + 1 }; setPanel(); heroPaint(); if (RP.on) sfx('tlFrame'); rpNext(); return; }
-        let k = u.at, n = 0; do { k = addDays(k, 1); n++; } while (k <= tk && n < 3700 && !(u.ws === 'tr' ? KGWorld.legs(lwItems(k, k)) : lwItems(k, k)).length);
-        if (k > tk || n >= 3700) { rpStop(); return; }
-        LW.rk = 'day' + k + k + u.ws; LW.pick = { t: 'm', i: 0 }; rpGo(k); rpNext(); return;
+        const D = lwData(), p = lwCur(D), i = p && p.t === 'm' ? p.i : 0;
+        if (i - 1 >= 0 && lwSeq(D).length) { LW.pick = { t: 'm', i: i - 1 }; setPanel(); heroPaint(); rpFx(); rpNext(); return; }
+        let k = u.at, n = 0; do { k = addDays(k, -1); n++; } while (k >= fk && n < 3700 && !dayCount(k));
+        if (k < fk || n >= 3700) { rpEnd(); return; }
+        LW.rk = 'day' + k + k + u.ws; LW.pick = { t: 'm', i: dayCount(k) - 1 }; rpGo(k); rpNext(); return;
       }
-      if (R().to >= tk) { rpStop(); return; }
-      const nk = KGT.shift(u.sc, u.at, 1); rpGo(nk > tk ? tk : nk); rpNext();
+      if (R().from <= fk) { rpEnd(); return; }
+      rpGo(KGT.shift(u.sc, u.at, -1)); rpNext();
     }
-    const rpAtEnd = () => { const tk = todayKey(); if (!rpWorldDay()) return R().to >= tk; if (u.at < tk) return false; const D = lwData(), p = lwCur(D), xs = lwSeq(D); return !xs.length || !!(p && p.t === 'm' && p.i >= xs.length - 1); };
-    const rpPlay = () => {
+    // Llegó al principio: tarjeta final con lo recorrido
+    function rpEnd() {
+      rpHalt(); RP.held = ''; save(); rpPaint(); cinePaint(false); heroPaint(); sfx('tlMark'); vibrate([8, 40, 8]);
+      const el = wref && $('#tl-rpend', wref); if (!el) return;
+      const a = tlFirstKey(), b = RP.from && RP.from > a ? RP.from : todayKey(), days = tlDaysBetween(a, b) + 1;
+      let pf = 0; for (let k = a, n = 0; k <= b && n < 2400; k = addDays(k, 1), n++) { const d = tlDay(k); if (d && d.perfect) pf++; }
+      const pl = KGWorld.summary(lwItems(a, b)).places.length, gy = (state.gymWorkouts || []).filter(w => w.status === 'done' && w.date >= a && w.date <= b).length, sh = Object.keys(state.calDays || {}).filter(k => k >= a && k <= b && (state.calDays[k] || []).length).length;
+      const cell = (ic, v, l) => `<span class="tl-rpend-c" style="--d:${cellN++}">${ico(ic, 'xs')}<b>${v}</b><small>${esc(l)}</small></span>`; let cellN = 0;
+      el.innerHTML = `<div class="tl-rpend-in"><span class="tl-cine-k">${ico('sparkle', 'xs')} ${esc(t('rpEndK'))}</span><b class="tl-rpend-t">${esc(t('rpEndT', { a: fmtDate(a, { day: 'numeric', month: 'short', year: 'numeric' }), b: fmtDate(b, { day: 'numeric', month: 'short', year: 'numeric' }) }))}</b>
+        <div class="tl-rpend-g">${cell('calendar', days, t('rpEndDays'))}${cell('crown', pf, t('rpEndPerfect'))}${cell('pin', pl, t('rpEndPlaces'))}${cell(gy ? 'dumbbell' : 'clock', gy || sh, t(gy ? 'rpEndGym' : 'rpEndShifts'))}</div>
+        <div class="tl-rpend-b"><button class="chip sm on" data-rpx="again">${ico('rewind', 'xs')} ${esc(t('rpAgain'))}</button><button class="chip sm ghost" data-rpx="close">${esc(t('close'))}</button></div></div>`;
+      el.hidden = false;
+    }
+    const rpEndClose = () => { const el = wref && $('#tl-rpend', wref); if (el && !el.hidden) { el.hidden = true; el.innerHTML = ''; } };
+    const rpPlay = (fresh = false) => {
       if (RP.on) { rpStop(); return; }
-      flush(); TLS.edit = false; RP.on = true;
-      if (rpAtEnd()) { LW.pick = null; rpGo(tlFirstKey()); } // ya al final: vuelve a empezar desde el principio
+      flush(); TLS.edit = false; rpEndClose();
+      const resume = !fresh && RP.held && RP.held === u.sc + u.ws + u.at; RP.held = '';
+      RP.on = true; RP.n = 0;
+      if (LW.r && LW.r.cinema) LW.r.cinema(true);
+      if (!resume) { RP.from = todayKey(); LW.pick = null; LW.rk = ''; RP.lbl = ''; rpGo(todayKey()); } // siempre desde hoy
+      else cinePaint(false);
       rpPaint(); rpNext();
     };
     const setScale = sc => { if (sc === u.sc) return; rpStop(); const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx(dir === 'out' ? 'tlZoomOut' : 'tlZoomIn'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
@@ -2241,8 +2299,8 @@
     };
     const mount = w => {
       wref = w; if (u.sc === 'week') place();
-      TLS.sheet = null; TLS.sheetEl = null; heroStart();
-      if (RP.on) rpNext(); // se volvió a pintar la pestaña con Replay en marcha: sigue
+      LW.ambFn = tlAmb; TLS.sheet = null; TLS.sheetEl = null; heroStart();
+      if (RP.on) { rpNext(); cinePaint(false); if (LW.r && LW.r.cinema) LW.r.cinema(true); } // se volvió a pintar la pestaña con Replay en marcha: sigue
       // instantáneas de las semanas cerradas, cuando el navegador esté libre
       (window.requestIdleCallback || (fn => setTimeout(fn, 800)))(() => { try { tlSnapWeeks(weeks); } catch (e) { /* nada */ } });
       const main = $('#tl-main', w);
@@ -2273,11 +2331,10 @@
     };
     // v1.42: los mismos manejadores en la pestaña y en la hoja abierta (Mundo, Progreso, Comparar, Estadísticas, Ajustes)
     const bind = w => {
-      let sx = null;
-      w.addEventListener('pointerdown', e => { sx = TLS.sheet === 'world' && u.ws === 'sc' && !LW.ed && e.target.closest('#lw-stage') ? e.clientX : null; });
-      w.addEventListener('pointerup', e => { if (sx == null) return; const dx = e.clientX - sx; sx = null; if (Math.abs(dx) > 40) scStep(dx < 0 ? 1 : -1); });
+      // v1.48: arrastrar sobre el 3D lo gira (antes cambiaba de escenario en el carrusel; ahora, con sus flechas)
       w.addEventListener('change', e => {
         if (e.target.id === 'tl-ax') { setAxis(e.target.checked ? 'h' : 'v'); return; }
+        if (e.target.id === 'lw-amb') { lwSt().amb = e.target.checked; state.lwStyle = KGScenes.normStyle(lwSt()); save(); sfx('toggle'); if (LW.r && LW.r.setAmbientOn) { LW.r.setAmbientOn(e.target.checked); LW.r.setAmbient(tlAmb()); } return; }
         if (e.target.id === 'tl-date' && KGT.isKey(e.target.value)) { setAt(e.target.value); return; }
         const ci = e.target.closest('[data-tl-ci]'); if (ci && KGT.isKey(ci.value)) { u.cmp[ci.dataset.tlCi] = ci.value; save(); setPanel(); return; }
         lwChange(e);
@@ -2287,10 +2344,12 @@
       w.addEventListener('focusout', e => { if (e.target.id === 'jr-note') flush(); });
       w.addEventListener('click', e => {
         if (!e.target.closest('.tl')) return;
+        const rx = e.target.closest('[data-rpx]'); if (rx) { e.stopPropagation(); vibrate(5); if (rx.dataset.rpx === 'again') { sfx('tlReplay'); rpPlay(true); } else { sfx('tlPanel'); rpEndClose(); } return; }
+        if (e.target.closest('#tl-rpend')) return;
         const sh = e.target.closest('[data-tl-sheet]'); if (sh) { if (sh.closest('.tl-set')) { u.ws = 'sc'; save(); } openSheet(sh.dataset.tlSheet); return; }
         if (e.target.closest('#tl-hero')) { openSheet('world'); return; }
         const sc = e.target.closest('[data-tl-sc]'); if (sc) { setScale(sc.dataset.tlSc); return; }
-        const rp = e.target.closest('[data-rp]'); if (rp) { vibrate(5); sfx(rp.dataset.rp === 'play' && !RP.on ? 'tlReplay' : 'tlPanel'); if (rp.dataset.rp === 'play') rpPlay(); else { LW.pick = null; rpGo(tlFirstKey()); if (RP.on) rpNext(); else save(); } return; }
+        const rp = e.target.closest('[data-rp]'); if (rp) { vibrate(5); sfx(rp.dataset.rp === 'play' && !RP.on ? 'tlReplay' : 'tlPanel'); if (rp.dataset.rp === 'play') rpPlay(); else { rpStop(); rpEndClose(); LW.pick = null; rpGo(todayKey()); save(); } return; }
         const rs = e.target.closest('[data-rp-sp]'); if (rs) { RP.sp = +rs.dataset.rpSp; sfx('tlPanel'); rpPaint(); if (RP.on) rpNext(); return; }
         const st = e.target.closest('[data-tl-step]'); if (st) { vibrate(5); sfx('tlStep', +st.dataset.tlStep); setAt(KGT.shift(u.sc, u.at, +st.dataset.tlStep)); return; }
         if (e.target.closest('[data-tl-today]')) { setAt(todayKey()); return; }
@@ -2792,11 +2851,11 @@
   const tfDragAttr = (k, e) => { const i = (state.calDays[k] || []).indexOf(e); return i >= 0 ? ` data-tf-dk="${k}" data-tf-di="${i}"` : ''; };
   const tfDragTag = (k, e, html) => html.replace('<span class="tf-tag', `<span${tfDragAttr(k, e)} class="tf-tag`);
   const tfBlock = (it, k, lanes, ph, big) => {
-    const h = (it.b - it.a) * ph / 60, w = 100 / lanes, c = tfColor(it.s.color);
+    const w = 100 / lanes, c = tfColor(it.s.color);
     const pl = tfLayers().places ? tfPlaceOf(it.s, it.e) : null;
     const label = `${it.s.emoji ? esc(it.s.emoji) + ' ' : ''}${esc(it.s.name)}${tfPlBadge(pl)}`;
     const ek = it.cont ? TF.iso(TF.addDays(TF.parseISO(k), -1)) : k, ei = (state.calDays[ek] || []).indexOf(it.e);
-    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''}${ei >= 0 && !it.cont ? tfDragAttr(ek, it.e) : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${big || h >= 30 ? `<small>${esc(it.start)}–${esc(it.end)}${big ? ' · ' + tfH(TF.entryHours(it.s, it.e, state.calDays[k])) + ' h' : ''}</small>` : ''}${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? tfEntNotes(k, it.e, it.s).map(([g]) => `<small class="tf-blk-note">${tfNoteIco(g)} ${esc(g.t)}</small>`).join('') : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
+    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''}${ei >= 0 && !it.cont ? tfDragAttr(ek, it.e) : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? tfEntNotes(k, it.e, it.s).map(([g]) => `<small class="tf-blk-note">${tfNoteIco(g)} ${esc(g.t)}</small>`).join('') : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
   };
   // v1.39: el trayecto (de la salida a la llegada) se dibuja como una franja fina con su icono, en el carril de su turno
   // v1.43: también el trayecto de después del turno y los enlazados (TF.dayLegs), cada uno en el carril de su turno
@@ -3372,7 +3431,7 @@
   const NT = window.KGNoteTpl;
   const tfTpls = () => state.calTpls;
   // Para los chips de un toque: primero las Notas modulares y luego las plantillas
-  const tfTplsQuick = () => [...state.calTpls.filter(p => p.kind === 'mod'), ...state.calTpls.filter(p => p.kind !== 'mod')];
+  const tfTplsQuick = () => state.calTpls; // v1.45.3: un solo tipo de nota
   const tfTpl = id => id ? state.calTpls.find(x => x.id === id) : null;
   const tfTplLabels = () => ({ read: t('ntRead'), book: t('ntBook'), pages: t('ntPages'), pagesU: t('ntPagesU'), gym: t('ntGym'), gymKind: t('ntGymKind'), gymOpts: t('ntGymOpts').split('|'), minutes: t('ntMinutes'), sets: t('ntSets'), effort: t('ntEffort'), study: t('ntStudy'), subject: t('ntSubject'), hours: t('ntHours'), date: t('ntDate'), who: t('ntWho'), where: t('ntWhere'), done: t('ntDone') });
   // Las 4 de serie se ponen una sola vez (calPrefs.tplSeed se sincroniza: si las borras no vuelven)
@@ -3399,18 +3458,18 @@
     const cur = i >= 0 ? tfGaps(k)[i] : null, p = tfTpl(cur ? cur.tp : tpId); if (!p) return;
     const last = cur ? {} : NT.lastVals(state.calGaps, p.id);
     // Lo último se propone en los campos de texto y de lista; en los números sale como pista
-    const mod = p.kind === 'mod'; // v1.39: Nota modular (frase con huecos en secuencia); no se propone lo último, solo chips
+    const mod = !!p.seq; // v1.45.3: nota que se lee como frase (antes «Nota modular»): no se propone lo último, solo chips
     const v = cur ? { ...(cur.v || {}) } : mod ? {} : Object.fromEntries(p.fields.filter(f => (f.type === 'text' || f.type === 'pick') && last[f.id] !== undefined).map(f => [f.id, last[f.id]]));
     // v1.43: la última nota de esta plantilla (hasta este día) para repetirla con un toque
     const prevN = cur ? null : (l => l.length ? l[l.length - 1] : null)(NT.notesOf(state.calGaps, p.id, '', k));
-    const st = { allDay: cur ? !cur.a : !(pre && pre.a), a: (cur && cur.a) || (pre && pre.a) || '', b: (cur && cur.b) || (pre && pre.b) || '', x: (cur && cur.x) || '' };
+    const st = { allDay: cur ? !cur.a : true, a: (cur && cur.a) || (pre && pre.a) || '', b: (cur && cur.b) || (pre && pre.b) || '', x: (cur && cur.x) || '' };
     let wref;
     const fieldHtml = f => {
       const val = v[f.id], id = `ntf-${esc(f.id)}`;
       // v1.43: con una Lista propia unida, se eligen sus elementos (los más nuevos primero); si no, lo último que pusiste
       const pickOf = n => { const l = tfList(f.list); return (l ? [...l.items].reverse().slice(0, 24) : NT.recent(state.calGaps, p.id, f.id, n)).filter(x => NT.keyOf(x) !== NT.keyOf(val)); };
       const lnote = () => { const l = tfList(f.list); return l ? `<span class="muted small nl-tag">${ico('users', 'xs')} ${esc(l.name)}${f.grow ? ' · ' + esc(t('nlGrowShort')) : ''}</span>` : ''; };
-      if (mod) { const rec = pickOf(4); return `<div class="nm-fill"><label class="nm-fill-row">${f.label ? `<span class="nm-pre">${esc(f.label)}</span>` : ''}<input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.text}" value="${esc(val || '')}" autocomplete="off" placeholder="${esc(t('nmBlank'))}" aria-label="${esc(f.label || t('nmBlank'))}"></label>${lnote()}${rec.length ? `<div class="row wrap" style="gap:6px">${rec.map(r => `<button type="button" class="chip sm" data-ntr="${esc(f.id)}" data-val="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}</div>`; }
+      if (mod && f.type === 'text') { const rec = pickOf(4); return `<div class="nm-fill"><label class="nm-fill-row">${f.label ? `<span class="nm-pre">${esc(f.label)}</span>` : ''}<input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.text}" value="${esc(val || '')}" autocomplete="off" placeholder="${esc(t('nmBlank'))}" aria-label="${esc(f.label || t('nmBlank'))}"></label>${lnote()}${rec.length ? `<div class="row wrap" style="gap:6px">${rec.map(r => `<button type="button" class="chip sm" data-ntr="${esc(f.id)}" data-val="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}</div>`; }
       if (f.type === 'text') { const rec = pickOf(5); return `<label class="field"><span>${esc(f.label)} ${lnote()}</span><input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.text}" value="${esc(val || '')}" autocomplete="off"></label>${rec.length ? `<div class="row wrap" style="gap:6px;margin-top:-4px">${rec.map(r => `<button type="button" class="chip sm" data-ntr="${esc(f.id)}" data-val="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}`; }
       if (f.type === 'num') return `<label class="field"><span>${esc(f.label)}${f.unit ? ` <span class="muted">(${esc(f.unit)})</span>` : ''}</span><input class="input" id="${id}" data-ntf="${esc(f.id)}" type="number" inputmode="decimal" min="0" step="any" value="${val !== undefined ? esc(String(val)) : ''}" placeholder="${last[f.id] !== undefined ? esc(t('ntLast', { v: tfNum(last[f.id]) })) : ''}"></label>`;
       if (f.type === 'bool') return `<label class="row" style="gap:12px"><span class="switch"><input type="checkbox" data-ntf="${esc(f.id)}" ${val ? 'checked' : ''}><span></span></span><b class="grow">${esc(f.label)}</b></label>`;
@@ -3427,7 +3486,7 @@
     };
     const draw = () => {
       $('#ntb', wref).innerHTML = `<div class="stack" style="gap:12px"><div class="row" style="justify-content:space-between;gap:8px"><p class="muted small" style="margin:0">${esc(tfLong(k))}</p><div class="row wrap" style="gap:6px;justify-content:flex-end">${prevN ? `<button type="button" class="chip sm" data-ntrep>${ico('repeat', 'xs')} ${esc(t('ntRepeat', { d: fmtDate(prevN.k, { day: 'numeric', month: 'short' }) }))}</button>` : ''}${NT.notesOf(state.calGaps, p.id).length ? `<button type="button" class="chip sm" data-nth>${ico('clock', 'xs')} ${esc(t('nhTitle'))}</button>` : ''}</div></div>
-        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="nt-all" ${st.allDay ? 'checked' : ''}><span></span></span><b class="grow">${esc(t('tfAllDay'))}</b></label>
+        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="nt-all" ${st.allDay ? '' : 'checked'}><span></span></span><b class="grow">${esc(t('ntWithTime'))}</b></label>
         ${st.allDay ? '' : `<div class="tf-form">${tfField(t('tfStart'), `<input class="input" type="time" id="tfg-a" value="${esc(st.a)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfg-b" value="${esc(st.b)}">`)}</div>`}
         ${mod ? `<div class="nm-seq">${p.fields.map(fieldHtml).join(`<span class="nm-arrow" aria-hidden="true">${ico('down', 'xs')}</span>`)}</div>` : p.fields.map(fieldHtml).join('')}<div id="nt-prog">${progHtml()}</div>
         <textarea class="input" id="nt-x" rows="2" maxlength="${NT.LIM.extra}" placeholder="${esc(t('ntExtraPh'))}">${esc(st.x)}</textarea></div>`;
@@ -3442,7 +3501,7 @@
       foot: `${cur ? `<button class="btn danger" data-ntg="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-ntg="save">${ico('check')} ${esc(t('save'))}</button>`,
       onMount: w => {
         wref = w; draw();
-        w.addEventListener('change', e => { if (e.target.id === 'nt-all') { read(); st.allDay = e.target.checked; if (!st.allDay && !st.a) { const s = tfFreeSlot(k, new Date().getHours() * 60 + 60); st.a = s.a; st.b = s.b; } draw(); } });
+        w.addEventListener('change', e => { if (e.target.id === 'nt-all') { read(); st.allDay = !e.target.checked; if (!st.allDay && !st.a) { const s = tfFreeSlot(k, new Date().getHours() * 60 + 60); st.a = s.a; st.b = s.b; } draw(); } });
         w.addEventListener('input', e => { if (p.prog && e.target.dataset && (e.target.dataset.ntf === p.prog.key || e.target.dataset.ntf === p.prog.amt)) { read(); $('#nt-prog', w).innerHTML = progHtml(); } });
       },
       onClick: (e, close, w) => {
@@ -3636,56 +3695,16 @@
   const tfModLine = p => p.fields.map(f => (f.label ? f.label + ' ' : '') + '…').join(' → ');
   function tfTplsView(inner) {
     tfTplSeed();
-    const row = p => `<div class="tf-item"><span class="tf-rt-ic nt-ic" style="--nc:${tfColor(p.color)}">${ico(p.icon)}</span><span class="grow"><b>${esc(p.name)}</b><br><span class="muted small">${esc(p.kind === 'mod' ? tfModLine(p) : (p.fields.map(f => f.label).join(' · ') || t('ntNoFields')) + (p.prog ? ' · ' + t('ntHasProg') : ''))}</span></span><button class="icon-btn sm" data-tf-tp="hist" data-id="${esc(p.id)}" aria-label="${esc(t('nhTitle') + ': ' + p.name)}" title="${esc(t('nhTitle'))}">${ico('clock')}</button><button class="btn sm" data-tf-tp="edit" data-id="${esc(p.id)}">${esc(t('edit'))}</button></div>`;
-    const mods = tfTpls().filter(p => p.kind === 'mod'), tpls = tfTpls().filter(p => p.kind !== 'mod');
+    const row = p => `<div class="tf-item"><span class="tf-rt-ic nt-ic" style="--nc:${tfColor(p.color)}">${ico(p.icon)}</span><span class="grow"><b>${esc(p.name)}</b><br><span class="muted small">${esc(p.seq ? tfModLine(p) : (p.fields.map(f => f.label).join(' · ') || t('ntNoFields')) + (p.prog ? ' · ' + t('ntHasProg') : ''))}</span></span><button class="icon-btn sm" data-tf-tp="hist" data-id="${esc(p.id)}" aria-label="${esc(t('nhTitle') + ': ' + p.name)}" title="${esc(t('nhTitle'))}">${ico('clock')}</button><button class="btn sm" data-tf-tp="edit" data-id="${esc(p.id)}">${esc(t('edit'))}</button></div>`;
+    const tpls = tfTpls();
     return `${inner ? '' : tfSub(t('ntNotes'))}
       <button class="btn block" data-tf-tp="search">${ico('search')} ${esc(t('nsTitle'))}</button>
-      <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${ico('list', 'xs')} ${esc(t('nmTitle'))}</h2><button class="icon-btn sm" data-tf-tp="newmod" aria-label="${esc(t('nmNew'))}" title="${esc(t('nmNew'))}">${ico('plus')}</button></div>
-        <p class="muted small" style="margin:0">${esc(t('nmIntro'))}</p>
-        ${mods.length ? `<div class="stack" style="gap:8px">${mods.map(row).join('')}</div>` : `<button class="btn block" data-tf-tp="newmod">${ico('plus')} ${esc(t('nmNew'))}</button>`}</section>
       <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${ico('doc', 'xs')} ${esc(t('ntTitle'))}</h2><button class="icon-btn sm" data-tf-tp="new" aria-label="${esc(t('ntNew'))}" title="${esc(t('ntNew'))}">${ico('plus')}</button></div>
         <p class="muted small" style="margin:0">${esc(t('ntIntro'))}</p>
-        ${tpls.length ? `<div class="stack" style="gap:8px">${tpls.map(row).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t('ntNone'))}</p>`}</section>
+        ${tpls.length ? `<div class="stack" style="gap:8px">${tpls.map(row).join('')}</div>` : `<button class="btn block" data-tf-tp="new">${ico('plus')} ${esc(t('ntNew'))}</button>`}</section>
       <section class="clay card stack" style="gap:10px"><div class="row" style="justify-content:space-between"><h2 class="section-title" style="margin:0">${ico('users', 'xs')} ${esc(t('nlTitle'))}</h2><button class="icon-btn sm" data-tf-tp="newlist" aria-label="${esc(t('nlNew'))}" title="${esc(t('nlNew'))}">${ico('plus')}</button></div>
         <p class="muted small" style="margin:0">${esc(t('nlIntro'))}</p>
         ${state.calLists.length ? `<div class="stack" style="gap:8px">${state.calLists.map(l => `<div class="tf-item"><span class="grow"><b>${esc(l.name)}</b><br>${l.items.length ? `<span class="row wrap" style="gap:4px;margin-top:4px">${l.items.slice(-8).reverse().map(x => `<button type="button" class="chip xs" data-tf-tp="item" data-id="${esc(l.id)}" data-val="${esc(x)}">${esc(x)}</button>`).join('')}</span>` : `<span class="muted small">${esc(t('nlEmpty'))}</span>`}</span><button class="btn sm" data-tf-tp="list" data-id="${esc(l.id)}">${esc(t('edit'))}</button></div>`).join('')}</div>` : `<button class="btn block" data-tf-tp="newlist">${ico('plus')} ${esc(t('nlNew'))}</button>`}</section>`;
-  }
-  // Editor de una Nota modular: nombre, icono, color y sus secuencias (el texto que va antes de cada hueco)
-  function tfEditMod(p0) {
-    if (!p0 && tfTpls().length >= NT.LIM.tpls) { toast(t('ntMax')); return; }
-    const f = p0 ? JSON.parse(JSON.stringify(p0)) : { id: 'nm' + uid().replace(/[^A-Za-z0-9]/g, '').slice(0, 12), kind: 'mod', name: '', icon: 'list', color: HABIT_COLORS[2], fields: [{ id: 's' + Date.now().toString(36), label: '' }, { id: 's' + (Date.now() + 1).toString(36), label: '' }] };
-    let wref;
-    const read = () => { f.name = $('#nme-name', wref).value; $$('[data-nme-step]', wref).forEach(el => { const q = f.fields[+el.dataset.nmeStep]; if (q) q.label = el.value; }); $$('[data-nml]', wref).forEach(b => { const q = f.fields[+b.dataset.nml]; if (q) tfLinkRead(b, q); }); };
-    const prev = () => f.fields.map(q => `${q.label ? `<span>${esc(q.label)}</span> ` : ''}<i class="nm-blank">${esc(t('nmBlank'))}</i>`).join(' <b class="nm-arrow">→</b> ');
-    const draw = () => {
-      $('#nme', wref).innerHTML = `<div class="stack" style="gap:12px">
-        <label class="field"><span>${esc(t('ntName'))}</span><input class="input" id="nme-name" maxlength="${NT.LIM.name}" value="${esc(f.name)}" placeholder="${esc(t('nmNamePh'))}"></label>
-        <div class="field"><span>${esc(t('ntIcon'))}</span><div class="row wrap" style="gap:6px">${NT.ICONS.map(n => `<button type="button" class="icon-btn sm nt-icp" data-nme-ic="${n}" aria-pressed="${f.icon === n}" aria-label="${n}">${ico(n)}</button>`).join('')}</div></div>
-        <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${HABIT_COLORS.map(c => `<button type="button" class="sw ${f.color === c ? 'on' : ''}" data-nme-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}</div></div>
-        <h3 class="section-title" style="margin:4px 0 0">${esc(t('nmSteps'))}</h3><p class="muted small" style="margin:0">${esc(t('nmStepsHint'))}</p>
-        ${f.fields.map((q, j) => `<div class="row nm-step-row" style="gap:8px"><span class="nm-n">${j + 1}</span><input class="input grow" data-nme-step="${j}" maxlength="${NT.LIM.label}" value="${esc(q.label)}" placeholder="${esc(t(j ? 'nmStepPh2' : 'nmStepPh1'))}" aria-label="${esc(t('nmStepN', { n: j + 1 }))}"><button type="button" class="icon-btn sm" data-nme-mv="${j}:-1" ${j ? '' : 'disabled'} aria-label="${esc(t('nmUp'))}">${ico('up')}</button><button type="button" class="icon-btn sm danger-text" data-nme-del="${j}" ${f.fields.length > 1 ? '' : 'disabled'} aria-label="${esc(t('delete'))}">${ico('x')}</button></div>${tfLinkCtl(q, `data-nml="${j}"`)}`).join('')}
-        ${f.fields.length < NT.LIM.steps ? `<div><button type="button" class="chip" data-nme="add">${ico('plus')} ${esc(t('nmAddStep'))}</button></div>` : ''}
-        <div class="nm-prev"><span class="muted small">${esc(t('tfPreview'))}</span><p id="nme-prev" style="margin:4px 0 0">${prev()}</p></div></div>`;
-    };
-    openModal({
-      title: `${ico('list')} ${esc(t(p0 ? 'nmEdit' : 'nmNew'))}`, cls: 'tf-sheet', body: '<div id="nme"></div>',
-      foot: `${p0 ? `<button class="btn danger" data-nme="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-nme="save">${ico('check')} ${esc(t('save'))}</button>`,
-      onMount: w => { wref = w; draw(); w.addEventListener('input', e => { if (e.target.dataset.nmeStep !== undefined) { read(); $('#nme-prev', w).innerHTML = prev(); } }); w.addEventListener('change', e => { if (e.target.matches('[data-lk="grow"]')) read(); }); tfLinkWire(w, b => f.fields[+b.dataset.nml], read, draw); },
-      onClick: (e, close) => {
-        const ic = e.target.closest('[data-nme-ic]'); if (ic) { read(); f.icon = ic.dataset.nmeIc; draw(); return; }
-        const c = e.target.closest('[data-nme-c]'); if (c) { read(); f.color = c.dataset.nmeC; draw(); return; }
-        const d = e.target.closest('[data-nme-del]'); if (d) { read(); f.fields.splice(+d.dataset.nmeDel, 1); draw(); return; }
-        const mv = e.target.closest('[data-nme-mv]'); if (mv) { read(); const [j] = mv.dataset.nmeMv.split(':').map(Number); if (j > 0) [f.fields[j - 1], f.fields[j]] = [f.fields[j], f.fields[j - 1]]; draw(); return; }
-        const b = e.target.closest('[data-nme]'); if (!b || b.tagName !== 'BUTTON') return;
-        if (b.dataset.nme === 'add') { read(); f.fields.push({ id: 's' + Date.now().toString(36), label: '' }); draw(); setTimeout(() => { const l = $$('[data-nme-step]', wref); l[l.length - 1]?.focus(); }, 30); return; }
-        if (b.dataset.nme === 'del') { state.calTpls = state.calTpls.filter(x => x.id !== f.id); save(); close(); render(); return; }
-        read();
-        if (!f.fields.some(q => q.label.trim())) { toast(t('nmNeedStep')); return; }
-        const clean = NT.sanitizeTpl(f); if (!clean) { toast(t('ntNeedName')); return; }
-        state.calTpls = p0 ? state.calTpls.map(x => x.id === f.id ? clean : x) : [...state.calTpls, clean];
-        save(); sfx('tap'); close(); render();
-      }
-    });
   }
   /* v1.39: «Turnos y Rutinas». Tres widgets plegables (Turnos, Rutinas y Notas) que se reordenan con las flechas. El orden va en
      calPrefs.tfW (se sincroniza) y lo plegado en state.ui.tfWOpen (solo este dispositivo). */
@@ -3713,7 +3732,6 @@
   document.addEventListener('toggle', e => { const d = e.target; if (!d || !d.matches || !d.matches('details[data-tfw]')) return; state.ui.tfWOpen = { ...(state.ui.tfWOpen || {}), [d.dataset.tfw]: d.open }; save(); }, true);
   const tfTplFieldBy = (f, id) => f.fields.find(x => x.id === id && x.type === 'pick');
   function tfEditTpl(p0) {
-    if (p0 && p0.kind === 'mod') return tfEditMod(p0);
     if (!p0 && tfTpls().length >= NT.LIM.tpls) { toast(t('ntMax')); return; }
     const f = p0 ? JSON.parse(JSON.stringify(p0)) : { id: 'tp' + uid().replace(/[^A-Za-z0-9]/g, '').slice(0, 12), name: '', icon: 'doc', color: HABIT_COLORS[1], fields: [{ id: 'f' + Date.now().toString(36), label: '', type: 'text' }], prog: null, goals: {} };
     let wref;
@@ -3732,8 +3750,10 @@
         <label class="field"><span>${esc(t('ntName'))}</span><input class="input" id="nte-name" maxlength="${NT.LIM.name}" value="${esc(f.name)}" placeholder="${esc(t('ntNamePh'))}"></label>
         <div class="field"><span>${esc(t('ntIcon'))}</span><div class="row wrap" style="gap:6px">${NT.ICONS.map(n => `<button type="button" class="icon-btn sm nt-icp" data-nte-ic="${n}" aria-pressed="${f.icon === n}" aria-label="${n}">${ico(n)}</button>`).join('')}</div></div>
         <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${HABIT_COLORS.map(c => `<button type="button" class="sw ${f.color === c ? 'on' : ''}" data-nte-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}</div></div>
+        <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="nte-seq" ${f.seq ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('ntSeq'))}</b><br><span class="muted small">${esc(t('ntSeqHint'))}</span></span></label>
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('ntFields'))}</h3>
-        ${f.fields.map((q, j) => `<div class="tf-entry" data-nte-row="${j}"><div class="row" style="gap:8px"><input class="input grow" data-nte="label" maxlength="${NT.LIM.label}" value="${esc(q.label)}" placeholder="${esc(t('ntFieldPh'))}" aria-label="${esc(t('ntFieldPh'))}"><button type="button" class="icon-btn sm danger-text" data-nte-del="${j}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>
+        ${f.seq ? `<p class="muted small" style="margin:0">${esc(t('nmStepsHint'))}</p>` : ''}
+        ${f.fields.map((q, j) => `<div class="tf-entry" data-nte-row="${j}"><div class="row" style="gap:8px"><input class="input grow" data-nte="label" maxlength="${NT.LIM.label}" value="${esc(q.label)}" placeholder="${esc(f.seq ? t(j ? 'nmStepPh2' : 'nmStepPh1') : t('ntFieldPh'))}" aria-label="${esc(t('ntFieldPh'))}"><button type="button" class="icon-btn sm danger-text" data-nte-del="${j}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>
           <div class="row" style="gap:8px"><select class="input grow" data-nte="type" aria-label="${esc(t('ntType'))}">${TY.map(y => `<option value="${y}" ${q.type === y ? 'selected' : ''}>${esc(t('ntT_' + y))}</option>`).join('')}</select>${q.type === 'num' ? `<input class="input" data-nte="unit" style="width:110px" maxlength="${NT.LIM.unit}" value="${esc(q.unit || '')}" placeholder="${esc(t('ntUnit'))}" aria-label="${esc(t('ntUnit'))}">` : ''}</div>
           ${q.type === 'text' ? tfLinkCtl(q, `data-ntl="${j}"`) : ''}
           ${q.type === 'pick' ? (() => { const pars = f.fields.slice(0, j).filter(x => x.type === 'pick' && !x.dep && x.label.trim() && (x.opts || []).length), par = q.dep && tfTplFieldBy(f, q.dep);
@@ -3746,7 +3766,7 @@
     openModal({
       title: `${ico('doc')} ${esc(t(p0 ? 'ntEdit' : 'ntNew'))}`, cls: 'tf-sheet', body: '<div id="nte"></div>',
       foot: `${p0 ? `<button class="btn danger" data-nte="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-nte="save">${ico('check')} ${esc(t('save'))}</button>`,
-      onMount: w => { wref = w; draw(); w.addEventListener('change', e => { if (e.target.matches('[data-nte="type"], [data-nte="dep"], [data-lk="grow"], #nte-pk, #nte-pa')) { read(); draw(); } }); tfLinkWire(w, b => f.fields[+b.dataset.ntl], read, draw); },
+      onMount: w => { wref = w; draw(); w.addEventListener('change', e => { if (e.target.id === 'nte-seq') { read(); f.seq = e.target.checked; draw(); return; } if (e.target.matches('[data-nte="type"], [data-nte="dep"], [data-lk="grow"], #nte-pk, #nte-pa')) { read(); draw(); } }); tfLinkWire(w, b => f.fields[+b.dataset.ntl], read, draw); },
       onClick: (e, close) => {
         const ic = e.target.closest('[data-nte-ic]'); if (ic) { read(); f.icon = ic.dataset.nteIc; draw(); return; }
         const c = e.target.closest('[data-nte-c]'); if (c) { read(); f.color = c.dataset.nteC; draw(); return; }
@@ -3755,7 +3775,10 @@
         if (b.dataset.nte === 'add') { read(); f.fields.push({ id: 'f' + Date.now().toString(36), label: '', type: 'text' }); draw(); setTimeout(() => { const l = $$('[data-nte="label"]', wref); l[l.length - 1]?.focus(); }, 30); return; }
         if (b.dataset.nte === 'del') { state.calTpls = state.calTpls.filter(x => x.id !== f.id); save(); close(); render(); return; }
         read();
-        const clean = NT.sanitizeTpl({ ...f, fields: f.fields.filter(q => q.label.trim()) });
+        // En una frase, un hueco de texto puede ir sin nada delante; si no, cada campo necesita su texto
+        const keep = f.fields.filter(q => q.label.trim() || (f.seq && q.type === 'text'));
+        if (f.seq && !keep.length) { toast(t('nmNeedStep')); return; }
+        const clean = NT.sanitizeTpl({ ...f, seq: !!f.seq, fields: keep });
         if (!clean) { toast(t('ntNeedName')); return; }
         if (f.fields.some(q => q.type === 'pick' && q.label.trim() && !(q.opts || []).length && !(q.dep && Object.keys(q.by || {}).length))) { toast(t('ntNeedOpts')); return; }
         state.calTpls = p0 ? state.calTpls.map(x => x.id === f.id ? clean : x) : [...state.calTpls, clean];
@@ -3916,7 +3939,6 @@
       title: `${tfTag(s, 'big')}`, cls: 'tf-sheet',
       body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(tfLong(k))}${s.once ? ' · ' + esc(t('tfOnce')) : ''}</p>
         ${s.once ? `<button type="button" class="btn sm" data-tfn="once">${ico('edit')} ${esc(t('tfOnceEditBtn'))}</button>` : `<div class="tf-form">${tfField(t('tfStart'), `<input class="input" type="time" id="tfn-start" value="${esc(tm.start || '')}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfn-end" value="${esc(tm.end || '')}">`)}
-        ${tfField(t('tfBrkDay'), `<input class="input" type="number" inputmode="numeric" id="tfn-brk" min="0" max="720" value="${Number.isFinite(cur.brk) ? cur.brk : ''}" placeholder="${TF.entryBreak(s, { sid: cur.sid }, list0)}">`)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfn-pl"', cur.pl || '', t('tfPlSame', { p: (tfPlace(s.placeId) || { name: t('tfPlNone') }).name }), cur.plx && cur.plx.addr), true)}</div>`}
         ${tfTrBox({ on: !!tr0, mode: tr0 ? tr0.mode : '', dep: tr0 ? tr0.dep : '', arr: tr0 ? tr0.arr : '', hint: goHint })}
         ${tfTrBox({ k: 'bk', on: !!bk0, mode: bk0 ? bk0.mode : '', dep: bk0 ? bk0.dep : '', arr: bk0 ? bk0.arr : '', to: bk0 ? bk0.to : nx ? '>' : '', depPh: tm.end || '', hint: bkHint })}
@@ -3936,7 +3958,6 @@
           const a = $('#tfn-start', w).value, z = $('#tfn-end', w).value;
           if (!!a !== !!z) { toast(t('tfBothTimes')); return; }
           next.start = a === s.start ? '' : a; next.end = z === s.end ? '' : z;
-          const bv = $('#tfn-brk', w).value.trim(); if (bv === '') delete next.brk; else next.brk = clamp(Math.round(+bv) || 0, 0, 720);
           const sel = $('#tfn-pl', w); delete next.pl; delete next.plx;
           if (sel.value !== '+' && !(sel.value === '*' && !sel.dataset.plx)) { const r = tfPlRead(sel); if (r.plx) next.plx = r.plx; else if (r.pl === '-' || tfPlace(r.pl)) next.pl = r.pl; }
           else if (cur.pl) next.pl = cur.pl; else if (cur.plx) next.plx = cur.plx;
@@ -4557,7 +4578,7 @@
         ${tfField(t('ntpDef'), tfSel('id="tfe-ntp"', [['', t('ntpNone')], ...tfTplsQuick().map(p => [p.id, p.name])], d.ntp || ''), true)}
         <label class="row full" style="gap:12px;grid-column:1/-1"><span class="switch"><input type="checkbox" id="tfe-ask" ${d.ask ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('askOn'))}</b><br><span class="muted small">${esc(t('askOnHint'))}</span></span></label>
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfe-start" value="${esc(d.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfe-end" value="${esc(d.end)}">`)}
-        ${tfField(t('tfBreak'), `<input class="input" type="number" id="tfe-brk" min="0" max="720" value="${d.breakMin}">`)}${tfField(t('tfAlarm'), `<input class="input" type="number" id="tfe-alarm" min="0" max="1440" value="${d.alarmMin}">`)}</div>
+        ${tfField(t('tfAlarm'), `<input class="input" type="number" id="tfe-alarm" min="0" max="1440" value="${d.alarmMin}">`)}</div>
         <div style="margin-top:14px">${tfTrBox({ on: !!d.tr, mode: d.tr || '', dep: d.trDep || '', arr: d.trArr || '', hint: t('trHintShift') })}</div>
         <div style="margin-top:14px">${tfTrBox({ k: 'bk', on: !!d.bk, mode: d.bk || '', dep: d.bkDep || '', arr: d.bkArr || '', to: d.bkTo || '', depPh: d.end || '', hint: t('bkHintShift') })}</div>`,
       foot: `${isNew ? '' : `<button class="btn danger" data-tfe="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-tfe="save">${esc(t('save'))}</button>`,
@@ -4576,7 +4597,7 @@
         if (isNew && state.calShifts.length >= TF.LIMITS.shifts) { toast(t('tfMaxShifts', { n: TF.LIMITS.shifts })); return; }
         const tr = tfTrRead(w), bk = tfTrRead(w, 'bk'); if (!tfTrOk(tr) || !tfTrOk(bk)) return;
         Object.assign(d, { name: name.slice(0, 100), emoji: v('tfe-emoji').trim().slice(0, 8), color: tfColor(v('tfe-color')), jobId: state.calJobs[0].id, start: v('tfe-start'), end: v('tfe-end'),
-          breakMin: clamp(+v('tfe-brk') || 0, 0, 720), alarmMin: clamp(+v('tfe-alarm') || 0, 0, 1440) });
+          breakMin: 0, alarmMin: clamp(+v('tfe-alarm') || 0, 0, 1440) });
         delete d.diffPct; delete d.rateMode; delete d.rateV; delete d.tr; delete d.trDep; delete d.trArr;
         if (tr && tr.on) { d.tr = tr.mode; if (tr.dep) d.trDep = tr.dep; if (tr.arr) d.trArr = tr.arr; }
         delete d.bk; delete d.bkDep; delete d.bkArr; delete d.bkTo;
@@ -4713,7 +4734,7 @@
     if (el.dataset.tfJob !== undefined) { tfEditJob(state.calJobs.find(j => j.id === el.dataset.tfJob) || null); return true; }
     if (el.dataset.tfPlace !== undefined) { tfEditPlace(tfPlace(el.dataset.tfPlace)); return true; }
     if (el.dataset.tfRt !== undefined) { tfRoutineAct(el.dataset.tfRt, el.dataset.id); return true; }
-    if (el.dataset.tfTp !== undefined) { if (el.dataset.tfTp === 'hist') tfTplHistory(el.dataset.id); else if (el.dataset.tfTp === 'search') tfNoteSearch(); else if (el.dataset.tfTp === 'item') tfListItem(el.dataset.id, el.dataset.val); else if (el.dataset.tfTp === 'newlist') tfEditList(null); else if (el.dataset.tfTp === 'list') tfEditList(tfList(el.dataset.id)); else if (el.dataset.tfTp === 'newmod') tfEditMod(null); else tfEditTpl(el.dataset.tfTp === 'edit' ? tfTpl(el.dataset.id) : null); return true; }
+    if (el.dataset.tfTp !== undefined) { if (el.dataset.tfTp === 'hist') tfTplHistory(el.dataset.id); else if (el.dataset.tfTp === 'search') tfNoteSearch(); else if (el.dataset.tfTp === 'item') tfListItem(el.dataset.id, el.dataset.val); else if (el.dataset.tfTp === 'newlist') tfEditList(null); else if (el.dataset.tfTp === 'list') tfEditList(tfList(el.dataset.id)); else tfEditTpl(el.dataset.tfTp === 'edit' ? tfTpl(el.dataset.id) : null); return true; }
     switch (el.dataset.tf) {
       case 'menu': TFS.menu = !TFS.menu; render(); break;
       case 'prev': case 'next': {
@@ -6813,7 +6834,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.51', [['1.51.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -8813,12 +8834,149 @@
   const invName = (model, id) => id === 'none' ? t('calcNoDestOpt') : (model.investments.find(i => i.id === id) || {}).name || '—';
   const calcTopActions = on => `<button class="icon-btn ${on ? 'on' : ''}" data-act="${on ? 'calc-close' : 'calc-open'}" aria-pressed="${on}" aria-label="${esc(t(on ? 'calcBack' : 'calcOpen'))}" title="${esc(t(on ? 'calcBack' : 'calcOpen'))}">${ico('calc')}</button><button class="icon-btn" data-act="vault-lock" aria-label="${esc(t('vaultLock'))}" title="${esc(t('vaultLock'))}">${ico('lock')}</button><button class="icon-btn" data-act="ledger-add" aria-label="${esc(t('ledgerAdd'))}">${ico('plus')}</button>`;
 
+  /* ---------- v1.49: ampliar los gráficos por tiempo, como las horas en Organización ----------
+     Pellizcar en horizontal acerca o aleja alrededor de los dedos (y moverlos desplaza); en el ordenador, Ctrl + rueda
+     (o pellizcar en el trackpad), rueda en horizontal o arrastrar para moverse y doble clic para verlo todo. Debajo, una
+     barra con −, + y «Todo» y, al ampliar, una pista con la parte visible que se arrastra con un dedo. La ventana visible
+     se guarda como fracción [a, b] del total por gráfico (solo durante la sesión) y se olvida si cambian los datos. */
+  const ZC = new Map(), ZW = new Map();
+  const ZC_STEP = 1.6;
+  function zcRange(id, n, minPts) {
+    const w = ZW.get(id);
+    if (!w || n < 3 || w.n !== n) { ZW.delete(id); return { i0: 0, i1: n - 1, on: false }; }
+    let i0 = Math.round(w.a * (n - 1)), i1 = Math.round(w.b * (n - 1));
+    const need = Math.min(n, minPts) - 1;
+    if (i1 - i0 < need) { i0 = clamp(Math.round((i0 + i1 - need) / 2), 0, n - 1 - need); i1 = i0 + need; }
+    return { i0, i1, on: i0 > 0 || i1 < n - 1 };
+  }
+  // Envuelve el gráfico y registra cómo volver a dibujarlo
+  function zcWrap(id, html, z, label) {
+    const c = ZC.get(id), w = ZW.get(id), on = !!w && z.on;
+    const btn = (act, icon, key, dis) => `<button type="button" class="icon-btn sm" data-zc-act="${act}" data-zc-id="${esc(id)}" aria-label="${esc(t(key))}" title="${esc(t(key))}" ${dis ? 'disabled' : ''}>${ico(icon)}</button>`;
+    const maxed = c && (z.i1 - z.i0) <= Math.min(c.n, c.min) - 1;
+    return `<div class="zc ${on ? 'on' : ''}" data-zc="${esc(id)}">${html}
+      <div class="zc-bar"><span class="zc-lbl muted small">${on ? esc(label) : ''}</span>${btn('out', 'minus', 'zcOut', !on)}${btn('in', 'plus', 'zcIn', maxed)}${on ? `<button type="button" class="chip sm" data-zc-act="all" data-zc-id="${esc(id)}">${ico('refresh')} ${esc(t('zcAll'))}</button>` : ''}</div>
+      ${on ? `<div class="zc-nav" data-zc-nav="${esc(id)}" aria-hidden="true"><i class="zc-thumb" style="left:${(w.a * 100).toFixed(2)}%;width:${Math.max(2, (w.b - w.a) * 100).toFixed(2)}%"></i></div>` : ''}</div>`;
+  }
+  function zcReg(id, n, minPts, render, geo) { ZC.set(id, { n, min: minPts, render, ...geo }); }
+  function zcSet(id, a, b) {
+    const c = ZC.get(id); if (!c) return;
+    const minSp = Math.min(1, (Math.min(c.n, c.min) - 1) / Math.max(1, c.n - 1));
+    const sp = clamp(b - a, minSp, 1); a = clamp(a, 0, 1 - sp);
+    const old = ZW.get(id);
+    if (sp >= .999) { if (!old) return; ZW.delete(id); }
+    else { if (old && Math.abs(old.a - a) < 1e-4 && Math.abs(old.b - (a + sp)) < 1e-4) return; ZW.set(id, { a, b: a + sp, n: c.n }); }
+    zcRedraw(id);
+  }
+  const zcWin = id => { const w = ZW.get(id); return w ? [w.a, w.b] : [0, 1]; };
+  function zcZoom(id, f, p = .5) {
+    const c = ZC.get(id); if (!c) return;
+    const [a, b] = zcWin(id), sp = b - a, minSp = Math.min(1, (Math.min(c.n, c.min) - 1) / Math.max(1, c.n - 1));
+    const ns = clamp(sp / f, minSp, 1), at = a + p * sp;
+    zcSet(id, at - p * ns, at - p * ns + ns);
+  }
+  const zcPan = (id, d) => { const [a, b] = zcWin(id); if (b - a < 1) zcSet(id, a + d, b + d); };
+  const zcPending = new Set(); let zcRaf = 0;
+  function zcRedraw(id) {
+    zcPending.add(id);
+    if (zcRaf) return;
+    zcRaf = requestAnimationFrame(() => {
+      zcRaf = 0;
+      for (const k of zcPending) {
+        const c = ZC.get(k), el = document.querySelector(`.zc[data-zc="${CSS.escape(k)}"]`); if (!c || !el) continue;
+        const foc = el.contains(document.activeElement) && document.activeElement.matches('.calc-chart') ? 'chart' : document.activeElement && document.activeElement.dataset && document.activeElement.dataset.zcAct;
+        el.outerHTML = c.render();
+        const nu = document.querySelector(`.zc[data-zc="${CSS.escape(k)}"]`);
+        if (nu && foc) { const f = foc === 'chart' ? nu.querySelector('.calc-chart') : nu.querySelector(`[data-zc-act="${foc}"]:not([disabled])`); if (f) f.focus({ preventScroll: true }); }
+      }
+      zcPending.clear();
+    });
+  }
+  // Posición (0..1) de un punto de la pantalla dentro de la parte visible, en el área de dibujo del gráfico
+  function zcFrac(id, clientX) {
+    const c = ZC.get(id), svg = document.querySelector(`.zc[data-zc="${CSS.escape(id)}"] svg`); if (!c || !svg) return .5;
+    const r = svg.getBoundingClientRect(), k = r.width / c.W;
+    return clamp((clientX - r.left - c.pl * k) / (c.iw * k || 1), 0, 1);
+  }
+  const zcHideTips = () => { calcTipHide(); hideTip(); };
+  // Dedo: dos dedos sobre el gráfico. Se escucha en los elementos tocados porque el gráfico se redibuja mientras tanto.
+  let zcT = null;
+  const zcDx = ts => Math.max(24, Math.abs(ts[0].clientX - ts[1].clientX));
+  const zcMid = ts => (ts[0].clientX + ts[1].clientX) / 2;
+  function zcTouchMove(e) {
+    if (!zcT || e.touches.length !== 2) return;
+    if (e.cancelable) e.preventDefault();
+    const c = ZC.get(zcT.id); if (!c) return;
+    const sp = zcT.b - zcT.a, minSp = Math.min(1, (Math.min(c.n, c.min) - 1) / Math.max(1, c.n - 1));
+    const ns = clamp(sp * zcT.d0 / zcDx(e.touches), minSp, 1), at = zcT.a + zcT.p0 * sp, a = at - zcFrac(zcT.id, zcMid(e.touches)) * ns;
+    zcSet(zcT.id, a, a + ns);
+  }
+  function zcTouchEnd(e) {
+    if (!zcT || e.touches.length >= 2) return;
+    zcT.els.forEach(el => { el.removeEventListener('touchmove', zcTouchMove); el.removeEventListener('touchend', zcTouchEnd); el.removeEventListener('touchcancel', zcTouchEnd); });
+    zcT = null;
+  }
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length !== 2) return;
+    const box = e.target.closest && e.target.closest('.zc'); if (!box || !e.target.closest('svg')) return;
+    const id = box.dataset.zc; if (!ZC.has(id)) return;
+    if (zcT) zcTouchEnd({ touches: [] });
+    const [a, b] = zcWin(id), els = [...new Set([...e.touches].map(x => x.target))];
+    zcT = { id, a, b, d0: zcDx(e.touches), p0: zcFrac(id, zcMid(e.touches)), els };
+    els.forEach(el => { el.addEventListener('touchmove', zcTouchMove, { passive: false }); el.addEventListener('touchend', zcTouchEnd); el.addEventListener('touchcancel', zcTouchEnd); });
+    zcHideTips();
+  }, { passive: true });
+  // Ordenador: Ctrl + rueda amplía; rueda en horizontal (o Mayús + rueda) se mueve
+  document.addEventListener('wheel', e => {
+    const box = e.target.closest && e.target.closest('.zc'); if (!box || !e.target.closest('svg, .zc-nav')) return;
+    const id = box.dataset.zc; if (!ZC.has(id)) return;
+    if (e.ctrlKey) { e.preventDefault(); zcZoom(id, Math.exp(clamp(-e.deltaY, -60, 60) * .012), zcFrac(id, e.clientX)); zcHideTips(); return; }
+    if (!box.classList.contains('on')) return;
+    const dx = e.shiftKey ? e.deltaY : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : 0; if (!dx) return;
+    e.preventDefault();
+    const svg = box.querySelector('svg'), [a, b] = zcWin(id);
+    zcPan(id, dx / (svg ? svg.getBoundingClientRect().width : 600) * (b - a));
+  }, { passive: false });
+  // Arrastrar: con el ratón sobre el gráfico ampliado, o con cualquier dedo sobre la pista de abajo
+  let zcDrag = null;
+  document.addEventListener('pointerdown', e => {
+    if (!e.target.closest) return;
+    const nav = e.target.closest('.zc-nav');
+    if (nav) {
+      const id = nav.dataset.zcNav, r = nav.getBoundingClientRect(), [a, b] = zcWin(id), f = (e.clientX - r.left) / r.width;
+      if (!e.target.closest('.zc-thumb')) { const sp = b - a; zcSet(id, f - sp / 2, f + sp / 2); }
+      const [a2, b2] = zcWin(id);
+      zcDrag = { id, x0: e.clientX, a: a2, b: b2, k: 1 / r.width }; e.preventDefault(); return;
+    }
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    const box = e.target.closest('.zc.on'); if (!box || !e.target.closest('svg')) return;
+    const svg = box.querySelector('svg'), [a, b] = zcWin(box.dataset.zc);
+    zcDrag = { id: box.dataset.zc, x0: e.clientX, a, b, k: -(b - a) / svg.getBoundingClientRect().width, svg: true };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!zcDrag) return;
+    const d = (e.clientX - zcDrag.x0) * zcDrag.k; if (zcDrag.svg && Math.abs(e.clientX - zcDrag.x0) > 3) document.body.classList.add('zc-grabbing');
+    zcSet(zcDrag.id, zcDrag.a + d, zcDrag.b + d);
+  });
+  const zcDragEnd = () => { zcDrag = null; document.body.classList.remove('zc-grabbing'); };
+  document.addEventListener('pointerup', zcDragEnd); document.addEventListener('pointercancel', zcDragEnd);
+  document.addEventListener('dblclick', e => { const box = e.target.closest && e.target.closest('.zc.on'); if (box && e.target.closest('svg')) { zcSet(box.dataset.zc, 0, 1); zcHideTips(); } });
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-zc-act]'); if (!b) return;
+    e.stopPropagation(); e.preventDefault();
+    const id = b.dataset.zcId, act = b.dataset.zcAct;
+    if (act === 'all') zcSet(id, 0, 1); else zcZoom(id, act === 'in' ? ZC_STEP : 1 / ZC_STEP);
+    sfx('tap'); zcHideTips();
+  }, true);
+
   /* ---------- gráfico de área (en pantalla con tooltip, ratón, dedo y teclado; en el PDF sin controles) ---------- */
   const calcCharts = new Map();
   const calcVal = (pt, s) => s.fund ? ((pt.funds || {})[s.fund] || 0) : pt[s.key];
   function calcChart(id, rows, series, o = {}) {
     if (!series.length) return `<p class="muted small calc-empty">${esc(t('calcPickSeries'))}</p>`;
-    const pts = CALC.sample(rows, o.print ? 160 : 240), n = pts.length;
+    // v1.49: en pantalla se puede ampliar por tiempo; se recorta antes de muestrear para ver el detalle de verdad
+    const zm = !o.print && rows.length > 7, z = zm ? zcRange(id, rows.length, 7) : null;
+    const pts = CALC.sample(z ? rows.slice(z.i0, z.i1 + 1) : rows, o.print ? 160 : 240), n = pts.length;
     const W = o.print ? 640 : chartW(), H = o.print ? 250 : (W < 500 ? 220 : 260), pl = 58, pr = 14, pt = 16, pb = 30, iw = W - pl - pr, ih = H - pt - pb;
     // v1.23: un valor null no se dibuja (p. ej. lo real después de hoy al comparar con una proyección); s.dash = línea discontinua sin relleno
     const all = pts.flatMap(p => series.map(s => calcVal(p, s))).filter(v => v != null && Number.isFinite(v));
@@ -8839,10 +8997,13 @@
     const legend = `<div class="dot-legend calc-legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')}</div>`;
     if (o.print) return `<div class="calc-print-chart">${legend}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">${grid}${shapes}${xl}</svg></div>`;
     calcCharts.set(id, { pts, series, W, pl, iw, x, y, single: !!o.single, noPat: !!o.noPat, idx: -1 });
-    return `<div class="chart calc-chart" data-cc="${esc(id)}" tabindex="0" role="img" aria-label="${esc((o.aria || '') + '. ' + t('calcChartKeys'))}">${legend}<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${shapes}${xl}
+    const out = `<div class="chart calc-chart" data-cc="${esc(id)}" tabindex="0" role="img" aria-label="${esc((o.aria || '') + '. ' + t('calcChartKeys') + (zm ? '. ' + t('zcKeys') : ''))}">${legend}<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${shapes}${xl}
       <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".45" stroke-dasharray="4 4" style="display:none"/>
       ${series.map((s, i) => `<circle class="cdot" data-i="${i}" r="4.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2" style="display:none"/>`).join('')}
       <rect class="hit" x="${pl}" y="${pt}" width="${iw}" height="${ih}"/></svg></div>`;
+    if (!zm) return out;
+    zcReg(id, rows.length, 7, () => calcChart(id, rows, series, o), { W, pl, iw });
+    return zcWrap(id, out, z, `${cdate(d0)} – ${cdate(d1)}`);
   }
   function calcTipShow(box, idx) {
     const c = calcCharts.get(box.dataset.cc), svg = box.querySelector('svg'); if (!c || !svg) return;
@@ -8878,6 +9039,11 @@
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); calcTipShow(box, (c.idx < 0 ? 0 : c.idx) + (e.key === 'ArrowRight' ? step : -step)); }
       else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); calcTipShow(box, e.key === 'Home' ? 0 : c.pts.length - 1); }
       else if (e.key === 'Escape') calcTipHide(box);
+      else if ((e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0') && ZC.has(box.dataset.cc)) {
+        // v1.49: + y − amplían alrededor de la fecha marcada (o del centro); 0 lo enseña todo
+        e.preventDefault(); const id = box.dataset.cc;
+        if (e.key === '0') zcSet(id, 0, 1); else zcZoom(id, e.key === '-' ? 1 / ZC_STEP : ZC_STEP, c.idx < 0 ? .5 : c.idx / Math.max(1, c.pts.length - 1));
+      }
       return;
     }
     // Filas de fondos (role="button"): Intro o espacio las activan
@@ -9869,8 +10035,10 @@
     return `${calcChart('led-pie', rows, series, { aria: t('ledPieTitle'), noPat: true })}<div class="row wrap pie-tools">${pieModeBtn()}</div>`;
   }
   // Dos series de puntos: verde = ingresos, rojo = gastos
-  function twoDotChart(rows, o = {}) {
-    if (!rows.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
+  function twoDotChart(all, o = {}) {
+    if (!all.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
+    // v1.49: con o.zid se puede ampliar por tiempo (mínimo 3 puntos a la vista)
+    const zm = !!o.zid && all.length > 3, z = zm ? zcRange(o.zid, all.length, 3) : null, rows = z ? all.slice(z.i0, z.i1 + 1) : all;
     const W = chartW(), H = o.h || (W < 500 ? 210 : 230), pl = 50, pr = 14, pt = 14, pb = 28, iw = W - pl - pr, ih = H - pt - pb, n = rows.length;
     const hi = Math.max(1, ...rows.map(r => Math.max(r.income, r.expense)));
     const x = i => pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => pt + ih - v / hi * ih;
@@ -9878,13 +10046,16 @@
     const line = (k, c) => `<path d="${rows.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join('')}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity=".85"/>${rows.map((r, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(r[k]).toFixed(1)}" r="${n > 40 ? 2.5 : 4.5}" fill="${c}" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}`;
     const nl = Math.min(n, W < 500 ? 4 : 6), labelIdx = [...new Set(Array.from({ length: nl }, (_, i) => Math.round(i * (n - 1) / Math.max(1, nl - 1))))];
     const colW = iw / Math.max(1, n - (n > 1 ? 1 : 0));
-    return `<div class="chart ${privacyOn() ? 'priv' : ''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">
+    const out = `<div class="chart ${privacyOn() ? 'priv' : ''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">
       ${[0, hi / 2, hi].map(v => `<line class="grid-line" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="axis-label" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(fmt(v))}</text>`).join('')}
       ${line('expense', OUT_C)}${line('income', IN_C)}
       ${labelIdx.map(i => `<text class="axis-label" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 && n > 1 ? 'start' : i === n - 1 && n > 1 ? 'end' : 'middle'}">${esc(rows[i].label)}</text>`).join('')}
       <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".35" stroke-width="1" style="display:none"/>
       ${rows.map((r, i) => `<rect class="hit" x="${(x(i) - colW / 2).toFixed(1)}" y="${pt}" width="${colW.toFixed(1)}" height="${ih}" data-tip="${esc(`▲ ${privacyOn() ? '•••' : fmtMoney(r.income / 100)} · ▼ ${privacyOn() ? '•••' : fmtMoney(r.expense / 100)}`)}" data-sub="${esc(r.sub || r.label)}" data-cx="${x(i).toFixed(1)}" data-cy="${y(Math.max(r.income, r.expense)).toFixed(1)}"/>`).join('')}
     </svg><div class="dot-legend"><span><i style="background:${IN_C}"></i>${esc(t('ledgerIncome'))}</span><span><i style="background:${OUT_C}"></i>${esc(t('ledgerExpense'))}</span></div></div>`;
+    if (!zm) return out;
+    zcReg(o.zid, all.length, 3, () => twoDotChart(all, o), { W, pl, iw });
+    return zcWrap(o.zid, out, z, `${rows[0].sub || rows[0].label} – ${rows[rows.length - 1].sub || rows[rows.length - 1].label}`);
   }
   const bucketLabel = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'short', year: '2-digit' }) : fmtDate(k, { day: 'numeric', month: 'short' });
   const bucketSub = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'long', year: 'numeric' }) : fmtDate(k);
@@ -9908,7 +10079,7 @@
     const lu = ui.ledLine === 'year' ? 'year' : 'month';
     const from = span ? span.from : today, rows = LED.series(NET(LV.entries), from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
     if (!hidW('ledLine')) html += `<section class="chart-card clay" data-w="ledLine"><h3>${ico('trend')}<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
-      ${span ? twoDotChart(rows, { aria: t('ledLineTitle') }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
+      ${span ? twoDotChart(rows, { aria: t('ledLineTitle'), zid: 'led-line' }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
     html += '</div>';
     // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
     const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
@@ -9926,7 +10097,7 @@
       <div class="row wrap" style="gap:6px;margin:4px 0 10px">${[['m', 'ledThisMonth'], ['y', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll']].map(([v, k]) => `<button class="chip" data-act="led-range" data-v="${v}">${esc(t(k))}</button>`).join('')}</div>
       <div class="month-sum"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(ft.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(ft.expense)}</b></div><div><span>${esc(t('ledBalance'))}</span><b>${cents(ft.net)}</b></div></div>
       <p class="muted small" style="margin:8px 0 4px">${esc(t('ledFilterCount', { n: fl.length }))}</p>
-      ${twoDotChart(frows, { aria: t('ledFilterTitle') })}</section>`;
+      ${twoDotChart(frows, { aria: t('ledFilterTitle'), zid: 'led-filter' })}</section>`;
     return html + '</details>';
   }
   // Importe corto para las celdas del calendario (sin decimales si es redondo)
@@ -10471,6 +10642,18 @@
       for (const c of Object.keys(S.cur)) if (!S.curMode[c] || (S.curMode[c] !== 'skip' && !(S.rates[c] > 0))) n++;
       return n;
     };
+    // v1.49: qué le falta a cada pregunta, para marcarla y que «Importar» lleve directo a la primera pendiente
+    const rowMiss = r => !!S.ans['row:' + r.key] && !rowOk(r);
+    const grpMiss = g => { const rs = rowsOf(g); if (rs.every(r => S.ans['row:' + r.key])) return false; const a = S.ans[g.id] || {}; return !a.type || (a.type !== 'skip' && (!a.categoryId || (rgCanGroup(g) && !a.group))); };
+    const curMiss = c => !S.curMode[c] || (S.curMode[c] !== 'skip' && !(S.rates[c] > 0));
+    const goMissing = () => {
+      // Si lo que falta es un movimiento suelto de un grupo plegado, se despliega antes
+      for (const g of S.q) if (!grpMiss(g) && rowsOf(g).slice(0, RG_MAX_ROWS).some(rowMiss) && !S.open.has(g.id)) { S.open.add(g.id); draw(); break; }
+      const el = $('#rg [data-rg-miss]', wref); if (!el) return;
+      el.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+      el.classList.remove('rg-flash'); void el.offsetWidth; el.classList.add('rg-flash'); vibrate(8);
+      const f = el.querySelector('select, input, button'); if (f) setTimeout(() => f.focus({ preventScroll: true }), reducedMotion() ? 0 : 350);
+    };
     const draw = () => {
       const box = $('#rg', wref); if (!box) return;
       if (S.step === 'intro') {
@@ -10493,7 +10676,7 @@
         ${accCardList().length > 1 ? `<label class="field"><span>${ico('card', 'xs')} ${esc(t('rgAcc'))}</span><select class="input" data-rg-acc>${accCardList().map(a => `<option value="${esc(a.aid)}" ${S.acc === a.aid ? 'selected' : ''}>${esc(accLabel(a))}</option>`).join('')}</select><span class="muted small">${esc(t('rgAccHint'))}</span></label>` : ''}
         <p class="muted small" style="margin:0">${ico('clock', 'xs')} ${esc(t('rgDraftAuto'))}</p>
         <p style="margin:0">${esc(t('rgAsk'))}</p>
-        ${S.q.map(g => { const a = S.ans[g.id] || {}, rs = rowsOf(g), nOwn = rs.filter(r => S.ans['row:' + r.key]).length, open = S.open.has(g.id); return `<section class="rg-q clay">
+        ${S.q.map(g => { const a = S.ans[g.id] || {}, rs = rowsOf(g), nOwn = rs.filter(r => S.ans['row:' + r.key]).length, open = S.open.has(g.id); return `<section class="rg-q clay" ${grpMiss(g) ? 'data-rg-miss' : ''}>
           <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><b class="grow">${esc(rgKindName(g))}</b><span class="muted small" style="white-space:nowrap">${g.count} · ${money(g.cents / 100)}</span></div>
           ${g.sample.length ? `<p class="muted small" style="margin:0">${esc(t('rgSample', { s: g.sample.join(', ') }))}</p>` : ''}
           <p class="muted small" style="margin:0">${esc(t('rgHint_' + g.kind))}</p>
@@ -10502,17 +10685,17 @@
             <span class="rg-l">${esc(t('ledgerMethod'))}</span>${seg(g.id, 'method', RG_METHODS, a.method || rgDefMethod(g.kind))}
             ${rgCanGroup(g) ? `<span class="rg-l">${esc(t('rgGroupQ'))}</span>${seg(g.id, 'group', [['none', 'rgGroupNo'], ['day', 'rgGroupDay'], ['month', 'rgGroupMonth']], a.group)}` : ''}` : ''}` : `<p class="muted small" style="margin:0">${esc(t('rgAllOwn'))}</p>`}
           ${rs.length ? `<button type="button" class="chip sm rg-split ${open ? 'on' : ''}" data-rg-split="${esc(g.id)}" aria-expanded="${open}">${ico('list')} ${esc(t(open ? 'rgSplitHide' : 'rgSplit', { n: rs.length }))}${nOwn ? ` · ${esc(t('rgOwnN', { n: nOwn }))}` : ''}</button>` : ''}
-          ${open ? `<ul class="rg-rows">${rs.slice(0, RG_MAX_ROWS).map(r => { const ra = S.ans['row:' + r.key]; return `<li class="rg-row ${ra ? 'own' : ''}"><div class="row" style="gap:8px;align-items:baseline"><span class="grow small"><b>${esc(r.merchant || r.name || (r.kind === 'other' ? r.action : t('rgNote_' + r.kind)))}</b> <span class="muted">${esc(fmtShort(r.date))}</span></span><b class="small ${r.sign < 0 ? 'amt-out' : 'amt-in'}">${privacyOn() ? '•••' : (r.sign < 0 ? '−' : '+') + esc(fmtCur(r.cents / 100, r.currency))}</b><button type="button" class="chip sm" data-rg-cut="${esc(r.key)}" aria-expanded="${S.splitting === r.key}">${ico('split')} ${esc(t('rgCut'))}</button></div>
+          ${open ? `<ul class="rg-rows">${rs.slice(0, RG_MAX_ROWS).map(r => { const ra = S.ans['row:' + r.key]; return `<li class="rg-row ${ra ? 'own' : ''}" ${rowMiss(r) ? 'data-rg-miss' : ''}><div class="row" style="gap:8px;align-items:baseline"><span class="grow small"><b>${esc(r.merchant || r.name || (r.kind === 'other' ? r.action : t('rgNote_' + r.kind)))}</b> <span class="muted">${esc(fmtShort(r.date))}</span></span><b class="small ${r.sign < 0 ? 'amt-out' : 'amt-in'}">${privacyOn() ? '•••' : (r.sign < 0 ? '−' : '+') + esc(fmtCur(r.cents / 100, r.currency))}</b><button type="button" class="chip sm" data-rg-cut="${esc(r.key)}" aria-expanded="${S.splitting === r.key}">${ico('split')} ${esc(t('rgCut'))}</button></div>
             ${r.split ? `<span class="muted small">${ico('split', 'xs')} ${esc(t('rgCutPart'))}</span>` : ''}
             ${S.splitting === r.key ? `<div class="rg-cut"><span class="muted small">${esc(t('rgCutHint', { a: fmtCur(r.cents / 100, r.currency) }))}</span><div class="row" style="gap:8px"><input class="input grow" inputmode="decimal" autocomplete="off" data-rg-cut-v placeholder="0,00" aria-label="${esc(t('rgCutFirst'))}"><button type="button" class="btn sm primary" data-rg-cut-go="${esc(r.key)}">${esc(t('rgCutDo'))}</button></div></div>` : ''}
             ${seg('row:' + r.key, 'type', [['', 'rgAsGroup'], ...RG_TYPES], ra ? ra.type : '')}${ra && ra.type && ra.type !== 'skip' ? catSel('row:' + r.key, ra) + `<span class="rg-l">${esc(t('ledgerMethod'))}</span>` + seg('row:' + r.key, 'method', RG_METHODS, ra.method || (S.ans[g.id] || {}).method || rgDefMethod(r.kind)) : ''}</li>`; }).join('')}</ul>${rs.length > RG_MAX_ROWS ? `<p class="muted small" style="margin:0">${esc(t('rgMoreRows', { n: rs.length - RG_MAX_ROWS }))}</p>` : ''}` : ''}
         </section>`; }).join('')}
-        ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay"><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
+        ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay" ${curMiss(c) ? 'data-rg-miss' : ''}><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
           ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgKeepCur'], ['conv', 'rgConvMain']], S.curMode[c])}
           ${S.curMode[c] === 'rate' || S.curMode[c] === 'conv' ? `<label class="field"><span>${esc(t('fxRateLbl', { c, m: ledgerMain() }))}</span><input class="input" inputmode="decimal" data-rg-rate="${esc(c)}" value="${S.rates[c] ? esc(String(S.rates[c]).replace('.', state.lang === 'es' ? ',' : '.')) : ''}" placeholder="${esc(t('fxNoRate'))}"></label>${S.rates[c] ? `<p class="muted small" style="margin:0">${esc(fxRateTxt(c, S.rates[c]))} · ${esc(t('fxEstimate'))}</p>` : ''}` : ''}</section>`).join('')}
         ${S.q.length ? '' : `<p class="muted">${esc(t('rgNothing'))}</p>`}</div>`;
       const foot = $('.sheet-foot', wref);
-      if (foot) foot.innerHTML = S.q.length ? `<p class="muted small" style="margin:0;flex-basis:100%">${miss ? esc(t('rgMissing', { n: miss })) : ''}</p><button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button><button class="btn primary" data-rg="go" ${miss ? 'disabled' : ''}>${ico('check')} ${esc(t('rgImport'))}</button>` : `<button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button>`;
+      if (foot) foot.innerHTML = S.q.length ? `<p class="muted small" style="margin:0;flex-basis:100%">${miss ? esc(t('rgMissing', { n: miss })) : ''}</p><button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button><button class="btn primary ${miss ? 'rg-go-off' : ''}" data-rg="go" ${miss ? `aria-disabled="true" title="${esc(t('rgGoMissing'))}"` : ''}>${ico('check')} ${esc(t('rgImport'))}</button>` : `<button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button>`;
     };
     const load = async input => {
       const f = input.files && input.files[0]; input.value = '';
@@ -10589,7 +10772,7 @@
         if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
         if (el.dataset.rg === 'resume') { resume(); return; }
         if (el.dataset.rg === 'drop') { rgDraftDrop(); draw(); toast(t('rgDraftDropped')); return; }
-        if (missing()) return;
+        if (missing()) { goMissing(); return; }
         const rates = {}, conv = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] !== 'skip') { rates[c] = S.rates[c]; if (S.curMode[c] === 'conv') conv[c] = true; }
         const p = BCSV.plan(S.rows, S.ans, rates, LV.entries, ledgerMain(), conv), importId = uid();
         // v1.36: cada movimiento va a la cuenta elegida para este CSV (o al Efectivo si su método es efectivo)
