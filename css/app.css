@@ -2656,3 +2656,8 @@ body.orb-open { overflow: hidden; }
 /* v1.43: trayecto de después del turno (a Casa, a otro lugar o al siguiente turno) */
 .tf-trip.bk { border-style: dotted; background: color-mix(in srgb, var(--c) 8%, transparent); }
 .tf-tpl-chip[data-def="1"] { box-shadow: 0 0 0 2px var(--c); }
+.nl-item { display: inline-flex; align-items: center; gap: 4px; padding-right: 4px; }
+.nl-item .icon-btn { width: 22px; height: 22px; }
+.nl-tag { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.nt-link select { flex: 1 1 160px; min-width: 0; }
+.chip[data-ntpick][aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); } /* v1.43: la opción elegida se ve */

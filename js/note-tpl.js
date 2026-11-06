@@ -17,23 +17,59 @@
   'use strict';
   const TYPES = ['text', 'num', 'bool', 'rate', 'pick'];
   const ICONS = ['doc', 'book', 'dumbbell', 'cap', 'heart', 'calendar', 'clock', 'pin', 'users', 'sparkle', 'target', 'flame', 'smile', 'play', 'tag', 'list'];
-  const LIM = { tpls: 30, fields: 8, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, extra: 300, sum: 500 };
+  const LIM = { lists: 30, items: 300, tpls: 30, fields: 8, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, extra: 300, sum: 500 };
   const str = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
   const keyOf = v => str(v, LIM.text).toLowerCase();
   const isHex = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
   const idOk = v => typeof v === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(v);
   const r2 = n => Math.round(n * 100) / 100;
 
+  const optList = v => { const seen = new Set(); return (Array.isArray(v) ? v : []).map(o => str(o, LIM.opt)).filter(o => o && !seen.has(o.toLowerCase()) && seen.add(o.toLowerCase())).slice(0, LIM.opts); };
+  /* v1.43: un campo de texto (o una secuencia de una nota modular) puede ir unido a una Lista propia (list = id). Al rellenar se
+     eligen sus elementos con un toque; con grow, lo que escribas nuevo se añade a la lista para la próxima vez. */
+  const linkOf = (f, out) => { if (idOk(f.list)) { out.list = f.list; if (f.grow === true) out.grow = true; } return out; };
+  // Una Lista propia = { id, name, items: [texto], mt }. Se comparte entre todas las notas (p. ej. «Personas»).
+  function sanitizeList(l) {
+    if (!l || typeof l !== 'object' || !idOk(l.id)) return null;
+    const name = str(l.name, LIM.name); if (!name) return null;
+    const seen = new Set(), items = (Array.isArray(l.items) ? l.items : []).map(x => str(x, LIM.text)).filter(x => x && !seen.has(keyOf(x)) && seen.add(keyOf(x))).slice(0, LIM.items);
+    const o = { id: l.id, name, items }; if (Number.isFinite(l.mt)) o.mt = l.mt; return o;
+  }
+  // Opciones de un campo de lista según lo ya respondido (si depende de otro y ese tiene respuesta con opciones propias)
+  function optsFor(f, v) {
+    if (!f || f.type !== 'pick') return [];
+    if (f.dep && f.by) { const pv = v && v[f.dep]; if (pv && f.by[pv]) return f.by[pv]; }
+    return f.opts || [];
+  }
+  /* Añade a las listas lo nuevo de una nota (campos con grow). Devuelve { lists, added: [{ list, item }] } sin tocar las de entrada. */
+  function grow(lists, tpl, v, now) {
+    const out = (lists || []).map(l => l), added = [];
+    if (!tpl || !v) return { lists: out, added };
+    for (const f of tpl.fields) {
+      if (!f.list || !f.grow) continue;
+      const x = str(v[f.id], LIM.text); if (!x) continue;
+      const i = out.findIndex(l => l.id === f.list); if (i < 0) continue;
+      if (out[i].items.some(y => keyOf(y) === keyOf(x)) || out[i].items.length >= LIM.items) continue;
+      out[i] = { ...out[i], items: [...out[i].items, x], ...(now ? { mt: now } : {}) }; added.push({ list: f.list, item: x });
+    }
+    return { lists: out, added };
+  }
   function sanitizeField(f, i) {
     if (!f || typeof f !== 'object') return null;
     const label = str(f.label, LIM.label); if (!label) return null;
     const type = TYPES.includes(f.type) ? f.type : 'text';
     const out = { id: idOk(f.id) ? f.id : 'f' + i, label, type };
     if (type === 'num') out.unit = str(f.unit, LIM.unit);
+    if (type === 'text') linkOf(f, out);
     if (type === 'pick') {
-      const seen = new Set();
-      out.opts = (Array.isArray(f.opts) ? f.opts : []).map(o => str(o, LIM.opt)).filter(o => o && !seen.has(o.toLowerCase()) && seen.add(o.toLowerCase())).slice(0, LIM.opts);
-      if (!out.opts.length) return null;
+      out.opts = optList(f.opts);
+      // v1.43: opciones que dependen de la respuesta de otra lista anterior (dep = id de ese campo; by = { opción: [opciones] })
+      if (idOk(f.dep) && f.by && typeof f.by === 'object') {
+        const by = {};
+        for (const [k, v] of Object.entries(f.by).slice(0, LIM.opts)) { const kk = str(k, LIM.opt), l = optList(v); if (kk && l.length) by[kk] = l; }
+        if (Object.keys(by).length) { out.dep = f.dep; out.by = by; }
+      }
+      if (!out.opts.length && !out.dep) return null;
     }
     return out;
   }
@@ -42,7 +78,7 @@
     const name = str(t.name, LIM.name); if (!name) return null;
     const ids = new Set();
     if (t.kind === 'mod') {
-      const steps = (Array.isArray(t.fields) ? t.fields : []).filter(f => f && typeof f === 'object').map((f, i) => ({ id: idOk(f.id) ? f.id : 's' + i, label: str(f.label, LIM.label), type: 'text' }))
+      const steps = (Array.isArray(t.fields) ? t.fields : []).filter(f => f && typeof f === 'object').map((f, i) => linkOf(f, { id: idOk(f.id) ? f.id : 's' + i, label: str(f.label, LIM.label), type: 'text' }))
         .filter(f => !ids.has(f.id) && ids.add(f.id)).slice(0, LIM.steps);
       if (!steps.length) return null;
       const o = { id: t.id, kind: 'mod', name, icon: ICONS.includes(t.icon) ? t.icon : 'list', color: isHex(t.color) ? t.color : '#7c8cff', fields: steps, prog: null, goals: {} };
@@ -50,6 +86,8 @@
       return o;
     }
     const fields = (Array.isArray(t.fields) ? t.fields : []).map(sanitizeField).filter(f => f && !ids.has(f.id) && ids.add(f.id)).slice(0, LIM.fields);
+    fields.forEach((f, j) => { if (!f.dep) return; const par = fields.slice(0, j).find(x => x.id === f.dep && x.type === 'pick' && !x.dep); if (par) { for (const k of Object.keys(f.by)) if (!par.opts.includes(k)) delete f.by[k]; } if (!par || !Object.keys(f.by).length) { delete f.dep; delete f.by; } });
+    for (let j = fields.length - 1; j >= 0; j--) if (fields[j].type === 'pick' && !fields[j].opts.length && !fields[j].dep) fields.splice(j, 1);
     const out = { id: t.id, name, icon: ICONS.includes(t.icon) ? t.icon : 'doc', color: isHex(t.color) ? t.color : '#7c8cff', fields, prog: null, goals: {} };
     const p = t.prog && typeof t.prog === 'object' ? t.prog : null;
     const fk = p && fields.find(f => f.id === p.key && f.type === 'text'), fa = p && fields.find(f => f.id === p.amt && f.type === 'num');
@@ -69,7 +107,7 @@
       else if (f.type === 'num') { const n = +String(x).replace(',', '.'); if (Number.isFinite(n) && n >= 0) out[f.id] = r2(Math.min(n, 1e6)); }
       else if (f.type === 'bool') { if (x === true || x === 'true' || x === 1) out[f.id] = true; }
       else if (f.type === 'rate') { const n = Math.round(+x); if (Number.isFinite(n) && n >= 0 && n <= 10) out[f.id] = n; }
-      else if (f.type === 'pick') { const o = f.opts.find(y => y === str(x, LIM.opt)); if (o) out[f.id] = o; }
+      else if (f.type === 'pick') { const o = optsFor(f, out).find(y => y === str(x, LIM.opt)); if (o) out[f.id] = o; }
     }
     return out;
   }
@@ -168,5 +206,5 @@
       { id: 'tp_date', name: L.date, icon: 'users', color: '#b06ad9', fields: [{ id: 'who', label: L.who, type: 'text' }, { id: 'where', label: L.where, type: 'text' }, { id: 'done', label: L.done, type: 'bool' }], prog: null, goals: {} }
     ].map(sanitizeTpl);
   }
-  return { TYPES, ICONS, LIM, keyOf, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
+  return { TYPES, ICONS, LIM, keyOf, sanitizeList, optsFor, grow, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
 });

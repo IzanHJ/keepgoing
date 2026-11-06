@@ -88,3 +88,23 @@ test('v1.43: historial de una plantilla por meses y series', () => {
   assert.equal(h.series[0].pts.length, h.n);
   assert.deepEqual(N.history(gaps, null), { n: 0, first: '', last: '', months: [], series: [] });
 });
+
+test('v1.43: listas propias que crecen y opciones que dependen de otra respuesta', () => {
+  const lists = [N.sanitizeList({ id: 'lp', name: 'Personas', items: ['Ana', 'ana ', 'Luis'] })];
+  assert.deepEqual(lists[0].items, ['Ana', 'Luis']);
+  const met = N.sanitizeTpl({ id: 'nm1', kind: 'mod', name: 'Conocer', fields: [{ id: 'a', label: 'Conocí a', list: 'lp', grow: true }] });
+  const talk = N.sanitizeTpl({ id: 'nm2', kind: 'mod', name: 'Charla', fields: [{ id: 'a', label: 'Charla con', list: 'lp' }] });
+  assert.deepEqual([met.fields[0].list, met.fields[0].grow, talk.fields[0].grow], ['lp', true, undefined]);
+  const g = N.grow(lists, met, { a: 'Alba' }, 5);
+  assert.deepEqual(g.lists[0].items, ['Ana', 'Luis', 'Alba']); assert.equal(g.lists[0].mt, 5); assert.deepEqual(g.added, [{ list: 'lp', item: 'Alba' }]);
+  assert.deepEqual(lists[0].items, ['Ana', 'Luis'], 'no cambia la lista de entrada');
+  assert.equal(N.grow(g.lists, met, { a: 'ALBA' }).added.length, 0);
+  assert.equal(N.grow(lists, talk, { a: 'Pepe' }).added.length, 0, 'sin grow no añade');
+  // Dependientes
+  const gym = N.sanitizeTpl({ id: 'tg', name: 'Gym', fields: [{ id: 'g', label: 'Grupo', type: 'pick', opts: ['Pierna', 'Pecho'] }, { id: 'e', label: 'Ejercicio', type: 'pick', opts: [], dep: 'g', by: { Pierna: ['Sentadilla', 'Prensa'], Pecho: ['Press banca'], Brazo: ['Curl'] } }] });
+  assert.deepEqual(Object.keys(gym.fields[1].by), ['Pierna', 'Pecho']);
+  assert.deepEqual(N.optsFor(gym.fields[1], { g: 'Pecho' }), ['Press banca']);
+  assert.deepEqual(N.sanitizeVals(gym, { g: 'Pierna', e: 'Prensa' }), { g: 'Pierna', e: 'Prensa' });
+  assert.deepEqual(N.sanitizeVals(gym, { g: 'Pecho', e: 'Prensa' }), { g: 'Pecho' });
+  assert.equal(N.sanitizeTpl({ id: 'tx', name: 'X', fields: [{ id: 'e', label: 'E', type: 'pick', opts: [], dep: 'zz', by: { a: ['b'] } }] }).fields.length, 0);
+});
