@@ -2679,3 +2679,21 @@ body.orb-open { overflow: hidden; }
 .tf-drop-on { outline: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
 .tf-drop-into { outline: 3px solid var(--accent) !important; outline-offset: 1px; filter: brightness(1.12); z-index: 3; }
 body.tf-dragging, body.tf-dragging * { cursor: grabbing !important; }
+
+/* v1.49: ampliar los gráficos por tiempo */
+.zc { position: relative; }
+.zc svg { touch-action: pan-y; }
+.zc.on svg { cursor: grab; }
+body.zc-grabbing, body.zc-grabbing * { cursor: grabbing !important; user-select: none; }
+.zc-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px; min-height: 34px; }
+.zc-bar .zc-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zc-bar .icon-btn.sm { width: 32px; height: 32px; }
+.zc-bar .icon-btn.sm svg.i { width: 16px; height: 16px; }
+.zc-bar .icon-btn:disabled { opacity: .35; pointer-events: none; }
+.zc-nav { position: relative; height: 18px; margin-top: 4px; border-radius: 999px; background: var(--surface-2); touch-action: none; cursor: pointer; }
+.zc-thumb { position: absolute; top: 3px; bottom: 3px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 70%, transparent); cursor: grab; min-width: 14px; }
+/* v1.49: «Importar» con respuestas pendientes no se apaga del todo: lleva a la primera que falta */
+.btn.rg-go-off { opacity: .55; }
+@keyframes rgFlash { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 30% { box-shadow: 0 0 0 3px var(--accent); } }
+.rg-flash { animation: rgFlash 1.2s ease 2; }
+:root:is([data-motion="soft"], [data-motion="off"]) .rg-flash { outline: 3px solid var(--accent); }

@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.48.0';
+  const VERSION = '1.49.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -6847,7 +6847,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -8969,12 +8969,149 @@
   const invName = (model, id) => id === 'none' ? t('calcNoDestOpt') : (model.investments.find(i => i.id === id) || {}).name || '—';
   const calcTopActions = on => `<button class="icon-btn ${on ? 'on' : ''}" data-act="${on ? 'calc-close' : 'calc-open'}" aria-pressed="${on}" aria-label="${esc(t(on ? 'calcBack' : 'calcOpen'))}" title="${esc(t(on ? 'calcBack' : 'calcOpen'))}">${ico('calc')}</button><button class="icon-btn" data-act="vault-lock" aria-label="${esc(t('vaultLock'))}" title="${esc(t('vaultLock'))}">${ico('lock')}</button><button class="icon-btn" data-act="ledger-add" aria-label="${esc(t('ledgerAdd'))}">${ico('plus')}</button>`;
 
+  /* ---------- v1.49: ampliar los gráficos por tiempo, como las horas en Organización ----------
+     Pellizcar en horizontal acerca o aleja alrededor de los dedos (y moverlos desplaza); en el ordenador, Ctrl + rueda
+     (o pellizcar en el trackpad), rueda en horizontal o arrastrar para moverse y doble clic para verlo todo. Debajo, una
+     barra con −, + y «Todo» y, al ampliar, una pista con la parte visible que se arrastra con un dedo. La ventana visible
+     se guarda como fracción [a, b] del total por gráfico (solo durante la sesión) y se olvida si cambian los datos. */
+  const ZC = new Map(), ZW = new Map();
+  const ZC_STEP = 1.6;
+  function zcRange(id, n, minPts) {
+    const w = ZW.get(id);
+    if (!w || n < 3 || w.n !== n) { ZW.delete(id); return { i0: 0, i1: n - 1, on: false }; }
+    let i0 = Math.round(w.a * (n - 1)), i1 = Math.round(w.b * (n - 1));
+    const need = Math.min(n, minPts) - 1;
+    if (i1 - i0 < need) { i0 = clamp(Math.round((i0 + i1 - need) / 2), 0, n - 1 - need); i1 = i0 + need; }
+    return { i0, i1, on: i0 > 0 || i1 < n - 1 };
+  }
+  // Envuelve el gráfico y registra cómo volver a dibujarlo
+  function zcWrap(id, html, z, label) {
+    const c = ZC.get(id), w = ZW.get(id), on = !!w && z.on;
+    const btn = (act, icon, key, dis) => `<button type="button" class="icon-btn sm" data-zc-act="${act}" data-zc-id="${esc(id)}" aria-label="${esc(t(key))}" title="${esc(t(key))}" ${dis ? 'disabled' : ''}>${ico(icon)}</button>`;
+    const maxed = c && (z.i1 - z.i0) <= Math.min(c.n, c.min) - 1;
+    return `<div class="zc ${on ? 'on' : ''}" data-zc="${esc(id)}">${html}
+      <div class="zc-bar"><span class="zc-lbl muted small">${on ? esc(label) : ''}</span>${btn('out', 'minus', 'zcOut', !on)}${btn('in', 'plus', 'zcIn', maxed)}${on ? `<button type="button" class="chip sm" data-zc-act="all" data-zc-id="${esc(id)}">${ico('refresh')} ${esc(t('zcAll'))}</button>` : ''}</div>
+      ${on ? `<div class="zc-nav" data-zc-nav="${esc(id)}" aria-hidden="true"><i class="zc-thumb" style="left:${(w.a * 100).toFixed(2)}%;width:${Math.max(2, (w.b - w.a) * 100).toFixed(2)}%"></i></div>` : ''}</div>`;
+  }
+  function zcReg(id, n, minPts, render, geo) { ZC.set(id, { n, min: minPts, render, ...geo }); }
+  function zcSet(id, a, b) {
+    const c = ZC.get(id); if (!c) return;
+    const minSp = Math.min(1, (Math.min(c.n, c.min) - 1) / Math.max(1, c.n - 1));
+    const sp = clamp(b - a, minSp, 1); a = clamp(a, 0, 1 - sp);
+    const old = ZW.get(id);
+    if (sp >= .999) { if (!old) return; ZW.delete(id); }
+    else { if (old && Math.abs(old.a - a) < 1e-4 && Math.abs(old.b - (a + sp)) < 1e-4) return; ZW.set(id, { a, b: a + sp, n: c.n }); }
+    zcRedraw(id);
+  }
+  const zcWin = id => { const w = ZW.get(id); return w ? [w.a, w.b] : [0, 1]; };
+  function zcZoom(id, f, p = .5) {
+    const c = ZC.get(id); if (!c) return;
+    const [a, b] = zcWin(id), sp = b - a, minSp = Math.min(1, (Math.min(c.n, c.min) - 1) / Math.max(1, c.n - 1));
+    const ns = clamp(sp / f, minSp, 1), at = a + p * sp;
+    zcSet(id, at - p * ns, at - p * ns + ns);
+  }
+  const zcPan = (id, d) => { const [a, b] = zcWin(id); if (b - a < 1) zcSet(id, a + d, b + d); };
+  const zcPending = new Set(); let zcRaf = 0;
+  function zcRedraw(id) {
+    zcPending.add(id);
+    if (zcRaf) return;
+    zcRaf = requestAnimationFrame(() => {
+      zcRaf = 0;
+      for (const k of zcPending) {
+        const c = ZC.get(k), el = document.querySelector(`.zc[data-zc="${CSS.escape(k)}"]`); if (!c || !el) continue;
+        const foc = el.contains(document.activeElement) && document.activeElement.matches('.calc-chart') ? 'chart' : document.activeElement && document.activeElement.dataset && document.activeElement.dataset.zcAct;
+        el.outerHTML = c.render();
+        const nu = document.querySelector(`.zc[data-zc="${CSS.escape(k)}"]`);
+        if (nu && foc) { const f = foc === 'chart' ? nu.querySelector('.calc-chart') : nu.querySelector(`[data-zc-act="${foc}"]:not([disabled])`); if (f) f.focus({ preventScroll: true }); }
+      }
+      zcPending.clear();
+    });
+  }
+  // Posición (0..1) de un punto de la pantalla dentro de la parte visible, en el área de dibujo del gráfico
+  function zcFrac(id, clientX) {
+    const c = ZC.get(id), svg = document.querySelector(`.zc[data-zc="${CSS.escape(id)}"] svg`); if (!c || !svg) return .5;
+    const r = svg.getBoundingClientRect(), k = r.width / c.W;
+    return clamp((clientX - r.left - c.pl * k) / (c.iw * k || 1), 0, 1);
+  }
+  const zcHideTips = () => { calcTipHide(); hideTip(); };
+  // Dedo: dos dedos sobre el gráfico. Se escucha en los elementos tocados porque el gráfico se redibuja mientras tanto.
+  let zcT = null;
+  const zcDx = ts => Math.max(24, Math.abs(ts[0].clientX - ts[1].clientX));
+  const zcMid = ts => (ts[0].clientX + ts[1].clientX) / 2;
+  function zcTouchMove(e) {
+    if (!zcT || e.touches.length !== 2) return;
+    if (e.cancelable) e.preventDefault();
+    const c = ZC.get(zcT.id); if (!c) return;
+    const sp = zcT.b - zcT.a, minSp = Math.min(1, (Math.min(c.n, c.min) - 1) / Math.max(1, c.n - 1));
+    const ns = clamp(sp * zcT.d0 / zcDx(e.touches), minSp, 1), at = zcT.a + zcT.p0 * sp, a = at - zcFrac(zcT.id, zcMid(e.touches)) * ns;
+    zcSet(zcT.id, a, a + ns);
+  }
+  function zcTouchEnd(e) {
+    if (!zcT || e.touches.length >= 2) return;
+    zcT.els.forEach(el => { el.removeEventListener('touchmove', zcTouchMove); el.removeEventListener('touchend', zcTouchEnd); el.removeEventListener('touchcancel', zcTouchEnd); });
+    zcT = null;
+  }
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length !== 2) return;
+    const box = e.target.closest && e.target.closest('.zc'); if (!box || !e.target.closest('svg')) return;
+    const id = box.dataset.zc; if (!ZC.has(id)) return;
+    if (zcT) zcTouchEnd({ touches: [] });
+    const [a, b] = zcWin(id), els = [...new Set([...e.touches].map(x => x.target))];
+    zcT = { id, a, b, d0: zcDx(e.touches), p0: zcFrac(id, zcMid(e.touches)), els };
+    els.forEach(el => { el.addEventListener('touchmove', zcTouchMove, { passive: false }); el.addEventListener('touchend', zcTouchEnd); el.addEventListener('touchcancel', zcTouchEnd); });
+    zcHideTips();
+  }, { passive: true });
+  // Ordenador: Ctrl + rueda amplía; rueda en horizontal (o Mayús + rueda) se mueve
+  document.addEventListener('wheel', e => {
+    const box = e.target.closest && e.target.closest('.zc'); if (!box || !e.target.closest('svg, .zc-nav')) return;
+    const id = box.dataset.zc; if (!ZC.has(id)) return;
+    if (e.ctrlKey) { e.preventDefault(); zcZoom(id, Math.exp(clamp(-e.deltaY, -60, 60) * .012), zcFrac(id, e.clientX)); zcHideTips(); return; }
+    if (!box.classList.contains('on')) return;
+    const dx = e.shiftKey ? e.deltaY : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : 0; if (!dx) return;
+    e.preventDefault();
+    const svg = box.querySelector('svg'), [a, b] = zcWin(id);
+    zcPan(id, dx / (svg ? svg.getBoundingClientRect().width : 600) * (b - a));
+  }, { passive: false });
+  // Arrastrar: con el ratón sobre el gráfico ampliado, o con cualquier dedo sobre la pista de abajo
+  let zcDrag = null;
+  document.addEventListener('pointerdown', e => {
+    if (!e.target.closest) return;
+    const nav = e.target.closest('.zc-nav');
+    if (nav) {
+      const id = nav.dataset.zcNav, r = nav.getBoundingClientRect(), [a, b] = zcWin(id), f = (e.clientX - r.left) / r.width;
+      if (!e.target.closest('.zc-thumb')) { const sp = b - a; zcSet(id, f - sp / 2, f + sp / 2); }
+      const [a2, b2] = zcWin(id);
+      zcDrag = { id, x0: e.clientX, a: a2, b: b2, k: 1 / r.width }; e.preventDefault(); return;
+    }
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    const box = e.target.closest('.zc.on'); if (!box || !e.target.closest('svg')) return;
+    const svg = box.querySelector('svg'), [a, b] = zcWin(box.dataset.zc);
+    zcDrag = { id: box.dataset.zc, x0: e.clientX, a, b, k: -(b - a) / svg.getBoundingClientRect().width, svg: true };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!zcDrag) return;
+    const d = (e.clientX - zcDrag.x0) * zcDrag.k; if (zcDrag.svg && Math.abs(e.clientX - zcDrag.x0) > 3) document.body.classList.add('zc-grabbing');
+    zcSet(zcDrag.id, zcDrag.a + d, zcDrag.b + d);
+  });
+  const zcDragEnd = () => { zcDrag = null; document.body.classList.remove('zc-grabbing'); };
+  document.addEventListener('pointerup', zcDragEnd); document.addEventListener('pointercancel', zcDragEnd);
+  document.addEventListener('dblclick', e => { const box = e.target.closest && e.target.closest('.zc.on'); if (box && e.target.closest('svg')) { zcSet(box.dataset.zc, 0, 1); zcHideTips(); } });
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-zc-act]'); if (!b) return;
+    e.stopPropagation(); e.preventDefault();
+    const id = b.dataset.zcId, act = b.dataset.zcAct;
+    if (act === 'all') zcSet(id, 0, 1); else zcZoom(id, act === 'in' ? ZC_STEP : 1 / ZC_STEP);
+    sfx('tap'); zcHideTips();
+  }, true);
+
   /* ---------- gráfico de área (en pantalla con tooltip, ratón, dedo y teclado; en el PDF sin controles) ---------- */
   const calcCharts = new Map();
   const calcVal = (pt, s) => s.fund ? ((pt.funds || {})[s.fund] || 0) : pt[s.key];
   function calcChart(id, rows, series, o = {}) {
     if (!series.length) return `<p class="muted small calc-empty">${esc(t('calcPickSeries'))}</p>`;
-    const pts = CALC.sample(rows, o.print ? 160 : 240), n = pts.length;
+    // v1.49: en pantalla se puede ampliar por tiempo; se recorta antes de muestrear para ver el detalle de verdad
+    const zm = !o.print && rows.length > 7, z = zm ? zcRange(id, rows.length, 7) : null;
+    const pts = CALC.sample(z ? rows.slice(z.i0, z.i1 + 1) : rows, o.print ? 160 : 240), n = pts.length;
     const W = o.print ? 640 : chartW(), H = o.print ? 250 : (W < 500 ? 220 : 260), pl = 58, pr = 14, pt = 16, pb = 30, iw = W - pl - pr, ih = H - pt - pb;
     // v1.23: un valor null no se dibuja (p. ej. lo real después de hoy al comparar con una proyección); s.dash = línea discontinua sin relleno
     const all = pts.flatMap(p => series.map(s => calcVal(p, s))).filter(v => v != null && Number.isFinite(v));
@@ -8995,10 +9132,13 @@
     const legend = `<div class="dot-legend calc-legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')}</div>`;
     if (o.print) return `<div class="calc-print-chart">${legend}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">${grid}${shapes}${xl}</svg></div>`;
     calcCharts.set(id, { pts, series, W, pl, iw, x, y, single: !!o.single, noPat: !!o.noPat, idx: -1 });
-    return `<div class="chart calc-chart" data-cc="${esc(id)}" tabindex="0" role="img" aria-label="${esc((o.aria || '') + '. ' + t('calcChartKeys'))}">${legend}<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${shapes}${xl}
+    const out = `<div class="chart calc-chart" data-cc="${esc(id)}" tabindex="0" role="img" aria-label="${esc((o.aria || '') + '. ' + t('calcChartKeys') + (zm ? '. ' + t('zcKeys') : ''))}">${legend}<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${shapes}${xl}
       <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".45" stroke-dasharray="4 4" style="display:none"/>
       ${series.map((s, i) => `<circle class="cdot" data-i="${i}" r="4.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2" style="display:none"/>`).join('')}
       <rect class="hit" x="${pl}" y="${pt}" width="${iw}" height="${ih}"/></svg></div>`;
+    if (!zm) return out;
+    zcReg(id, rows.length, 7, () => calcChart(id, rows, series, o), { W, pl, iw });
+    return zcWrap(id, out, z, `${cdate(d0)} – ${cdate(d1)}`);
   }
   function calcTipShow(box, idx) {
     const c = calcCharts.get(box.dataset.cc), svg = box.querySelector('svg'); if (!c || !svg) return;
@@ -9034,6 +9174,11 @@
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); calcTipShow(box, (c.idx < 0 ? 0 : c.idx) + (e.key === 'ArrowRight' ? step : -step)); }
       else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); calcTipShow(box, e.key === 'Home' ? 0 : c.pts.length - 1); }
       else if (e.key === 'Escape') calcTipHide(box);
+      else if ((e.key === '+' || e.key === '=' || e.key === '-' || e.key === '0') && ZC.has(box.dataset.cc)) {
+        // v1.49: + y − amplían alrededor de la fecha marcada (o del centro); 0 lo enseña todo
+        e.preventDefault(); const id = box.dataset.cc;
+        if (e.key === '0') zcSet(id, 0, 1); else zcZoom(id, e.key === '-' ? 1 / ZC_STEP : ZC_STEP, c.idx < 0 ? .5 : c.idx / Math.max(1, c.pts.length - 1));
+      }
       return;
     }
     // Filas de fondos (role="button"): Intro o espacio las activan
@@ -10026,8 +10171,10 @@
     return `${calcChart('led-pie', rows, series, { aria: t('ledPieTitle'), noPat: true })}<div class="row wrap pie-tools">${pieModeBtn()}</div>`;
   }
   // Dos series de puntos: verde = ingresos, rojo = gastos
-  function twoDotChart(rows, o = {}) {
-    if (!rows.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
+  function twoDotChart(all, o = {}) {
+    if (!all.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
+    // v1.49: con o.zid se puede ampliar por tiempo (mínimo 3 puntos a la vista)
+    const zm = !!o.zid && all.length > 3, z = zm ? zcRange(o.zid, all.length, 3) : null, rows = z ? all.slice(z.i0, z.i1 + 1) : all;
     const W = chartW(), H = o.h || (W < 500 ? 210 : 230), pl = 50, pr = 14, pt = 14, pb = 28, iw = W - pl - pr, ih = H - pt - pb, n = rows.length;
     const hi = Math.max(1, ...rows.map(r => Math.max(r.income, r.expense)));
     const x = i => pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => pt + ih - v / hi * ih;
@@ -10035,13 +10182,16 @@
     const line = (k, c) => `<path d="${rows.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join('')}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity=".85"/>${rows.map((r, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(r[k]).toFixed(1)}" r="${n > 40 ? 2.5 : 4.5}" fill="${c}" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}`;
     const nl = Math.min(n, W < 500 ? 4 : 6), labelIdx = [...new Set(Array.from({ length: nl }, (_, i) => Math.round(i * (n - 1) / Math.max(1, nl - 1))))];
     const colW = iw / Math.max(1, n - (n > 1 ? 1 : 0));
-    return `<div class="chart ${privacyOn() ? 'priv' : ''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">
+    const out = `<div class="chart ${privacyOn() ? 'priv' : ''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">
       ${[0, hi / 2, hi].map(v => `<line class="grid-line" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="axis-label" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(fmt(v))}</text>`).join('')}
       ${line('expense', OUT_C)}${line('income', IN_C)}
       ${labelIdx.map(i => `<text class="axis-label" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 && n > 1 ? 'start' : i === n - 1 && n > 1 ? 'end' : 'middle'}">${esc(rows[i].label)}</text>`).join('')}
       <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".35" stroke-width="1" style="display:none"/>
       ${rows.map((r, i) => `<rect class="hit" x="${(x(i) - colW / 2).toFixed(1)}" y="${pt}" width="${colW.toFixed(1)}" height="${ih}" data-tip="${esc(`▲ ${privacyOn() ? '•••' : fmtMoney(r.income / 100)} · ▼ ${privacyOn() ? '•••' : fmtMoney(r.expense / 100)}`)}" data-sub="${esc(r.sub || r.label)}" data-cx="${x(i).toFixed(1)}" data-cy="${y(Math.max(r.income, r.expense)).toFixed(1)}"/>`).join('')}
     </svg><div class="dot-legend"><span><i style="background:${IN_C}"></i>${esc(t('ledgerIncome'))}</span><span><i style="background:${OUT_C}"></i>${esc(t('ledgerExpense'))}</span></div></div>`;
+    if (!zm) return out;
+    zcReg(o.zid, all.length, 3, () => twoDotChart(all, o), { W, pl, iw });
+    return zcWrap(o.zid, out, z, `${rows[0].sub || rows[0].label} – ${rows[rows.length - 1].sub || rows[rows.length - 1].label}`);
   }
   const bucketLabel = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'short', year: '2-digit' }) : fmtDate(k, { day: 'numeric', month: 'short' });
   const bucketSub = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'long', year: 'numeric' }) : fmtDate(k);
@@ -10065,7 +10215,7 @@
     const lu = ui.ledLine === 'year' ? 'year' : 'month';
     const from = span ? span.from : today, rows = LED.series(NET(LV.entries), from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
     if (!hidW('ledLine')) html += `<section class="chart-card clay" data-w="ledLine"><h3>${ico('trend')}<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
-      ${span ? twoDotChart(rows, { aria: t('ledLineTitle') }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
+      ${span ? twoDotChart(rows, { aria: t('ledLineTitle'), zid: 'led-line' }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
     html += '</div>';
     // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
     const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
@@ -10083,7 +10233,7 @@
       <div class="row wrap" style="gap:6px;margin:4px 0 10px">${[['m', 'ledThisMonth'], ['y', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll']].map(([v, k]) => `<button class="chip" data-act="led-range" data-v="${v}">${esc(t(k))}</button>`).join('')}</div>
       <div class="month-sum"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(ft.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(ft.expense)}</b></div><div><span>${esc(t('ledBalance'))}</span><b>${cents(ft.net)}</b></div></div>
       <p class="muted small" style="margin:8px 0 4px">${esc(t('ledFilterCount', { n: fl.length }))}</p>
-      ${twoDotChart(frows, { aria: t('ledFilterTitle') })}</section>`;
+      ${twoDotChart(frows, { aria: t('ledFilterTitle'), zid: 'led-filter' })}</section>`;
     return html + '</details>';
   }
   // Dinero Caprichable: solo en la Libreta. Ventana con el total, el conversor y la opción de ocultarlo.
@@ -10640,6 +10790,18 @@
       for (const c of Object.keys(S.cur)) if (!S.curMode[c] || (S.curMode[c] !== 'skip' && !(S.rates[c] > 0))) n++;
       return n;
     };
+    // v1.49: qué le falta a cada pregunta, para marcarla y que «Importar» lleve directo a la primera pendiente
+    const rowMiss = r => !!S.ans['row:' + r.key] && !rowOk(r);
+    const grpMiss = g => { const rs = rowsOf(g); if (rs.every(r => S.ans['row:' + r.key])) return false; const a = S.ans[g.id] || {}; return !a.type || (a.type !== 'skip' && (!a.categoryId || (rgCanGroup(g) && !a.group))); };
+    const curMiss = c => !S.curMode[c] || (S.curMode[c] !== 'skip' && !(S.rates[c] > 0));
+    const goMissing = () => {
+      // Si lo que falta es un movimiento suelto de un grupo plegado, se despliega antes
+      for (const g of S.q) if (!grpMiss(g) && rowsOf(g).slice(0, RG_MAX_ROWS).some(rowMiss) && !S.open.has(g.id)) { S.open.add(g.id); draw(); break; }
+      const el = $('#rg [data-rg-miss]', wref); if (!el) return;
+      el.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+      el.classList.remove('rg-flash'); void el.offsetWidth; el.classList.add('rg-flash'); vibrate(8);
+      const f = el.querySelector('select, input, button'); if (f) setTimeout(() => f.focus({ preventScroll: true }), reducedMotion() ? 0 : 350);
+    };
     const draw = () => {
       const box = $('#rg', wref); if (!box) return;
       if (S.step === 'intro') {
@@ -10662,7 +10824,7 @@
         ${accCardList().length > 1 ? `<label class="field"><span>${ico('card', 'xs')} ${esc(t('rgAcc'))}</span><select class="input" data-rg-acc>${accCardList().map(a => `<option value="${esc(a.aid)}" ${S.acc === a.aid ? 'selected' : ''}>${esc(accLabel(a))}</option>`).join('')}</select><span class="muted small">${esc(t('rgAccHint'))}</span></label>` : ''}
         <p class="muted small" style="margin:0">${ico('clock', 'xs')} ${esc(t('rgDraftAuto'))}</p>
         <p style="margin:0">${esc(t('rgAsk'))}</p>
-        ${S.q.map(g => { const a = S.ans[g.id] || {}, rs = rowsOf(g), nOwn = rs.filter(r => S.ans['row:' + r.key]).length, open = S.open.has(g.id); return `<section class="rg-q clay">
+        ${S.q.map(g => { const a = S.ans[g.id] || {}, rs = rowsOf(g), nOwn = rs.filter(r => S.ans['row:' + r.key]).length, open = S.open.has(g.id); return `<section class="rg-q clay" ${grpMiss(g) ? 'data-rg-miss' : ''}>
           <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start"><b class="grow">${esc(rgKindName(g))}</b><span class="muted small" style="white-space:nowrap">${g.count} · ${money(g.cents / 100)}</span></div>
           ${g.sample.length ? `<p class="muted small" style="margin:0">${esc(t('rgSample', { s: g.sample.join(', ') }))}</p>` : ''}
           <p class="muted small" style="margin:0">${esc(t('rgHint_' + g.kind))}</p>
@@ -10671,17 +10833,17 @@
             <span class="rg-l">${esc(t('ledgerMethod'))}</span>${seg(g.id, 'method', RG_METHODS, a.method || rgDefMethod(g.kind))}
             ${rgCanGroup(g) ? `<span class="rg-l">${esc(t('rgGroupQ'))}</span>${seg(g.id, 'group', [['none', 'rgGroupNo'], ['day', 'rgGroupDay'], ['month', 'rgGroupMonth']], a.group)}` : ''}` : ''}` : `<p class="muted small" style="margin:0">${esc(t('rgAllOwn'))}</p>`}
           ${rs.length ? `<button type="button" class="chip sm rg-split ${open ? 'on' : ''}" data-rg-split="${esc(g.id)}" aria-expanded="${open}">${ico('list')} ${esc(t(open ? 'rgSplitHide' : 'rgSplit', { n: rs.length }))}${nOwn ? ` · ${esc(t('rgOwnN', { n: nOwn }))}` : ''}</button>` : ''}
-          ${open ? `<ul class="rg-rows">${rs.slice(0, RG_MAX_ROWS).map(r => { const ra = S.ans['row:' + r.key]; return `<li class="rg-row ${ra ? 'own' : ''}"><div class="row" style="gap:8px;align-items:baseline"><span class="grow small"><b>${esc(r.merchant || r.name || (r.kind === 'other' ? r.action : t('rgNote_' + r.kind)))}</b> <span class="muted">${esc(fmtShort(r.date))}</span></span><b class="small ${r.sign < 0 ? 'amt-out' : 'amt-in'}">${privacyOn() ? '•••' : (r.sign < 0 ? '−' : '+') + esc(fmtCur(r.cents / 100, r.currency))}</b><button type="button" class="chip sm" data-rg-cut="${esc(r.key)}" aria-expanded="${S.splitting === r.key}">${ico('split')} ${esc(t('rgCut'))}</button></div>
+          ${open ? `<ul class="rg-rows">${rs.slice(0, RG_MAX_ROWS).map(r => { const ra = S.ans['row:' + r.key]; return `<li class="rg-row ${ra ? 'own' : ''}" ${rowMiss(r) ? 'data-rg-miss' : ''}><div class="row" style="gap:8px;align-items:baseline"><span class="grow small"><b>${esc(r.merchant || r.name || (r.kind === 'other' ? r.action : t('rgNote_' + r.kind)))}</b> <span class="muted">${esc(fmtShort(r.date))}</span></span><b class="small ${r.sign < 0 ? 'amt-out' : 'amt-in'}">${privacyOn() ? '•••' : (r.sign < 0 ? '−' : '+') + esc(fmtCur(r.cents / 100, r.currency))}</b><button type="button" class="chip sm" data-rg-cut="${esc(r.key)}" aria-expanded="${S.splitting === r.key}">${ico('split')} ${esc(t('rgCut'))}</button></div>
             ${r.split ? `<span class="muted small">${ico('split', 'xs')} ${esc(t('rgCutPart'))}</span>` : ''}
             ${S.splitting === r.key ? `<div class="rg-cut"><span class="muted small">${esc(t('rgCutHint', { a: fmtCur(r.cents / 100, r.currency) }))}</span><div class="row" style="gap:8px"><input class="input grow" inputmode="decimal" autocomplete="off" data-rg-cut-v placeholder="0,00" aria-label="${esc(t('rgCutFirst'))}"><button type="button" class="btn sm primary" data-rg-cut-go="${esc(r.key)}">${esc(t('rgCutDo'))}</button></div></div>` : ''}
             ${seg('row:' + r.key, 'type', [['', 'rgAsGroup'], ...RG_TYPES], ra ? ra.type : '')}${ra && ra.type && ra.type !== 'skip' ? catSel('row:' + r.key, ra) + `<span class="rg-l">${esc(t('ledgerMethod'))}</span>` + seg('row:' + r.key, 'method', RG_METHODS, ra.method || (S.ans[g.id] || {}).method || rgDefMethod(r.kind)) : ''}</li>`; }).join('')}</ul>${rs.length > RG_MAX_ROWS ? `<p class="muted small" style="margin:0">${esc(t('rgMoreRows', { n: rs.length - RG_MAX_ROWS }))}</p>` : ''}` : ''}
         </section>`; }).join('')}
-        ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay"><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
+        ${Object.entries(S.cur).map(([c, n]) => `<section class="rg-q clay" ${curMiss(c) ? 'data-rg-miss' : ''}><b>${esc(t('rgCur', { n, c }))}</b><p class="muted small" style="margin:0">${esc(t('rgCurHint'))}</p>
           ${seg('cur:' + c, 'cur', [['skip', 'rgSkip'], ['rate', 'rgKeepCur'], ['conv', 'rgConvMain']], S.curMode[c])}
           ${S.curMode[c] === 'rate' || S.curMode[c] === 'conv' ? `<label class="field"><span>${esc(t('fxRateLbl', { c, m: ledgerMain() }))}</span><input class="input" inputmode="decimal" data-rg-rate="${esc(c)}" value="${S.rates[c] ? esc(String(S.rates[c]).replace('.', state.lang === 'es' ? ',' : '.')) : ''}" placeholder="${esc(t('fxNoRate'))}"></label>${S.rates[c] ? `<p class="muted small" style="margin:0">${esc(fxRateTxt(c, S.rates[c]))} · ${esc(t('fxEstimate'))}</p>` : ''}` : ''}</section>`).join('')}
         ${S.q.length ? '' : `<p class="muted">${esc(t('rgNothing'))}</p>`}</div>`;
       const foot = $('.sheet-foot', wref);
-      if (foot) foot.innerHTML = S.q.length ? `<p class="muted small" style="margin:0;flex-basis:100%">${miss ? esc(t('rgMissing', { n: miss })) : ''}</p><button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button><button class="btn primary" data-rg="go" ${miss ? 'disabled' : ''}>${ico('check')} ${esc(t('rgImport'))}</button>` : `<button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button>`;
+      if (foot) foot.innerHTML = S.q.length ? `<p class="muted small" style="margin:0;flex-basis:100%">${miss ? esc(t('rgMissing', { n: miss })) : ''}</p><button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button><button class="btn primary ${miss ? 'rg-go-off' : ''}" data-rg="go" ${miss ? `aria-disabled="true" title="${esc(t('rgGoMissing'))}"` : ''}>${ico('check')} ${esc(t('rgImport'))}</button>` : `<button class="btn" data-rg="back">${ico('left')} ${esc(t('back'))}</button>`;
     };
     const load = async input => {
       const f = input.files && input.files[0]; input.value = '';
@@ -10758,7 +10920,7 @@
         if (el.dataset.rg === 'back') { S.step = 'intro'; draw(); return; }
         if (el.dataset.rg === 'resume') { resume(); return; }
         if (el.dataset.rg === 'drop') { rgDraftDrop(); draw(); toast(t('rgDraftDropped')); return; }
-        if (missing()) return;
+        if (missing()) { goMissing(); return; }
         const rates = {}, conv = {}; for (const c of Object.keys(S.cur)) if (S.curMode[c] !== 'skip') { rates[c] = S.rates[c]; if (S.curMode[c] === 'conv') conv[c] = true; }
         const p = BCSV.plan(S.rows, S.ans, rates, LV.entries, ledgerMain(), conv), importId = uid();
         // v1.36: cada movimiento va a la cuenta elegida para este CSV (o al Efectivo si su método es efectivo)
