@@ -2473,39 +2473,18 @@
   const gyDur = min => min >= 60 ? `${Math.floor(min / 60)} h ${pad(min % 60)}` : `${min} min`;
   const gyClock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60); };
 
-  /* Mapa del cuerpo (dibujo propio, delante y detrás). La intensidad de cada músculo va de 0 a 1. */
-  const GY_FRONT = {
-    traps: '<path d="M42 29 50 27 58 29 56 34 44 34z"/>',
-    shoulders: '<ellipse cx="33" cy="40" rx="7" ry="7"/><ellipse cx="67" cy="40" rx="7" ry="7"/>',
-    chest: '<path d="M50 38c-4-2-12-2-15 2-2 4-1 10 3 12 4 2 10 1 12-2z"/><path d="M50 38c4-2 12-2 15 2 2 4 1 10-3 12-4 2-10 1-12-2z"/>',
-    biceps: '<ellipse cx="28" cy="56" rx="4.5" ry="9"/><ellipse cx="72" cy="56" rx="4.5" ry="9"/>',
-    forearms: '<ellipse cx="24.5" cy="79" rx="4" ry="11" transform="rotate(8 24.5 79)"/><ellipse cx="75.5" cy="79" rx="4" ry="11" transform="rotate(-8 75.5 79)"/>',
-    abs: '<rect x="44" y="55" width="12" height="29" rx="4"/>',
-    obliques: '<ellipse cx="39" cy="69" rx="4" ry="11"/><ellipse cx="61" cy="69" rx="4" ry="11"/>',
-    adductors: '<ellipse cx="47" cy="106" rx="2.6" ry="11"/><ellipse cx="53" cy="106" rx="2.6" ry="11"/>',
-    quads: '<ellipse cx="41.5" cy="114" rx="6.5" ry="20"/><ellipse cx="58.5" cy="114" rx="6.5" ry="20"/>',
-    calves: '<ellipse cx="41.5" cy="155" rx="4.5" ry="14"/><ellipse cx="58.5" cy="155" rx="4.5" ry="14"/>'
-  };
-  const GY_BACK = {
-    traps: '<path d="M50 27 61 36 50 50 39 36z"/>',
-    shoulders: '<ellipse cx="33" cy="40" rx="7" ry="7"/><ellipse cx="67" cy="40" rx="7" ry="7"/>',
-    upperback: '<ellipse cx="50" cy="51" rx="8" ry="5"/>',
-    lats: '<path d="M40 44c-3 6-3 16 2 26l6-8-1-14z"/><path d="M60 44c3 6 3 16-2 26l-6-8 1-14z"/>',
-    triceps: '<ellipse cx="28" cy="56" rx="4.5" ry="9"/><ellipse cx="72" cy="56" rx="4.5" ry="9"/>',
-    forearms: '<ellipse cx="24.5" cy="79" rx="4" ry="11" transform="rotate(8 24.5 79)"/><ellipse cx="75.5" cy="79" rx="4" ry="11" transform="rotate(-8 75.5 79)"/>',
-    lowerback: '<rect x="45" y="70" width="10" height="16" rx="4"/>',
-    glutes: '<ellipse cx="43" cy="97" rx="8" ry="8"/><ellipse cx="57" cy="97" rx="8" ry="8"/>',
-    hamstrings: '<ellipse cx="42" cy="122" rx="6.5" ry="16"/><ellipse cx="58" cy="122" rx="6.5" ry="16"/>',
-    calves: '<ellipse cx="41.5" cy="155" rx="5.5" ry="13"/><ellipse cx="58.5" cy="155" rx="5.5" ry="13"/>'
-  };
-  const GY_SIL = '<circle cx="50" cy="15" r="9"/><path d="M44 24h12v6H44z"/><path d="M34 32h32c4 0 7 3 7 7l-2 50H29l-2-50c0-4 3-7 7-7z"/><path d="M27 36c-6 2-7 8-7 14l-1 42 8 1 4-40z"/><path d="M73 36c6 2 7 8 7 14l1 42-8 1-4-40z"/><path d="M33 88h34l-4 82h-9l-4-60-4 60h-9z"/>';
+  /* Mapa del cuerpo (v1.55: lámina propia en js/gym-body.js → KGBody, de hombre o de mujer según gymPrefs.sex).
+     La intensidad de cada músculo va de 0 a 1. */
+  const gySex = () => gyPrefs().sex === 'f' ? 'f' : 'm';
+  const gySetSex = v => { state.gymPrefs = { ...gyPrefs(), sex: v === 'f' ? 'f' : 'm' }; save(); render(); sfx('toggle'); };
+  // Selector Hombre / Mujer (registro, Ajustes y ajustes del Gimnasio): cambia el mapa del cuerpo
+  const gySexSegHtml = id => `<div class="seg" role="group" id="gy-sex-${id}">${['m', 'f'].map(x => `<button type="button" data-gy-sex="${x}" class="${gySex() === x ? 'on' : ''}" aria-pressed="${gySex() === x}">${esc(t('gySex_' + x))}</button>`).join('')}</div><p class="muted small" style="margin:6px 0 0">${esc(t('gySexHint'))}</p>`;
   function gyBody(mus, opts = {}) {
-    const max = Math.max(1, ...Object.values(mus || {}));
-    const side = (map, label) => `<svg class="gy-body-s" viewBox="10 4 80 172" role="img" aria-label="${esc(label)}"><g class="gy-sil">${GY_SIL}</g>${Object.entries(map).map(([m, d], i) => {
-      const v = (mus || {})[m] || 0, a = v ? .28 + .72 * Math.min(1, v / max) : 0;
-      return `<g class="gy-m ${v ? 'on' : ''}" data-m="${m}" style="--a:${a.toFixed(2)};--d:${i}">${d}</g>`;
-    }).join('')}</svg>`;
-    return `<div class="gy-body ${opts.big ? 'big' : ''}">${side(GY_FRONT, t('gyFront'))}${side(GY_BACK, t('gyBack'))}</div>`;
+    if (!window.KGBody) return '';
+    if (!document.querySelector('.gy-body-defs')) document.body.insertAdjacentHTML('beforeend', KGBody.defs());
+    const max = Math.max(1, ...Object.values(mus || {})), sex = opts.sex || gySex();
+    const lv = Object.fromEntries(Object.entries(mus || {}).filter(([, v]) => v > 0).map(([m, v]) => [m, .28 + .72 * Math.min(1, v / max)]));
+    return `<div class="gy-body ${opts.big ? 'big' : ''}">${KGBody.svg('front', sex, lv, esc(t('gyFront')))}${KGBody.svg('back', sex, lv, esc(t('gyBack')))}</div>`;
   }
   const gyMusChips = (list, n = 6) => list.slice(0, n).map(x => `<span class="gy-mchip">${esc(gyMus(x.m))}<b>${fmtNum(x.n)}</b></span>`).join('');
 
@@ -2516,12 +2495,13 @@
     const v = state.ui.gyView || '';
     if (v.startsWith('ex:')) return topBar() + gyExView(v.slice(3));
     if (v === 'hist') return topBar() + gyHistView();
+    if (v === 'log') return topBar() + gyLogView();
     const tk = todayKey(), ks = tfWeekKeys(tk), S = GYM.weekSummary(state.gymWorkouts, ks, state.gymEx), goal = gyGoal();
     const n = S.days.length, pct = clamp(n / Math.max(1, goal), 0, 1), h = gyHabit(), p = gyProject(h);
     const streak = GYM.weekStreak(state.gymWorkouts, tfWeekKeys, tk, Math.max(1, goal));
     const dow = tfDow();
     let html = `<div class="gy">`;
-    html += `<div class="gy-top gy-top-end"><button class="icon-btn" data-gy="hist" aria-label="${esc(t('gyHistory'))}" title="${esc(t('gyHistory'))}">${ico('clock')}</button><button class="icon-btn" data-gy="lib" aria-label="${esc(t('gyLibrary'))}" title="${esc(t('gyLibrary'))}">${ico('search')}</button></div>`;
+    html += `<div class="gy-top gy-top-end"><button class="icon-btn" data-gy="hist" aria-label="${esc(t('gyHistory'))}" title="${esc(t('gyHistory'))}">${ico('clock')}</button><button class="icon-btn" data-gy="log" aria-label="${esc(t('gyLog'))}" title="${esc(t('gyLog'))}">${ico('list')}</button><button class="icon-btn" data-gy="lib" aria-label="${esc(t('gyLibrary'))}" title="${esc(t('gyLibrary'))}">${ico('search')}</button></div>`;
     if (live) html += `<button class="gy-livebar clay" data-gy="resume"><span class="gy-pulse"></span><span class="grow"><b>${esc(live.name || t('gyFree'))}</b><span class="muted small" data-gy-clock="${live.start || 0}">${gyClock(Date.now() - (live.start || Date.now()))}</span></span>${ico('right')}</button>`;
     // Semana: anillo de días entrenados, tira de 7 días y cifras
     html += `<section class="gy-hero clay"><div class="gy-ring" style="--p:${pct}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="gy-ring-bg" cx="60" cy="60" r="52"/><circle class="gy-ring-fg" cx="60" cy="60" r="52" pathLength="100"/></svg><div class="gy-ring-in"><b class="gy-count" data-gy-cnt="${n}">${n}</b><span>/ ${goal} ${esc(t('gyDaysShort'))}</span></div></div>
@@ -2560,6 +2540,54 @@
     let month = '';
     list.forEach((w, i) => { const m = w.date.slice(0, 7); if (m !== month) { month = m; html += `<h3 class="gy-month">${esc(fmtDate(m + '-01', { month: 'long', year: 'numeric' }))}</h3>`; } html += gyCard(w, Math.min(i, 8)); });
     return html + '</div>';
+  }
+  /* v1.55: Log de ejercicios. Días del más reciente al más antiguo, con la duración del día y, por ejercicio,
+     repeticiones × series, el peso y lo que ha cambiado desde la vez anterior. Rango 1M (por defecto), 3M, 6M, 1A o Todo. */
+  const GY_RANGES = ['1m', '3m', '6m', '1y', 'all'];
+  const gyLogRange = () => GY_RANGES.includes(state.ui.gyLogR) ? state.ui.gyLogR : '1m';
+  const gyUnit = u => u === 'reps' ? t('gyReps') : u === 's' ? t('gySec') : u;
+  const gyDelta = (d, u) => d ? `<span class="gy-lg-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${fmtNum(Math.abs(d))} ${esc(gyUnit(u))}</span>` : '';
+  function gyLogItem(x) {
+    const reps = x.rMax ? (x.rMin === x.rMax ? x.rMax : `${x.rMin}–${x.rMax}`) + ' ' + t('gyReps') : '';
+    const what = x.kind === 'h' ? `${fmtNum(x.sec)} ${t('gySec')}` : x.kind === 'c' ? [x.min ? x.min + ' min' : '', x.km ? fmtNum(x.km) + ' km' : ''].filter(Boolean).join(' · ') : reps;
+    const line = x.kind === 'c' ? what : `${what} × ${t('gyNSets', { n: x.sets })}`;
+    const kg = x.top.u === 'kg' && x.top.v ? `<span class="gy-lg-w"><small>${esc(t(x.kind === 'bw' ? 'gyLogExtra' : 'gyLogWeight'))}</small>${x.kind === 'bw' ? '+' : ''}${fmtNum(x.top.v)} kg</span>` : '';
+    return `<li class="gy-lg-i"><button class="gy-lg-n" data-gy="ex" data-id="${esc(x.eid)}"><b>${esc(gyName(x.eid))}</b><span class="muted small">${esc(line)}</span></button><span class="gy-lg-r">${kg}${gyDelta(x.delta, x.top.u)}</span></li>`;
+  }
+  function gyLogView() {
+    const r = gyLogRange(), from = GYM.rangeFrom(r, todayKey()), days = GYM.logDays(state.gymWorkouts, from, state.gymEx);
+    let html = `<div class="gy gy-log"><div class="gy-top"><button class="icon-btn" data-gy="home" aria-label="${esc(t('back'))}">${ico('left')}</button><h1 class="page-title grow" style="margin:0">${esc(t('gyLog'))}</h1></div>
+      <div class="gy-lg-bar"><div class="seg gy-lg-seg" role="group" aria-label="${esc(t('gyLogRange'))}">${GY_RANGES.map(k => `<button type="button" data-gy="log-r" data-id="${k}" class="${r === k ? 'on' : ''}" aria-pressed="${r === k}">${esc(t('gyR_' + k))}</button>`).join('')}</div>
+      <button class="chip" data-gy="log-cmp">${ico('compare')} ${esc(t('gyCompare'))}</button></div>`;
+    if (!days.length) return html + emptyState('list', t('gyLogEmptyT'), t(gyDone().length ? 'gyLogEmptyRange' : 'gyHistEmptyS')) + '</div>';
+    const n = days.reduce((a, d) => a + d.sessions, 0), min = days.reduce((a, d) => a + d.minutes, 0);
+    html += `<p class="muted small gy-lg-sum">${esc(t('gyLogSum', { d: days.length, s: n }))}${min ? ' · ' + esc(gyDur(min)) : ''}</p>`;
+    html += days.map((d, i) => `<section class="gy-lg-day clay" style="--d:${Math.min(i, 8)}"><div class="gy-lg-h"><b>${esc(fmtDate(d.date, { day: '2-digit', month: '2-digit', year: 'numeric' }))}</b>${d.minutes ? `<span class="gy-lg-dur">${ico('timer', 'xs')} ${esc(t('gyLogDur', { d: gyDur(d.minutes) }))}</span>` : ''}</div><ul class="gy-lg-l">${d.items.map(gyLogItem).join('')}</ul></section>`).join('');
+    return html + '</div>';
+  }
+  // Comparar: tus marcas y tu ritmo de ahora frente a los de una fecha (por defecto, el inicio del rango elegido)
+  function gyCompareSheet() {
+    const first = gyDone().map(w => w.date).sort()[0] || todayKey();
+    let date = GYM.rangeFrom(gyLogRange(), todayKey()) || first;
+    const row = (label, a, b, fmt = fmtNum) => { const d = b - a; return `<div class="gy-cmp-row"><span class="grow">${esc(label)}</span><span class="muted">${esc(fmt(a))}</span>${ico('right', 'xs')}<b>${esc(fmt(b))}</b>${d ? `<span class="gy-lg-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${esc(fmt(Math.abs(d)))}</span>` : '<span class="gy-lg-d">=</span>'}</div>`; };
+    const body = () => {
+      const C = GYM.compareAt(state.gymWorkouts, date, todayKey(), state.gymEx);
+      const up = C.ex.filter(x => x.diff > 0).length, avg = C.ex.length ? Math.round(C.ex.reduce((a, x) => a + x.pct, 0) / C.ex.length * 10) / 10 : 0;
+      let h = `<section class="gy-cmp-sec"><h3 class="section-title">${esc(t('gyCmpPace'))}</h3><p class="muted small" style="margin:-4px 0 8px">${esc(t('gyCmpPaceHint', { a: fmtDate(date, { day: 'numeric', month: 'short', year: 'numeric' }) }))}</p>
+        ${row(t('gyDaysTrained'), C.then.days, C.now.days)}${row(t('gySessions'), C.then.sessions, C.now.sessions)}${row(t('gySets'), C.then.sets, C.now.sets)}${row(t('gyVolume'), C.then.volume, C.now.volume, gyVol)}${row(t('gyCmpTime'), C.then.minutes, C.now.minutes, gyDur)}</section>`;
+      h += `<section class="gy-cmp-sec"><h3 class="section-title">${esc(t('gyCmpMarks'))}</h3>`;
+      h += C.ex.length ? `<p class="gy-cmp-hl clay">${esc(t('gyCmpSummary', { n: up, total: C.ex.length }))}${avg ? ` <b class="gy-lg-d ${avg > 0 ? 'up' : 'down'}">${avg > 0 ? '+' : '−'}${fmtNum(Math.abs(avg))} %</b>` : ''}</p>
+        <ul class="gy-lg-l">${C.ex.map(x => `<li class="gy-lg-i"><span class="gy-lg-n"><b>${esc(gyName(x.eid))}</b><span class="muted small">${esc(fmtNum(x.then.v) + ' ' + gyUnit(x.then.u))} (${esc(fmtDate(x.then.date, { day: 'numeric', month: 'short' }))}) → ${esc(fmtNum(x.now.v) + ' ' + gyUnit(x.now.u))}</span></span><span class="gy-lg-r">${gyDelta(x.diff, x.now.u)}${x.pct ? `<span class="muted small">${x.pct > 0 ? '+' : '−'}${fmtNum(Math.abs(x.pct))} %</span>` : ''}</span></li>`).join('')}</ul>`
+        : `<p class="muted small">${esc(t('gyCmpNone'))}</p>`;
+      if (C.newEx) h += `<p class="muted small">${esc(t('gyCmpNew', { n: C.newEx }))}</p>`;
+      return h + '</section>';
+    };
+    openModal({
+      title: esc(t('gyCompare')),
+      body: `<label class="field"><span>${esc(t('gyCmpDate'))}</span><input class="input" type="date" id="gy-cmp-d" value="${esc(date)}" min="${esc(first)}" max="${esc(todayKey())}"></label><div class="gy-cmp-q chip-scroll">${GY_RANGES.slice(0, 4).map(k => `<button type="button" class="chip sm" data-cmp-r="${k}">${esc(t('gyR_' + k))}</button>`).join('')}<button type="button" class="chip sm" data-cmp-r="first">${esc(t('gyCmpFirst'))}</button></div><div id="gy-cmp">${body()}</div>`,
+      onMount: w => { $('#gy-cmp-d', w).addEventListener('change', e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) { date = e.target.value; $('#gy-cmp', w).innerHTML = body(); } }); },
+      onClick: (e, close, w) => { const b = e.target.closest('[data-cmp-r]'); if (!b) return; date = b.dataset.cmpR === 'first' ? first : GYM.rangeFrom(b.dataset.cmpR, todayKey()); $('#gy-cmp-d', w).value = date; $('#gy-cmp', w).innerHTML = body(); }
+    });
   }
   function gyExView(eid) {
     const e = gyEx(eid); if (!e) { state.ui.gyView = ''; return viewGym(); }
@@ -2795,9 +2823,11 @@
       body: `<p class="muted small" style="margin:-4px 0 12px">${esc(t('gyLinkSub'))}</p>
         <div class="gy-hlist"><button class="gy-pick ${!P.habitId ? 'on' : ''}" data-hab=""><b>${esc(t('gyNoLink'))}</b></button>${hs.map(h => { const p = gyProject(h); return `<button class="gy-pick ${P.habitId === h.id ? 'on' : ''}" data-hab="${esc(h.id)}"><b>${esc((h.icon || '') + ' ' + h.name)}</b><span class="muted small">${esc(t(h.freq === 'weekly' ? 'freqWeekly' : h.freq === 'monthly' ? 'freqMonthly' : 'freqDaily'))}${p ? ' · ' + esc(p.name) : ''}${sug && sug.id === h.id ? ' · ' + esc(t('gySuggested')) : ''}</span></button>`; }).join('')}</div>
         <div class="field" style="margin-top:14px"><span>${esc(t('gyGoalDays'))}</span><div class="seg">${[1, 2, 3, 4, 5, 6, 7].map(n => `<button type="button" data-goal="${n}" class="${P.goal === n ? 'on' : ''}">${n}</button>`).join('')}</div><span class="muted small" style="text-transform:none;letter-spacing:0">${esc(t('gyGoalHint'))}</span></div>
+        <div class="field" style="margin-top:14px"><span>${esc(t('gySexTitle'))}</span>${gySexSegHtml('g')}</div>
         <div class="field" style="margin-top:14px"><span>${esc(t('gyRestDefault'))}</span><div class="seg">${[60, 90, 120, 180].map(n => `<button type="button" data-rest="${n}" class="${P.rest === n ? 'on' : ''}">${gyClock(n * 1000)}</button>`).join('')}</div></div>`,
       onClick: (e, close, w) => {
         const set = (k, v) => { state.gymPrefs = { ...gyPrefs(), [k]: v }; save(); };
+        const sx = e.target.closest('[data-gy-sex]'); if (sx) { gySetSex(sx.dataset.gySex); $$('[data-gy-sex]', w).forEach(b => b.classList.toggle('on', b === sx)); return; }
         const h = e.target.closest('[data-hab]'); if (h) { set('habitId', h.dataset.hab); $$('[data-hab]', w).forEach(b => b.classList.toggle('on', b === h)); render(); return; }
         const g = e.target.closest('[data-goal]'); if (g) { set('goal', +g.dataset.goal); $$('[data-goal]', w).forEach(b => b.classList.toggle('on', b === g)); render(); return; }
         const r = e.target.closest('[data-rest]'); if (r) { set('rest', +r.dataset.rest); $$('[data-rest]', w).forEach(b => b.classList.toggle('on', b === r)); }
@@ -2831,6 +2861,9 @@
       case 'home': state.ui.gyView = ''; save(); render(); window.scrollTo(0, 0); break;
       case 'hist': state.ui.gyView = 'hist'; save(); render(); window.scrollTo(0, 0); break;
       case 'lib': gyLibrary(); break;
+      case 'log': state.ui.gyView = 'log'; save(); render(); window.scrollTo(0, 0); break;
+      case 'log-r': state.ui.gyLogR = id; save(); render(); break;
+      case 'log-cmp': gyCompareSheet(); break;
       case 'link': gyLinkSheet(); break;
       case 'starters': gyStarters(); break;
       case 'r-new': gyRoutineEditor(null); break;
@@ -6885,7 +6918,7 @@
   const contractDoc = c => `<div class="contract clay">${contractInner(c)}</div>`;
   // Formulario de firma (onboarding y modal); devuelve getters
   function contractFormHtml(name = '', withLevel = false) {
-    const s = todayKey(), e = addMonths(s, 1), g = (state.contract && state.contract.g) || 'm';
+    const s = todayKey(), e = addMonths(s, 1), g = (state.contract && state.contract.g) || gySex();
     return `<div class="contract clay" id="ct-doc">${contractInner({ name, signedAt: s, endsAt: e, level: state.commitment, g })}</div>
       <div class="stack" style="margin-top:18px">
         ${withLevel ? `<div class="field"><span>${esc(t('commitTitle'))}</span><div id="ct-level">${commitSegHtml()}</div></div>` : ''}
@@ -6898,7 +6931,7 @@
   function mountContractForm(root) {
     const name = $('#ct-name', root), doc = $('#ct-doc', root), cv = $('#ct-sig', root);
     const s = todayKey(), e = addMonths(s, 1);
-    let g = (state.contract && state.contract.g) || 'm';
+    let g = (state.contract && state.contract.g) || gySex();
     const redraw = () => { doc.innerHTML = contractInner({ name: name.value.trim(), signedAt: s, endsAt: e, level: state.commitment, g }); };
     name.addEventListener('input', redraw);
     const gs = $('#ct-g', root);
@@ -7027,7 +7060,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.56', [['1.56.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -7147,7 +7180,7 @@
       body = obTourHtml(at);
     } else if (at === 'contract') {
       title = t('obContractTitle'); lead = t('obContractSub'); next = t('contractSignBtn');
-      body = contractFormHtml(state.contract ? state.contract.name : '');
+      body = `<div class="field ob-sex"><span>${esc(t('gySexTitle'))}</span>${gySexSegHtml('ob')}</div>` + contractFormHtml(state.contract ? state.contract.name : '');
     } else if (at === 'tag') {
       title = t('obTagTitle'); lead = t('obTagSub'); next = auth && myTag() ? t('next') : t('obTagSkip');
       body = auth ? `<label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="ob-tag" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(myTag())}" placeholder="${esc(t('nametagPh'))}"></div></label><p class="muted small">${esc(t('nametagHint'))}</p>`
@@ -7188,6 +7221,13 @@
   function onboardingClick(e) {
     const q = s => e.target.closest(s); let el;
     if (q('[data-ob-login]')) { openLogin(); return true; }
+    if ((el = q('[data-gy-sex]'))) {
+      // Registro: el sexo elige el cuerpo del Gimnasio y, en español, el «mismo / misma» del contrato
+      state.gymPrefs = { ...gyPrefs(), sex: el.dataset.gySex === 'f' ? 'f' : 'm' }; save(); sfx('toggle');
+      $$('[data-gy-sex]').forEach(x => { x.classList.toggle('on', x === el); x.setAttribute('aria-pressed', x === el); });
+      const g = $(`#ct-g [data-g="${gySex()}"]`); if (g) g.click();
+      return true;
+    }
     if ((el = q('[data-ob-lang]'))) { state.lang = el.dataset.obLang; save(); render(); return true; }
     const keep = () => { const v = $('#ob-custom')?.value; obKeepScroll = true; render(); if (v) $('#ob-custom').value = v; };
     if ((el = q('[data-ob-pack]'))) { obPack = el.dataset.obPack; keep(); return true; }
@@ -7637,6 +7677,7 @@
           acc('plan', ico('sparkle'), t('plTitle'), planHint(), planHtml()),
           acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
           acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
+          acc('body', ico('user'), t('gySexTitle'), t('gySex_' + gySex()), gySexSegHtml('s')),
           acc('sound', ico('volume'), t('soundTitle'), audioHint(), audioSettingsHtml()),
           acc('anim', ico('sparkle'), t('anTitle'), t('anOpt_' + motionPref()), `<div class="seg" role="group" id="st-anim">${['auto', 'on', 'off'].map(v => `<button type="button" data-s-anim="${v}" class="${motionPref() === v ? 'on' : ''}">${esc(t('anOpt_' + v))}</button>`).join('')}</div><p class="muted small" id="st-anim-hint" style="margin:10px 0 0">${esc(t('anHint_' + motionPref()))}</p><div class="anim-prev"><button class="chip" data-s-anim-test="perfect">${ico('play')} ${esc(t('anTestPerfect'))}</button><button class="chip" data-s-anim-test="ach">${ico('play')} ${esc(t('anTestAch'))}</button></div>`),
           acc('look', ico('palette'), t('setLook'), `${fontFamily(state.theme.font)}${preset ? ' · ' + presetName(preset) : ''}`, `<div id="st-theme">${themeEditorHtml()}</div>`)
@@ -7694,6 +7735,7 @@
       onClick: async (e, close, w) => {
         const q = s => e.target.closest(s); let el;
         if ((el = q('[data-s-lang]'))) { state.lang = el.dataset.sLang; save(); render(); draw(); $('.sheet-head h2', w).textContent = t('settings'); return; }
+        if ((el = q('[data-gy-sex]'))) { gySetSex(el.dataset.gySex); $$('[data-gy-sex]', w).forEach(x => x.classList.toggle('on', x === el)); const sm = el.closest('details') && $('summary small', el.closest('details')); if (sm) sm.textContent = t('gySex_' + gySex()); return; }
         if ((el = q('[data-commit]'))) { setCommitment(el.dataset.commit); $('#st-commit', w).innerHTML = commitSegHtml(); render(); sfx('toggle'); return; }
         if ((el = q('[data-s-anim]'))) {
           setMotionPref(el.dataset.sAnim); const v = motionPref();
@@ -8589,7 +8631,7 @@
      «Comparar» con proyecciones guardadas: en el mismo gráfico o en dos gráficos separados.
      ========================================================= */
   const WORTH = window.KGWorth;
-  const WO_CMP = ['#f59e0b', '#ec4899', '#22d3ee', '#a3e635'];
+  const WO_CMP = ['#f59e0b', '#ec4899', '#22d3ee', '#a3e635', '#f97316', '#8b5cf6', '#14b8a6', '#eab308'];
   let worthMemo = { key: '' };
   const worthBase = () => LV.worth.find(x => x.id === 'worth') || null;
   /* v1.23.3: cada inversión (= categoría de tipo Inversión) guarda en LV.worth { id: 'inv:<cat>', kind: 'inv', cat, vals: [{ date, value }],
@@ -8749,7 +8791,7 @@
   }
   function worthUi() {
     const u = state.ui.worth && typeof state.ui.worth === 'object' ? state.ui.worth : {};
-    state.ui.worth = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', hideGraph: !!u.hideGraph, ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) }, gran: u.gran === 'year' ? 'year' : 'month', cmp: Array.isArray(u.cmp) ? u.cmp.filter(id => LV.projs.some(p => p.id === id)) : [], split: !!u.split, cmpOn: !!u.cmpOn };
+    state.ui.worth = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', hideGraph: !!u.hideGraph, ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) }, gran: u.gran === 'year' ? 'year' : 'month', cmp: Array.isArray(u.cmp) ? u.cmp.filter(id => LV.projs.some(p => p.id === id)) : [], split: !!u.split, cmpOn: !!u.cmpOn, src: u.src === 'saved' ? 'saved' : 'cur' };
     return state.ui.worth;
   }
   const woRow = r => ({ date: CALC.parseDate(r.key), patrimony: r.patrimony / 100, income: r.income / 100, expenses: r.expenses / 100, investments: r.investments / 100, funds: Object.fromEntries(Object.entries(r.invVal || r.inv).map(([k, v]) => [k, v / 100])) });
@@ -8760,6 +8802,45 @@
     if (!projMemo.has(key)) { const model = CALC.fromItems(calcConv(p.items || []), todayKey()), res = CALC.compute(model); projMemo.set(key, { model, res, rows: CALC.daily(res) }); }
     return projMemo.get(key);
   }
+  /* v1.52: «Comparar» elige entre la Proyección actual (lo que hay ahora en la calculadora, guardado o no)
+     y una o varias Proyecciones guardadas */
+  function woCmpSel(u) {
+    if (!u.cmpOn || u.mode === 'investments') return [];
+    if (u.src === 'cur') return LV.calc.length ? [{ id: 'cur', label: t('woCurProj'), pc: calcData() }] : [];
+    return LV.projs.filter(p => u.cmp.includes(p.id)).map(p => ({ id: p.id, label: t('woProjOf', { name: p.name }), pc: projCalc(p) }));
+  }
+  // v1.52: números para entender la diferencia entre lo real y cada proyección
+  function woCmpStats(d, sel) {
+    if (!sel.length) return '';
+    const today = todayKey(), real = d.now.patrimony / 100, pace = d.pace.net / 100, keyOf = CALC.keyOf;
+    const one = ({ label, pc }, j) => {
+      const rows = pc.rows, res = pc.res, k0 = keyOf(rows[0].date), k1 = keyOf(rows[rows.length - 1].date);
+      const perM = res.months ? (res.final - res.initial) / res.months : 0;
+      const before = today < k0, after = today > k1;
+      const exp = before ? res.initial : after ? res.final : (rows[Math.min(rows.length - 1, Math.max(0, diffDays(k0, today)))] || {}).patrimony;
+      const diff = real - exp, dPct = exp ? diff / Math.abs(exp) * 100 : null;
+      const atEnd = real + pace * (after ? 0 : diffDays(today, k1) / 30.4375), endDiff = atEnd - res.final;
+      // Cuándo llegarías al final de la proyección a tu ritmo
+      let reach;
+      if (real >= res.final) reach = t('woStReached');
+      else if (pace <= 0) reach = t('woStNever');
+      else { const m = Math.ceil((res.final - real) / pace), at = addMonths(today, m), dm = Math.round(diffDays(k1, at) / 30.4375); reach = t('woStReachAt', { d: fmtDate(at, { month: 'long', year: 'numeric' }) }) + ' · ' + (dm === 0 ? t('woStOnTime') : t(dm < 0 ? 'woStEarly' : 'woStLate', { n: Math.abs(dm) })); }
+      const gap = perM - pace;
+      const tip = after ? t('woTipEnded', { d: fmtShort(k1) }) : Math.abs(gap) < 1 ? t('woTipSame') : gap > 0 ? t('woTipShort', { v: money(gap) }) : t('woTipAhead', { v: money(-gap) });
+      return `<div class="wo-stat clay"><div class="wo-stat-h"><i style="background:${WO_CMP[j % WO_CMP.length]}"></i><b class="grow">${esc(label)}</b><span class="muted small">${esc(fmtShort(k0))} – ${esc(fmtShort(k1))}</span></div>
+        <div class="calc-metrics">
+          <div class="calc-metric"><span>${esc(t(before ? 'woStStart' : after ? 'woStFinal' : 'woStExpected'))}</span><strong>${money(exp)}</strong></div>
+          <div class="calc-metric"><span>${esc(t('woStYouHave'))}</span><strong>${money(real)}</strong></div>
+          <div class="calc-metric wo-wide"><span>${esc(t(diff >= 0 ? 'woStAhead' : 'woStBehind'))}</span><strong class="${diff < 0 ? 'amt-out' : 'amt-in'}">${esc(csign(diff))}${dPct != null && isFinite(dPct) ? ` · ${esc(cspct(dPct))}` : ''}</strong></div>
+          <div class="calc-metric"><span>${esc(t('woStPaceProj'))}</span><strong>${esc(t('woPerMonth', { v: csign(perM) }))}</strong></div>
+          <div class="calc-metric"><span>${esc(t('woStPaceReal'))}</span><strong class="${pace < perM ? 'amt-out' : 'amt-in'}">${esc(t('woPerMonth', { v: csign(pace) }))}</strong></div>
+          ${after ? '' : `<div class="calc-metric wo-wide"><span>${esc(t('woStAtEnd', { d: fmtShort(k1) }))}</span><strong>${money(atEnd)} <small class="${endDiff < 0 ? 'amt-out' : 'amt-in'}">${esc(t('woStVsProj', { v: csign(endDiff) }))}</small></strong></div>`}
+          <div class="calc-metric wo-wide"><span>${esc(t('woStReach', { v: money(res.final) }))}</span><strong>${esc(reach)}</strong></div>
+        </div>
+        <p class="calc-fine">${ico('bulb')} ${esc(tip)}</p></div>`;
+    };
+    return `<div class="wo-stats"><div class="calc-eyebrow">${esc(t('woStEyebrow'))}</div>${sel.map(one).join('')}<p class="calc-fine">${esc(t('woStHint'))}</p></div>`;
+  }
   const woSeriesReal = u => [{ key: 'patrimony', label: t('woSerReal'), color: CALC_SER.patrimony }, ...['income', 'expenses', 'investments'].filter(k => u.ser[k]).map(k => ({ key: k, label: t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]), color: CALC_SER[k] }))];
   function worthChartHtml(d, u) {
     const inv = u.mode === 'investments', rows = d.rows.map(woRow);
@@ -8767,16 +8848,16 @@
       const cats = Object.keys(d.now.inv);
       return calcChart('wo-main', rows, [{ key: 'investments', label: t('woInvested'), color: CALC_SER.investments }, ...cats.map((c, i) => ({ fund: c, label: catName(catOf(c)), color: CALC_COLORS[(i + 1) % CALC_COLORS.length] }))], { aria: t('woGraphInv'), noPat: true });
     }
-    const sel = u.cmpOn ? LV.projs.filter(p => u.cmp.includes(p.id)) : [];
+    const sel = woCmpSel(u);
     if (!sel.length) return calcChart('wo-main', rows, woSeriesReal(u), { aria: t('woGraph') });
     if (u.split) {
       // Dos gráficos: a la izquierda lo real, a la derecha cada proyección, cada uno con sus líneas y su «Más detalles»
       const left = `<div class="wo-split-col"><h3 class="wo-split-h">${esc(t('woGraph'))}</h3>${calcChart('wo-main', rows, woSeriesReal(u), { aria: t('woGraph') })}${worthDetails(d, u, 'wo-real')}</div>`;
-      const right = sel.map(p => { const pc = projCalc(p); return `<div class="wo-split-col"><h3 class="wo-split-h">${esc(t('woProjOf', { name: p.name }))}</h3>${calcChart('wo-p-' + p.id, pc.rows, calcSeries(pc.model, { mode: 'patrimony', ser: u.ser, off: [] }), { aria: p.name })}<details class="calc-box inner" data-cd="wo-pd:${esc(p.id)}" ${calcIsOpen('wo-pd:' + p.id) ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(pc.res, 'patrimony', [], u.gran)}</details></div>`; }).join('');
+      const right = sel.map(({ id, label, pc }) => `<div class="wo-split-col"><h3 class="wo-split-h">${esc(label)}</h3>${calcChart('wo-p-' + id, pc.rows, calcSeries(pc.model, { mode: 'patrimony', ser: u.ser, off: [] }), { aria: label })}<details class="calc-box inner" data-cd="wo-pd:${esc(id)}" ${calcIsOpen('wo-pd:' + id) ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(pc.res, 'patrimony', [], u.gran)}</details></div>`).join('');
       return `<div class="wo-split">${left}${right}</div>`;
     }
     // Mismo gráfico: lo real hasta hoy y cada proyección desde su inicio hasta su final (discontinua)
-    const pcs = sel.map(p => ({ p, pc: projCalc(p) })), keyOf = CALC.keyOf;
+    const pcs = sel, keyOf = CALC.keyOf;
     let from = d.rows[0].key, to = todayKey();
     for (const { pc } of pcs) { const a = keyOf(pc.rows[0].date), b = keyOf(pc.rows[pc.rows.length - 1].date); if (a < from) from = a; if (b > to) to = b; }
     const real = new Map(d.rows.map(r => [r.key, r])), pm = pcs.map(({ pc }) => new Map(pc.rows.map(r => [keyOf(r.date), r])));
@@ -8786,7 +8867,7 @@
       pm.forEach((m, j) => { const x = m.get(k); row['cmp' + j] = x ? x.patrimony : null; });
       out.push(row);
     }
-    const ser = [...woSeriesReal(u), ...pcs.map(({ p }, j) => ({ key: 'cmp' + j, label: t('woProjOf', { name: p.name }), color: WO_CMP[j % WO_CMP.length], dash: true }))];
+    const ser = [...woSeriesReal(u), ...pcs.map(({ label }, j) => ({ key: 'cmp' + j, label, color: WO_CMP[j % WO_CMP.length], dash: true }))];
     return calcChart('wo-main', out, ser, { aria: t('woCompare'), noPat: true });
   }
   function worthDetails(d, u, cd = 'wo-det') {
@@ -8803,6 +8884,7 @@
         <div class="calc-trend ${delta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('woSince', { d: fmtShort(b.date), v: csign(delta) }))}</span></div>
         ${b.set ? '' : `<p class="muted small">${esc(t('woNoBase'))}</p>`}
         <div class="row wrap" style="gap:6px;justify-content:center"><button class="chip sm" data-wo="start">${ico('compass')} ${esc(t(b.set ? 'woEditBase' : 'woSetBase'))}</button><button class="chip sm" data-wo="reto">${ico('flag')} ${esc(t('wgNew'))}</button></div></div>
+      ${foldOpen('wo')}
       <details class="calc-box" data-cd="wo-proj" ${calcIsOpen('wo-proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(n.digital / 100)}</strong></div><div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(n.value / 100)}</strong>${n.gains ? `<div class="calc-hl-st ${n.gains < 0 ? 'amt-out' : 'amt-in'}">${esc(t('woDepGain', { d: money(n.invested / 100), g: csign(n.gains / 100) }))}</div>` : ''}</div></div>
         <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('cmCash'))}</span><strong>${money(n.cash / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${money((n.income - b.at.income) / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${money((n.expenses - b.at.expenses) / 100)}</strong></div><div class="calc-metric"><span>${esc(t('woStart'))}</span><strong>${money(start)}</strong></div></div>
@@ -8820,13 +8902,17 @@
     html += `<div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('woTrajEyebrow'))}</div><h2>${esc(t(inv ? 'woGraphInv' : 'woGraph'))}</h2></div><div class="row wrap calc-sec-acts"><button class="chip sm" data-wo="mode">${esc(t(inv ? 'calcModePat' : 'calcModeInv'))}</button><button class="chip sm" data-wo="graph" aria-expanded="${!u.hideGraph}">${esc(t(u.hideGraph ? 'calcShowGraph' : 'calcHideGraph'))}</button>${inv ? '' : `<button class="chip sm ${u.cmpOn ? 'on' : ''}" data-wo="cmp" aria-pressed="${u.cmpOn}">${ico('compare')} ${esc(t('woCompare'))}</button>`}</div></div>`;
     if (!u.hideGraph) {
       if (!inv) html += `<div class="row wrap calc-toggles" role="group" aria-label="${esc(t('calcSeriesAria'))}">${['income', 'expenses', 'investments'].map(k => `<button type="button" class="calc-toggle ${u.ser[k] ? 'on' : ''}" data-wo="ser" data-v="${k}" aria-pressed="${u.ser[k]}">${esc(t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]))}</button>`).join('')}</div>`;
-      if (!inv && u.cmpOn) html += LV.projs.length ? `<div class="wo-cmp"><span class="rg-l">${esc(t('woCmpPick'))}</span><div class="row wrap" style="gap:6px">${LV.projs.map((p, i) => `<button type="button" class="calc-toggle ${u.cmp.includes(p.id) ? 'on' : ''}" data-wo="cmp-p" data-id="${esc(p.id)}" aria-pressed="${u.cmp.includes(p.id)}">${esc(p.name)}</button>`).join('')}</div>
-          ${u.cmp.length ? `<div class="seg seg-sm" role="group" style="margin-top:8px">${[[false, 'woOneChart'], [true, 'woTwoCharts']].map(([v, k]) => `<button type="button" data-wo="split" data-v="${v ? 1 : 0}" class="${u.split === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>` : ''}</div>` : `<p class="muted small">${esc(t('woNoProjs'))}</p>`;
+      const sel = inv ? [] : woCmpSel(u);
+      if (!inv && u.cmpOn) html += `<div class="wo-cmp"><div class="seg seg-sm" role="group" aria-label="${esc(t('woCompare'))}">${[['cur', 'woCurProj'], ['saved', 'woCmpPick']].map(([v, k]) => `<button type="button" data-wo="src" data-v="${v}" class="${u.src === v ? 'on' : ''}" aria-pressed="${u.src === v}">${esc(t(k))}</button>`).join('')}</div>
+          ${u.src === 'saved' ? (LV.projs.length ? `<span class="muted small">${esc(t('woCmpMulti'))}</span><div class="row wrap" style="gap:6px">${LV.projs.map(p => `<button type="button" class="calc-toggle ${u.cmp.includes(p.id) ? 'on' : ''}" data-wo="cmp-p" data-id="${esc(p.id)}" aria-pressed="${u.cmp.includes(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : `<p class="muted small">${esc(t('woNoProjs'))}</p>`)
+            : LV.calc.length ? '' : `<p class="muted small">${esc(t('woCurEmpty'))}</p>`}
+          ${sel.length ? `<div class="seg seg-sm" role="group" style="margin-top:4px">${[[false, 'woOneChart'], [true, 'woTwoCharts']].map(([v, k]) => `<button type="button" data-wo="split" data-v="${v ? 1 : 0}" class="${u.split === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>` : ''}</div>`;
       html += worthChartHtml(d, u);
       if (b.set && d.rows[0].key < b.date) html += `<p class="calc-fine">${esc(t('woBackHint', { d: fmtShort(b.date) }))}</p>`;
-      if (!(u.cmpOn && u.split && u.cmp.length) || inv) html += worthDetails(d, u);
-    }
-    return html + '</section>';
+      html += woCmpStats(d, sel);
+      if (!(sel.length && u.split) || inv) html += worthDetails(d, u);
+    } else if (!inv) html += woCmpStats(d, woCmpSel(u));
+    return html + '</div></details></section>';
   }
   /* v1.23.4: «Otras monedas» dentro de Proyección: un desplegable por moneda, como la Proyección pero en su moneda */
   function worthCursHtml(d) {
@@ -8862,8 +8948,9 @@
       case 'graph': u.hideGraph = !u.hideGraph; break;
       case 'ser': u.ser[el.dataset.v] = !u.ser[el.dataset.v]; break;
       case 'gran': u.gran = u.gran === 'month' ? 'year' : 'month'; break;
-      case 'cmp': u.cmpOn = !u.cmpOn; if (u.cmpOn && !u.cmp.length && LV.projs.length) u.cmp = [LV.projs[0].id]; break;
-      case 'cmp-p': u.cmp = u.cmp.includes(el.dataset.id) ? u.cmp.filter(x => x !== el.dataset.id) : [...u.cmp, el.dataset.id].slice(-4); break;
+      case 'cmp': u.cmpOn = !u.cmpOn; if (u.cmpOn && u.src === 'saved' && !u.cmp.length && LV.projs.length) u.cmp = [LV.projs[0].id]; break;
+      case 'src': u.src = el.dataset.v === 'saved' ? 'saved' : 'cur'; if (u.src === 'saved' && !u.cmp.length && LV.projs.length) u.cmp = [LV.projs[0].id]; break;
+      case 'cmp-p': u.cmp = u.cmp.includes(el.dataset.id) ? u.cmp.filter(x => x !== el.dataset.id) : [...u.cmp, el.dataset.id]; break;
       case 'split': u.split = el.dataset.v === '1'; break;
       default: return false;
     }
@@ -8984,6 +9071,8 @@
   // Desplegables abiertos (solo en esta sesión; se conservan entre redibujados)
   const calcOpenD = new Map([['proj', true], ['funds', true], ['lib', true], ['tpl', true]]);
   const calcIsOpen = k => !!calcOpenD.get(k);
+  /* v1.52: Patrimonio actual y Patrimonio proyectado se pliegan bajo la cifra (que sigue a la vista con su retorno). Se recuerda. */
+  const foldOpen = k => `<details class="wo-fold" data-fold="${k}" ${(state.ui.fold || {})[k] ? 'open' : ''}><summary class="wo-fold-sum"><span class="wo-fold-shut">${esc(t('foldMore'))}</span><span class="wo-fold-open">${esc(t('foldLess'))}</span><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="wo-fold-body">`;
   const calcOn = () => state.ui.tab === 'ledger' && state.ui.ledgerView === 'calc';
   // Preferencias de la vista (en este dispositivo): modo del gráfico, series, métricas de «Ver» y fondos ocultos
   function calcUi() {
@@ -9248,6 +9337,7 @@
   document.addEventListener('toggle', e => {
     const d = e.target; if (!d || !d.matches) return;
     if (d.matches('details[data-cd]')) calcOpenD.set(d.dataset.cd, d.open);
+    if (d.matches('details[data-fold]') && !!(state.ui.fold || {})[d.dataset.fold] !== d.open) { state.ui.fold = { ...(state.ui.fold || {}), [d.dataset.fold]: d.open }; save(); }
     if (d.matches('details[data-led-charts]') && state.ui.ledChartsShut !== !d.open) { state.ui.ledChartsShut = !d.open; save(); }
   }, true);
 
@@ -9369,6 +9459,7 @@
       <div class="calc-hero"><div class="calc-eyebrow" id="calc-total-l">${esc(t('calcHeroEyebrow'))}</div><strong class="calc-total">${money(res.final)}</strong>
         <div class="calc-trend ${res.delta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.delta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.pct) }))}</span></div>
         <p class="muted small">${esc(t('calcHorizonLine', { n: cmonths(res.months), date: cdate(res.endDate), v: money(res.initial) }))}</p></div>
+      ${foldOpen('calc')}
       <details class="calc-box" data-cd="proj" ${calcIsOpen('proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-pill">${esc(t(res.formulas === 1 ? 'calcFormula1' : 'calcFormulasN', { n: res.formulas }))}</span><button type="button" class="chip sm calc-view-btn" data-calc="view" aria-label="${esc(t('calcViewAria'))}">${ico('eye')} ${esc(t('calcView'))}</button><span class="calc-arrow" aria-hidden="true">›</span></summary>
         ${metric('digital') || metric('investments') ? `<div class="calc-headline">${metric('digital') ? `<div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(res.digital)}</strong><div class="calc-hl-st ${res.digitalDelta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.digitalDelta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.digitalPct) }))}</span></div></div>` : ''}${metric('investments') ? `<div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(res.investValue)}</strong><div class="calc-hl-st ${res.fundDelta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.fundDelta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.fundPct) }))}</span></div></div>` : ''}</div>` : ''}
         ${['cash', 'returns', 'cashback', 'growth', 'cbInvest', 'roundup'].some(metric) ? `<div class="calc-metrics">${['cash', 'returns', 'cashback', 'growth', 'cbInvest', 'roundup'].filter(metric).map(k => `<div class="calc-metric"><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><strong>${calcMetricVal(res, k)}</strong></div>`).join('')}</div>` : ''}
@@ -9389,7 +9480,7 @@
       html += calcChart('main', rows, calcSeries(model, u), { aria: t(inv ? 'calcGraphInv' : 'calcGraphPat') });
       html += `<details class="calc-box inner" data-cd="details" ${calcIsOpen('details') ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong>${calcGranBtn()}<span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, inv ? 'investments' : 'patrimony', model.investments.filter(i => !u.off.includes(i.id)).map(i => i.id), u.gran)}</details>`;
     }
-    html += `</section>`;
+    html += `</div></details></section>`;
     // Mi Biblioteca: fórmulas que forman el resultado
     html += `<details class="calc-card clay calc-lib" data-cd="lib" ${calcIsOpen('lib') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcLibEyebrow'))}</span><strong>${esc(t('calcLibrary'))}</strong></span><span class="calc-pill">${model.applied.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
       ${model.applied.length ? calcGrouped(model.applied, 'ga', a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(a.type).icon)}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type) + calcCurTag(a.id))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
@@ -10208,11 +10299,9 @@
   const pieLine = () => !!(state.ledgerPrefs && state.ledgerPrefs.pieView === 'line');
   const pieModeBtn = () => `<button type="button" class="chip tgl-btn" data-act="led-pie-view" aria-label="${esc(t(pieLine() ? 'ledPieModeAria' : 'ledLineModeAria'))}">${ico(pieLine() ? 'pie' : 'line')} ${esc(t(pieLine() ? 'ledPieMode' : 'ledLineMode'))}</button>`;
   // Gráfica de la tarta en el tiempo: una línea por categoría (o ingresos y gastos), con el mismo gráfico que la calculadora
-  function pieLineChart(list, pm, pp, ym, segs) {
-    const today = todayKey(), span = LED.span(list);
-    const from = pp === 'month' ? ym + '-01' : pp === 'year' ? ym.slice(0, 4) + '-01-01' : span ? span.from : today;
-    const endM = pp === 'month' ? `${ym}-${String(LED.daysIn(+ym.slice(0, 4), +ym.slice(5, 7))).padStart(2, '0')}` : pp === 'year' ? ym.slice(0, 4) + '-12-31' : today;
-    const to = endM < today || pp !== 'all' ? endM : today, unit = pp === 'month' ? 'day' : 'month';
+  function pieLineChart(list, pm, from, to, segs) {
+    // v1.52: la franja llega ya hecha (mes, año, 12 meses, todo o fechas a mano)
+    const unit = diffDays(from, to) <= 62 ? 'day' : 'month';
     if (!list.length || !segs.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p><div class="row wrap pie-tools">${pieModeBtn()}</div>`;
     const base = LED.series([], from, to, unit), idx = new Map(base.map((b, i) => [b.key, i]));
     const keyFor = d => unit === 'month' ? d.slice(0, 7) : d;
@@ -10227,71 +10316,38 @@
       : ids.map((id, i) => ({ key: 'c:' + id, label: segs[i] ? segs[i].label : id, color: segs[i] ? segs[i].color : PIE_COLORS[i % PIE_COLORS.length] }));
     return `${calcChart('led-pie', rows, series, { aria: t('ledPieTitle'), noPat: true })}<div class="row wrap pie-tools">${pieModeBtn()}</div>`;
   }
-  // Dos series de puntos: verde = ingresos, rojo = gastos
-  function twoDotChart(all, o = {}) {
-    if (!all.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
-    // v1.49: con o.zid se puede ampliar por tiempo (mínimo 3 puntos a la vista)
-    const zm = !!o.zid && all.length > 3, z = zm ? zcRange(o.zid, all.length, 3) : null, rows = z ? all.slice(z.i0, z.i1 + 1) : all;
-    const W = chartW(), H = o.h || (W < 500 ? 210 : 230), pl = 50, pr = 14, pt = 14, pb = 28, iw = W - pl - pr, ih = H - pt - pb, n = rows.length;
-    const hi = Math.max(1, ...rows.map(r => Math.max(r.income, r.expense)));
-    const x = i => pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => pt + ih - v / hi * ih;
-    const fmt = v => privacyOn() ? '•••' : compactMoney(v / 100);
-    const line = (k, c) => `<path d="${rows.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join('')}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity=".85"/>${rows.map((r, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(r[k]).toFixed(1)}" r="${n > 40 ? 2.5 : 4.5}" fill="${c}" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}`;
-    const nl = Math.min(n, W < 500 ? 4 : 6), labelIdx = [...new Set(Array.from({ length: nl }, (_, i) => Math.round(i * (n - 1) / Math.max(1, nl - 1))))];
-    const colW = iw / Math.max(1, n - (n > 1 ? 1 : 0));
-    const out = `<div class="chart ${privacyOn() ? 'priv' : ''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">
-      ${[0, hi / 2, hi].map(v => `<line class="grid-line" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="axis-label" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(fmt(v))}</text>`).join('')}
-      ${line('expense', OUT_C)}${line('income', IN_C)}
-      ${labelIdx.map(i => `<text class="axis-label" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 && n > 1 ? 'start' : i === n - 1 && n > 1 ? 'end' : 'middle'}">${esc(rows[i].label)}</text>`).join('')}
-      <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".35" stroke-width="1" style="display:none"/>
-      ${rows.map((r, i) => `<rect class="hit" x="${(x(i) - colW / 2).toFixed(1)}" y="${pt}" width="${colW.toFixed(1)}" height="${ih}" data-tip="${esc(`▲ ${privacyOn() ? '•••' : fmtMoney(r.income / 100)} · ▼ ${privacyOn() ? '•••' : fmtMoney(r.expense / 100)}`)}" data-sub="${esc(r.sub || r.label)}" data-cx="${x(i).toFixed(1)}" data-cy="${y(Math.max(r.income, r.expense)).toFixed(1)}"/>`).join('')}
-    </svg><div class="dot-legend"><span><i style="background:${IN_C}"></i>${esc(t('ledgerIncome'))}</span><span><i style="background:${OUT_C}"></i>${esc(t('ledgerExpense'))}</span></div></div>`;
-    if (!zm) return out;
-    zcReg(o.zid, all.length, 3, () => twoDotChart(all, o), { W, pl, iw });
-    return zcWrap(o.zid, out, z, `${rows[0].sub || rows[0].label} – ${rows[rows.length - 1].sub || rows[rows.length - 1].label}`);
-  }
-  const bucketLabel = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'short', year: '2-digit' }) : fmtDate(k, { day: 'numeric', month: 'short' });
-  const bucketSub = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'long', year: 'numeric' }) : fmtDate(k);
   function ledgerChartsHtml() {
     const ui = state.ui, ym = ledgerMonth(), today = todayKey();
     const span = LED.span(LV.entries);
-    // 1) Tarta: periodo y desglose
-    const pp = ['month', 'year', 'all'].includes(ui.ledPie) ? ui.ledPie : 'month', pm = ['io', 'expense', 'income'].includes(ui.ledPieMode) ? ui.ledPieMode : 'io';
-    const pList = NET(pp === 'month' ? LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7)) : pp === 'year' ? LED.inRange(LV.entries, ym.slice(0, 4) + '-01-01', ym.slice(0, 4) + '-12-31') : LV.entries);
+    // v1.52: «Ingresos y gastos» es la única gráfica: periodo (o fechas a mano), desglose y filtro por categoría o evento
+    const pp = ['month', 'year', '12', 'all', 'range'].includes(ui.ledPie) ? ui.ledPie : 'month', pm = ['io', 'expense', 'income'].includes(ui.ledPieMode) ? ui.ledPieMode : 'io';
+    const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
+    const lim = !KGPlan.allows(PL(), 'history') ? addDays(today, -(KGPlan.LIMITS.chartDays - 1)) : null;
+    let from, to;
+    if (pp === 'month') { from = ym + '-01'; to = `${ym}-${String(LED.daysIn(+ym.slice(0, 4), +ym.slice(5, 7))).padStart(2, '0')}`; }
+    else if (pp === 'year') { from = ym.slice(0, 4) + '-01-01'; to = ym.slice(0, 4) + '-12-31'; }
+    else if (pp === '12') { from = addDays(addMonths(today, -12), 1); to = today; }
+    else if (pp === 'range') { from = lf.from || today; to = lf.to || today; if (from > to) [from, to] = [to, from]; }
+    else { from = span && span.from < today ? span.from : today; to = span && span.to > today ? span.to : today; }
+    if (lim && pp !== 'month' && pp !== 'year' && from < lim) from = lim;
+    const fev = String(lf.cat).startsWith('ev:') ? LV.events.find(x => 'ev:' + x.id === lf.cat) : null;
+    const cat = fev || LV.cats.some(c => c.id === lf.cat) ? lf.cat : 'all';
+    const pList = LED.inRange(NET(fev ? eventEntries(fev) : LV.entries), from, to).filter(e => fev || cat === 'all' || e.categoryId === cat);
     const tot = LED.totals(pList);
     const segs = pm === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }, { label: t('ledgerInvest'), value: tot.invest, color: INV_C }].filter(s => s.value)
       : LED.byCategory(pList, pm).map((c, i) => { const cat = catOf(c.id); return { label: `${cat.icon} ${catName(cat)}`, value: c.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
-    const pName = pp === 'month' ? fmtDate(ym + '-01', { month: 'long', year: 'numeric' }) : pp === 'year' ? ym.slice(0, 4) : t('ledAll');
+    const pName = pp === 'month' ? fmtDate(ym + '-01', { month: 'long', year: 'numeric' }) : pp === 'year' ? ym.slice(0, 4) : pp === 'all' ? t('ledAll') : `${fmtShort(from)} – ${fmtShort(to)}`;
     // v1.23: «Gráficos» se pliega y despliega (se recuerda)
     let html = `<details class="led-charts" data-led-charts ${state.ui.ledChartsShut ? '' : 'open'}><summary class="section-title led-h">${ico('chart')} <span class="grow">${esc(t('ledCharts'))}</span><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="chart-grid">`;
-    if (!hidW('ledPie')) html += `<section class="chart-card clay" data-w="ledPie"><h3>${ico('pie')}<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
-      <div class="seg seg-sm" role="group">${[['month', 'ledThisMonth'], ['year', 'ledThisYear'], ['all', 'ledAll']].map(([v, k]) => `<button data-act="led-pie" data-v="${v}" class="${pp === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
+    if (!hidW('ledPie')) html += `<section class="chart-card clay led-io" data-w="ledPie"><h3>${ico('pie')}<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
+      <div class="seg seg-sm led-io-seg" role="group">${[['month', 'ledThisMonth'], ['year', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll'], ['range', 'ledDates']].map(([v, k]) => `<button data-act="led-pie" data-v="${v}" class="${pp === v ? 'on' : ''}" aria-pressed="${pp === v}">${esc(t(k))}</button>`).join('')}</div>
+      ${pp === 'range' ? `<div class="filter-row led-io-dates"><label class="field"><span>${esc(t('ledFrom'))}</span><input class="input" type="date" data-led-f="from" value="${esc(from)}"></label><label class="field"><span>${esc(t('ledTo'))}</span><input class="input" type="date" data-led-f="to" value="${esc(to)}"></label></div>` : ''}
       <div class="seg seg-sm" role="group" style="margin-top:8px">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-act="led-pie-mode" data-v="${v}" class="${pm === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
-      <div class="${privacyOn() ? 'priv' : ''}">${pieLine() ? pieLineChart(pList, pm, pp, ym, segs) : pm === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net), pieModeBtn()) : donutChart(segs, t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'), null, pieModeBtn())}</div></section>`;
-    // 2) Evolución a lo largo de los meses o años registrados
-    const lu = ui.ledLine === 'year' ? 'year' : 'month';
-    const from = span ? span.from : today, rows = LED.series(NET(LV.entries), from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
-    if (!hidW('ledLine')) html += `<section class="chart-card clay" data-w="ledLine"><h3>${ico('trend')}<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
-      ${span ? twoDotChart(rows, { aria: t('ledLineTitle'), zid: 'led-line' }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
-    html += '</div>';
-    // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
-    const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
-    if (!KGPlan.allows(PL(), 'history') && lf.from < addDays(today, -(KGPlan.LIMITS.chartDays - 1))) lf.from = addDays(today, -(KGPlan.LIMITS.chartDays - 1));
-    const fev = String(lf.cat).startsWith('ev:') ? LV.events.find(x => 'ev:' + x.id === lf.cat) : null;
-    const fl = LED.inRange(NET(fev ? eventEntries(fev) : LV.entries), lf.from, lf.to).filter(e => fev || lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
-    const days = lf.from && lf.to ? diffDays(lf.from, lf.to) + 1 : 0, fu = days <= 62 ? 'day' : days <= 3 * 366 ? 'month' : 'year';
-    const frows = lf.from && lf.to && lf.from <= lf.to ? LED.series(fl, lf.from, lf.to, fu).map(r => ({ ...r, label: bucketLabel(r.key, fu), sub: bucketSub(r.key, fu) })) : [];
-    if (!hidW('ledFilter')) html += `<section class="chart-card clay led-filter" data-w="ledFilter"><h3>${ico('search')}<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
-      <div class="filter-row">
-        <label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${lf.cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}${LV.events.length ? `<optgroup label="${esc(t('evTitle'))}">${LV.events.map(ev => `<option value="ev:${esc(ev.id)}" ${lf.cat === 'ev:' + ev.id ? 'selected' : ''}>${esc(ev.icon)} ${esc(ev.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
-        <label class="field"><span>${esc(t('ledFrom'))}</span><input class="input" type="date" data-led-f="from" value="${esc(lf.from)}"></label>
-        <label class="field"><span>${esc(t('ledTo'))}</span><input class="input" type="date" data-led-f="to" value="${esc(lf.to)}"></label>
-      </div>
-      <div class="row wrap" style="gap:6px;margin:4px 0 10px">${[['m', 'ledThisMonth'], ['y', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll']].map(([v, k]) => `<button class="chip" data-act="led-range" data-v="${v}">${esc(t(k))}</button>`).join('')}</div>
-      <div class="month-sum"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(ft.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(ft.expense)}</b></div><div><span>${esc(t('ledBalance'))}</span><b>${cents(ft.net)}</b></div></div>
-      <p class="muted small" style="margin:8px 0 4px">${esc(t('ledFilterCount', { n: fl.length }))}</p>
-      ${twoDotChart(frows, { aria: t('ledFilterTitle'), zid: 'led-filter' })}</section>`;
-    return html + '</details>';
+      <label class="field led-io-cat"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}${LV.events.length ? `<optgroup label="${esc(t('evTitle'))}">${LV.events.map(ev => `<option value="ev:${esc(ev.id)}" ${cat === 'ev:' + ev.id ? 'selected' : ''}>${esc(ev.icon)} ${esc(ev.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
+      <div class="month-sum ${privacyOn() ? 'priv' : ''}"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(tot.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(tot.expense)}</b></div><div><span>${esc(t('ledBalance'))}</span><b>${cents(tot.net)}</b></div></div>
+      <p class="muted small" style="margin:6px 0 0">${esc(t('ledFilterCount', { n: pList.length }))}</p>
+      <div class="${privacyOn() ? 'priv' : ''}">${pieLine() ? pieLineChart(pList, pm, from, to, segs) : pm === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net), pieModeBtn()) : donutChart(segs, t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'), null, pieModeBtn())}</div></section>`;
+    return html + '</div></details>';
   }
   // Importe corto para las celdas del calendario (sin decimales si es redondo)
   const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: FX.AUTO.includes(ledgerMain()) ? ledgerMain() : 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
@@ -14282,7 +14338,7 @@
      Hábitos, carpetas, retos, rutinas, chats, grupos, libretas compartidas y eventos se borran (o se dejan) con confirmación;
      el resto de tarjetas (mascota, energía, contrato, gráficas…) solo se ocultan y se recuperan en Ajustes. */
   const JIG_SEL = '.habit-grid > .habit, .habit-grid > .folder, .proj.finished, .today-row[data-trow], .routine-card[data-rid], .chat-sw, .ev-card[data-ev-open], [data-w]';
-  const HW = { dayrate: '⭐', insights: '💡', reviews: '📝', ledPie: '🥧', ledLine: '📈', ledFilter: '🔎' };
+  const HW = { dayrate: '⭐', insights: '💡', reviews: '📝', ledPie: '🥧' };
   let jiggle = false, jgTimer = null, jigBlockClick = false;
   function enterJiggle() {
     if (jiggle) return;
@@ -14565,12 +14621,6 @@
       case 'led-pie': state.ui.ledPie = a.dataset.v; save(); render(); break;
       case 'led-pie-mode': state.ui.ledPieMode = a.dataset.v; save(); render(); break;
       case 'led-pie-view': state.ledgerPrefs = { ...(state.ledgerPrefs || {}), pieView: pieLine() ? 'pie' : 'line' }; save(); render(); break;
-      case 'led-line': state.ui.ledLine = a.dataset.v; save(); render(); break;
-      case 'led-range': {
-        const td = todayKey(), sp = LED.span(LV.entries), v = a.dataset.v;
-        const from = v === 'm' ? td.slice(0, 8) + '01' : v === 'y' ? td.slice(0, 4) + '-01-01' : v === '12' ? addMonths(td, -12) : (sp ? sp.from : td);
-        state.ui.ledFilter = { ...(state.ui.ledFilter || {}), from, to: td }; save(); render(); break;
-      }
       case 'vault-lock': lockByHand(); render(); sfx('toggle'); toast(t('vaultLocked')); break;
       case 'vault-wipe': confirmVaultWipe(); break;
       case 'ledger-add': if (!ledgerOpen()) { state.ui.tab = 'ledger'; render(); break; } openEntry(null, a.dataset.d || state.ui.ledgerDay || todayKey()); break;
@@ -14628,7 +14678,7 @@
   document.addEventListener('change', e => {
     if (e.target.id === 'chart-habit') { state.ui.chartHabit = e.target.value; save(); render(); }
     if (e.target.matches('[data-led-f="from"]') && e.target.value && diffDays(e.target.value, todayKey()) >= KGPlan.LIMITS.chartDays && !KGPlan.allows(PL(), 'history')) { e.target.value = addDays(todayKey(), -(KGPlan.LIMITS.chartDays - 1)); openUpsell({ feature: 'history' }); }
-    if (e.target.matches('[data-led-f]')) { state.ui.ledFilter = { cat: 'all', from: todayKey().slice(0, 4) + '-01-01', to: todayKey(), ...(state.ui.ledFilter || {}), [e.target.dataset.ledF]: e.target.value }; save(); render(); }
+    if (e.target.matches('[data-led-f]')) { if (e.target.dataset.ledF !== 'cat') state.ui.ledPie = 'range'; state.ui.ledFilter = { cat: 'all', from: todayKey().slice(0, 4) + '-01-01', to: todayKey(), ...(state.ui.ledFilter || {}), [e.target.dataset.ledF]: e.target.value }; save(); render(); }
     if (e.target.matches('[data-led-opt]')) {
       const o = e.target.dataset.ledOpt, on = e.target.checked;
       if (o === 'privacy') { setPrivacy(on); render(); sfx('toggle'); toast(t(on ? 'privacyOnToast' : 'privacyOffToast')); }
