@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.51.0';
+  const VERSION = '1.52.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -251,6 +251,12 @@
     plant: '<path d="M7 14h10l-1.5 7h-7z"/><path d="M12 14V8M12 8c-3 0-5-2-5-5 3 0 5 2 5 5zM12 10c2.5 0 4.5-1.8 4.5-4.5-2.5 0-4.5 1.8-4.5 4.5z"/>',
     rug: '<rect x="4" y="6" width="16" height="12" rx="1"/><path d="M4 9H2M4 12H2M4 15H2M20 9h2M20 12h2M20 15h2M8 10h8v4H8z"/>',
     ptable: '<path d="M3 8h18M6 8v12M18 8v12M6 13h12"/>',
+    // v1.52: portadas nuevas para las notas
+    pen: '<path d="M15.5 4.5l4 4L9 19H5v-4z"/><path d="M13 7l4 4M5 19l3.5-1"/>',
+    game: '<path d="M7 8h10a4 4 0 0 1 4 4v2.5a2.5 2.5 0 0 1-4.4 1.6L15 14H9l-1.6 2.1A2.5 2.5 0 0 1 3 14.5V12a4 4 0 0 1 4-4z"/><path d="M8 10.5v3M6.5 12h3"/><circle cx="15.5" cy="11" r=".6"/><circle cx="17.5" cy="13" r=".6"/>',
+    paw: '<ellipse cx="12" cy="16" rx="4" ry="3.2"/><circle cx="6.5" cy="11" r="1.7"/><circle cx="9.5" cy="7" r="1.7"/><circle cx="14.5" cy="7" r="1.7"/><circle cx="17.5" cy="11" r="1.7"/>',
+    code: '<path d="M8.5 7L3.5 12l5 5M15.5 7l5 5-5 5M13.5 5l-3 14"/>',
+    leaf: '<path d="M5 19C5 10 10 5 20 4c0 10-5 15-14 15z"/><path d="M5 19c3-4 6-7 10-10"/>',
   };
   // v1.27: data-i = nombre del icono, para su micro animación propia al pasar el cursor o tocarlo
   const ico = (n, cls = '') => `<svg class="i ${cls}" data-i="${n}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -1217,7 +1223,15 @@
      puede cambiarlo solo ese día con e.pl (id de un lugar, o '-' = ninguno). En el turno solo se ve un icono a la derecha del nombre. */
   const tfPlace = id => id ? state.calPlaces.find(p => p.id === id) || null : null;
   // v1.26.1: lugar puntual (e.plx o, en un turno puntual, once.plx = { addr }): solo para esa vez, no está en tus Lugares
-  const tfPlOnce = x => x && typeof x.addr === 'string' && x.addr.trim() ? { id: '', once: true, name: KGPlaces.shortName(x.addr), addr: x.addr.trim(), color: '#8e8e93' } : null;
+  /* v1.52: un lugar puntual también puede tener escenario (Mundo de la Línea de tiempo). Se guarda por dirección en
+     calPrefs.plxSc = { dirección en minúsculas: id del escenario }, así vale para todas las veces que uses esa dirección. */
+  const tfPlxKey = a => String(a || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 300);
+  const tfPlxScene = a => { const m = state.calPrefs.plxSc, id = m && typeof m === 'object' ? m[tfPlxKey(a)] : ''; return id && lwSceneOk(id) ? id : ''; };
+  const tfPlxSetScene = (a, id) => { const k = tfPlxKey(a); if (!k) return; const m = { ...(state.calPrefs.plxSc && typeof state.calPrefs.plxSc === 'object' ? state.calPrefs.plxSc : {}) }; if (id && lwSceneOk(id)) m[k] = id; else delete m[k]; const ks = Object.keys(m); if (ks.length > 300) ks.slice(0, ks.length - 300).forEach(x => delete m[x]); state.calPrefs = { ...state.calPrefs, plxSc: m }; };
+  const tfPlOnce = x => x && typeof x.addr === 'string' && x.addr.trim() ? (sc => ({ id: '', once: true, name: KGPlaces.shortName(x.addr), addr: x.addr.trim(), color: '#8e8e93', ...(sc ? { scene: sc } : {}) }))(tfPlxScene(x.addr)) : null;
+  // Botones para elegir el escenario de un lugar (el mismo selector en Lugares y en Lugar puntual)
+  const tfScPickHtml = (cur, attr) => `<div class="lw-scpick" role="radiogroup">${['', ...KGWorld.SCENE_IDS, ...lwSt().scenes.map(x => x.id)].map(id => `<button type="button" class="chip sm ${(cur || '') === id ? 'on' : ''}" ${attr}="${id}" role="radio" aria-checked="${(cur || '') === id}">${id ? ico(lwScIco(id), 'xs') + ' ' : ''}${esc(id ? lwSceneName(id) : t('lwScNone'))}</button>`).join('')}</div>`;
+  const tfScPickSet = (w, attr, b) => $$(`[${attr}]`, w).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
   const tfPlaceOf = (s, e) => { if (e && e.pl === '-') return null; if (e && e.plx) return tfPlOnce(e.plx); if (!(e && e.pl) && s && s.plx) return tfPlOnce(s.plx); return tfPlace((e && e.pl) || (s && s.placeId)); };
   const tfPlIcon = p => esc(String(p.icon || '').trim() || (String(p.name).trim().charAt(0) || '?').toUpperCase());
   const tfPlBadge = (p, cls = '') => p ? `<span class="tf-pl ${cls}" style="--c:${tfColor(p.color)};--fg-c:${tfFg(tfColor(p.color))}" title="${esc(p.name)}">${p.once ? ico('pin', 'xs') : tfPlIcon(p)}</span>` : '';
@@ -1851,7 +1865,7 @@
       if (p && p.t === 'p') {
         const x = S.places.find(y => y.place.id === p.id);
         if (x) return `${plLine(x.place)}${geoLine(x.geo)}<span class="muted small">${esc(x.n === 1 ? t('lwTimes1') : t('lwTimes', { n: x.n }))}${x.place.addr ? ' · ' + esc(x.place.addr) : ''}</span>
-          ${x.place.once ? '' : `<button class="chip sm" data-lw-edit="${esc(x.place.id)}">${ico('edit', 'xs')} ${esc(t(lwSceneOk(x.place.scene) ? 'lwChangeScene' : 'lwSetScene'))}</button>`}`;
+          ${x.place.once && !x.place.addr ? '' : `<button class="chip sm" data-lw-edit="${esc(x.place.id)}">${ico('edit', 'xs')} ${esc(t(lwSceneOk(x.place.scene) ? 'lwChangeScene' : 'lwSetScene'))}</button>`}`;
       }
       return `<b class="lw-tt">${ico('globe', 'xs')} ${esc(t('lwOverview'))}</b><span class="muted small">${esc([[S.places.length, 'lwNPl'], [S.countries.length, 'lwNCc']].map(([n, k]) => t(n === 1 ? k + '1' : k, { n })).join(' · '))}</span>`;
     };
@@ -2031,7 +2045,7 @@
       const ws = e.target.closest('[data-lw-ws]'); if (ws) { if (u.ws === ws.dataset.lwWs) return true; u.ws = ws.dataset.lwWs; LW.pick = null; LW.ed = null; LW.tplOpen = false; save(); vibrate(5); sfx('tlPanel'); setPanel(); return true; }
       const lm = e.target.closest('[data-lw-m], [data-lw-p], [data-lw-t], [data-lw-tr], [data-lw-all]');
       if (lm) { const d = lm.dataset; LW.pick = d.lwM !== undefined ? { t: 'm', i: +d.lwM } : d.lwP !== undefined ? { t: 'p', id: d.lwP } : d.lwT !== undefined ? { t: 'trip', i: +d.lwT } : d.lwTr !== undefined ? { t: 'tr', tr: d.lwTr } : { t: 'all' }; vibrate(5); sfx('tlPick'); setPanel(); return true; }
-      const le = e.target.closest('[data-lw-edit]'); if (le) { const pl = tfPlace(le.dataset.lwEdit); if (pl) tfEditPlace(pl, () => setPanel()); return true; }
+      const le = e.target.closest('[data-lw-edit]'); if (le) { const id = le.dataset.lwEdit; if (id.startsWith('once:')) { tfPlxSceneAsk(id.slice(5), () => { setPanel(); lwPlay(lwList()); }); return true; } const pl = tfPlace(id); if (pl) tfEditPlace(pl, () => setPanel()); return true; }
       const sk = e.target.closest('[data-lw-sck]'); if (sk) { LW.scKind = sk.dataset.lwSck; LW.sc = null; LW.tplOpen = false; sfx('tap'); scRefresh(false); return true; }
       const si = e.target.closest('[data-lw-sc]'); if (si) { LW.sc = si.dataset.lwSc; LW.tplOpen = false; LW.alt = null; vibrate(5); sfx('tlPick'); scRefresh(); return true; }
       const sn = e.target.closest('[data-lw-scn]'); if (sn) { scStep(+sn.dataset.lwScn); return true; }
@@ -3390,7 +3404,7 @@
   const tfCellNotes = (k, items) => [...items.filter(it => it.e && it.note).map(it => it.note), ...tfGaps(k).map(g => g.a ? `${g.a} ${g.t}` : g.t)];
   /* v1.26: notas en los huecos entre turnos: state.calGaps[k] = [{ a, b, t }]. La nota se queda en su hora (de a a b) aunque
      luego cambien los turnos. Se ve en Día, Semana, «Ver más» y en el PDF con Detalle. */
-  const TF_GAP_MAX = 12;
+  const TF_GAP_MAX = 500; // v1.52: sin límite a la vista (Izan no quiere avisos de «día lleno»); solo un tope de seguridad
   const tfGaps = k => Array.isArray(state.calGaps[k]) ? state.calGaps[k] : [];
   const tfSetGaps = (k, l) => { l = l.filter(g => g && String(g.t || '').trim()).sort((x, y) => x.a.localeCompare(y.a)).slice(0, TF_GAP_MAX); if (l.length) state.calGaps[k] = l; else delete state.calGaps[k]; };
   // Huecos entre turnos (no antes del primero ni después del último), en minutos del día
@@ -3418,7 +3432,6 @@
           if (!a || !z) { toast(t('tfBothTimes')); return; }
           if (!txt) { toast(t('tfGapNeed')); return; }
           if (z < a) [a, z] = [z, a];
-          if (i < 0 && l.length >= TF_GAP_MAX) { toast(t('tfRtFull')); return; }
           const n = { a, b: z, t: txt }; if (i >= 0) l[i] = n; else l.push(n);
         }
         tfSetGaps(k, l); tfSave(); sfx('tap'); close(); after && after();
@@ -3469,6 +3482,17 @@
       // v1.43: con una Lista propia unida, se eligen sus elementos (los más nuevos primero); si no, lo último que pusiste
       const pickOf = n => { const l = tfList(f.list); return (l ? [...l.items].reverse().slice(0, 24) : NT.recent(state.calGaps, p.id, f.id, n)).filter(x => NT.keyOf(x) !== NT.keyOf(val)); };
       const lnote = () => { const l = tfList(f.list); return l ? `<span class="muted small nl-tag">${ico('users', 'xs')} ${esc(l.name)}${f.grow ? ' · ' + esc(t('nlGrowShort')) : ''}</span>` : ''; };
+      /* v1.52: unido a una Lista propia = selección múltiple: cada toque marca o desmarca un elemento (se guardan juntos, «Ana, Pepe»).
+         Salen primero los marcados y luego los más nuevos de la lista; lo que escribas a mano también vale (separado por comas). */
+      const lst = tfList(f.list);
+      if (f.type === 'text' && lst) {
+        const sel = NT.items(val), selK = new Set(sel.map(NT.keyOf)), rest = [...lst.items].reverse().filter(x => !selK.has(NT.keyOf(x))).slice(0, 40);
+        const chips = [...sel, ...rest].map(r => { const on = selK.has(NT.keyOf(r)); return `<button type="button" class="chip sm nl-pick ${on ? 'on' : ''}" data-ntm="${esc(f.id)}" data-val="${esc(r)}" aria-pressed="${on}">${on ? ico('check', 'xs') + ' ' : ''}${esc(r)}</button>`; }).join('');
+        const inp = `<input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.multi}" value="${esc(val || '')}" autocomplete="off" placeholder="${esc(t('nlMultiPh'))}" aria-label="${esc(f.label || t('nmBlank'))}">`;
+        const box = `${chips ? `<div class="row wrap nl-picks" role="group" aria-label="${esc(lst.name)}" style="gap:6px">${chips}</div>` : ''}${sel.length > 1 ? `<span class="muted small">${esc(t('nlMultiN', { n: sel.length }))}</span>` : ''}`;
+        return mod ? `<div class="nm-fill"><label class="nm-fill-row">${f.label ? `<span class="nm-pre">${esc(f.label)}</span>` : ''}${inp}</label>${lnote()}${box}</div>`
+          : `<label class="field"><span>${esc(f.label)} ${lnote()}</span>${inp}</label>${box ? `<div class="stack" style="gap:6px;margin-top:-4px">${box}</div>` : ''}`;
+      }
       if (mod && f.type === 'text') { const rec = pickOf(4); return `<div class="nm-fill"><label class="nm-fill-row">${f.label ? `<span class="nm-pre">${esc(f.label)}</span>` : ''}<input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.text}" value="${esc(val || '')}" autocomplete="off" placeholder="${esc(t('nmBlank'))}" aria-label="${esc(f.label || t('nmBlank'))}"></label>${lnote()}${rec.length ? `<div class="row wrap" style="gap:6px">${rec.map(r => `<button type="button" class="chip sm" data-ntr="${esc(f.id)}" data-val="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}</div>`; }
       if (f.type === 'text') { const rec = pickOf(5); return `<label class="field"><span>${esc(f.label)} ${lnote()}</span><input class="input" id="${id}" data-ntf="${esc(f.id)}" maxlength="${NT.LIM.text}" value="${esc(val || '')}" autocomplete="off"></label>${rec.length ? `<div class="row wrap" style="gap:6px;margin-top:-4px">${rec.map(r => `<button type="button" class="chip sm" data-ntr="${esc(f.id)}" data-val="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}`; }
       if (f.type === 'num') return `<label class="field"><span>${esc(f.label)}${f.unit ? ` <span class="muted">(${esc(f.unit)})</span>` : ''}</span><input class="input" id="${id}" data-ntf="${esc(f.id)}" type="number" inputmode="decimal" min="0" step="any" value="${val !== undefined ? esc(String(val)) : ''}" placeholder="${last[f.id] !== undefined ? esc(t('ntLast', { v: tfNum(last[f.id]) })) : ''}"></label>`;
@@ -3508,6 +3532,7 @@
         if (e.target.closest('[data-nth]')) { tfTplHistory(p.id); return; }
         if (e.target.closest('[data-ntrep]') && prevN) { read(); Object.keys(v).forEach(x => delete v[x]); Object.assign(v, prevN.g.v || {}); st.x = prevN.g.x || ''; sfx('tap'); draw(); toast(t('ntRepeated')); return; }
         const r = e.target.closest('[data-ntr]'); if (r) { read(); v[r.dataset.ntr] = r.dataset.val; draw(); return; }
+        const mm = e.target.closest('[data-ntm]'); if (mm) { read(); const nv = NT.toggleItem(v[mm.dataset.ntm], mm.dataset.val); if (nv) v[mm.dataset.ntm] = nv; else delete v[mm.dataset.ntm]; sfx('tap'); vibrate(4); draw(); return; }
         const rt = e.target.closest('[data-ntrate]'); if (rt) { read(); const n = +rt.dataset.n; if (v[rt.dataset.ntrate] === n) delete v[rt.dataset.ntrate]; else v[rt.dataset.ntrate] = n; draw(); return; }
         const pk = e.target.closest('[data-ntpick]'); if (pk) { read(); if (v[pk.dataset.ntpick] === pk.dataset.val) delete v[pk.dataset.ntpick]; else v[pk.dataset.ntpick] = pk.dataset.val; p.fields.forEach(q => { if (q.dep === pk.dataset.ntpick && v[q.id] !== undefined && !NT.optsFor(q, v).includes(v[q.id])) delete v[q.id]; }); draw(); return; }
         const b = e.target.closest('[data-ntg]'); if (!b) return;
@@ -3518,7 +3543,6 @@
         if (!Object.keys(vals).length && !x) { toast(t('ntNeed')); return; }
         let a = '', z = '';
         if (!st.allDay) { a = st.a; z = st.b; if (!a || !z) { toast(t('tfBothTimes')); return; } if (z < a) [a, z] = [z, a]; }
-        if (at < 0 && l.length >= TF_GAP_MAX) { toast(t('tfRtFull')); return; }
         // Meta del progreso (p. ej. páginas del libro) y si con esta nota se llega
         let fin = null;
         if (p.prog && vals[p.prog.key]) {
@@ -3748,8 +3772,8 @@
       const texts = f.fields.filter(q => q.type === 'text' && q.label.trim()), nums = f.fields.filter(q => q.type === 'num' && q.label.trim());
       $('#nte', wref).innerHTML = `<div class="stack" style="gap:12px">
         <label class="field"><span>${esc(t('ntName'))}</span><input class="input" id="nte-name" maxlength="${NT.LIM.name}" value="${esc(f.name)}" placeholder="${esc(t('ntNamePh'))}"></label>
-        <div class="field"><span>${esc(t('ntIcon'))}</span><div class="row wrap" style="gap:6px">${NT.ICONS.map(n => `<button type="button" class="icon-btn sm nt-icp" data-nte-ic="${n}" aria-pressed="${f.icon === n}" aria-label="${n}">${ico(n)}</button>`).join('')}</div></div>
-        <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${HABIT_COLORS.map(c => `<button type="button" class="sw ${f.color === c ? 'on' : ''}" data-nte-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}</div></div>
+        <div class="field"><span>${esc(t('ntIcon'))}</span><div class="row wrap nt-icgrid" style="gap:6px">${NT.ICONS.map(n => `<button type="button" class="icon-btn sm nt-icp" data-nte-ic="${n}" aria-pressed="${f.icon === n}" aria-label="${n}">${ico(n)}</button>`).join('')}</div></div>
+        <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${HABIT_COLORS.map(c => `<button type="button" class="sw ${f.color === c ? 'on' : ''}" data-nte-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input ${HABIT_COLORS.includes(f.color) ? '' : 'on'}" id="nte-color" value="${tfColor(f.color)}" aria-label="${esc(t('ntColorOwn'))}" title="${esc(t('ntColorOwn'))}"></div></div>
         <label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="nte-seq" ${f.seq ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('ntSeq'))}</b><br><span class="muted small">${esc(t('ntSeqHint'))}</span></span></label>
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('ntFields'))}</h3>
         ${f.seq ? `<p class="muted small" style="margin:0">${esc(t('nmStepsHint'))}</p>` : ''}
@@ -3766,7 +3790,7 @@
     openModal({
       title: `${ico('doc')} ${esc(t(p0 ? 'ntEdit' : 'ntNew'))}`, cls: 'tf-sheet', body: '<div id="nte"></div>',
       foot: `${p0 ? `<button class="btn danger" data-nte="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-nte="save">${ico('check')} ${esc(t('save'))}</button>`,
-      onMount: w => { wref = w; draw(); w.addEventListener('change', e => { if (e.target.id === 'nte-seq') { read(); f.seq = e.target.checked; draw(); return; } if (e.target.matches('[data-nte="type"], [data-nte="dep"], [data-lk="grow"], #nte-pk, #nte-pa')) { read(); draw(); } }); tfLinkWire(w, b => f.fields[+b.dataset.ntl], read, draw); },
+      onMount: w => { wref = w; draw(); w.addEventListener('input', e => { if (e.target.id === 'nte-color') { f.color = e.target.value; $$('[data-nte-c]', w).forEach(x => x.classList.remove('on')); e.target.classList.add('on'); } }); w.addEventListener('change', e => { if (e.target.id === 'nte-color') { read(); f.color = e.target.value; draw(); return; } if (e.target.id === 'nte-seq') { read(); f.seq = e.target.checked; draw(); return; } if (e.target.matches('[data-nte="type"], [data-nte="dep"], [data-lk="grow"], #nte-pk, #nte-pa')) { read(); draw(); } }); tfLinkWire(w, b => f.fields[+b.dataset.ntl], read, draw); },
       onClick: (e, close) => {
         const ic = e.target.closest('[data-nte-ic]'); if (ic) { read(); f.icon = ic.dataset.nteIc; draw(); return; }
         const c = e.target.closest('[data-nte-c]'); if (c) { read(); f.color = c.dataset.nteC; draw(); return; }
@@ -3883,6 +3907,10 @@
   function tfOnceEditor(k, i, after, pre) {
     const list = state.calDays[k] || [], cur = i >= 0 ? list[i] : null, o = cur && cur.once ? { ...cur.once } : { name: '', emoji: '', color: HABIT_COLORS[1], start: '', end: '', jobId: '', ...(pre || {}) };
     const cols = ['#8e8e93', ...HABIT_COLORS];
+    // v1.52: si va después de otros turnos, la hora de inicio propuesta es la llegada del trayecto anterior (o el fin del turno anterior)
+    if (!cur && !o.start) o.start = TF.nextStart(list, Object.fromEntries(tfData().shifts.map(x => [x.id, x])));
+    // v1.52: el turno puntual también tiene medio de transporte y «después del turno» al crearlo (antes solo al editarlo)
+    const tr0 = cur ? TF.entryTransport(null, cur) : null, bk0 = cur ? TF.entryReturn(null, cur) : null;
     openModal({
       title: esc(t(cur ? 'tfOnceEdit' : 'tfOnceNew')), cls: 'tf-sheet',
       body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(t('tfOnceHint'))}</p>
@@ -3890,9 +3918,11 @@
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfo-start" value="${esc(o.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfo-end" value="${esc(o.end)}">`)}
         ${tfField(t('tfSumH'), tfSel('id="tfo-job"', [[state.calJobs[0].id, t('tfSumYes')], ['', t('tfSumNo')]], o.jobId ? state.calJobs[0].id : ''), true)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfo-place"', o.placeId || '', '', o.plx && o.plx.addr), true)}</div>
-        <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${cols.map(c => `<button type="button" class="sw ${o.color === c ? 'on' : ''}" data-tfo-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="tfo-color" value="${tfColor(o.color)}" aria-label="${esc(t('themeCustom'))}"></div></div></div>`,
+        <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${cols.map(c => `<button type="button" class="sw ${o.color === c ? 'on' : ''}" data-tfo-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="tfo-color" value="${tfColor(o.color)}" aria-label="${esc(t('themeCustom'))}"></div></div>
+        ${tfTrBox({ on: !!tr0, mode: tr0 ? tr0.mode : '', dep: tr0 ? tr0.dep : '', arr: tr0 ? tr0.arr : '', hint: t('trHint') })}
+        ${tfTrBox({ k: 'bk', on: !!bk0, mode: bk0 ? bk0.mode : '', dep: bk0 ? bk0.dep : '', arr: bk0 ? bk0.arr : '', to: bk0 ? bk0.to : '', depPh: o.end || '', hint: t('bkHint') })}</div>`,
       foot: `<button class="btn primary block" data-tfo="save">${ico('check')} ${esc(t('save'))}</button>`,
-      onMount: w => tfPlSelWire(w),
+      onMount: w => { tfPlSelWire(w); tfTrWire(w); },
       onClick: (e, close, w) => {
         const c = e.target.closest('[data-tfo-c]');
         if (c) { o.color = c.dataset.tfoC; $$('[data-tfo-c]', w).forEach(x => x.classList.toggle('on', x === c)); $('#tfo-color', w).value = o.color; return; }
@@ -3902,9 +3932,12 @@
         if (!!v('tfo-start') !== !!v('tfo-end')) { toast(t('tfBothTimes')); return; }
         const picked = v('tfo-color'); if (/^#[0-9a-fA-F]{6}$/.test(picked) && picked.toLowerCase() !== tfColor(o.color).toLowerCase()) o.color = picked;
         const once = { name: name.slice(0, 40), emoji: v('tfo-emoji').trim().slice(0, 8), color: tfColor(o.color), start: v('tfo-start'), end: v('tfo-end'), jobId: v('tfo-job'), ...(r => r.plx ? { plx: r.plx } : tfPlace(r.pl) ? { placeId: r.pl } : {})(tfPlRead($('#tfo-place', w))) };
+        const tr = tfTrRead(w), bk = tfTrRead(w, 'bk'); if (!tfTrOk(tr) || !tfTrOk(bk)) return;
+        const legs = { ...(tr && tr.on ? { tr: tr.mode, ...(tr.dep ? { trDep: tr.dep } : {}), ...(tr.arr ? { trArr: tr.arr } : {}) } : {}), ...(bk && bk.on ? { bk: bk.mode, ...(bk.dep ? { bkDep: bk.dep } : {}), ...(bk.arr ? { bkArr: bk.arr } : {}), ...(bk.to ? { bkTo: bk.to } : {}) } : {}) };
+        const strip = e => { const x = { ...e }; ['tr', 'trDep', 'trArr', 'bk', 'bkDep', 'bkArr', 'bkTo'].forEach(f => delete x[f]); return x; };
         const next = [...(state.calDays[k] || [])];
-        if (cur) next[i] = { ...cur, once, start: '', end: '' };
-        else { if (next.length >= TF.LIMITS.perDay) { toast(t('tfRtFull')); return; } next.push({ sid: 'o_' + uid(), once, note: '', start: '', end: '' }); }
+        if (cur) next[i] = { ...strip(cur), once, start: '', end: '', ...legs };
+        else { if (next.length >= TF.LIMITS.perDay) { toast(t('tfRtFull')); return; } next.push({ sid: 'o_' + uid(), once, note: '', start: '', end: '', ...legs }); }
         tfSetDay(k, next); tfSave(false); sfx('tap'); close(); after && after();
       }
     });
@@ -4232,19 +4265,37 @@
   // Lo elegido en uno de esos desplegables: { pl } (id, '-' o '') o { plx: { addr } }
   const tfPlRead = sel => sel.value === '*' && sel.dataset.plx ? { plx: { addr: sel.dataset.plx.slice(0, 300) } } : { pl: sel.value === '+' || sel.value === '*' ? '' : sel.value };
   function tfPlOnceAsk(cur, done) {
+    let sc = cur ? tfPlxScene(cur) : '';
     openModal({
       title: `${ico('pin')} ${esc(t('tfPlOnceT'))}`, cls: 'tf-sheet',
       body: `<div class="stack" style="gap:10px"><p class="muted small" style="margin:0">${esc(t('tfPlOnceHint'))}</p><textarea class="input" id="tfpo" rows="2" maxlength="300" placeholder="${esc(t('tfPlOncePh'))}">${esc(cur || '')}</textarea>
-        <button type="button" class="btn sm ghost" data-tfpo="maps" style="align-self:flex-start">${ico('pin')} ${esc(t('tfPlInMaps'))}</button></div>`,
+        <button type="button" class="btn sm ghost" data-tfpo="maps" style="align-self:flex-start">${ico('pin')} ${esc(t('tfPlInMaps'))}</button>
+        <div class="field"><span>${esc(t('lwSceneType'))}</span>${tfScPickHtml(sc, 'data-tfpo-sc')}<small class="muted">${esc(t('plxSceneHelp'))}</small></div></div>`,
       foot: `<button class="btn primary block" data-tfpo="ok">${ico('check')} ${esc(t('save'))}</button>`,
       onMount: w => setTimeout(() => $('#tfpo', w)?.focus(), 50),
       onClose: () => done(null),
       onClick: (e, close, w) => {
+        const scb = e.target.closest('[data-tfpo-sc]'); if (scb) { sc = scb.dataset.tfpoSc; tfScPickSet(w, 'data-tfpo-sc', scb); sfx('tap'); return; }
         const b = e.target.closest('[data-tfpo]'); if (!b) return;
         const v = $('#tfpo', w).value.trim();
         if (b.dataset.tfpo === 'maps') { if (v) tfOpenMaps({ addr: v }); return; }
         if (!v) { toast(t('tfPlOncePh')); return; }
+        tfPlxSetScene(v.slice(0, 300), sc); save();
         done = (d => x => { d(x); d = () => {}; })(done); done(v); close();
+      }
+    });
+  }
+  // v1.52: elegir solo el escenario de un lugar puntual (desde Mundo de la Línea de tiempo)
+  function tfPlxSceneAsk(addr, after) {
+    let sc = tfPlxScene(addr);
+    openModal({
+      title: `${ico('pin')} ${esc(KGPlaces.shortName(addr))}`, cls: 'tf-sheet',
+      body: `<div class="stack" style="gap:10px"><p class="muted small" style="margin:0">${esc(addr)}</p><div class="field"><span>${esc(t('lwSceneType'))}</span>${tfScPickHtml(sc, 'data-tfpx-sc')}<small class="muted">${esc(t('plxSceneHelp'))}</small></div></div>`,
+      foot: `<button class="btn primary block" data-tfpx="ok">${ico('check')} ${esc(t('save'))}</button>`,
+      onClick: (e, close, w) => {
+        const b = e.target.closest('[data-tfpx-sc]'); if (b) { sc = b.dataset.tfpxSc; tfScPickSet(w, 'data-tfpx-sc', b); sfx('tap'); return; }
+        if (!e.target.closest('[data-tfpx]')) return;
+        tfPlxSetScene(addr, sc); save(); sfx('success'); close(); after && after();
       }
     });
   }
@@ -4334,7 +4385,7 @@
       title: esc(t(isNew ? 'tfNewPlace' : 'tfEditPlace')), cls: 'tf-sheet',
       body: `<div class="stack" style="gap:12px"><div class="row" style="gap:10px;align-items:flex-end"><span id="tfpl-prev" class="tf-pl-prev"></span>${tfField(t('tfName'), `<input class="input" id="tfpl-name" maxlength="40" value="${esc(d.name)}" placeholder="${esc(t('tfPlNamePh'))}">`)}</div>
         ${tfField(t('tfPlIcon'), `<input class="input" id="tfpl-icon" maxlength="4" value="${esc(d.icon)}" placeholder="${esc(t('tfPlIconPh'))}">`)}
-        <div class="field"><span>${esc(t('lwSceneType'))}</span><div class="lw-scpick" role="radiogroup">${['', ...KGWorld.SCENE_IDS, ...lwSt().scenes.map(x => x.id)].map(id => `<button type="button" class="chip sm ${(d.scene || '') === id ? 'on' : ''}" data-tfpl-sc="${id}" role="radio" aria-checked="${(d.scene || '') === id}">${id ? ico(lwScIco(id), 'xs') + ' ' : ''}${esc(id ? lwSceneName(id) : t('lwScNone'))}</button>`).join('')}</div><small class="muted">${esc(t('lwSceneHelp'))}</small></div>
+        <div class="field"><span>${esc(t('lwSceneType'))}</span>${tfScPickHtml(d.scene, 'data-tfpl-sc')}<small class="muted">${esc(t('lwSceneHelp'))}</small></div>
         <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${cols.map(c => `<button type="button" class="sw ${d.color === c ? 'on' : ''}" data-tfpl-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="tfpl-color" value="${tfColor(d.color)}" aria-label="${esc(t('themeCustom'))}"></div></div>
         <div class="field"><span>${esc(t('tfPlAddr'))}</span><textarea class="input" id="tfpl-addr" rows="2" maxlength="300" placeholder="${esc(t('tfPlAddrPh'))}">${esc(d.addr || '')}</textarea>
           <div class="row wrap" style="gap:8px;margin-top:8px"><button type="button" class="btn sm" data-tfpl="search">${ico('search')} ${esc(t('tfPlSearch'))}</button><button type="button" class="btn sm ghost" data-tfpl="inmaps">${ico('pin')} ${esc(t('tfPlInMaps'))}</button></div>
@@ -6834,7 +6885,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.52', [['1.52.0', 6]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);

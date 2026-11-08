@@ -197,6 +197,23 @@
     return out;
   }
 
+  /* ---- v1.52: hora de inicio propuesta para un turno nuevo que va después de los del día: la llegada del trayecto de después
+     del último turno (el que acaba más tarde) y, si no tiene trayecto o no tiene hora de llegada, la hora en que acaba ese turno.
+     '' si ese día no hay turnos con hora. */
+  function nextStart(list, shiftBy) {
+    let best = null;
+    for (const e of list || []) {
+      const s = e && shiftBy[e.sid]; if (!s) continue;
+      const tm = entryTimes(s, e); if (!tm.start || !tm.end) continue;
+      let end = toMin(tm.end); if (end <= toMin(tm.start)) end += 1440;
+      if (!best || end > best.end) best = { end, s, e, tm };
+    }
+    if (!best) return '';
+    const bk = entryReturn(best.s, best.e);
+    if (bk && bk.arr) return bk.arr;
+    return best.end >= 1440 ? '' : best.tm.end;
+  }
+
   /* ---- v1.39: cambiar un turno también en otros días. Dos entradas «coinciden» si son el mismo turno (sid) con el mismo
      horario efectivo (hora de inicio y de fin, contando las del turno). Los turnos puntuales (o_…) nunca coinciden con otros.
      sameEntries → [{ k, i }] de las otras entradas que coinciden (sin la propia); scope 'next' = solo las de después de k. */
@@ -461,7 +478,7 @@
   }
 
   const api = {
-    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, nextStart, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;

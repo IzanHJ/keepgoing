@@ -237,3 +237,11 @@ test('v1.45.2: quitar los descansos desde hoy sin cambiar las horas del pasado',
   assert.strictEqual(T.entryHours(w0, out['2026-11-07'][0], out['2026-11-07']), 8);
   assert.strictEqual(days['2026-11-06'][0].brk, 15);
 });
+
+test('v1.52: hora de inicio propuesta para el turno siguiente', () => {
+  const by = { a: { id: 'a', start: '08:00', end: '14:00' }, b: { id: 'b', start: '09:00', end: '12:00' } };
+  assert.strictEqual(T.nextStart([], by), '');
+  assert.strictEqual(T.nextStart([{ sid: 'a' }, { sid: 'b' }], by), '14:00');
+  assert.strictEqual(T.nextStart([{ sid: 'a', bk: 'bus', bkArr: '14:40' }], by), '14:40');
+  assert.strictEqual(T.nextStart([{ sid: 'a', bk: 'bus' }], by), '14:00');
+});

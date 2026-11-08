@@ -127,3 +127,21 @@ test('v1.43: dónde sale un elemento de una lista y buscar en notas', () => {
   assert.deepEqual(N.search(g, '', { tp: 'nm1' }).map(r => r.k), ['2026-11-01']);
   assert.deepEqual(N.search(g, ''), []);
 });
+
+test('v1.52: Listas con selección múltiple (marcar, guardar, añadir a la lista y menciones)', () => {
+  assert.deepEqual(N.items('Ana, Pepe ,ana; Luis'), ['Ana', 'Pepe', 'Luis']);
+  assert.equal(N.toggleItem('', 'Ana'), 'Ana');
+  assert.equal(N.toggleItem('Ana', 'Pepe'), 'Ana, Pepe');
+  assert.equal(N.toggleItem('Ana, Pepe', 'ana'), 'Pepe');
+  const tpl = N.sanitizeTpl({ id: 'nm2', name: 'Quedar', seq: true, fields: [{ id: 'who', label: 'Con', type: 'text', list: 'lp', grow: true }] });
+  const v = N.sanitizeVals(tpl, { who: 'Ana, Pepe, Ana' });
+  assert.deepEqual(v, { who: 'Ana, Pepe' });
+  const gr = N.grow([{ id: 'lp', name: 'Personas', items: ['Ana'] }], tpl, v, 1);
+  assert.deepEqual(gr.lists[0].items, ['Ana', 'Pepe']);
+  assert.deepEqual(gr.added.map(a => a.item), ['Pepe']);
+  const gaps = { '2026-11-08': [{ a: '', b: '', t: 'Con Ana, Pepe', tp: 'nm2', v }] };
+  assert.equal(N.mentions(gaps, [tpl], 'lp', 'pepe').length, 1);
+  assert.deepEqual(N.history(gaps, tpl).dist[0].top, [['Ana', 1], ['Pepe', 1]]);
+  assert.ok(N.ICONS.length > 60 && N.ICONS.includes('paw'));
+  assert.equal(N.sanitizeTpl({ id: 'c1', name: 'X', color: '#123abc', fields: [{ id: 'a', label: 'A', type: 'text' }] }).color, '#123abc');
+});
