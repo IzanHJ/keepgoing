@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.54.0';
+  const VERSION = '1.55.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -2463,39 +2463,18 @@
   const gyDur = min => min >= 60 ? `${Math.floor(min / 60)} h ${pad(min % 60)}` : `${min} min`;
   const gyClock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60); };
 
-  /* Mapa del cuerpo (dibujo propio, delante y detrás). La intensidad de cada músculo va de 0 a 1. */
-  const GY_FRONT = {
-    traps: '<path d="M42 29 50 27 58 29 56 34 44 34z"/>',
-    shoulders: '<ellipse cx="33" cy="40" rx="7" ry="7"/><ellipse cx="67" cy="40" rx="7" ry="7"/>',
-    chest: '<path d="M50 38c-4-2-12-2-15 2-2 4-1 10 3 12 4 2 10 1 12-2z"/><path d="M50 38c4-2 12-2 15 2 2 4 1 10-3 12-4 2-10 1-12-2z"/>',
-    biceps: '<ellipse cx="28" cy="56" rx="4.5" ry="9"/><ellipse cx="72" cy="56" rx="4.5" ry="9"/>',
-    forearms: '<ellipse cx="24.5" cy="79" rx="4" ry="11" transform="rotate(8 24.5 79)"/><ellipse cx="75.5" cy="79" rx="4" ry="11" transform="rotate(-8 75.5 79)"/>',
-    abs: '<rect x="44" y="55" width="12" height="29" rx="4"/>',
-    obliques: '<ellipse cx="39" cy="69" rx="4" ry="11"/><ellipse cx="61" cy="69" rx="4" ry="11"/>',
-    adductors: '<ellipse cx="47" cy="106" rx="2.6" ry="11"/><ellipse cx="53" cy="106" rx="2.6" ry="11"/>',
-    quads: '<ellipse cx="41.5" cy="114" rx="6.5" ry="20"/><ellipse cx="58.5" cy="114" rx="6.5" ry="20"/>',
-    calves: '<ellipse cx="41.5" cy="155" rx="4.5" ry="14"/><ellipse cx="58.5" cy="155" rx="4.5" ry="14"/>'
-  };
-  const GY_BACK = {
-    traps: '<path d="M50 27 61 36 50 50 39 36z"/>',
-    shoulders: '<ellipse cx="33" cy="40" rx="7" ry="7"/><ellipse cx="67" cy="40" rx="7" ry="7"/>',
-    upperback: '<ellipse cx="50" cy="51" rx="8" ry="5"/>',
-    lats: '<path d="M40 44c-3 6-3 16 2 26l6-8-1-14z"/><path d="M60 44c3 6 3 16-2 26l-6-8 1-14z"/>',
-    triceps: '<ellipse cx="28" cy="56" rx="4.5" ry="9"/><ellipse cx="72" cy="56" rx="4.5" ry="9"/>',
-    forearms: '<ellipse cx="24.5" cy="79" rx="4" ry="11" transform="rotate(8 24.5 79)"/><ellipse cx="75.5" cy="79" rx="4" ry="11" transform="rotate(-8 75.5 79)"/>',
-    lowerback: '<rect x="45" y="70" width="10" height="16" rx="4"/>',
-    glutes: '<ellipse cx="43" cy="97" rx="8" ry="8"/><ellipse cx="57" cy="97" rx="8" ry="8"/>',
-    hamstrings: '<ellipse cx="42" cy="122" rx="6.5" ry="16"/><ellipse cx="58" cy="122" rx="6.5" ry="16"/>',
-    calves: '<ellipse cx="41.5" cy="155" rx="5.5" ry="13"/><ellipse cx="58.5" cy="155" rx="5.5" ry="13"/>'
-  };
-  const GY_SIL = '<circle cx="50" cy="15" r="9"/><path d="M44 24h12v6H44z"/><path d="M34 32h32c4 0 7 3 7 7l-2 50H29l-2-50c0-4 3-7 7-7z"/><path d="M27 36c-6 2-7 8-7 14l-1 42 8 1 4-40z"/><path d="M73 36c6 2 7 8 7 14l1 42-8 1-4-40z"/><path d="M33 88h34l-4 82h-9l-4-60-4 60h-9z"/>';
+  /* Mapa del cuerpo (v1.55: lámina propia en js/gym-body.js → KGBody, de hombre o de mujer según gymPrefs.sex).
+     La intensidad de cada músculo va de 0 a 1. */
+  const gySex = () => gyPrefs().sex === 'f' ? 'f' : 'm';
+  const gySetSex = v => { state.gymPrefs = { ...gyPrefs(), sex: v === 'f' ? 'f' : 'm' }; save(); render(); sfx('toggle'); };
+  // Selector Hombre / Mujer (registro, Ajustes y ajustes del Gimnasio): cambia el mapa del cuerpo
+  const gySexSegHtml = id => `<div class="seg" role="group" id="gy-sex-${id}">${['m', 'f'].map(x => `<button type="button" data-gy-sex="${x}" class="${gySex() === x ? 'on' : ''}" aria-pressed="${gySex() === x}">${esc(t('gySex_' + x))}</button>`).join('')}</div><p class="muted small" style="margin:6px 0 0">${esc(t('gySexHint'))}</p>`;
   function gyBody(mus, opts = {}) {
-    const max = Math.max(1, ...Object.values(mus || {}));
-    const side = (map, label) => `<svg class="gy-body-s" viewBox="10 4 80 172" role="img" aria-label="${esc(label)}"><g class="gy-sil">${GY_SIL}</g>${Object.entries(map).map(([m, d], i) => {
-      const v = (mus || {})[m] || 0, a = v ? .28 + .72 * Math.min(1, v / max) : 0;
-      return `<g class="gy-m ${v ? 'on' : ''}" data-m="${m}" style="--a:${a.toFixed(2)};--d:${i}">${d}</g>`;
-    }).join('')}</svg>`;
-    return `<div class="gy-body ${opts.big ? 'big' : ''}">${side(GY_FRONT, t('gyFront'))}${side(GY_BACK, t('gyBack'))}</div>`;
+    if (!window.KGBody) return '';
+    if (!document.querySelector('.gy-body-defs')) document.body.insertAdjacentHTML('beforeend', KGBody.defs());
+    const max = Math.max(1, ...Object.values(mus || {})), sex = opts.sex || gySex();
+    const lv = Object.fromEntries(Object.entries(mus || {}).filter(([, v]) => v > 0).map(([m, v]) => [m, .28 + .72 * Math.min(1, v / max)]));
+    return `<div class="gy-body ${opts.big ? 'big' : ''}">${KGBody.svg('front', sex, lv, esc(t('gyFront')))}${KGBody.svg('back', sex, lv, esc(t('gyBack')))}</div>`;
   }
   const gyMusChips = (list, n = 6) => list.slice(0, n).map(x => `<span class="gy-mchip">${esc(gyMus(x.m))}<b>${fmtNum(x.n)}</b></span>`).join('');
 
@@ -2506,12 +2485,13 @@
     const v = state.ui.gyView || '';
     if (v.startsWith('ex:')) return topBar() + gyExView(v.slice(3));
     if (v === 'hist') return topBar() + gyHistView();
+    if (v === 'log') return topBar() + gyLogView();
     const tk = todayKey(), ks = tfWeekKeys(tk), S = GYM.weekSummary(state.gymWorkouts, ks, state.gymEx), goal = gyGoal();
     const n = S.days.length, pct = clamp(n / Math.max(1, goal), 0, 1), h = gyHabit(), p = gyProject(h);
     const streak = GYM.weekStreak(state.gymWorkouts, tfWeekKeys, tk, Math.max(1, goal));
     const dow = tfDow();
     let html = `<div class="gy">`;
-    html += `<div class="gy-top gy-top-end"><button class="icon-btn" data-gy="hist" aria-label="${esc(t('gyHistory'))}" title="${esc(t('gyHistory'))}">${ico('clock')}</button><button class="icon-btn" data-gy="lib" aria-label="${esc(t('gyLibrary'))}" title="${esc(t('gyLibrary'))}">${ico('search')}</button></div>`;
+    html += `<div class="gy-top gy-top-end"><button class="icon-btn" data-gy="hist" aria-label="${esc(t('gyHistory'))}" title="${esc(t('gyHistory'))}">${ico('clock')}</button><button class="icon-btn" data-gy="log" aria-label="${esc(t('gyLog'))}" title="${esc(t('gyLog'))}">${ico('list')}</button><button class="icon-btn" data-gy="lib" aria-label="${esc(t('gyLibrary'))}" title="${esc(t('gyLibrary'))}">${ico('search')}</button></div>`;
     if (live) html += `<button class="gy-livebar clay" data-gy="resume"><span class="gy-pulse"></span><span class="grow"><b>${esc(live.name || t('gyFree'))}</b><span class="muted small" data-gy-clock="${live.start || 0}">${gyClock(Date.now() - (live.start || Date.now()))}</span></span>${ico('right')}</button>`;
     // Semana: anillo de días entrenados, tira de 7 días y cifras
     html += `<section class="gy-hero clay"><div class="gy-ring" style="--p:${pct}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="gy-ring-bg" cx="60" cy="60" r="52"/><circle class="gy-ring-fg" cx="60" cy="60" r="52" pathLength="100"/></svg><div class="gy-ring-in"><b class="gy-count" data-gy-cnt="${n}">${n}</b><span>/ ${goal} ${esc(t('gyDaysShort'))}</span></div></div>
@@ -2550,6 +2530,54 @@
     let month = '';
     list.forEach((w, i) => { const m = w.date.slice(0, 7); if (m !== month) { month = m; html += `<h3 class="gy-month">${esc(fmtDate(m + '-01', { month: 'long', year: 'numeric' }))}</h3>`; } html += gyCard(w, Math.min(i, 8)); });
     return html + '</div>';
+  }
+  /* v1.55: Log de ejercicios. Días del más reciente al más antiguo, con la duración del día y, por ejercicio,
+     repeticiones × series, el peso y lo que ha cambiado desde la vez anterior. Rango 1M (por defecto), 3M, 6M, 1A o Todo. */
+  const GY_RANGES = ['1m', '3m', '6m', '1y', 'all'];
+  const gyLogRange = () => GY_RANGES.includes(state.ui.gyLogR) ? state.ui.gyLogR : '1m';
+  const gyUnit = u => u === 'reps' ? t('gyReps') : u === 's' ? t('gySec') : u;
+  const gyDelta = (d, u) => d ? `<span class="gy-lg-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${fmtNum(Math.abs(d))} ${esc(gyUnit(u))}</span>` : '';
+  function gyLogItem(x) {
+    const reps = x.rMax ? (x.rMin === x.rMax ? x.rMax : `${x.rMin}–${x.rMax}`) + ' ' + t('gyReps') : '';
+    const what = x.kind === 'h' ? `${fmtNum(x.sec)} ${t('gySec')}` : x.kind === 'c' ? [x.min ? x.min + ' min' : '', x.km ? fmtNum(x.km) + ' km' : ''].filter(Boolean).join(' · ') : reps;
+    const line = x.kind === 'c' ? what : `${what} × ${t('gyNSets', { n: x.sets })}`;
+    const kg = x.top.u === 'kg' && x.top.v ? `<span class="gy-lg-w"><small>${esc(t(x.kind === 'bw' ? 'gyLogExtra' : 'gyLogWeight'))}</small>${x.kind === 'bw' ? '+' : ''}${fmtNum(x.top.v)} kg</span>` : '';
+    return `<li class="gy-lg-i"><button class="gy-lg-n" data-gy="ex" data-id="${esc(x.eid)}"><b>${esc(gyName(x.eid))}</b><span class="muted small">${esc(line)}</span></button><span class="gy-lg-r">${kg}${gyDelta(x.delta, x.top.u)}</span></li>`;
+  }
+  function gyLogView() {
+    const r = gyLogRange(), from = GYM.rangeFrom(r, todayKey()), days = GYM.logDays(state.gymWorkouts, from, state.gymEx);
+    let html = `<div class="gy gy-log"><div class="gy-top"><button class="icon-btn" data-gy="home" aria-label="${esc(t('back'))}">${ico('left')}</button><h1 class="page-title grow" style="margin:0">${esc(t('gyLog'))}</h1></div>
+      <div class="gy-lg-bar"><div class="seg gy-lg-seg" role="group" aria-label="${esc(t('gyLogRange'))}">${GY_RANGES.map(k => `<button type="button" data-gy="log-r" data-id="${k}" class="${r === k ? 'on' : ''}" aria-pressed="${r === k}">${esc(t('gyR_' + k))}</button>`).join('')}</div>
+      <button class="chip" data-gy="log-cmp">${ico('compare')} ${esc(t('gyCompare'))}</button></div>`;
+    if (!days.length) return html + emptyState('list', t('gyLogEmptyT'), t(gyDone().length ? 'gyLogEmptyRange' : 'gyHistEmptyS')) + '</div>';
+    const n = days.reduce((a, d) => a + d.sessions, 0), min = days.reduce((a, d) => a + d.minutes, 0);
+    html += `<p class="muted small gy-lg-sum">${esc(t('gyLogSum', { d: days.length, s: n }))}${min ? ' · ' + esc(gyDur(min)) : ''}</p>`;
+    html += days.map((d, i) => `<section class="gy-lg-day clay" style="--d:${Math.min(i, 8)}"><div class="gy-lg-h"><b>${esc(fmtDate(d.date, { day: '2-digit', month: '2-digit', year: 'numeric' }))}</b>${d.minutes ? `<span class="gy-lg-dur">${ico('timer', 'xs')} ${esc(t('gyLogDur', { d: gyDur(d.minutes) }))}</span>` : ''}</div><ul class="gy-lg-l">${d.items.map(gyLogItem).join('')}</ul></section>`).join('');
+    return html + '</div>';
+  }
+  // Comparar: tus marcas y tu ritmo de ahora frente a los de una fecha (por defecto, el inicio del rango elegido)
+  function gyCompareSheet() {
+    const first = gyDone().map(w => w.date).sort()[0] || todayKey();
+    let date = GYM.rangeFrom(gyLogRange(), todayKey()) || first;
+    const row = (label, a, b, fmt = fmtNum) => { const d = b - a; return `<div class="gy-cmp-row"><span class="grow">${esc(label)}</span><span class="muted">${esc(fmt(a))}</span>${ico('right', 'xs')}<b>${esc(fmt(b))}</b>${d ? `<span class="gy-lg-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${esc(fmt(Math.abs(d)))}</span>` : '<span class="gy-lg-d">=</span>'}</div>`; };
+    const body = () => {
+      const C = GYM.compareAt(state.gymWorkouts, date, todayKey(), state.gymEx);
+      const up = C.ex.filter(x => x.diff > 0).length, avg = C.ex.length ? Math.round(C.ex.reduce((a, x) => a + x.pct, 0) / C.ex.length * 10) / 10 : 0;
+      let h = `<section class="gy-cmp-sec"><h3 class="section-title">${esc(t('gyCmpPace'))}</h3><p class="muted small" style="margin:-4px 0 8px">${esc(t('gyCmpPaceHint', { a: fmtDate(date, { day: 'numeric', month: 'short', year: 'numeric' }) }))}</p>
+        ${row(t('gyDaysTrained'), C.then.days, C.now.days)}${row(t('gySessions'), C.then.sessions, C.now.sessions)}${row(t('gySets'), C.then.sets, C.now.sets)}${row(t('gyVolume'), C.then.volume, C.now.volume, gyVol)}${row(t('gyCmpTime'), C.then.minutes, C.now.minutes, gyDur)}</section>`;
+      h += `<section class="gy-cmp-sec"><h3 class="section-title">${esc(t('gyCmpMarks'))}</h3>`;
+      h += C.ex.length ? `<p class="gy-cmp-hl clay">${esc(t('gyCmpSummary', { n: up, total: C.ex.length }))}${avg ? ` <b class="gy-lg-d ${avg > 0 ? 'up' : 'down'}">${avg > 0 ? '+' : '−'}${fmtNum(Math.abs(avg))} %</b>` : ''}</p>
+        <ul class="gy-lg-l">${C.ex.map(x => `<li class="gy-lg-i"><span class="gy-lg-n"><b>${esc(gyName(x.eid))}</b><span class="muted small">${esc(fmtNum(x.then.v) + ' ' + gyUnit(x.then.u))} (${esc(fmtDate(x.then.date, { day: 'numeric', month: 'short' }))}) → ${esc(fmtNum(x.now.v) + ' ' + gyUnit(x.now.u))}</span></span><span class="gy-lg-r">${gyDelta(x.diff, x.now.u)}${x.pct ? `<span class="muted small">${x.pct > 0 ? '+' : '−'}${fmtNum(Math.abs(x.pct))} %</span>` : ''}</span></li>`).join('')}</ul>`
+        : `<p class="muted small">${esc(t('gyCmpNone'))}</p>`;
+      if (C.newEx) h += `<p class="muted small">${esc(t('gyCmpNew', { n: C.newEx }))}</p>`;
+      return h + '</section>';
+    };
+    openModal({
+      title: esc(t('gyCompare')),
+      body: `<label class="field"><span>${esc(t('gyCmpDate'))}</span><input class="input" type="date" id="gy-cmp-d" value="${esc(date)}" min="${esc(first)}" max="${esc(todayKey())}"></label><div class="gy-cmp-q chip-scroll">${GY_RANGES.slice(0, 4).map(k => `<button type="button" class="chip sm" data-cmp-r="${k}">${esc(t('gyR_' + k))}</button>`).join('')}<button type="button" class="chip sm" data-cmp-r="first">${esc(t('gyCmpFirst'))}</button></div><div id="gy-cmp">${body()}</div>`,
+      onMount: w => { $('#gy-cmp-d', w).addEventListener('change', e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) { date = e.target.value; $('#gy-cmp', w).innerHTML = body(); } }); },
+      onClick: (e, close, w) => { const b = e.target.closest('[data-cmp-r]'); if (!b) return; date = b.dataset.cmpR === 'first' ? first : GYM.rangeFrom(b.dataset.cmpR, todayKey()); $('#gy-cmp-d', w).value = date; $('#gy-cmp', w).innerHTML = body(); }
+    });
   }
   function gyExView(eid) {
     const e = gyEx(eid); if (!e) { state.ui.gyView = ''; return viewGym(); }
@@ -2785,9 +2813,11 @@
       body: `<p class="muted small" style="margin:-4px 0 12px">${esc(t('gyLinkSub'))}</p>
         <div class="gy-hlist"><button class="gy-pick ${!P.habitId ? 'on' : ''}" data-hab=""><b>${esc(t('gyNoLink'))}</b></button>${hs.map(h => { const p = gyProject(h); return `<button class="gy-pick ${P.habitId === h.id ? 'on' : ''}" data-hab="${esc(h.id)}"><b>${esc((h.icon || '') + ' ' + h.name)}</b><span class="muted small">${esc(t(h.freq === 'weekly' ? 'freqWeekly' : h.freq === 'monthly' ? 'freqMonthly' : 'freqDaily'))}${p ? ' · ' + esc(p.name) : ''}${sug && sug.id === h.id ? ' · ' + esc(t('gySuggested')) : ''}</span></button>`; }).join('')}</div>
         <div class="field" style="margin-top:14px"><span>${esc(t('gyGoalDays'))}</span><div class="seg">${[1, 2, 3, 4, 5, 6, 7].map(n => `<button type="button" data-goal="${n}" class="${P.goal === n ? 'on' : ''}">${n}</button>`).join('')}</div><span class="muted small" style="text-transform:none;letter-spacing:0">${esc(t('gyGoalHint'))}</span></div>
+        <div class="field" style="margin-top:14px"><span>${esc(t('gySexTitle'))}</span>${gySexSegHtml('g')}</div>
         <div class="field" style="margin-top:14px"><span>${esc(t('gyRestDefault'))}</span><div class="seg">${[60, 90, 120, 180].map(n => `<button type="button" data-rest="${n}" class="${P.rest === n ? 'on' : ''}">${gyClock(n * 1000)}</button>`).join('')}</div></div>`,
       onClick: (e, close, w) => {
         const set = (k, v) => { state.gymPrefs = { ...gyPrefs(), [k]: v }; save(); };
+        const sx = e.target.closest('[data-gy-sex]'); if (sx) { gySetSex(sx.dataset.gySex); $$('[data-gy-sex]', w).forEach(b => b.classList.toggle('on', b === sx)); return; }
         const h = e.target.closest('[data-hab]'); if (h) { set('habitId', h.dataset.hab); $$('[data-hab]', w).forEach(b => b.classList.toggle('on', b === h)); render(); return; }
         const g = e.target.closest('[data-goal]'); if (g) { set('goal', +g.dataset.goal); $$('[data-goal]', w).forEach(b => b.classList.toggle('on', b === g)); render(); return; }
         const r = e.target.closest('[data-rest]'); if (r) { set('rest', +r.dataset.rest); $$('[data-rest]', w).forEach(b => b.classList.toggle('on', b === r)); }
@@ -2821,6 +2851,9 @@
       case 'home': state.ui.gyView = ''; save(); render(); window.scrollTo(0, 0); break;
       case 'hist': state.ui.gyView = 'hist'; save(); render(); window.scrollTo(0, 0); break;
       case 'lib': gyLibrary(); break;
+      case 'log': state.ui.gyView = 'log'; save(); render(); window.scrollTo(0, 0); break;
+      case 'log-r': state.ui.gyLogR = id; save(); render(); break;
+      case 'log-cmp': gyCompareSheet(); break;
       case 'link': gyLinkSheet(); break;
       case 'starters': gyStarters(); break;
       case 'r-new': gyRoutineEditor(null); break;
@@ -6847,7 +6880,7 @@
   const contractDoc = c => `<div class="contract clay">${contractInner(c)}</div>`;
   // Formulario de firma (onboarding y modal); devuelve getters
   function contractFormHtml(name = '', withLevel = false) {
-    const s = todayKey(), e = addMonths(s, 1), g = (state.contract && state.contract.g) || 'm';
+    const s = todayKey(), e = addMonths(s, 1), g = (state.contract && state.contract.g) || gySex();
     return `<div class="contract clay" id="ct-doc">${contractInner({ name, signedAt: s, endsAt: e, level: state.commitment, g })}</div>
       <div class="stack" style="margin-top:18px">
         ${withLevel ? `<div class="field"><span>${esc(t('commitTitle'))}</span><div id="ct-level">${commitSegHtml()}</div></div>` : ''}
@@ -6860,7 +6893,7 @@
   function mountContractForm(root) {
     const name = $('#ct-name', root), doc = $('#ct-doc', root), cv = $('#ct-sig', root);
     const s = todayKey(), e = addMonths(s, 1);
-    let g = (state.contract && state.contract.g) || 'm';
+    let g = (state.contract && state.contract.g) || gySex();
     const redraw = () => { doc.innerHTML = contractInner({ name: name.value.trim(), signedAt: s, endsAt: e, level: state.commitment, g }); };
     name.addEventListener('input', redraw);
     const gs = $('#ct-g', root);
@@ -6999,7 +7032,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -7119,7 +7152,7 @@
       body = obTourHtml(at);
     } else if (at === 'contract') {
       title = t('obContractTitle'); lead = t('obContractSub'); next = t('contractSignBtn');
-      body = contractFormHtml(state.contract ? state.contract.name : '');
+      body = `<div class="field ob-sex"><span>${esc(t('gySexTitle'))}</span>${gySexSegHtml('ob')}</div>` + contractFormHtml(state.contract ? state.contract.name : '');
     } else if (at === 'tag') {
       title = t('obTagTitle'); lead = t('obTagSub'); next = auth && myTag() ? t('next') : t('obTagSkip');
       body = auth ? `<label class="field"><span>${esc(t('nametagTitle'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="ob-tag" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(myTag())}" placeholder="${esc(t('nametagPh'))}"></div></label><p class="muted small">${esc(t('nametagHint'))}</p>`
@@ -7160,6 +7193,13 @@
   function onboardingClick(e) {
     const q = s => e.target.closest(s); let el;
     if (q('[data-ob-login]')) { openLogin(); return true; }
+    if ((el = q('[data-gy-sex]'))) {
+      // Registro: el sexo elige el cuerpo del Gimnasio y, en español, el «mismo / misma» del contrato
+      state.gymPrefs = { ...gyPrefs(), sex: el.dataset.gySex === 'f' ? 'f' : 'm' }; save(); sfx('toggle');
+      $$('[data-gy-sex]').forEach(x => { x.classList.toggle('on', x === el); x.setAttribute('aria-pressed', x === el); });
+      const g = $(`#ct-g [data-g="${gySex()}"]`); if (g) g.click();
+      return true;
+    }
     if ((el = q('[data-ob-lang]'))) { state.lang = el.dataset.obLang; save(); render(); return true; }
     const keep = () => { const v = $('#ob-custom')?.value; obKeepScroll = true; render(); if (v) $('#ob-custom').value = v; };
     if ((el = q('[data-ob-pack]'))) { obPack = el.dataset.obPack; keep(); return true; }
@@ -7609,6 +7649,7 @@
           acc('plan', ico('sparkle'), t('plTitle'), planHint(), planHtml()),
           acc('account', ico('refresh'), t('setAccount'), auth ? auth.email : t('setNoAccount'), `<div id="st-acc">${accountHtml()}</div>`),
           acc('lang', ico('globe'), t('setLanguage'), state.lang === 'es' ? 'Español' : 'English', `<div class="seg">${[['es', 'Español'], ['en', 'English']].map(([l, n]) => `<button data-s-lang="${l}" class="${state.lang === l ? 'on' : ''}">${n}</button>`).join('')}</div>`),
+          acc('body', ico('user'), t('gySexTitle'), t('gySex_' + gySex()), gySexSegHtml('s')),
           acc('sound', ico('volume'), t('soundTitle'), audioHint(), audioSettingsHtml()),
           acc('anim', ico('sparkle'), t('anTitle'), t('anOpt_' + motionPref()), `<div class="seg" role="group" id="st-anim">${['auto', 'on', 'off'].map(v => `<button type="button" data-s-anim="${v}" class="${motionPref() === v ? 'on' : ''}">${esc(t('anOpt_' + v))}</button>`).join('')}</div><p class="muted small" id="st-anim-hint" style="margin:10px 0 0">${esc(t('anHint_' + motionPref()))}</p><div class="anim-prev"><button class="chip" data-s-anim-test="perfect">${ico('play')} ${esc(t('anTestPerfect'))}</button><button class="chip" data-s-anim-test="ach">${ico('play')} ${esc(t('anTestAch'))}</button></div>`),
           acc('look', ico('palette'), t('setLook'), `${fontFamily(state.theme.font)} · ${preset ? presetName(preset) : t('themeCustom')}`, `<div id="st-theme">${themeEditorHtml()}</div>`)
@@ -7666,6 +7707,7 @@
       onClick: async (e, close, w) => {
         const q = s => e.target.closest(s); let el;
         if ((el = q('[data-s-lang]'))) { state.lang = el.dataset.sLang; save(); render(); draw(); $('.sheet-head h2', w).textContent = t('settings'); return; }
+        if ((el = q('[data-gy-sex]'))) { gySetSex(el.dataset.gySex); $$('[data-gy-sex]', w).forEach(x => x.classList.toggle('on', x === el)); const sm = el.closest('details') && $('summary small', el.closest('details')); if (sm) sm.textContent = t('gySex_' + gySex()); return; }
         if ((el = q('[data-commit]'))) { setCommitment(el.dataset.commit); $('#st-commit', w).innerHTML = commitSegHtml(); render(); sfx('toggle'); return; }
         if ((el = q('[data-s-anim]'))) {
           setMotionPref(el.dataset.sAnim); const v = motionPref();
