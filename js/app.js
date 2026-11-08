@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.53.0';
+  const VERSION = '1.54.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -6999,7 +6999,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -8561,7 +8561,7 @@
      «Comparar» con proyecciones guardadas: en el mismo gráfico o en dos gráficos separados.
      ========================================================= */
   const WORTH = window.KGWorth;
-  const WO_CMP = ['#f59e0b', '#ec4899', '#22d3ee', '#a3e635'];
+  const WO_CMP = ['#f59e0b', '#ec4899', '#22d3ee', '#a3e635', '#f97316', '#8b5cf6', '#14b8a6', '#eab308'];
   let worthMemo = { key: '' };
   const worthBase = () => LV.worth.find(x => x.id === 'worth') || null;
   /* v1.23.3: cada inversión (= categoría de tipo Inversión) guarda en LV.worth { id: 'inv:<cat>', kind: 'inv', cat, vals: [{ date, value }],
@@ -8721,7 +8721,7 @@
   }
   function worthUi() {
     const u = state.ui.worth && typeof state.ui.worth === 'object' ? state.ui.worth : {};
-    state.ui.worth = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', hideGraph: !!u.hideGraph, ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) }, gran: u.gran === 'year' ? 'year' : 'month', cmp: Array.isArray(u.cmp) ? u.cmp.filter(id => LV.projs.some(p => p.id === id)) : [], split: !!u.split, cmpOn: !!u.cmpOn };
+    state.ui.worth = { mode: u.mode === 'investments' ? 'investments' : 'patrimony', hideGraph: !!u.hideGraph, ser: { income: true, expenses: true, investments: true, ...(u.ser || {}) }, gran: u.gran === 'year' ? 'year' : 'month', cmp: Array.isArray(u.cmp) ? u.cmp.filter(id => LV.projs.some(p => p.id === id)) : [], split: !!u.split, cmpOn: !!u.cmpOn, src: u.src === 'saved' ? 'saved' : 'cur' };
     return state.ui.worth;
   }
   const woRow = r => ({ date: CALC.parseDate(r.key), patrimony: r.patrimony / 100, income: r.income / 100, expenses: r.expenses / 100, investments: r.investments / 100, funds: Object.fromEntries(Object.entries(r.invVal || r.inv).map(([k, v]) => [k, v / 100])) });
@@ -8732,6 +8732,45 @@
     if (!projMemo.has(key)) { const model = CALC.fromItems(calcConv(p.items || []), todayKey()), res = CALC.compute(model); projMemo.set(key, { model, res, rows: CALC.daily(res) }); }
     return projMemo.get(key);
   }
+  /* v1.52: «Comparar» elige entre la Proyección actual (lo que hay ahora en la calculadora, guardado o no)
+     y una o varias Proyecciones guardadas */
+  function woCmpSel(u) {
+    if (!u.cmpOn || u.mode === 'investments') return [];
+    if (u.src === 'cur') return LV.calc.length ? [{ id: 'cur', label: t('woCurProj'), pc: calcData() }] : [];
+    return LV.projs.filter(p => u.cmp.includes(p.id)).map(p => ({ id: p.id, label: t('woProjOf', { name: p.name }), pc: projCalc(p) }));
+  }
+  // v1.52: números para entender la diferencia entre lo real y cada proyección
+  function woCmpStats(d, sel) {
+    if (!sel.length) return '';
+    const today = todayKey(), real = d.now.patrimony / 100, pace = d.pace.net / 100, keyOf = CALC.keyOf;
+    const one = ({ label, pc }, j) => {
+      const rows = pc.rows, res = pc.res, k0 = keyOf(rows[0].date), k1 = keyOf(rows[rows.length - 1].date);
+      const perM = res.months ? (res.final - res.initial) / res.months : 0;
+      const before = today < k0, after = today > k1;
+      const exp = before ? res.initial : after ? res.final : (rows[Math.min(rows.length - 1, Math.max(0, diffDays(k0, today)))] || {}).patrimony;
+      const diff = real - exp, dPct = exp ? diff / Math.abs(exp) * 100 : null;
+      const atEnd = real + pace * (after ? 0 : diffDays(today, k1) / 30.4375), endDiff = atEnd - res.final;
+      // Cuándo llegarías al final de la proyección a tu ritmo
+      let reach;
+      if (real >= res.final) reach = t('woStReached');
+      else if (pace <= 0) reach = t('woStNever');
+      else { const m = Math.ceil((res.final - real) / pace), at = addMonths(today, m), dm = Math.round(diffDays(k1, at) / 30.4375); reach = t('woStReachAt', { d: fmtDate(at, { month: 'long', year: 'numeric' }) }) + ' · ' + (dm === 0 ? t('woStOnTime') : t(dm < 0 ? 'woStEarly' : 'woStLate', { n: Math.abs(dm) })); }
+      const gap = perM - pace;
+      const tip = after ? t('woTipEnded', { d: fmtShort(k1) }) : Math.abs(gap) < 1 ? t('woTipSame') : gap > 0 ? t('woTipShort', { v: money(gap) }) : t('woTipAhead', { v: money(-gap) });
+      return `<div class="wo-stat clay"><div class="wo-stat-h"><i style="background:${WO_CMP[j % WO_CMP.length]}"></i><b class="grow">${esc(label)}</b><span class="muted small">${esc(fmtShort(k0))} – ${esc(fmtShort(k1))}</span></div>
+        <div class="calc-metrics">
+          <div class="calc-metric"><span>${esc(t(before ? 'woStStart' : after ? 'woStFinal' : 'woStExpected'))}</span><strong>${money(exp)}</strong></div>
+          <div class="calc-metric"><span>${esc(t('woStYouHave'))}</span><strong>${money(real)}</strong></div>
+          <div class="calc-metric wo-wide"><span>${esc(t(diff >= 0 ? 'woStAhead' : 'woStBehind'))}</span><strong class="${diff < 0 ? 'amt-out' : 'amt-in'}">${esc(csign(diff))}${dPct != null && isFinite(dPct) ? ` · ${esc(cspct(dPct))}` : ''}</strong></div>
+          <div class="calc-metric"><span>${esc(t('woStPaceProj'))}</span><strong>${esc(t('woPerMonth', { v: csign(perM) }))}</strong></div>
+          <div class="calc-metric"><span>${esc(t('woStPaceReal'))}</span><strong class="${pace < perM ? 'amt-out' : 'amt-in'}">${esc(t('woPerMonth', { v: csign(pace) }))}</strong></div>
+          ${after ? '' : `<div class="calc-metric wo-wide"><span>${esc(t('woStAtEnd', { d: fmtShort(k1) }))}</span><strong>${money(atEnd)} <small class="${endDiff < 0 ? 'amt-out' : 'amt-in'}">${esc(t('woStVsProj', { v: csign(endDiff) }))}</small></strong></div>`}
+          <div class="calc-metric wo-wide"><span>${esc(t('woStReach', { v: money(res.final) }))}</span><strong>${esc(reach)}</strong></div>
+        </div>
+        <p class="calc-fine">${ico('bulb')} ${esc(tip)}</p></div>`;
+    };
+    return `<div class="wo-stats"><div class="calc-eyebrow">${esc(t('woStEyebrow'))}</div>${sel.map(one).join('')}<p class="calc-fine">${esc(t('woStHint'))}</p></div>`;
+  }
   const woSeriesReal = u => [{ key: 'patrimony', label: t('woSerReal'), color: CALC_SER.patrimony }, ...['income', 'expenses', 'investments'].filter(k => u.ser[k]).map(k => ({ key: k, label: t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]), color: CALC_SER[k] }))];
   function worthChartHtml(d, u) {
     const inv = u.mode === 'investments', rows = d.rows.map(woRow);
@@ -8739,16 +8778,16 @@
       const cats = Object.keys(d.now.inv);
       return calcChart('wo-main', rows, [{ key: 'investments', label: t('woInvested'), color: CALC_SER.investments }, ...cats.map((c, i) => ({ fund: c, label: catName(catOf(c)), color: CALC_COLORS[(i + 1) % CALC_COLORS.length] }))], { aria: t('woGraphInv'), noPat: true });
     }
-    const sel = u.cmpOn ? LV.projs.filter(p => u.cmp.includes(p.id)) : [];
+    const sel = woCmpSel(u);
     if (!sel.length) return calcChart('wo-main', rows, woSeriesReal(u), { aria: t('woGraph') });
     if (u.split) {
       // Dos gráficos: a la izquierda lo real, a la derecha cada proyección, cada uno con sus líneas y su «Más detalles»
       const left = `<div class="wo-split-col"><h3 class="wo-split-h">${esc(t('woGraph'))}</h3>${calcChart('wo-main', rows, woSeriesReal(u), { aria: t('woGraph') })}${worthDetails(d, u, 'wo-real')}</div>`;
-      const right = sel.map(p => { const pc = projCalc(p); return `<div class="wo-split-col"><h3 class="wo-split-h">${esc(t('woProjOf', { name: p.name }))}</h3>${calcChart('wo-p-' + p.id, pc.rows, calcSeries(pc.model, { mode: 'patrimony', ser: u.ser, off: [] }), { aria: p.name })}<details class="calc-box inner" data-cd="wo-pd:${esc(p.id)}" ${calcIsOpen('wo-pd:' + p.id) ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(pc.res, 'patrimony', [], u.gran)}</details></div>`; }).join('');
+      const right = sel.map(({ id, label, pc }) => `<div class="wo-split-col"><h3 class="wo-split-h">${esc(label)}</h3>${calcChart('wo-p-' + id, pc.rows, calcSeries(pc.model, { mode: 'patrimony', ser: u.ser, off: [] }), { aria: label })}<details class="calc-box inner" data-cd="wo-pd:${esc(id)}" ${calcIsOpen('wo-pd:' + id) ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong><span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(pc.res, 'patrimony', [], u.gran)}</details></div>`).join('');
       return `<div class="wo-split">${left}${right}</div>`;
     }
     // Mismo gráfico: lo real hasta hoy y cada proyección desde su inicio hasta su final (discontinua)
-    const pcs = sel.map(p => ({ p, pc: projCalc(p) })), keyOf = CALC.keyOf;
+    const pcs = sel, keyOf = CALC.keyOf;
     let from = d.rows[0].key, to = todayKey();
     for (const { pc } of pcs) { const a = keyOf(pc.rows[0].date), b = keyOf(pc.rows[pc.rows.length - 1].date); if (a < from) from = a; if (b > to) to = b; }
     const real = new Map(d.rows.map(r => [r.key, r])), pm = pcs.map(({ pc }) => new Map(pc.rows.map(r => [keyOf(r.date), r])));
@@ -8758,7 +8797,7 @@
       pm.forEach((m, j) => { const x = m.get(k); row['cmp' + j] = x ? x.patrimony : null; });
       out.push(row);
     }
-    const ser = [...woSeriesReal(u), ...pcs.map(({ p }, j) => ({ key: 'cmp' + j, label: t('woProjOf', { name: p.name }), color: WO_CMP[j % WO_CMP.length], dash: true }))];
+    const ser = [...woSeriesReal(u), ...pcs.map(({ label }, j) => ({ key: 'cmp' + j, label, color: WO_CMP[j % WO_CMP.length], dash: true }))];
     return calcChart('wo-main', out, ser, { aria: t('woCompare'), noPat: true });
   }
   function worthDetails(d, u, cd = 'wo-det') {
@@ -8775,6 +8814,7 @@
         <div class="calc-trend ${delta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('woSince', { d: fmtShort(b.date), v: csign(delta) }))}</span></div>
         ${b.set ? '' : `<p class="muted small">${esc(t('woNoBase'))}</p>`}
         <div class="row wrap" style="gap:6px;justify-content:center"><button class="chip sm" data-wo="start">${ico('compass')} ${esc(t(b.set ? 'woEditBase' : 'woSetBase'))}</button><button class="chip sm" data-wo="reto">${ico('flag')} ${esc(t('wgNew'))}</button></div></div>
+      ${foldOpen('wo')}
       <details class="calc-box" data-cd="wo-proj" ${calcIsOpen('wo-proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('woProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
         <div class="calc-headline"><div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(n.digital / 100)}</strong></div><div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(n.value / 100)}</strong>${n.gains ? `<div class="calc-hl-st ${n.gains < 0 ? 'amt-out' : 'amt-in'}">${esc(t('woDepGain', { d: money(n.invested / 100), g: csign(n.gains / 100) }))}</div>` : ''}</div></div>
         <div class="calc-metrics"><div class="calc-metric"><span>${esc(t('cmCash'))}</span><strong>${money(n.cash / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcIncomeT'))}</span><strong class="amt-in">${money((n.income - b.at.income) / 100)}</strong></div><div class="calc-metric"><span>${esc(t('calcExpensesT'))}</span><strong class="amt-out">${money((n.expenses - b.at.expenses) / 100)}</strong></div><div class="calc-metric"><span>${esc(t('woStart'))}</span><strong>${money(start)}</strong></div></div>
@@ -8792,13 +8832,17 @@
     html += `<div class="calc-sec"><div><div class="calc-eyebrow">${esc(t('woTrajEyebrow'))}</div><h2>${esc(t(inv ? 'woGraphInv' : 'woGraph'))}</h2></div><div class="row wrap calc-sec-acts"><button class="chip sm" data-wo="mode">${esc(t(inv ? 'calcModePat' : 'calcModeInv'))}</button><button class="chip sm" data-wo="graph" aria-expanded="${!u.hideGraph}">${esc(t(u.hideGraph ? 'calcShowGraph' : 'calcHideGraph'))}</button>${inv ? '' : `<button class="chip sm ${u.cmpOn ? 'on' : ''}" data-wo="cmp" aria-pressed="${u.cmpOn}">${ico('compare')} ${esc(t('woCompare'))}</button>`}</div></div>`;
     if (!u.hideGraph) {
       if (!inv) html += `<div class="row wrap calc-toggles" role="group" aria-label="${esc(t('calcSeriesAria'))}">${['income', 'expenses', 'investments'].map(k => `<button type="button" class="calc-toggle ${u.ser[k] ? 'on' : ''}" data-wo="ser" data-v="${k}" aria-pressed="${u.ser[k]}">${esc(t({ income: 'calcSerIncome', expenses: 'calcSerExpenses', investments: 'calcSerInv' }[k]))}</button>`).join('')}</div>`;
-      if (!inv && u.cmpOn) html += LV.projs.length ? `<div class="wo-cmp"><span class="rg-l">${esc(t('woCmpPick'))}</span><div class="row wrap" style="gap:6px">${LV.projs.map((p, i) => `<button type="button" class="calc-toggle ${u.cmp.includes(p.id) ? 'on' : ''}" data-wo="cmp-p" data-id="${esc(p.id)}" aria-pressed="${u.cmp.includes(p.id)}">${esc(p.name)}</button>`).join('')}</div>
-          ${u.cmp.length ? `<div class="seg seg-sm" role="group" style="margin-top:8px">${[[false, 'woOneChart'], [true, 'woTwoCharts']].map(([v, k]) => `<button type="button" data-wo="split" data-v="${v ? 1 : 0}" class="${u.split === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>` : ''}</div>` : `<p class="muted small">${esc(t('woNoProjs'))}</p>`;
+      const sel = inv ? [] : woCmpSel(u);
+      if (!inv && u.cmpOn) html += `<div class="wo-cmp"><div class="seg seg-sm" role="group" aria-label="${esc(t('woCompare'))}">${[['cur', 'woCurProj'], ['saved', 'woCmpPick']].map(([v, k]) => `<button type="button" data-wo="src" data-v="${v}" class="${u.src === v ? 'on' : ''}" aria-pressed="${u.src === v}">${esc(t(k))}</button>`).join('')}</div>
+          ${u.src === 'saved' ? (LV.projs.length ? `<span class="muted small">${esc(t('woCmpMulti'))}</span><div class="row wrap" style="gap:6px">${LV.projs.map(p => `<button type="button" class="calc-toggle ${u.cmp.includes(p.id) ? 'on' : ''}" data-wo="cmp-p" data-id="${esc(p.id)}" aria-pressed="${u.cmp.includes(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : `<p class="muted small">${esc(t('woNoProjs'))}</p>`)
+            : LV.calc.length ? '' : `<p class="muted small">${esc(t('woCurEmpty'))}</p>`}
+          ${sel.length ? `<div class="seg seg-sm" role="group" style="margin-top:4px">${[[false, 'woOneChart'], [true, 'woTwoCharts']].map(([v, k]) => `<button type="button" data-wo="split" data-v="${v ? 1 : 0}" class="${u.split === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>` : ''}</div>`;
       html += worthChartHtml(d, u);
       if (b.set && d.rows[0].key < b.date) html += `<p class="calc-fine">${esc(t('woBackHint', { d: fmtShort(b.date) }))}</p>`;
-      if (!(u.cmpOn && u.split && u.cmp.length) || inv) html += worthDetails(d, u);
-    }
-    return html + '</section>';
+      html += woCmpStats(d, sel);
+      if (!(sel.length && u.split) || inv) html += worthDetails(d, u);
+    } else if (!inv) html += woCmpStats(d, woCmpSel(u));
+    return html + '</div></details></section>';
   }
   /* v1.23.4: «Otras monedas» dentro de Proyección: un desplegable por moneda, como la Proyección pero en su moneda */
   function worthCursHtml(d) {
@@ -8834,8 +8878,9 @@
       case 'graph': u.hideGraph = !u.hideGraph; break;
       case 'ser': u.ser[el.dataset.v] = !u.ser[el.dataset.v]; break;
       case 'gran': u.gran = u.gran === 'month' ? 'year' : 'month'; break;
-      case 'cmp': u.cmpOn = !u.cmpOn; if (u.cmpOn && !u.cmp.length && LV.projs.length) u.cmp = [LV.projs[0].id]; break;
-      case 'cmp-p': u.cmp = u.cmp.includes(el.dataset.id) ? u.cmp.filter(x => x !== el.dataset.id) : [...u.cmp, el.dataset.id].slice(-4); break;
+      case 'cmp': u.cmpOn = !u.cmpOn; if (u.cmpOn && u.src === 'saved' && !u.cmp.length && LV.projs.length) u.cmp = [LV.projs[0].id]; break;
+      case 'src': u.src = el.dataset.v === 'saved' ? 'saved' : 'cur'; if (u.src === 'saved' && !u.cmp.length && LV.projs.length) u.cmp = [LV.projs[0].id]; break;
+      case 'cmp-p': u.cmp = u.cmp.includes(el.dataset.id) ? u.cmp.filter(x => x !== el.dataset.id) : [...u.cmp, el.dataset.id]; break;
       case 'split': u.split = el.dataset.v === '1'; break;
       default: return false;
     }
@@ -8956,6 +9001,8 @@
   // Desplegables abiertos (solo en esta sesión; se conservan entre redibujados)
   const calcOpenD = new Map([['proj', true], ['funds', true], ['lib', true], ['tpl', true]]);
   const calcIsOpen = k => !!calcOpenD.get(k);
+  /* v1.52: Patrimonio actual y Patrimonio proyectado se pliegan bajo la cifra (que sigue a la vista con su retorno). Se recuerda. */
+  const foldOpen = k => `<details class="wo-fold" data-fold="${k}" ${(state.ui.fold || {})[k] ? 'open' : ''}><summary class="wo-fold-sum"><span class="wo-fold-shut">${esc(t('foldMore'))}</span><span class="wo-fold-open">${esc(t('foldLess'))}</span><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="wo-fold-body">`;
   const calcOn = () => state.ui.tab === 'ledger' && state.ui.ledgerView === 'calc';
   // Preferencias de la vista (en este dispositivo): modo del gráfico, series, métricas de «Ver» y fondos ocultos
   function calcUi() {
@@ -9220,6 +9267,7 @@
   document.addEventListener('toggle', e => {
     const d = e.target; if (!d || !d.matches) return;
     if (d.matches('details[data-cd]')) calcOpenD.set(d.dataset.cd, d.open);
+    if (d.matches('details[data-fold]') && !!(state.ui.fold || {})[d.dataset.fold] !== d.open) { state.ui.fold = { ...(state.ui.fold || {}), [d.dataset.fold]: d.open }; save(); }
     if (d.matches('details[data-led-charts]') && state.ui.ledChartsShut !== !d.open) { state.ui.ledChartsShut = !d.open; save(); }
   }, true);
 
@@ -9341,6 +9389,7 @@
       <div class="calc-hero"><div class="calc-eyebrow" id="calc-total-l">${esc(t('calcHeroEyebrow'))}</div><strong class="calc-total">${money(res.final)}</strong>
         <div class="calc-trend ${res.delta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.delta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.pct) }))}</span></div>
         <p class="muted small">${esc(t('calcHorizonLine', { n: cmonths(res.months), date: cdate(res.endDate), v: money(res.initial) }))}</p></div>
+      ${foldOpen('calc')}
       <details class="calc-box" data-cd="proj" ${calcIsOpen('proj') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcProjEyebrow'))}</span><strong>${esc(t('calcProjection'))}</strong></span><span class="calc-pill">${esc(t(res.formulas === 1 ? 'calcFormula1' : 'calcFormulasN', { n: res.formulas }))}</span><button type="button" class="chip sm calc-view-btn" data-calc="view" aria-label="${esc(t('calcViewAria'))}">${ico('eye')} ${esc(t('calcView'))}</button><span class="calc-arrow" aria-hidden="true">›</span></summary>
         ${metric('digital') || metric('investments') ? `<div class="calc-headline">${metric('digital') ? `<div class="calc-hl"><span>${esc(t('cmDigital'))}</span><strong>${money(res.digital)}</strong><div class="calc-hl-st ${res.digitalDelta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.digitalDelta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.digitalPct) }))}</span></div></div>` : ''}${metric('investments') ? `<div class="calc-hl"><span>${esc(t('cmInvestments'))}</span><strong>${money(res.investValue)}</strong><div class="calc-hl-st ${res.fundDelta < 0 ? 'amt-out' : 'amt-in'}"><span>${esc(t('calcReturn', { v: csign(res.fundDelta) }))}</span><span>${esc(t('calcProfit', { v: cspct(res.fundPct) }))}</span></div></div>` : ''}</div>` : ''}
         ${['cash', 'returns', 'cashback', 'growth', 'cbInvest', 'roundup'].some(metric) ? `<div class="calc-metrics">${['cash', 'returns', 'cashback', 'growth', 'cbInvest', 'roundup'].filter(metric).map(k => `<div class="calc-metric"><span>${esc(t(k === 'cashback' ? 'calcCashbackLong' : CALC_METRICS.find(m => m[0] === k)[1]))}</span><strong>${calcMetricVal(res, k)}</strong></div>`).join('')}</div>` : ''}
@@ -9361,7 +9410,7 @@
       html += calcChart('main', rows, calcSeries(model, u), { aria: t(inv ? 'calcGraphInv' : 'calcGraphPat') });
       html += `<details class="calc-box inner" data-cd="details" ${calcIsOpen('details') ? 'open' : ''}><summary><strong>${esc(t('calcMoreDetails'))}</strong>${calcGranBtn()}<span class="calc-arrow" aria-hidden="true">›</span></summary>${calcTable(res, inv ? 'investments' : 'patrimony', model.investments.filter(i => !u.off.includes(i.id)).map(i => i.id), u.gran)}</details>`;
     }
-    html += `</section>`;
+    html += `</div></details></section>`;
     // Mi Biblioteca: fórmulas que forman el resultado
     html += `<details class="calc-card clay calc-lib" data-cd="lib" ${calcIsOpen('lib') ? 'open' : ''}><summary><span class="calc-sum-t"><span class="calc-eyebrow">${esc(t('calcLibEyebrow'))}</span><strong>${esc(t('calcLibrary'))}</strong></span><span class="calc-pill">${model.applied.length}</span><span class="calc-arrow" aria-hidden="true">›</span></summary>
       ${model.applied.length ? calcGrouped(model.applied, 'ga', a => { const [eq, r] = calcFormulaText(a, model, res); return `<details class="calc-formula" data-cd="f:${esc(a.id)}" ${calcIsOpen('f:' + a.id) ? 'open' : ''}><summary><span class="calc-f-ico" aria-hidden="true">${ico(CALC.moduleOf(a.type).icon)}</span><span class="calc-sum-t"><strong>${esc(a.name || t('m_' + a.type))}</strong><small>${esc(t('m_' + a.type) + calcCurTag(a.id))}</small></span><span class="calc-arrow" aria-hidden="true">›</span></summary>
@@ -10180,11 +10229,9 @@
   const pieLine = () => !!(state.ledgerPrefs && state.ledgerPrefs.pieView === 'line');
   const pieModeBtn = () => `<button type="button" class="chip tgl-btn" data-act="led-pie-view" aria-label="${esc(t(pieLine() ? 'ledPieModeAria' : 'ledLineModeAria'))}">${ico(pieLine() ? 'pie' : 'line')} ${esc(t(pieLine() ? 'ledPieMode' : 'ledLineMode'))}</button>`;
   // Gráfica de la tarta en el tiempo: una línea por categoría (o ingresos y gastos), con el mismo gráfico que la calculadora
-  function pieLineChart(list, pm, pp, ym, segs) {
-    const today = todayKey(), span = LED.span(list);
-    const from = pp === 'month' ? ym + '-01' : pp === 'year' ? ym.slice(0, 4) + '-01-01' : span ? span.from : today;
-    const endM = pp === 'month' ? `${ym}-${String(LED.daysIn(+ym.slice(0, 4), +ym.slice(5, 7))).padStart(2, '0')}` : pp === 'year' ? ym.slice(0, 4) + '-12-31' : today;
-    const to = endM < today || pp !== 'all' ? endM : today, unit = pp === 'month' ? 'day' : 'month';
+  function pieLineChart(list, pm, from, to, segs) {
+    // v1.52: la franja llega ya hecha (mes, año, 12 meses, todo o fechas a mano)
+    const unit = diffDays(from, to) <= 62 ? 'day' : 'month';
     if (!list.length || !segs.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p><div class="row wrap pie-tools">${pieModeBtn()}</div>`;
     const base = LED.series([], from, to, unit), idx = new Map(base.map((b, i) => [b.key, i]));
     const keyFor = d => unit === 'month' ? d.slice(0, 7) : d;
@@ -10199,71 +10246,38 @@
       : ids.map((id, i) => ({ key: 'c:' + id, label: segs[i] ? segs[i].label : id, color: segs[i] ? segs[i].color : PIE_COLORS[i % PIE_COLORS.length] }));
     return `${calcChart('led-pie', rows, series, { aria: t('ledPieTitle'), noPat: true })}<div class="row wrap pie-tools">${pieModeBtn()}</div>`;
   }
-  // Dos series de puntos: verde = ingresos, rojo = gastos
-  function twoDotChart(all, o = {}) {
-    if (!all.length) return `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`;
-    // v1.49: con o.zid se puede ampliar por tiempo (mínimo 3 puntos a la vista)
-    const zm = !!o.zid && all.length > 3, z = zm ? zcRange(o.zid, all.length, 3) : null, rows = z ? all.slice(z.i0, z.i1 + 1) : all;
-    const W = chartW(), H = o.h || (W < 500 ? 210 : 230), pl = 50, pr = 14, pt = 14, pb = 28, iw = W - pl - pr, ih = H - pt - pb, n = rows.length;
-    const hi = Math.max(1, ...rows.map(r => Math.max(r.income, r.expense)));
-    const x = i => pl + (n === 1 ? iw / 2 : i * iw / (n - 1)), y = v => pt + ih - v / hi * ih;
-    const fmt = v => privacyOn() ? '•••' : compactMoney(v / 100);
-    const line = (k, c) => `<path d="${rows.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join('')}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity=".85"/>${rows.map((r, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(r[k]).toFixed(1)}" r="${n > 40 ? 2.5 : 4.5}" fill="${c}" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}`;
-    const nl = Math.min(n, W < 500 ? 4 : 6), labelIdx = [...new Set(Array.from({ length: nl }, (_, i) => Math.round(i * (n - 1) / Math.max(1, nl - 1))))];
-    const colW = iw / Math.max(1, n - (n > 1 ? 1 : 0));
-    const out = `<div class="chart ${privacyOn() ? 'priv' : ''}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || '')}">
-      ${[0, hi / 2, hi].map(v => `<line class="grid-line" x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="axis-label" x="${pl - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${esc(fmt(v))}</text>`).join('')}
-      ${line('expense', OUT_C)}${line('income', IN_C)}
-      ${labelIdx.map(i => `<text class="axis-label" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 && n > 1 ? 'start' : i === n - 1 && n > 1 ? 'end' : 'middle'}">${esc(rows[i].label)}</text>`).join('')}
-      <line class="xhair" x1="0" x2="0" y1="${pt}" y2="${pt + ih}" stroke="var(--fg)" stroke-opacity=".35" stroke-width="1" style="display:none"/>
-      ${rows.map((r, i) => `<rect class="hit" x="${(x(i) - colW / 2).toFixed(1)}" y="${pt}" width="${colW.toFixed(1)}" height="${ih}" data-tip="${esc(`▲ ${privacyOn() ? '•••' : fmtMoney(r.income / 100)} · ▼ ${privacyOn() ? '•••' : fmtMoney(r.expense / 100)}`)}" data-sub="${esc(r.sub || r.label)}" data-cx="${x(i).toFixed(1)}" data-cy="${y(Math.max(r.income, r.expense)).toFixed(1)}"/>`).join('')}
-    </svg><div class="dot-legend"><span><i style="background:${IN_C}"></i>${esc(t('ledgerIncome'))}</span><span><i style="background:${OUT_C}"></i>${esc(t('ledgerExpense'))}</span></div></div>`;
-    if (!zm) return out;
-    zcReg(o.zid, all.length, 3, () => twoDotChart(all, o), { W, pl, iw });
-    return zcWrap(o.zid, out, z, `${rows[0].sub || rows[0].label} – ${rows[rows.length - 1].sub || rows[rows.length - 1].label}`);
-  }
-  const bucketLabel = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'short', year: '2-digit' }) : fmtDate(k, { day: 'numeric', month: 'short' });
-  const bucketSub = (k, unit) => unit === 'year' ? k : unit === 'month' ? fmtDate(k + '-01', { month: 'long', year: 'numeric' }) : fmtDate(k);
   function ledgerChartsHtml() {
     const ui = state.ui, ym = ledgerMonth(), today = todayKey();
     const span = LED.span(LV.entries);
-    // 1) Tarta: periodo y desglose
-    const pp = ['month', 'year', 'all'].includes(ui.ledPie) ? ui.ledPie : 'month', pm = ['io', 'expense', 'income'].includes(ui.ledPieMode) ? ui.ledPieMode : 'io';
-    const pList = NET(pp === 'month' ? LED.inMonth(LV.entries, +ym.slice(0, 4), +ym.slice(5, 7)) : pp === 'year' ? LED.inRange(LV.entries, ym.slice(0, 4) + '-01-01', ym.slice(0, 4) + '-12-31') : LV.entries);
+    // v1.52: «Ingresos y gastos» es la única gráfica: periodo (o fechas a mano), desglose y filtro por categoría o evento
+    const pp = ['month', 'year', '12', 'all', 'range'].includes(ui.ledPie) ? ui.ledPie : 'month', pm = ['io', 'expense', 'income'].includes(ui.ledPieMode) ? ui.ledPieMode : 'io';
+    const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
+    const lim = !KGPlan.allows(PL(), 'history') ? addDays(today, -(KGPlan.LIMITS.chartDays - 1)) : null;
+    let from, to;
+    if (pp === 'month') { from = ym + '-01'; to = `${ym}-${String(LED.daysIn(+ym.slice(0, 4), +ym.slice(5, 7))).padStart(2, '0')}`; }
+    else if (pp === 'year') { from = ym.slice(0, 4) + '-01-01'; to = ym.slice(0, 4) + '-12-31'; }
+    else if (pp === '12') { from = addDays(addMonths(today, -12), 1); to = today; }
+    else if (pp === 'range') { from = lf.from || today; to = lf.to || today; if (from > to) [from, to] = [to, from]; }
+    else { from = span && span.from < today ? span.from : today; to = span && span.to > today ? span.to : today; }
+    if (lim && pp !== 'month' && pp !== 'year' && from < lim) from = lim;
+    const fev = String(lf.cat).startsWith('ev:') ? LV.events.find(x => 'ev:' + x.id === lf.cat) : null;
+    const cat = fev || LV.cats.some(c => c.id === lf.cat) ? lf.cat : 'all';
+    const pList = LED.inRange(NET(fev ? eventEntries(fev) : LV.entries), from, to).filter(e => fev || cat === 'all' || e.categoryId === cat);
     const tot = LED.totals(pList);
     const segs = pm === 'io' ? [{ label: t('ledgerIncome'), value: tot.income, color: IN_C }, { label: t('ledgerExpense'), value: tot.expense, color: OUT_C }, { label: t('ledgerInvest'), value: tot.invest, color: INV_C }].filter(s => s.value)
       : LED.byCategory(pList, pm).map((c, i) => { const cat = catOf(c.id); return { label: `${cat.icon} ${catName(cat)}`, value: c.cents, color: PIE_COLORS[i % PIE_COLORS.length] }; });
-    const pName = pp === 'month' ? fmtDate(ym + '-01', { month: 'long', year: 'numeric' }) : pp === 'year' ? ym.slice(0, 4) : t('ledAll');
+    const pName = pp === 'month' ? fmtDate(ym + '-01', { month: 'long', year: 'numeric' }) : pp === 'year' ? ym.slice(0, 4) : pp === 'all' ? t('ledAll') : `${fmtShort(from)} – ${fmtShort(to)}`;
     // v1.23: «Gráficos» se pliega y despliega (se recuerda)
     let html = `<details class="led-charts" data-led-charts ${state.ui.ledChartsShut ? '' : 'open'}><summary class="section-title led-h">${ico('chart')} <span class="grow">${esc(t('ledCharts'))}</span><span class="calc-arrow" aria-hidden="true">›</span></summary><div class="chart-grid">`;
-    if (!hidW('ledPie')) html += `<section class="chart-card clay" data-w="ledPie"><h3>${ico('pie')}<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
-      <div class="seg seg-sm" role="group">${[['month', 'ledThisMonth'], ['year', 'ledThisYear'], ['all', 'ledAll']].map(([v, k]) => `<button data-act="led-pie" data-v="${v}" class="${pp === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
+    if (!hidW('ledPie')) html += `<section class="chart-card clay led-io" data-w="ledPie"><h3>${ico('pie')}<span class="grow">${esc(t('ledPieTitle'))}</span><span class="muted small">${esc(pName)}</span></h3>
+      <div class="seg seg-sm led-io-seg" role="group">${[['month', 'ledThisMonth'], ['year', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll'], ['range', 'ledDates']].map(([v, k]) => `<button data-act="led-pie" data-v="${v}" class="${pp === v ? 'on' : ''}" aria-pressed="${pp === v}">${esc(t(k))}</button>`).join('')}</div>
+      ${pp === 'range' ? `<div class="filter-row led-io-dates"><label class="field"><span>${esc(t('ledFrom'))}</span><input class="input" type="date" data-led-f="from" value="${esc(from)}"></label><label class="field"><span>${esc(t('ledTo'))}</span><input class="input" type="date" data-led-f="to" value="${esc(to)}"></label></div>` : ''}
       <div class="seg seg-sm" role="group" style="margin-top:8px">${[['io', 'ledIo'], ['expense', 'ledByCatOut'], ['income', 'ledByCatIn']].map(([v, k]) => `<button data-act="led-pie-mode" data-v="${v}" class="${pm === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
-      <div class="${privacyOn() ? 'priv' : ''}">${pieLine() ? pieLineChart(pList, pm, pp, ym, segs) : pm === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net), pieModeBtn()) : donutChart(segs, t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'), null, pieModeBtn())}</div></section>`;
-    // 2) Evolución a lo largo de los meses o años registrados
-    const lu = ui.ledLine === 'year' ? 'year' : 'month';
-    const from = span ? span.from : today, rows = LED.series(NET(LV.entries), from < today ? from : today, today, lu).map(r => ({ ...r, label: bucketLabel(r.key, lu), sub: bucketSub(r.key, lu) }));
-    if (!hidW('ledLine')) html += `<section class="chart-card clay" data-w="ledLine"><h3>${ico('trend')}<span class="grow">${esc(t('ledLineTitle'))}</span><span class="seg seg-sm">${[['month', 'ledMonths'], ['year', 'ledYears']].map(([v, k]) => `<button data-act="led-line" data-v="${v}" class="${lu === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</span></h3>
-      ${span ? twoDotChart(rows, { aria: t('ledLineTitle'), zid: 'led-line' }) : `<p class="muted small" style="margin:8px 0 0">${esc(t('ledChartEmpty'))}</p>`}</section>`;
-    html += '</div>';
-    // 3) Filtro: total de una categoría en una franja de fechas, con su gráfica de dos puntos
-    const lf = { cat: 'all', from: today.slice(0, 4) + '-01-01', to: today, ...(ui.ledFilter || {}) };
-    if (!KGPlan.allows(PL(), 'history') && lf.from < addDays(today, -(KGPlan.LIMITS.chartDays - 1))) lf.from = addDays(today, -(KGPlan.LIMITS.chartDays - 1));
-    const fev = String(lf.cat).startsWith('ev:') ? LV.events.find(x => 'ev:' + x.id === lf.cat) : null;
-    const fl = LED.inRange(NET(fev ? eventEntries(fev) : LV.entries), lf.from, lf.to).filter(e => fev || lf.cat === 'all' || e.categoryId === lf.cat), ft = LED.totals(fl);
-    const days = lf.from && lf.to ? diffDays(lf.from, lf.to) + 1 : 0, fu = days <= 62 ? 'day' : days <= 3 * 366 ? 'month' : 'year';
-    const frows = lf.from && lf.to && lf.from <= lf.to ? LED.series(fl, lf.from, lf.to, fu).map(r => ({ ...r, label: bucketLabel(r.key, fu), sub: bucketSub(r.key, fu) })) : [];
-    if (!hidW('ledFilter')) html += `<section class="chart-card clay led-filter" data-w="ledFilter"><h3>${ico('search')}<span class="grow">${esc(t('ledFilterTitle'))}</span></h3>
-      <div class="filter-row">
-        <label class="field"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${lf.cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}${LV.events.length ? `<optgroup label="${esc(t('evTitle'))}">${LV.events.map(ev => `<option value="ev:${esc(ev.id)}" ${lf.cat === 'ev:' + ev.id ? 'selected' : ''}>${esc(ev.icon)} ${esc(ev.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
-        <label class="field"><span>${esc(t('ledFrom'))}</span><input class="input" type="date" data-led-f="from" value="${esc(lf.from)}"></label>
-        <label class="field"><span>${esc(t('ledTo'))}</span><input class="input" type="date" data-led-f="to" value="${esc(lf.to)}"></label>
-      </div>
-      <div class="row wrap" style="gap:6px;margin:4px 0 10px">${[['m', 'ledThisMonth'], ['y', 'ledThisYear'], ['12', 'led12m'], ['all', 'ledAll']].map(([v, k]) => `<button class="chip" data-act="led-range" data-v="${v}">${esc(t(k))}</button>`).join('')}</div>
-      <div class="month-sum"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(ft.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(ft.expense)}</b></div><div><span>${esc(t('ledBalance'))}</span><b>${cents(ft.net)}</b></div></div>
-      <p class="muted small" style="margin:8px 0 4px">${esc(t('ledFilterCount', { n: fl.length }))}</p>
-      ${twoDotChart(frows, { aria: t('ledFilterTitle'), zid: 'led-filter' })}</section>`;
-    return html + '</details>';
+      <label class="field led-io-cat"><span>${esc(t('ledgerCategory'))}</span><select class="input" data-led-f="cat"><option value="all">${esc(t('ledAllCats'))}</option>${LV.cats.map(c => `<option value="${esc(c.id)}" ${cat === c.id ? 'selected' : ''}>${esc(c.icon)} ${esc(catName(c))}${c.archived ? ' · ' + esc(t('archive')) : ''}</option>`).join('')}${LV.events.length ? `<optgroup label="${esc(t('evTitle'))}">${LV.events.map(ev => `<option value="ev:${esc(ev.id)}" ${cat === 'ev:' + ev.id ? 'selected' : ''}>${esc(ev.icon)} ${esc(ev.name)}</option>`).join('')}</optgroup>` : ''}</select></label>
+      <div class="month-sum ${privacyOn() ? 'priv' : ''}"><div><span>${esc(t('ledgerIncome'))}</span><b class="amt-in">${cents(tot.income)}</b></div><div><span>${esc(t('ledgerExpense'))}</span><b class="amt-out">${cents(tot.expense)}</b></div><div><span>${esc(t('ledBalance'))}</span><b>${cents(tot.net)}</b></div></div>
+      <p class="muted small" style="margin:6px 0 0">${esc(t('ledFilterCount', { n: pList.length }))}</p>
+      <div class="${privacyOn() ? 'priv' : ''}">${pieLine() ? pieLineChart(pList, pm, from, to, segs) : pm === 'io' ? donutChart(segs, t('ledBalance'), cents(tot.net), pieModeBtn()) : donutChart(segs, t(pm === 'expense' ? 'ledgerExpense' : 'ledgerIncome'), null, pieModeBtn())}</div></section>`;
+    return html + '</div></details>';
   }
   // Importe corto para las celdas del calendario (sin decimales si es redondo)
   const compactMoney = v => new Intl.NumberFormat(state.lang, { style: 'currency', currency: FX.AUTO.includes(ledgerMain()) ? ledgerMain() : 'EUR', notation: Math.abs(v) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: Math.abs(v) >= 100 || Number.isInteger(v) ? 0 : 2 }).format(v);
@@ -14281,7 +14295,7 @@
      Hábitos, carpetas, retos, rutinas, chats, grupos, libretas compartidas y eventos se borran (o se dejan) con confirmación;
      el resto de tarjetas (mascota, energía, contrato, gráficas…) solo se ocultan y se recuperan en Ajustes. */
   const JIG_SEL = '.habit-grid > .habit, .habit-grid > .folder, .proj.finished, .today-row[data-trow], .routine-card[data-rid], .chat-sw, .ev-card[data-ev-open], [data-w]';
-  const HW = { dayrate: '⭐', contract: '📜', insights: '💡', reviews: '📝', ledPie: '🥧', ledLine: '📈', ledFilter: '🔎' };
+  const HW = { dayrate: '⭐', contract: '📜', insights: '💡', reviews: '📝', ledPie: '🥧' };
   let jiggle = false, jgTimer = null, jigBlockClick = false;
   function enterJiggle() {
     if (jiggle) return;
@@ -14564,12 +14578,6 @@
       case 'led-pie': state.ui.ledPie = a.dataset.v; save(); render(); break;
       case 'led-pie-mode': state.ui.ledPieMode = a.dataset.v; save(); render(); break;
       case 'led-pie-view': state.ledgerPrefs = { ...(state.ledgerPrefs || {}), pieView: pieLine() ? 'pie' : 'line' }; save(); render(); break;
-      case 'led-line': state.ui.ledLine = a.dataset.v; save(); render(); break;
-      case 'led-range': {
-        const td = todayKey(), sp = LED.span(LV.entries), v = a.dataset.v;
-        const from = v === 'm' ? td.slice(0, 8) + '01' : v === 'y' ? td.slice(0, 4) + '-01-01' : v === '12' ? addMonths(td, -12) : (sp ? sp.from : td);
-        state.ui.ledFilter = { ...(state.ui.ledFilter || {}), from, to: td }; save(); render(); break;
-      }
       case 'vault-lock': lockByHand(); render(); sfx('toggle'); toast(t('vaultLocked')); break;
       case 'vault-wipe': confirmVaultWipe(); break;
       case 'ledger-add': if (!ledgerOpen()) { state.ui.tab = 'ledger'; render(); break; } openEntry(null, a.dataset.d || state.ui.ledgerDay || todayKey()); break;
@@ -14627,7 +14635,7 @@
   document.addEventListener('change', e => {
     if (e.target.id === 'chart-habit') { state.ui.chartHabit = e.target.value; save(); render(); }
     if (e.target.matches('[data-led-f="from"]') && e.target.value && diffDays(e.target.value, todayKey()) >= KGPlan.LIMITS.chartDays && !KGPlan.allows(PL(), 'history')) { e.target.value = addDays(todayKey(), -(KGPlan.LIMITS.chartDays - 1)); openUpsell({ feature: 'history' }); }
-    if (e.target.matches('[data-led-f]')) { state.ui.ledFilter = { cat: 'all', from: todayKey().slice(0, 4) + '-01-01', to: todayKey(), ...(state.ui.ledFilter || {}), [e.target.dataset.ledF]: e.target.value }; save(); render(); }
+    if (e.target.matches('[data-led-f]')) { if (e.target.dataset.ledF !== 'cat') state.ui.ledPie = 'range'; state.ui.ledFilter = { cat: 'all', from: todayKey().slice(0, 4) + '-01-01', to: todayKey(), ...(state.ui.ledFilter || {}), [e.target.dataset.ledF]: e.target.value }; save(); render(); }
     if (e.target.matches('[data-led-opt]')) {
       const o = e.target.dataset.ledOpt, on = e.target.checked;
       if (o === 'privacy') { setPrivacy(on); render(); sfx('toggle'); toast(t(on ? 'privacyOnToast' : 'privacyOffToast')); }

@@ -2703,6 +2703,34 @@ body.zc-grabbing, body.zc-grabbing * { cursor: grabbing !important; user-select:
 .rg-flash { animation: rgFlash 1.2s ease 2; }
 :root:is([data-motion="soft"], [data-motion="off"]) .rg-flash { outline: 3px solid var(--accent); }
 
+/* v1.52: Patrimonio actual y proyectado plegables bajo la cifra */
+.wo-fold { margin-top: 2px; }
+.wo-fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; margin: 0 auto; width: max-content; max-width: 100%; padding: 6px 14px; border-radius: 999px; background: var(--surface-2); color: var(--fg); font-size: 13px; font-weight: var(--fw-ui); }
+.wo-fold > summary::-webkit-details-marker { display: none; }
+.wo-fold > summary .calc-arrow { margin-left: 0; font-size: 18px; transform: rotate(90deg); }
+.wo-fold[open] > summary .calc-arrow { transform: rotate(-90deg); }
+.wo-fold .wo-fold-open, .wo-fold[open] .wo-fold-shut { display: none; }
+.wo-fold[open] .wo-fold-open { display: inline; }
+.wo-fold-body { margin-top: 4px; }
+/* Comparar: números de lo real frente a la proyección */
+.wo-stats { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.wo-stat { padding: 12px 14px; border-radius: 16px; }
+.wo-stat-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wo-stat-h i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.wo-stat .calc-metrics { margin-top: 8px; }
+.wo-stat .calc-fine { display: flex; gap: 6px; align-items: flex-start; }
+.wo-stat .calc-fine svg.i { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+/* Ingresos y gastos con filtro */
+.led-io-seg { flex-wrap: wrap; }
+.led-io-dates { grid-template-columns: 1fr 1fr; margin-top: 8px; }
+@media (max-width: 560px) { .led-io-dates .field:first-child { grid-column: auto; } }
+.led-io-cat { margin-top: 8px; }
+.led-io .month-sum { margin-top: 10px; }
+.wo-wide { grid-column: 1 / -1; }
+.wo-stat .calc-metrics { grid-template-columns: 1fr 1fr; gap: 8px; }
+.wo-stat .calc-metric { padding: 9px 11px; }
+.wo-stat .calc-metric strong { font-size: 15px; }
+.wo-stat .calc-metric strong small { display: block; margin-top: 2px; }
 /* v1.52: Listas con selección múltiple, color propio de las notas y más portadas */
 .nl-pick.on, .nl-pick[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .nl-pick .i { margin-right: 2px; }
