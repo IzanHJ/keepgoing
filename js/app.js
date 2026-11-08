@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.51.0';
+  const VERSION = '1.52.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1609,7 +1609,7 @@
     try {
       const [THREE, countries] = await Promise.all([LW.three || (LW.three = import(new URL('js/vendor/three.module.min.js', document.baseURI).href)), lwLoadMap()]);
       if (LW.cv !== cv || !cv.isConnected) return;
-      LW.r = KGLifeWorld.create(THREE, cv, { grid: KGScenes.GRID, quality: KGLifeWorld.quality(), motion: motionMode(), countries, accent: lwAccent(), ambient: lwSt().amb !== false, onArrive: () => { const f = LW.arrive; LW.arrive = null; if (f) f(); } });
+      LW.r = KGLifeWorld.create(THREE, cv, { grid: KGScenes.GRID, quality: KGLifeWorld.quality(), motion: motionMode(), countries, accent: lwAccent(), ambient: lwSt().amb !== false, onArrive: () => { const f = LW.arrive; LW.arrive = null; if (f) f(); }, onZoom: z => { LW.z = z; lwZoomPaint(stage); } });
     } catch (e) { LW.three = null; LW.fail = true; if (LW.cv === cv) { stage.classList.add('static'); lwPlay(getList()); } return; }
     finally { stage.classList.remove('loading'); }
     // solo se mueve mientras se ve: fuera de pantalla o con la app en segundo plano se para
@@ -1618,10 +1618,33 @@
     if (window.IntersectionObserver) { const io = new IntersectionObserver(es => { inView = es[es.length - 1].isIntersecting; vis(); }); io.observe(cv); LW.obs.push(() => io.disconnect()); }
     if (window.ResizeObserver) { const ro = new ResizeObserver(() => LW.r && LW.r.resize()); ro.observe(cv); LW.obs.push(() => ro.disconnect()); }
     document.addEventListener('visibilitychange', vis); LW.obs.push(() => document.removeEventListener('visibilitychange', vis));
+    lwZoomUi(stage); if (LW.z && LW.z !== 1) LW.r.zoomTo(LW.z, true);
     lwPlay(getList());
   }
+  /* v1.52: zoom de los escenarios. Pellizco o Ctrl+rueda en el lienzo, y estos botones (−, + y volver a como estaba).
+     El nivel se recuerda mientras la app está abierta (al pasar de la cabecera a Mundo y al cambiar de escenario) */
+  function lwZoomUi(stage) {
+    if (!stage || $('.lw-zoom', stage)) { lwZoomPaint(stage); return; }
+    const box = document.createElement('div'); box.className = 'lw-zoom'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', t('lwZoom'));
+    box.innerHTML = `<button type="button" data-lwz="in" aria-label="${esc(t('lwZoomIn'))}" title="${esc(t('lwZoomIn'))}">${ico('plus', 'xs')}</button><button type="button" data-lwz="out" aria-label="${esc(t('lwZoomOut'))}" title="${esc(t('lwZoomOut'))}">${ico('minus', 'xs')}</button><button type="button" data-lwz="reset" class="lw-zr" aria-label="${esc(t('lwZoomReset'))}" title="${esc(t('lwZoomReset'))}">${ico('refresh', 'xs')}</button>`;
+    // los toques aquí no abren Mundo ni giran el escenario
+    const stop = e => e.stopPropagation();
+    ['pointerdown', 'keydown', 'dblclick'].forEach(ev => box.addEventListener(ev, stop));
+    box.addEventListener('click', e => {
+      e.stopPropagation(); const b = e.target.closest('[data-lwz]'); if (!b || !LW.r || !LW.r.zoomBy) return;
+      vibrate(5); sfx('tap'); const k = b.dataset.lwz;
+      if (k === 'in') LW.r.zoomBy(1.35); else if (k === 'out') LW.r.zoomBy(1 / 1.35); else LW.r.zoomReset();
+    });
+    stage.appendChild(box); lwZoomPaint(stage);
+  }
+  function lwZoomPaint(stage) {
+    const box = stage && $('.lw-zoom', stage); if (!box) return;
+    const z = LW.z || 1, [i, o, r] = box.children;
+    i.disabled = z >= 2.999; o.disabled = z <= 0.701; r.hidden = Math.abs(z - 1) < 0.02;
+    box.classList.toggle('on', !r.hidden);
+  }
 
-  /* ---- v1.38: Replay. v1.48: va desde HOY hacia atrás (la vista, las estadísticas, Progreso y Mundo a la vez), en modo cine ---- */
+  /* ---- v1.38: Replay. v1.52: en orden cronológico, desde el PRIMER registro hasta hoy (la vista, las estadísticas, Progreso y Mundo a la vez), en modo cine ---- */
   const RP = { on: false, sp: 1, tm: 0, n: 0, held: '', from: '', lbl: '' }, RP_SPEEDS = [1, 5, 20], RP_MS = 1600;
   const rpHalt = () => { clearTimeout(RP.tm); RP.tm = 0; RP.on = false; if (LW.r && LW.r.cinema) LW.r.cinema(false); };
 
@@ -2106,9 +2129,9 @@
     // Replay: la fila de controles (el resto, más abajo)
     const rpBar = () => u.sc === 'all' ? '' : `<div class="tl-rp" role="group" aria-label="${esc(t('rpAria'))}">
       <button class="icon-btn sm" data-rp="today" ${u.at >= todayKey() ? 'disabled' : ''} aria-label="${esc(t('rpToday'))}" title="${esc(t('rpToday'))}">${ico('toEnd')}</button>
-      <button class="tl-rp-play ${RP.on ? 'on' : ''}" data-rp="play" aria-pressed="${RP.on}">${ico(RP.on ? 'pause' : 'rewind')}<span>${esc(t(RP.on ? 'rpPause' : 'rpPlay'))}</span></button>
+      <button class="tl-rp-play ${RP.on ? 'on' : ''}" data-rp="play" aria-pressed="${RP.on}">${ico(RP.on ? 'pause' : 'play')}<span>${esc(t(RP.on ? 'rpPause' : 'rpPlay'))}</span></button>
       <div class="seg seg-sm tl-rp-sp" role="group" aria-label="${esc(t('rpSpeed'))}">${RP_SPEEDS.map(s => `<button data-rp-sp="${s}" class="${RP.sp === s ? 'on' : ''}" aria-pressed="${RP.sp === s}">${s}×</button>`).join('')}</div>
-      <span class="tl-rp-l small">${esc(t('rpBackBy', { by: t(u.sc === 'day' && u.ws !== 'sc' ? 'rpByMoment' : 'rpBy_' + u.sc) }))}</span></div>`;
+      <span class="tl-rp-l small">${esc(t('rpFwdBy', { by: t(u.sc === 'day' && u.ws !== 'sc' ? 'rpByMoment' : 'rpBy_' + u.sc) }))}</span></div>`;
     const head = () => {
       const { from, to } = R(), tk = todayKey(), cur = from <= tk && tk <= to, mk = tlMarks(), prevM = KGT.nextMark(mk, from, to, -1), nextM = KGT.nextMark(mk, from, to, 1);
       return `<div class="tl-top"><div class="seg seg-sm tl-sc" role="group" aria-label="${esc(t('tlScaleAria'))}">${KGT.SCALES.map(s => `<button data-tl-sc="${s}" class="${u.sc === s ? 'on' : ''}" aria-pressed="${u.sc === s}">${esc(t('tlSc_' + s))}</button>`).join('')}</div>
@@ -2121,7 +2144,7 @@
     /* -- v1.42: arriba, el escenario donde estás. Día de hoy: el lugar del turno de ahora (o el último de hoy); otro día: el primero
           con lugar (y en Replay, cada momento); Semana, Mes…: donde más veces estuviste. Sin lugares: tu Casa (o la de serie) -- */
     // v1.48: ambiente del escenario. La hora del momento que se ve (o la de ahora en el periodo actual) y el mes de la fecha;
-    // en el Replay por periodos, el sol va hacia atrás con cada paso
+    // en el Replay por periodos, el sol avanza con cada paso
     const tlAmb = () => {
       const tk = todayKey(), nd = new Date(), nowH = nd.getHours() + nd.getMinutes() / 60;
       let k = u.at > tk ? tk : u.at, h = null;
@@ -2131,7 +2154,7 @@
       }
       if (h == null) {
         const { from, to } = R();
-        h = RP.on ? ((13 - RP.n * 3.5) % 24 + 24) % 24 : from <= tk && tk <= to ? nowH : 13;
+        h = RP.on ? (13 + RP.n * 3.5) % 24 : from <= tk && tk <= to ? nowH : 13;
       }
       return { h, m: +String(k).slice(5, 7) || 1 };
     };
@@ -2209,9 +2232,10 @@
       if (opt.lazy) { cancelAnimationFrame(rT); rT = requestAnimationFrame(() => redraw()); } else redraw();
     };
     const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; vibrate(5); sfx('tlStep', nf > f ? 1 : -1); setAt(nf === 0 ? todayKey() : weeks[nf]); };
-    /* -- Replay (v1.48): desde HOY hacia atrás, un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
+    /* -- Replay (v1.52): del primer registro hasta HOY, un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
     const rpPaint = () => { const el = wref && $('#tl-rp', wref); if (el) el.innerHTML = rpBar(); const e2 = TLS.sheetEl && $('#tl-rp2', TLS.sheetEl); if (e2) e2.innerHTML = rpBar(); };
-    const rpWorldDay = () => u.sc === 'day' && u.ws !== 'sc';
+    // sin ningún momento registrado, el Día va día a día como las demás escalas
+    const rpWorldDay = () => u.sc === 'day' && u.ws !== 'sc' && RP.hasM !== false;
     // Modo cine: rótulo con la fecha que rueda como un cuentakilómetros, barra de lo recorrido y destello de rebobinado en cada paso
     const cinePaint = tick => {
       const el = wref && $('#tl-cine', wref), w = wref && $('#tl-hero-w', wref); if (!el || !w) return;
@@ -2219,8 +2243,8 @@
       if (!RP.on) { el.innerHTML = ''; RP.lbl = ''; return; }
       const { from, to } = R(), lbl = u.sc === 'day' ? fmtDate(u.at, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : tlLabel(u.sc, from, to);
       const prev = [...(RP.lbl || '')], cs = [...lbl]; RP.lbl = lbl;
-      const tk = todayKey(), first = tlFirstKey(), pos = first >= tk ? 0 : 1 - KGT.posOf(u.at > tk ? tk : u.at < first ? first : u.at, first, tk);
-      el.innerHTML = `<span class="tl-cine-k">${ico('rewind', 'xs')} ${esc(t('rpCineK'))} · ${RP.sp}×</span><b class="tl-odo">${cs.map((c, i) => `<span class="${tick && c !== prev[i] ? 'roll' : ''}" style="--i:${i}">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')}</b><span class="tl-cine-bar"><i style="width:${(pos * 100).toFixed(1)}%"></i></span>`;
+      const tk = todayKey(), first = tlFirstKey(), pos = first >= tk ? 1 : KGT.posOf(u.at > tk ? tk : u.at < first ? first : u.at, first, tk);
+      el.innerHTML = `<span class="tl-cine-k">${ico('play', 'xs')} ${esc(t('rpCineK2'))} · ${RP.sp}×</span><b class="tl-odo">${cs.map((c, i) => `<span class="${tick && c !== prev[i] ? 'roll' : ''}" style="--i:${i}">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')}</b><span class="tl-cine-bar"><i style="width:${(pos * 100).toFixed(1)}%"></i></span>`;
       if (tick && !reducedMotion()) { w.classList.remove('flash'); void w.offsetWidth; w.classList.add('flash'); }
     };
     const rpFx = () => { RP.n++; cinePaint(true); if (LW.r && LW.r.pulse) LW.r.pulse(); if (RP.on) sfx('tlFrame'); };
@@ -2228,21 +2252,23 @@
     const rpNext = () => { clearTimeout(RP.tm); RP.tm = setTimeout(rpStep, RP_MS / RP.sp); };
     const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); if (RP.on) rpFx(); };
     const dayCount = k => (u.ws === 'tr' ? KGWorld.legs(lwItems(k, k)) : lwItems(k, k)).length;
-    // Un paso hacia atrás: en Día con Mundo, el momento anterior (o el último del día anterior que tenga alguno); si no, el periodo anterior
+    // Un paso hacia delante: en Día con Mundo, el momento siguiente (o el primero del siguiente día que tenga alguno); si no, el periodo siguiente
     function rpStep() {
       RP.tm = 0; if (!RP.on || !wref || !wref.isConnected) return;
-      const fk = tlFirstKey();
+      const tk = todayKey();
       if (rpWorldDay()) {
-        const D = lwData(), p = lwCur(D), i = p && p.t === 'm' ? p.i : 0;
-        if (i - 1 >= 0 && lwSeq(D).length) { LW.pick = { t: 'm', i: i - 1 }; setPanel(); heroPaint(); rpFx(); rpNext(); return; }
-        let k = u.at, n = 0; do { k = addDays(k, -1); n++; } while (k >= fk && n < 3700 && !dayCount(k));
-        if (k < fk || n >= 3700) { rpEnd(); return; }
-        LW.rk = 'day' + k + k + u.ws; LW.pick = { t: 'm', i: dayCount(k) - 1 }; rpGo(k); rpNext(); return;
+        const D = lwData(), p = lwCur(D), i = p && p.t === 'm' ? p.i : -1;
+        if (i + 1 < lwSeq(D).length) { LW.pick = { t: 'm', i: i + 1 }; setPanel(); heroPaint(); rpFx(); rpNext(); return; }
+        const k = rpNextDay(u.at);
+        if (!k) { rpEnd(); return; }
+        LW.rk = 'day' + k + k + u.ws; LW.pick = { t: 'm', i: 0 }; rpGo(k); rpNext(); return;
       }
-      if (R().from <= fk) { rpEnd(); return; }
-      rpGo(KGT.shift(u.sc, u.at, -1)); rpNext();
+      if (R().to >= tk) { rpEnd(); return; }
+      const nk = KGT.shift(u.sc, u.at, 1); rpGo(nk > tk ? tk : nk); rpNext();
     }
-    // Llegó al principio: tarjeta final con lo recorrido
+    // El siguiente día (después de k, hasta hoy) con algún momento; '' si no queda ninguno
+    const rpNextDay = k => { const tk = todayKey(); let n = 0; do { k = addDays(k, 1); n++; } while (k <= tk && n < 3700 && !dayCount(k)); return k <= tk && n < 3700 ? k : ''; };
+    // Llegó a hoy: tarjeta final con lo recorrido
     function rpEnd() {
       rpHalt(); RP.held = ''; save(); rpPaint(); cinePaint(false); heroPaint(); sfx('tlMark'); vibrate([8, 40, 8]);
       const el = wref && $('#tl-rpend', wref); if (!el) return;
@@ -2250,9 +2276,9 @@
       let pf = 0; for (let k = a, n = 0; k <= b && n < 2400; k = addDays(k, 1), n++) { const d = tlDay(k); if (d && d.perfect) pf++; }
       const pl = KGWorld.summary(lwItems(a, b)).places.length, gy = (state.gymWorkouts || []).filter(w => w.status === 'done' && w.date >= a && w.date <= b).length, sh = Object.keys(state.calDays || {}).filter(k => k >= a && k <= b && (state.calDays[k] || []).length).length;
       const cell = (ic, v, l) => `<span class="tl-rpend-c" style="--d:${cellN++}">${ico(ic, 'xs')}<b>${v}</b><small>${esc(l)}</small></span>`; let cellN = 0;
-      el.innerHTML = `<div class="tl-rpend-in"><span class="tl-cine-k">${ico('sparkle', 'xs')} ${esc(t('rpEndK'))}</span><b class="tl-rpend-t">${esc(t('rpEndT', { a: fmtDate(a, { day: 'numeric', month: 'short', year: 'numeric' }), b: fmtDate(b, { day: 'numeric', month: 'short', year: 'numeric' }) }))}</b>
+      el.innerHTML = `<div class="tl-rpend-in"><span class="tl-cine-k">${ico('sparkle', 'xs')} ${esc(t('rpEndK'))}</span><b class="tl-rpend-t">${esc(t('rpEndT2', { a: fmtDate(a, { day: 'numeric', month: 'short', year: 'numeric' }), b: fmtDate(b, { day: 'numeric', month: 'short', year: 'numeric' }) }))}</b>
         <div class="tl-rpend-g">${cell('calendar', days, t('rpEndDays'))}${cell('crown', pf, t('rpEndPerfect'))}${cell('pin', pl, t('rpEndPlaces'))}${cell(gy ? 'dumbbell' : 'clock', gy || sh, t(gy ? 'rpEndGym' : 'rpEndShifts'))}</div>
-        <div class="tl-rpend-b"><button class="chip sm on" data-rpx="again">${ico('rewind', 'xs')} ${esc(t('rpAgain'))}</button><button class="chip sm ghost" data-rpx="close">${esc(t('close'))}</button></div></div>`;
+        <div class="tl-rpend-b"><button class="chip sm on" data-rpx="again">${ico('play', 'xs')} ${esc(t('rpAgain'))}</button><button class="chip sm ghost" data-rpx="close">${esc(t('close'))}</button></div></div>`;
       el.hidden = false;
     }
     const rpEndClose = () => { const el = wref && $('#tl-rpend', wref); if (el && !el.hidden) { el.hidden = true; el.innerHTML = ''; } };
@@ -2262,7 +2288,12 @@
       const resume = !fresh && RP.held && RP.held === u.sc + u.ws + u.at; RP.held = '';
       RP.on = true; RP.n = 0;
       if (LW.r && LW.r.cinema) LW.r.cinema(true);
-      if (!resume) { RP.from = todayKey(); LW.pick = null; LW.rk = ''; RP.lbl = ''; rpGo(todayKey()); } // siempre desde hoy
+      if (!resume) { // siempre desde el primer registro
+        RP.from = todayKey(); RP.lbl = ''; RP.hasM = true; const fk = tlFirstKey();
+        const k0 = rpWorldDay() ? (dayCount(fk) ? fk : rpNextDay(fk)) : ''; RP.hasM = !!k0;
+        if (k0) { LW.rk = ''; LW.pick = { t: 'm', i: 0 }; rpGo(k0); }
+        else { LW.pick = null; LW.rk = ''; rpGo(fk); }
+      }
       else cinePaint(false);
       rpPaint(); rpNext();
     };
@@ -6834,7 +6865,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
