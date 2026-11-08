@@ -368,3 +368,17 @@
 :root:is([data-motion="soft"], [data-motion="off"]) :is(.tl-spin-h, .tl-odo span.roll, .tl-cine-k svg.i, .tl-rpend, .tl-rpend-c, .tl-hero-w.flash .lw-stage.tl-hero, .tl-hero-w.flash .tl-cine::after) { animation: none; }
 :root:is([data-motion="soft"], [data-motion="off"]) .tl-spin-h { opacity: 0; }
 :root[data-motion="off"] :is(.tl-cine, .tl-cine-bar i, .tl-hero-w .lw-stage.tl-hero::before, .tl-hero-w .lw-stage.tl-hero::after) { transition: none; }
+
+/* =========================================================
+   v1.52: ZOOM DE LOS ESCENARIOS. Botones −/+ arriba a la izquierda (pellizco y Ctrl+rueda en el lienzo)
+   ========================================================= */
+.lw-zoom { position: absolute; left: 10px; top: 10px; z-index: 3; display: flex; flex-direction: column; gap: 2px; padding: 3px; border-radius: 14px; background: rgba(5,8,18,.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); opacity: .72; transition: opacity .2s ease; }
+.lw-zoom:hover, .lw-zoom:focus-within, .lw-zoom.on { opacity: 1; }
+.lw-zoom button { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 11px; background: transparent; color: rgba(238,241,246,.92); cursor: pointer; padding: 0; }
+.lw-zoom button:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+.lw-zoom button:disabled { opacity: .35; cursor: default; }
+.lw-zoom button svg.i { width: 15px; height: 15px; }
+.lw-zoom .lw-zr { color: var(--accent); }
+.lw-stage.static .lw-zoom, .lw-stage.loading .lw-zoom { display: none; }
+:root[data-motion="off"] .lw-zoom { transition: none; }
+.lw-zoom button[hidden] { display: none; }

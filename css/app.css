@@ -2703,9 +2703,25 @@ body.zc-grabbing, body.zc-grabbing * { cursor: grabbing !important; user-select:
 .rg-flash { animation: rgFlash 1.2s ease 2; }
 :root:is([data-motion="soft"], [data-motion="off"]) .rg-flash { outline: 3px solid var(--accent); }
 
-/* v1.52: Hábitos y Proyectos. Las vistas (Hoy, Todos, Retos) son botones sueltos, no una barra de pestañas */
+/* v1.56: Hábitos y Proyectos. Las vistas (Hoy, Todos, Retos) son botones sueltos, no una barra de pestañas */
 .view-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
 .view-btns .vb { min-height: 42px; padding: 0 16px; font-size: 15px; gap: 7px; }
 .view-btns .vb svg.i { width: 18px; height: 18px; }
 :root[data-style="minimal"] .view-btns .vb:not(.on) { box-shadow: none; border: 1px solid var(--line); }
 @media (max-width: 380px) { .view-btns { gap: 8px; } .view-btns .vb { padding: 0 12px; font-size: 14px; } }
+
+/* v1.52: Listas con selección múltiple, color propio de las notas y más portadas */
+.nl-pick.on, .nl-pick[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.nl-pick .i { margin-right: 2px; }
+input[type="color"].swatch-input.on::-webkit-color-swatch { border-color: var(--fg); }
+input[type="color"].swatch-input.on::-moz-color-swatch { border-color: var(--fg); }
+.nt-icgrid { max-height: 196px; overflow-y: auto; padding: 2px; }
+
+/* v1.52: deshacer, rehacer y cuchilla de Organización */
+.tf-tools { gap: 4px; flex: none; }
+.tf-tools .icon-btn[disabled] { opacity: .35; pointer-events: none; }
+.tf-cut-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.tf-cutbar { display: flex; align-items: center; gap: 10px; margin: 0 2px 10px; padding: 8px 10px 8px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+.tf-zoom.cutting .tf-blk { cursor: crosshair; outline: 1px dashed color-mix(in srgb, var(--fg) 45%, transparent); outline-offset: -2px; }
+.tf-zoom.cutting .tf-tl-col { cursor: default; }
+.tf-toolrow { gap: 8px; margin: 0 2px 10px; align-items: center; }

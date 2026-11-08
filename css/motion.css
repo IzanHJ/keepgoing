@@ -274,7 +274,7 @@
 @keyframes kgRise { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 :root:is([data-motion="soft"], [data-motion="off"]) .streak-flame { animation: none; }
 
-/* v1.52: la corona de la valoración es el logo de KeepGoing, plano y del color de la nota (--rc). JS pone transform,
+/* v1.56: la corona de la valoración es el logo de KeepGoing, plano y del color de la nota (--rc). JS pone transform,
    --q (0-1), --draw (lo que falta por dibujar de las curvas) y .on en cada llama encendida. */
 .ri-crown { position: absolute; left: 50%; top: 36%; z-index: 0; width: min(52vmin, 250px); aspect-ratio: 1; color: var(--rc); pointer-events: none;
   filter: drop-shadow(0 0 calc(2px + var(--q, 0) * 12px) color-mix(in srgb, var(--rc) 55%, transparent)); }
@@ -348,7 +348,7 @@
 :root:is([data-motion="soft"], [data-motion="off"]) :is(.orb-aura, .orb-aura::after, .orb-aura::before, .orb-aura i) { animation: none !important; }
 :root:is([data-motion="soft"], [data-motion="off"]) .orb-aura i { transform: rotate(calc(var(--k) * 60deg)) translateX(46px); }
 
-/* v1.52: contrato con el orbe. Mantener pulsado 3 s: un anillo se llena alrededor del orbe (--ctp de 0 a 1) y el orbe
+/* v1.56: contrato con el orbe. Mantener pulsado 3 s: un anillo se llena alrededor del orbe (--ctp de 0 a 1) y el orbe
    tiembla cada vez más; al completarse, un círculo del color de acento con el sello del contrato llena la pantalla. */
 .orb.ct-charge::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none;
   background: conic-gradient(var(--fg) calc(var(--ctp, 0) * 360deg), color-mix(in srgb, var(--fg) 14%, transparent) 0);
