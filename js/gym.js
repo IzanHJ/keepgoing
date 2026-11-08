@@ -236,7 +236,7 @@
     return (l.ex.find(x => x.eid === eid).sets || []).filter(isWork).map(s => ({ w: s.w, r: s.r, s: s.s, d: s.d }));
   }
 
-  /* ---------- v1.52: Log de ejercicios ----------
+  /* ---------- v1.55: Log de ejercicios ----------
      Días entrenados (del más reciente al más antiguo), con la duración del día y, por ejercicio, series, repeticiones,
      marca del día y diferencia con la vez anterior (peso, repeticiones, tiempo o distancia según el tipo). */
   const chrono = (a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.end || a.start || 0) - (b.end || b.start || 0);

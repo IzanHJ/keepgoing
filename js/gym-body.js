@@ -1,4 +1,4 @@
-/* KeepGoing — Mapa del cuerpo del Gimnasio (v1.52): dibujo propio, de frente y de espaldas, hombre y mujer.
+/* KeepGoing — Mapa del cuerpo del Gimnasio (v1.55): dibujo propio, de frente y de espaldas, hombre y mujer.
    Estilo de lámina anatómica: silueta gris y músculos claros separados por surcos, con fibras que siguen la dirección
    de cada músculo. Se dibuja la mitad izquierda y se refleja. La versión de mujer sale de la misma lámina
    (mismo trazo) deformando el contorno: hombros y cintura más estrechos, caderas y muslos más anchos, pecho y pelo propios.

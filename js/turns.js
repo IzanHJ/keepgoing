@@ -6,7 +6,7 @@
 (function (root) {
   'use strict';
 
-  const LIMITS = { specials: 6, shifts: 200, jobs: 20, days: 20000, perDay: 10, ext: 5000, text: 100, note: 500 };
+  const LIMITS = { specials: 6, shifts: 200, jobs: 20, days: 20000, perDay: 30, ext: 5000, text: 100, note: 500 };
   const KINDS = ['work', 'off', 'vacation', 'sick', 'training'];
   const KIND_LABEL = { work: 'Trabajo', off: 'Libre', vacation: 'Vacaciones', sick: 'Baja', training: 'Formación' };
   /* v1.23: los tipos se pueden añadir, editar y borrar. Cada tipo dice si cuenta para la paga (como «Trabajo»);
@@ -97,7 +97,7 @@
       if (!RE_DATE.test(k) || n >= LIMITS.days || !Array.isArray(rd[k])) continue;
       const isOnce = (e) => e && typeof e.sid === 'string' && /^o_[A-Za-z0-9_-]{4,40}$/.test(e.sid) && e.once && typeof e.once === 'object';
       const list = rd[k].slice(0, LIMITS.perDay).filter((e) => e && (shiftIds.has(e.sid) || isOnce(e)))
-        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...trOf(e, true), ...(jobIds.has(e.job) ? { job: e.job } : {}), ...(plxOk(e.plx) ? { plx: { addr: str(e.plx.addr, 300) } } : {}),
+        .map((e) => ({ sid: e.sid, note: str(e.note, LIMITS.note), start: timeOr(e.start), end: timeOr(e.end), ...(typeof e.rt === 'string' && RE_ID.test(e.rt) ? { rt: e.rt } : {}), ...(typeof e.nm === 'string' && e.nm.trim() ? { nm: str(e.nm, 40) } : {}), ...(Number.isFinite(e.brk) && e.brk >= 0 ? { brk: Math.min(720, Math.round(e.brk)) } : {}), ...(typeof e.pl === 'string' && (e.pl === '-' || RE_ID.test(e.pl)) ? { pl: e.pl } : {}), ...trOf(e, true), ...(jobIds.has(e.job) ? { job: e.job } : {}), ...(plxOk(e.plx) ? { plx: { addr: str(e.plx.addr, 300) } } : {}),
           ...(isOnce(e) ? { once: { name: str(e.once.name, LIMITS.text, 'Turno'), emoji: str(e.once.emoji, 8), color: RE_COLOR.test(e.once.color) ? e.once.color : '#8e8e93', start: timeOr(e.once.start), end: timeOr(e.once.end), jobId: jobIds.has(e.once.jobId) ? e.once.jobId : '', ...(typeof e.once.placeId === 'string' && RE_ID.test(e.once.placeId) ? { placeId: e.once.placeId } : {}), ...(plxOk(e.once.plx) ? { plx: { addr: str(e.once.plx.addr, 300) } } : {}) } } : {}) }));
       if (list.length) { days[k] = list; n++; }
     }
@@ -195,6 +195,46 @@
       if (bk && !(bk.to === '>' && next)) out.push({ i: x.i, kind: 'back', mode: bk.mode, dep: bk.dep || tm(x).end || '', arr: bk.arr, to: bk.to === '>' ? '' : bk.to });
     });
     return out;
+  }
+
+  /* ---- v1.52: hora de inicio propuesta para un turno nuevo que va después de los del día: la llegada del trayecto de después
+     del último turno (el que acaba más tarde) y, si no tiene trayecto o no tiene hora de llegada, la hora en que acaba ese turno.
+     '' si ese día no hay turnos con hora. */
+  function nextStart(list, shiftBy) {
+    let best = null;
+    for (const e of list || []) {
+      const s = e && shiftBy[e.sid]; if (!s) continue;
+      const tm = entryTimes(s, e); if (!tm.start || !tm.end) continue;
+      let end = toMin(tm.end); if (end <= toMin(tm.start)) end += 1440;
+      if (!best || end > best.end) best = { end, s, e, tm };
+    }
+    if (!best) return '';
+    const bk = entryReturn(best.s, best.e);
+    if (bk && bk.arr) return bk.arr;
+    return best.end >= 1440 ? '' : best.tm.end;
+  }
+
+  /* ---- v1.52: dividir un turno de un toque (como la cuchilla de un editor de vídeo). Corta la entrada i de la lista del día en
+     el minuto cut (minutos desde las 0:00 de ese día; > 1440 si el turno pasa de medianoche). Cada trozo queda con al menos 5 min.
+     El primero conserva la llegada (transporte) y la nota; el segundo, el trayecto de después. Un turno puntual (once) se copia
+     con un id nuevo (newSid). Devuelve la lista nueva o null si no se puede cortar ahí. */
+  function splitEntry(list, i, shift, cut, newSid) {
+    const e = list && list[i]; if (!e || !shift) return null;
+    const tm = entryTimes(shift, e); if (!tm.start || !tm.end) return null;
+    const a = toMin(tm.start); let b = toMin(tm.end); if (b <= a) b += 1440;
+    cut = Math.round(cut); if (!(cut >= a + 5 && cut <= b - 5)) return null;
+    const hm = (m) => pad(Math.floor((m % 1440) / 60)) + ':' + pad(m % 60);
+    const at = hm(cut), legBk = ['bk', 'bkDep', 'bkArr', 'bkTo'], legTr = ['tr', 'trDep', 'trArr'];
+    const piece = (from, to, drop, off, extra) => {
+      const x = { ...e, ...extra }; drop.forEach((f) => delete x[f]); if (shift[off]) x[off] = '-';
+      if (e.once) { x.once = { ...e.once, start: from, end: to }; x.start = ''; x.end = ''; }
+      else { x.start = from; x.end = to; }
+      return x;
+    };
+    const one = piece(tm.start, at, legBk, 'bk', {});
+    const two = piece(at, tm.end, legTr, 'tr', { note: '', ...(e.once ? { sid: newSid || ('o_' + uid()) } : {}) });
+    delete two.brk;
+    const out = [...list]; out.splice(i, 1, one, two); return out;
   }
 
   /* ---- v1.39: cambiar un turno también en otros días. Dos entradas «coinciden» si son el mismo turno (sid) con el mismo
@@ -461,7 +501,7 @@
   }
 
   const api = {
-    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, nextStart, splitEntry, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;

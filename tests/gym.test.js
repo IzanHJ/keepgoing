@@ -67,7 +67,7 @@ test('Gimnasio: rutinas, plantillas, limpieza y catálogo', () => {
   assert.strictEqual(G.weekStreak(ws, wk, '2026-11-04', 1), 3);
 });
 
-test('Gimnasio v1.52: Log de ejercicios con diferencia frente a la vez anterior', () => {
+test('Gimnasio v1.55: Log de ejercicios con diferencia frente a la vez anterior', () => {
   const ws = [
     W('a', '2026-11-06', [{ eid: 'bench', sets: [{ w: 57.5, r: 8, done: true }, { w: 57.5, r: 8, done: true }, { w: 57.5, r: 8, done: true }] }]),
     W('b', '2026-11-07', [{ eid: 'preacher', sets: [{ w: 25, r: 8, done: true }] }]),
@@ -89,7 +89,7 @@ test('Gimnasio v1.52: Log de ejercicios con diferencia frente a la vez anterior'
   assert.strictEqual(G.logDays(ws, '2026-11-08')[0].items.find(x => x.eid === 'bench').delta, 2.5);
 });
 
-test('Gimnasio v1.52: rangos del log y comparar con una fecha', () => {
+test('Gimnasio v1.55: rangos del log y comparar con una fecha', () => {
   assert.strictEqual(G.rangeFrom('1m', '2026-03-31'), '2026-02-28');
   assert.strictEqual(G.rangeFrom('1y', '2026-11-08'), '2025-11-08');
   assert.strictEqual(G.rangeFrom('all', '2026-11-08'), '');

@@ -29,7 +29,7 @@
     wn_1_30_0_1: 'Gimnasio, la séptima luna|Registra tus entrenamientos: rutinas, series con peso y repeticiones, descanso con cuenta atrás, récords y más de 1.300 ejercicios.',
     wn_1_30_0_2: 'Músculos que se iluminan|Un mapa del cuerpo muestra los músculos trabajados en la semana y en cada entrenamiento. El diario semanal también los resume.',
     wn_1_30_0_3: 'Entrenar cuenta|Vincula tu hábito de entrenar: cada día entrenado suma +1, también para su proyecto.',
-    // v1.52: mapa del cuerpo nuevo (hombre / mujer) y Log de ejercicios
+    // v1.55: mapa del cuerpo nuevo (hombre / mujer) y Log de ejercicios
     gySexTitle: 'Sexo', gySex_m: 'Hombre', gySex_f: 'Mujer', gySexHint: 'Elige el cuerpo que verás en el mapa de músculos del Gimnasio.',
     gyLog: 'Log de ejercicios', gyLogRange: 'Periodo', gyR_1m: '1M', gyR_3m: '3M', gyR_6m: '6M', gyR_1y: '1A', gyR_all: 'Todo',
     gyLogEmptyT: 'Nada en este periodo', gyLogEmptyRange: 'Prueba con un periodo más largo (3M, 6M, 1A o Todo).',
@@ -38,10 +38,10 @@
     gyCmpPaceHint: 'Los 30 días hasta el {a} frente a los últimos 30 días.', gyCmpTime: 'Tiempo entrenando', gyCmpMarks: 'Tus marcas',
     gyCmpSummary: 'Has mejorado en {n} de {total} ejercicios. Media:', gyCmpNone: 'Aún no hay ejercicios que hayas hecho antes y después de esa fecha.',
     gyCmpNew: '{n} ejercicios nuevos desde entonces.',
-    wn_1_52_0_1: 'Un cuerpo nuevo en el Gimnasio|El mapa de músculos es ahora una lámina anatómica dibujada a mano, de frente y de espaldas, con las fibras de cada músculo. Los que trabajas se iluminan con tu color.',
-    wn_1_52_0_2: 'Hombre o mujer|Elige tu sexo al registrarte, en Ajustes o en los ajustes del Gimnasio, y el mapa enseñará un cuerpo de hombre o de mujer con el mismo estilo.',
-    wn_1_52_0_3: 'Log de ejercicios|Un botón nuevo junto al historial: tus días de entrenamiento del más reciente al más antiguo, con repeticiones × series, el peso y cuánto ha cambiado desde la vez anterior. Último mes por defecto, o 3M, 6M, 1A y Todo.',
-    wn_1_52_0_4: 'Comparar|Desde el log, compara tus marcas y tu ritmo de ahora con los de la fecha que elijas.'
+    wn_1_55_0_1: 'Un cuerpo nuevo en el Gimnasio|El mapa de músculos es ahora una lámina anatómica dibujada a mano, de frente y de espaldas, con las fibras de cada músculo. Los que trabajas se iluminan con tu color.',
+    wn_1_55_0_2: 'Hombre o mujer|Elige tu sexo al registrarte, en Ajustes o en los ajustes del Gimnasio, y el mapa enseñará un cuerpo de hombre o de mujer con el mismo estilo.',
+    wn_1_55_0_3: 'Log de ejercicios|Un botón nuevo junto al historial: tus días de entrenamiento del más reciente al más antiguo, con repeticiones × series, el peso y cuánto ha cambiado desde la vez anterior. Último mes por defecto, o 3M, 6M, 1A y Todo.',
+    wn_1_55_0_4: 'Comparar|Desde el log, compara tus marcas y tu ritmo de ahora con los de la fecha que elijas.'
   };
   const en = {
     gyTab: 'Gym', gyFront: 'Front', gyBack: 'Back', gyHistory: 'History', gyLibrary: 'Exercises', gyFree: 'Free workout',
@@ -80,10 +80,10 @@
     gyCmpPaceHint: 'The 30 days up to {a} versus the last 30 days.', gyCmpTime: 'Time training', gyCmpMarks: 'Your marks',
     gyCmpSummary: 'You improved in {n} of {total} exercises. Average:', gyCmpNone: 'No exercises yet that you did both before and after that date.',
     gyCmpNew: '{n} new exercises since then.',
-    wn_1_52_0_1: 'A new body in the Gym|The muscle map is now a hand-drawn anatomy chart, front and back, with each muscle\'s fibres. The ones you train light up in your colour.',
-    wn_1_52_0_2: 'Male or female|Choose your sex when you sign up, in Settings or in the Gym settings, and the map shows a male or female body in the same style.',
-    wn_1_52_0_3: 'Exercise log|A new button next to history: your training days from newest to oldest, with reps × sets, the weight and how much it changed since last time. Last month by default, or 3M, 6M, 1Y and All.',
-    wn_1_52_0_4: 'Compare|From the log, compare your marks and pace now with those on any date you pick.'
+    wn_1_55_0_1: 'A new body in the Gym|The muscle map is now a hand-drawn anatomy chart, front and back, with each muscle\'s fibres. The ones you train light up in your colour.',
+    wn_1_55_0_2: 'Male or female|Choose your sex when you sign up, in Settings or in the Gym settings, and the map shows a male or female body in the same style.',
+    wn_1_55_0_3: 'Exercise log|A new button next to history: your training days from newest to oldest, with reps × sets, the weight and how much it changed since last time. Last month by default, or 3M, 6M, 1Y and All.',
+    wn_1_55_0_4: 'Compare|From the log, compare your marks and pace now with those on any date you pick.'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);
