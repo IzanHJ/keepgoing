@@ -251,6 +251,10 @@
     plant: '<path d="M7 14h10l-1.5 7h-7z"/><path d="M12 14V8M12 8c-3 0-5-2-5-5 3 0 5 2 5 5zM12 10c2.5 0 4.5-1.8 4.5-4.5-2.5 0-4.5 1.8-4.5 4.5z"/>',
     rug: '<rect x="4" y="6" width="16" height="12" rx="1"/><path d="M4 9H2M4 12H2M4 15H2M20 9h2M20 12h2M20 15h2M8 10h8v4H8z"/>',
     ptable: '<path d="M3 8h18M6 8v12M18 8v12M6 13h12"/>',
+    // v1.52: deshacer, rehacer y la cuchilla para dividir turnos
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+    redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+    scissors: '<circle cx="6" cy="6.5" r="2.6"/><circle cx="6" cy="17.5" r="2.6"/><path d="M8.2 8L20 18M8.2 16L20 6"/>',
     // v1.52: portadas nuevas para las notas
     pen: '<path d="M15.5 4.5l4 4L9 19H5v-4z"/><path d="M13 7l4 4M5 19l3.5-1"/>',
     game: '<path d="M7 8h10a4 4 0 0 1 4 4v2.5a2.5 2.5 0 0 1-4.4 1.6L15 14H9l-1.6 2.1A2.5 2.5 0 0 1 3 14.5V12a4 4 0 0 1 4-4z"/><path d="M8 10.5v3M6.5 12h3"/><circle cx="15.5" cy="11" r=".6"/><circle cx="17.5" cy="13" r=".6"/>',
@@ -373,8 +377,16 @@
   let state = load();
   let lastSaved = JSON.stringify(state);
   // Guarda en el dispositivo; marca con hora lo que ha cambiado (para fusionar entre dispositivos) y programa la sincronización
+  /* v1.52: deshacer y rehacer en Organización. Cada guardado hecho con la pestaña Organización abierta que cambia sus datos
+     (turnos del día, notas, tipos de día, turnos, lugares, rutinas, notas con plantilla y listas) deja una foto de cómo estaba.
+     Solo en memoria (se pierde al cerrar la app); como mucho 40 pasos. */
+  const TF_UNDO_KEYS = ['calDays', 'calGaps', 'calDayK', 'calShifts', 'calPlaces', 'calRoutines', 'calTpls', 'calLists', 'calNotes'];
+  const TFH = { u: [], r: [], busy: false };
+  const tfHistPick = o => JSON.stringify(TF_UNDO_KEYS.map(k => o && o[k] !== undefined ? o[k] : null));
   function save() {
-    try { stampChanges(JSON.parse(lastSaved), state); } catch (e) { /* primera vez */ }
+    let prev = null; try { prev = JSON.parse(lastSaved); } catch (e) { /* primera vez */ }
+    if (prev && !TFH.busy && state.ui && state.ui.tab === 'cal') { try { const a = tfHistPick(prev); if (a !== tfHistPick(state)) { TFH.u.push(a); if (TFH.u.length > 40) TFH.u.shift(); TFH.r = []; } } catch (e) { /* sin historial */ } }
+    try { if (prev) stampChanges(prev, state); } catch (e) { /* primera vez */ }
     lastSaved = JSON.stringify(state); calcVer++;
     try { localStorage.setItem(STORE_KEY, lastSaved); } catch (e) { /* modo privado */ }
     scheduleSync();
@@ -1282,16 +1294,19 @@
     const MENU = [['rep', 'chart', 'tfReports'], ['plan', 'layers', 'tfPlan'], ['rot', 'repeat', 'tfRotations'], ['view', 'eye', 'tfView'], ['more', 'gear', 'tfMore']];
     const NAV = { day: ['tfPrevDay', 'tfNextDay'], week: ['tfPrevWeek', 'tfNextWeek'], month: ['tfPrevMonth', 'tfNextMonth'], year: ['tfPrevYear', 'tfNextYear'] }[cv];
     let html = topBar();
+    if (TFS.cut && cv !== 'day' && cv !== 'week') TFS.cut = false;
     html += `<div class="tf-top"><div class="tf-title grow">${year ? '' : pick('m', tfMonths().map((n, i) => [i, n]), mo, t('tfMonth'))}${pick('y', years.map(v => [v, v]), y, t('tfYear'))}</div>
       <button class="icon-btn" data-tf="menu" aria-expanded="${TFS.menu}" aria-label="${esc(t('tfMenuAria'))}" title="${esc(t('tfMenuAria'))}">${ico('grid')}</button>
       ${TFS.menu ? `<div class="tf-menu" role="menu">${MENU.map(([id, ic, k]) => `<button role="menuitem" data-tf-go="${id}">${ico(ic)} ${esc(t(k))}</button>`).join('')}</div>` : ''}</div>`;
     html += `<div class="row tf-nav" style="justify-content:space-between;gap:8px"><div class="row" style="gap:8px"><div class="pill-group"><button class="icon-btn" data-tf="prev" aria-label="${esc(t(NAV[0]))}">${ico('left')}</button><button class="icon-btn" data-tf="next" aria-label="${esc(t(NAV[1]))}">${ico('right')}</button></div>${isCurrent ? '' : `<button class="chip" data-tf="today">${esc(t('tfToday'))}</button>`}</div>
       <div class="seg seg-sm tf-cv" role="group" title="${esc(t('tfPinchHint'))}">${[['day', 'tfDay'], ['week', 'tfWeek'], ['month', 'tfMonth'], ['year', 'tfYear']].map(([v, k]) => `<button data-tf-cv="${v}" class="${cv === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div></div>`;
     html += tfClockChip();
-    if (cv === 'day' && u.d === tk && !tfClock()) html += `<div class="row" style="margin:0 2px 10px"><button class="btn sm" data-tf="clock-in">${ico('clock')} ${esc(t('tfClockInBtn'))}</button></div>`;
+    // v1.52: en la misma fila, «Fichar entrada» (hoy, en Día) a la izquierda y deshacer, rehacer y la cuchilla a la derecha
+    html += `<div class="row tf-toolrow">${cv === 'day' && u.d === tk && !tfClock() ? `<button class="btn sm" data-tf="clock-in">${ico('clock')} ${esc(t('tfClockInBtn'))}</button>` : ''}<span class="grow"></span>${tfToolsHtml(cv)}</div>`;
     let range;
     const LY = tfLayers();
-    html += `<div class="tf-zclip"><div class="tf-zoom ${TFS.quick && !year ? 'painting' : ''} ${LY.shifts ? '' : 'ly-noshift'} ${LY.text ? '' : 'ly-notext'}">`;
+    if (TFS.cut) html += `<div class="tf-cutbar" role="status">${ico('scissors', 'xs')}<span class="grow small">${esc(t('cutHint'))}</span><button class="btn sm primary" data-tf="cut">${ico('check', 'xs')} ${esc(t('tfQDone'))}</button></div>`;
+    html += `<div class="tf-zclip"><div class="tf-zoom ${TFS.cut ? 'cutting' : ''} ${TFS.quick && !year ? 'painting' : ''} ${LY.shifts ? '' : 'ly-noshift'} ${LY.text ? '' : 'ly-notext'}">`;
     if (year) { html += tfYearGrid(y); range = [y + '-01-01', y + '-12-31']; }
     else if (cv === 'month') { html += `<div class="tf-cal"><div class="tf-dow">${tfDow().map(n => `<span>${esc(n)}</span>`).join('')}</div>${tfMonthGrid(y, mo)}</div>`; range = [TF.iso(new Date(y, mo, 1)), TF.iso(new Date(y, mo + 1, 0))]; }
     else if (cv === 'week') { const ks = tfWeekKeys(u.d); html += tfWeekView(ks); range = [ks[0], ks[6]]; }
@@ -3262,6 +3277,36 @@
     }
     return html + '</div>';
   }
+  /* v1.52: barra de herramientas de Organización: deshacer, rehacer y (en Día y Semana) la cuchilla para dividir turnos. */
+  const tfToolsHtml = cv => `<div class="tf-tools row" role="toolbar" aria-label="${esc(t('tfToolsAria'))}">
+      <button class="icon-btn sm" data-tf="undo" ${TFH.u.length ? '' : 'disabled'} aria-label="${esc(t('undoA'))}" title="${esc(t('undoA'))}">${ico('undo')}</button>
+      <button class="icon-btn sm" data-tf="redo" ${TFH.r.length ? '' : 'disabled'} aria-label="${esc(t('redoA'))}" title="${esc(t('redoA'))}">${ico('redo')}</button>
+      ${cv === 'day' || cv === 'week' ? `<button class="icon-btn sm tf-cut-btn" data-tf="cut" aria-pressed="${!!TFS.cut}" aria-label="${esc(t('cutA'))}" title="${esc(t('cutA'))}">${ico('scissors')}</button>` : ''}</div>`;
+  function tfUndo(redo) {
+    const from = redo ? TFH.r : TFH.u, to = redo ? TFH.u : TFH.r; if (!from.length) return;
+    to.push(tfHistPick(state));
+    const vals = JSON.parse(from.pop());
+    TF_UNDO_KEYS.forEach((k, i) => { state[k] = vals[i] != null ? vals[i] : (Array.isArray(state[k]) ? [] : {}); });
+    tfOnceGen++; TFH.busy = true; try { tfSave(); } finally { TFH.busy = false; }
+    sfx('tap'); toast(t(redo ? 'redone' : 'undone'));
+  }
+  document.addEventListener('keydown', e => {
+    if (state.ui.tab !== 'cal' || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' && e.key.toLowerCase() !== 'y') return;
+    if (e.target && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) || $('#modal-root .backdrop')) return;
+    e.preventDefault(); tfUndo(e.key.toLowerCase() === 'y' || e.shiftKey);
+  });
+  // Cortar el turno tocado a la altura del dedo (de 5 en 5 minutos si las horas están ampliadas; si no, de 15 en 15)
+  function tfCutAt(ent, y) {
+    const col = ent.closest('.tf-tl-col'); if (!col) return;
+    const k = ent.dataset.tfEnt, i = +ent.dataset.i, list = state.calDays[k] || [], en = list[i], s = en && tfShift(en.sid); if (!s) return;
+    const ph = parseFloat(getComputedStyle(col.closest('.tf-tl')).getPropertyValue('--ph')) || 40, step = ph >= 60 ? 5 : 15;
+    let m = Math.round((y - col.getBoundingClientRect().top) / ph * 60 / step) * step;
+    if (col.dataset.tfTl !== k) m += 1440; // la parte de después de medianoche de un turno del día anterior
+    const out = TF.splitEntry(list, i, s, m, 'o_' + uid());
+    if (!out) { toast(t('cutNo')); return; }
+    tfSetDay(k, out); tfSave(); sfx('tap'); vibrate(10);
+    toast(t('cutDone', { h: tfHm(m % 1440) }));
+  }
   /* v1.24: un solo botón abajo a la derecha (el «pincel»). Abre un panel con Turnos · Rutinas · Días y, debajo, Compartir y
      Compartidos. Al elegir algo, el panel se encoge en una barra fina con lo elegido, «Borrar» y «Listo»: tocas o deslizas por los días.
      TFS.quick: id de turno, 'rt:<id de rutina>' o 'erase'. */
@@ -4759,6 +4804,7 @@
     if (more) { e.preventDefault(); tfSeeAll(more.dataset.tfMore); return true; }
     // v1.39: tocar un turno en Día o Semana lo abre para editarlo
     const ent = e.target.closest('[data-tf-ent]');
+    if (ent && TFS.cut && !TFS.quick) { tfCutAt(ent, e.clientY); return true; }
     if (ent && !TFS.quick && e.detail !== 0) { tfEditEntry(ent.dataset.tfEnt, +ent.dataset.i, () => render()); return true; }
     const el = e.target.closest('[data-tf],[data-tf-qtab],[data-tf-go],[data-tf-cv],[data-tf-gapn],[data-tf-day],[data-tf-open],[data-tf-month],[data-tf-q],[data-tf-rm],[data-tf-ws],[data-tf-shift],[data-tf-job],[data-tf-place],[data-tf-map],[data-tf-rt],[data-tf-tp]');
     if (!el) { if (TFS.menu && !e.target.closest('.tf-menu')) { TFS.menu = false; render(); } return false; }
@@ -4769,6 +4815,7 @@
     if (el.dataset.tfMap) { const p = tfPlace(el.dataset.tfMap); if (p) tfOpenMaps(p); return true; }
     if (el.dataset.tfGapn) { if (!TFS.quick) tfGapNote(el.dataset.tfGapn, +el.dataset.i); return true; }
     // v1.26: tocar un hueco vacío de Día o Semana abre un turno puntual con esa hora
+    if (el.dataset.tfTl && TFS.cut) return true; // con la cuchilla, tocar fuera de un turno no hace nada
     if (el.dataset.tfTl && !TFS.quick && !e.target.closest('.tf-blk') && e.detail !== 0) {
       const ph = parseFloat(getComputedStyle(el.closest('.tf-tl')).getPropertyValue('--ph')) || 40, at = (e.clientY - el.getBoundingClientRect().top) / ph * 60;
       const gap = tfGapsOf(tfDayItems(el.dataset.tfTl).timed).find(g => at >= g.a && at < g.b);
@@ -4777,7 +4824,7 @@
     if (el.dataset.tfDay) { if (TFS.quick && e.detail !== 0 && u.cv !== 'year') return true; /* con el dedo o el ratón pinta tfPaint */ tfOnDay(el.dataset.tfDay); return true; }
     if (el.dataset.tfOpen) { const d = el.dataset.tfOpen; TFS.quick = null; tfSetCv('day', v => { v.d = d; v.ym = d.slice(0, 7); }); return true; }
     if (el.dataset.tfMonth) { const ym2 = `${y}-${pad(+el.dataset.tfMonth + 1)}`; tfSetCv('month', v => { v.ym = ym2; v.d = todayKey().startsWith(ym2) ? todayKey() : ym2 + '-01'; }); return true; }
-    if (el.dataset.tfQ) { TFS.quick = el.dataset.tfQ; TFS.sheet = false; if (u.cv === 'year') { u.cv = 'month'; save(); } const sy = window.scrollY; render(); window.scrollTo(0, sy); return true; }
+    if (el.dataset.tfQ) { TFS.quick = el.dataset.tfQ; TFS.cut = false; TFS.sheet = false; if (u.cv === 'year') { u.cv = 'month'; save(); } const sy = window.scrollY; render(); window.scrollTo(0, sy); return true; }
     if (el.dataset.tfQtab) { TFS.qTab = el.dataset.tfQtab; render(); return true; }
     if (el.dataset.tfRm) { const r = TFS.rep; if (el.dataset.tfRm === 'custom') { const [a, b] = tfRepRange(); r.from = a; r.to = b; } r.mode = el.dataset.tfRm; render(); return true; }
     if (el.dataset.tfWs) { state.calPrefs = { ...state.calPrefs, weekStart: +el.dataset.tfWs }; save(); render(); return true; }
@@ -4795,7 +4842,10 @@
         save(); render(); break;
       }
       case 'today': u.ym = todayKey().slice(0, 7); u.d = todayKey(); save(); render(); break;
-      case 'sheet': TFS.sheet = true; TFS.menu = false; render(); break;
+      case 'sheet': TFS.sheet = true; TFS.cut = false; TFS.menu = false; render(); break;
+      case 'undo': tfUndo(false); break;
+      case 'redo': tfUndo(true); break;
+      case 'cut': TFS.cut = !TFS.cut; if (TFS.cut) { TFS.quick = null; TFS.sheet = false; } sfx('tap'); { const sy = window.scrollY; render(); window.scrollTo(0, sy); } break;
       case 'sheet-x': TFS.sheet = false; render(); break;
       case 'dk-edit': tfEditDayKinds(); break;
       case 'qdone': TFS.quick = null; TFS.sheet = false; render(); break;
@@ -6885,7 +6935,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.52', [['1.52.0', 6]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.52', [['1.52.0', 8]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);

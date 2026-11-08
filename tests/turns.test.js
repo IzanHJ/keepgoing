@@ -245,3 +245,15 @@ test('v1.52: hora de inicio propuesta para el turno siguiente', () => {
   assert.strictEqual(T.nextStart([{ sid: 'a', bk: 'bus', bkArr: '14:40' }], by), '14:40');
   assert.strictEqual(T.nextStart([{ sid: 'a', bk: 'bus' }], by), '14:00');
 });
+
+test('v1.52: dividir un turno de un toque', () => {
+  const s = { id: 'a', start: '08:00', end: '14:00', tr: 'bus', bk: 'car' };
+  const l = [{ sid: 'a', note: 'hola', start: '', end: '', brk: 20 }];
+  const out = T.splitEntry(l, 0, s, 11 * 60);
+  assert.strictEqual(out.length, 2);
+  assert.deepStrictEqual([out[0].start, out[0].end, out[1].start, out[1].end], ['08:00', '11:00', '11:00', '14:00']);
+  assert.strictEqual(out[0].bk, '-'); assert.strictEqual(out[1].tr, '-'); assert.strictEqual(out[0].note, 'hola'); assert.strictEqual(out[1].note, ''); assert.strictEqual(out[1].brk, undefined);
+  assert.strictEqual(T.splitEntry(l, 0, s, 8 * 60 + 2), null);
+  const n = T.splitEntry([{ sid: 'o_x', once: { name: 'N', start: '22:00', end: '02:00' }, start: '', end: '' }], 0, { id: 'o_x', start: '22:00', end: '02:00' }, 25 * 60, 'o_y');
+  assert.deepStrictEqual([n[0].once.end, n[1].sid, n[1].once.start, n[1].once.end], ['01:00', 'o_y', '01:00', '02:00']);
+});

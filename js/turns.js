@@ -6,7 +6,7 @@
 (function (root) {
   'use strict';
 
-  const LIMITS = { specials: 6, shifts: 200, jobs: 20, days: 20000, perDay: 10, ext: 5000, text: 100, note: 500 };
+  const LIMITS = { specials: 6, shifts: 200, jobs: 20, days: 20000, perDay: 30, ext: 5000, text: 100, note: 500 };
   const KINDS = ['work', 'off', 'vacation', 'sick', 'training'];
   const KIND_LABEL = { work: 'Trabajo', off: 'Libre', vacation: 'Vacaciones', sick: 'Baja', training: 'Formación' };
   /* v1.23: los tipos se pueden añadir, editar y borrar. Cada tipo dice si cuenta para la paga (como «Trabajo»);
@@ -212,6 +212,29 @@
     const bk = entryReturn(best.s, best.e);
     if (bk && bk.arr) return bk.arr;
     return best.end >= 1440 ? '' : best.tm.end;
+  }
+
+  /* ---- v1.52: dividir un turno de un toque (como la cuchilla de un editor de vídeo). Corta la entrada i de la lista del día en
+     el minuto cut (minutos desde las 0:00 de ese día; > 1440 si el turno pasa de medianoche). Cada trozo queda con al menos 5 min.
+     El primero conserva la llegada (transporte) y la nota; el segundo, el trayecto de después. Un turno puntual (once) se copia
+     con un id nuevo (newSid). Devuelve la lista nueva o null si no se puede cortar ahí. */
+  function splitEntry(list, i, shift, cut, newSid) {
+    const e = list && list[i]; if (!e || !shift) return null;
+    const tm = entryTimes(shift, e); if (!tm.start || !tm.end) return null;
+    const a = toMin(tm.start); let b = toMin(tm.end); if (b <= a) b += 1440;
+    cut = Math.round(cut); if (!(cut >= a + 5 && cut <= b - 5)) return null;
+    const hm = (m) => pad(Math.floor((m % 1440) / 60)) + ':' + pad(m % 60);
+    const at = hm(cut), legBk = ['bk', 'bkDep', 'bkArr', 'bkTo'], legTr = ['tr', 'trDep', 'trArr'];
+    const piece = (from, to, drop, off, extra) => {
+      const x = { ...e, ...extra }; drop.forEach((f) => delete x[f]); if (shift[off]) x[off] = '-';
+      if (e.once) { x.once = { ...e.once, start: from, end: to }; x.start = ''; x.end = ''; }
+      else { x.start = from; x.end = to; }
+      return x;
+    };
+    const one = piece(tm.start, at, legBk, 'bk', {});
+    const two = piece(at, tm.end, legTr, 'tr', { note: '', ...(e.once ? { sid: newSid || ('o_' + uid()) } : {}) });
+    delete two.brk;
+    const out = [...list]; out.splice(i, 1, one, two); return out;
   }
 
   /* ---- v1.39: cambiar un turno también en otros días. Dos entradas «coinciden» si son el mismo turno (sid) con el mismo
@@ -478,7 +501,7 @@
   }
 
   const api = {
-    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, nextStart, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, nextStart, splitEntry, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;
