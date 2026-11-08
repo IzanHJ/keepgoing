@@ -18,10 +18,19 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   const TYPES = ['text', 'num', 'bool', 'rate', 'pick'];
-  const ICONS = ['doc', 'book', 'dumbbell', 'cap', 'heart', 'calendar', 'clock', 'pin', 'users', 'sparkle', 'target', 'flame', 'smile', 'play', 'tag', 'list'];
-  const LIM = { lists: 30, items: 300, tpls: 30, fields: 12, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, extra: 300, sum: 500 };
+  // v1.52: más portadas para las notas (todas son iconos SVG de línea de la app)
+  const ICONS = ['doc', 'book', 'dumbbell', 'cap', 'heart', 'calendar', 'clock', 'pin', 'users', 'sparkle', 'target', 'flame', 'smile', 'play', 'tag', 'list',
+    'pen', 'checklist', 'star', 'trophy', 'medal', 'flag', 'bolt', 'bulb', 'music', 'headphones', 'mic', 'camera', 'film', 'tv', 'game', 'palette', 'brush',
+    'code', 'chat', 'mail', 'bell', 'gift', 'party', 'cup', 'fork', 'cart', 'bag', 'wallet', 'coins', 'briefcase', 'house', 'bed', 'pill', 'leaf', 'plant', 'tree',
+    'paw', 'sun', 'moon', 'beach', 'mountain', 'pool', 'walk', 'bike', 'car', 'plane', 'compass', 'globe', 'puzzle', 'key', 'timer', 'chart'];
+  const LIM = { lists: 30, items: 300, tpls: 30, fields: 12, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, multi: 300, extra: 300, sum: 700 };
   const str = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
   const keyOf = v => str(v, LIM.text).toLowerCase();
+  /* v1.52: un campo unido a una Lista propia admite varios elementos a la vez (selección múltiple), guardados como
+     «Ana, Pepe». items() los separa y joinItems() los vuelve a juntar sin repetir. */
+  const items = v => { const seen = new Set(); return String(v == null ? '' : v).split(/\s*[,;]\s*/).map(x => str(x, LIM.text)).filter(x => x && !seen.has(keyOf(x)) && seen.add(keyOf(x))); };
+  const joinItems = l => items((l || []).join(', ')).join(', ').slice(0, LIM.multi);
+  const toggleItem = (v, x) => { const l = items(v), k = keyOf(x), i = l.findIndex(y => keyOf(y) === k); if (i >= 0) l.splice(i, 1); else if (k) l.push(str(x, LIM.text)); return joinItems(l); };
   const isHex = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
   const idOk = v => typeof v === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(v);
   const r2 = n => Math.round(n * 100) / 100;
@@ -49,10 +58,11 @@
     if (!tpl || !v) return { lists: out, added };
     for (const f of tpl.fields) {
       if (!f.list || !f.grow) continue;
-      const x = str(v[f.id], LIM.text); if (!x) continue;
       const i = out.findIndex(l => l.id === f.list); if (i < 0) continue;
-      if (out[i].items.some(y => keyOf(y) === keyOf(x)) || out[i].items.length >= LIM.items) continue;
-      out[i] = { ...out[i], items: [...out[i].items, x], ...(now ? { mt: now } : {}) }; added.push({ list: f.list, item: x });
+      for (const x of items(v[f.id])) {
+        if (out[i].items.some(y => keyOf(y) === keyOf(x)) || out[i].items.length >= LIM.items) continue;
+        out[i] = { ...out[i], items: [...out[i].items, x], ...(now ? { mt: now } : {}) }; added.push({ list: f.list, item: x });
+      }
     }
     return { lists: out, added };
   }
@@ -100,7 +110,7 @@
     const out = {}; if (!tpl || !v || typeof v !== 'object') return out;
     for (const f of tpl.fields) {
       const x = v[f.id]; if (x === undefined || x === null || x === '') continue;
-      if (f.type === 'text') { const s = str(x, LIM.text); if (s) out[f.id] = s; }
+      if (f.type === 'text') { const s = f.list ? joinItems(items(x)) : str(x, LIM.text); if (s) out[f.id] = s; }
       else if (f.type === 'num') { const n = +String(x).replace(',', '.'); if (Number.isFinite(n) && n >= 0) out[f.id] = r2(Math.min(n, 1e6)); }
       else if (f.type === 'bool') { if (x === true || x === 'true' || x === 1) out[f.id] = true; }
       else if (f.type === 'rate') { const n = Math.round(+x); if (Number.isFinite(n) && n >= 0 && n <= 10) out[f.id] = n; }
@@ -197,7 +207,7 @@
     // v1.43: reparto de las respuestas de texto, lista y sí/no (las más repetidas primero)
     const dist = tpl.fields.filter(f => f.type === 'text' || f.type === 'pick' || f.type === 'bool').map(f => {
       const c = new Map();
-      for (const { g } of l) { const x = g.v && g.v[f.id]; if (x === undefined || x === '') continue; const kk = f.type === 'bool' ? 'si' : keyOf(x); const e = c.get(kk) || { label: f.type === 'bool' ? f.label : String(x), n: 0 }; e.n++; c.set(kk, e); }
+      for (const { g } of l) { const x = g.v && g.v[f.id]; if (x === undefined || x === '') continue; for (const y of f.list ? items(x) : [x]) { const kk = f.type === 'bool' ? 'si' : keyOf(y); const e = c.get(kk) || { label: f.type === 'bool' ? f.label : String(y), n: 0 }; e.n++; c.set(kk, e); } }
       return { id: f.id, label: f.label, kind: f.type, top: [...c.values()].sort((a, b) => b.n - a.n).slice(0, 6).map(e => [e.label, e.n]), of: l.length };
     }).filter(x => x.top.length);
     return { n: l.length, first: l.length ? l[0].k : '', last: l.length ? l[l.length - 1].k : '', months, series, dist };
@@ -208,7 +218,7 @@
     const kk = keyOf(item), out = []; if (!kk) return out;
     for (const tpl of tpls || []) {
       const fs = tpl.fields.filter(f => f.list === listId); if (!fs.length) continue;
-      for (const { k, g } of notesOf(gaps, tpl.id)) { const f = fs.find(f2 => g.v && keyOf(g.v[f2.id]) === kk); if (f) out.push({ k, g, tpl, field: f }); }
+      for (const { k, g } of notesOf(gaps, tpl.id)) { const f = fs.find(f2 => g.v && items(g.v[f2.id]).some(y => keyOf(y) === kk)); if (f) out.push({ k, g, tpl, field: f }); }
     }
     return out.sort((a, b) => b.k.localeCompare(a.k) || String(b.g.a || '').localeCompare(String(a.g.a || '')));
   }
@@ -235,5 +245,5 @@
       { id: 'tp_date', name: L.date, icon: 'users', color: '#b06ad9', fields: [{ id: 'who', label: L.who, type: 'text' }, { id: 'where', label: L.where, type: 'text' }, { id: 'done', label: L.done, type: 'bool' }], prog: null, goals: {} }
     ].map(sanitizeTpl);
   }
-  return { TYPES, ICONS, LIM, keyOf, sanitizeList, optsFor, grow, mentions, search, fold, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
+  return { TYPES, ICONS, LIM, keyOf, items, joinItems, toggleItem, sanitizeList, optsFor, grow, mentions, search, fold, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
 });
