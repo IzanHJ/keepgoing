@@ -236,6 +236,60 @@
     return (l.ex.find(x => x.eid === eid).sets || []).filter(isWork).map(s => ({ w: s.w, r: s.r, s: s.s, d: s.d }));
   }
 
+  /* ---------- v1.52: Log de ejercicios ----------
+     Días entrenados (del más reciente al más antiguo), con la duración del día y, por ejercicio, series, repeticiones,
+     marca del día y diferencia con la vez anterior (peso, repeticiones, tiempo o distancia según el tipo). */
+  const chrono = (a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.end || a.start || 0) - (b.end || b.start || 0);
+  // Marca principal de unas series según el tipo: w peso máximo; bw lastre si hay, si no repeticiones; h segundos; c km (o minutos)
+  function topOf(sets, kind) {
+    const mx = f => Math.max(0, ...sets.map(s => +s[f] || 0));
+    if (kind === 'w') return { v: mx('w'), u: 'kg' };
+    if (kind === 'bw') return mx('w') ? { v: mx('w'), u: 'kg' } : { v: mx('r'), u: 'reps' };
+    if (kind === 'h') return { v: mx('s'), u: 's' };
+    return mx('d') ? { v: mx('d'), u: 'km' } : { v: Math.round(mx('s') / 60), u: 'min' };
+  }
+  function logDays(workouts, from, custom) {
+    const done = (workouts || []).filter(isDone).sort(chrono), prev = {}, days = new Map();
+    done.forEach(w => {
+      const items = [];
+      (w.ex || []).forEach(x => {
+        const sets = (x.sets || []).filter(isWork); if (!sets.length) return;
+        const e = exercise(x.eid, custom), kind = e ? e.kind : 'w', top = topOf(sets, kind), reps = sets.map(s => +s.r || 0).filter(Boolean);
+        const p = prev[x.eid], delta = p && p.u === top.u && top.v !== p.v ? Math.round((top.v - p.v) * 100) / 100 : 0;
+        prev[x.eid] = top;
+        items.push({ eid: x.eid, kind, sets: sets.length, rMin: reps.length ? Math.min(...reps) : 0, rMax: reps.length ? Math.max(...reps) : 0, sec: Math.max(0, ...sets.map(s => +s.s || 0)), km: Math.round(sets.reduce((a, s) => a + (+s.d || 0), 0) * 100) / 100, min: Math.round(sets.reduce((a, s) => a + (+s.s || 0), 0) / 60), top, delta, first: !p });
+      });
+      if (!items.length || (from && w.date < from)) return;
+      const d = days.get(w.date) || { date: w.date, minutes: 0, sessions: 0, items: [] };
+      d.minutes += workoutStats(w, custom).minutes; d.sessions++; d.items.push(...items); days.set(w.date, d);
+    });
+    return [...days.values()].sort((a, b) => a.date < b.date ? 1 : -1);
+  }
+  // Fecha de inicio de un rango del log ('1m', '3m', '6m', '1y', 'all') contando hacia atrás desde hoy
+  function rangeFrom(key, today) {
+    const m = { '1m': 1, '3m': 3, '6m': 6, '1y': 12 }[key]; if (!m || !RE_DATE.test(today || '')) return '';
+    const d = new Date(today + 'T12:00:00'), day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() - m);
+    d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  /* Comparar: cómo estabas en una fecha y cómo estás ahora.
+     Ejercicios: la última sesión hasta esa fecha frente a la última de todas. Ritmo: los 30 días antes de cada momento. */
+  function compareAt(workouts, date, today, custom) {
+    const done = (workouts || []).filter(isDone).sort(chrono), then = {}, now = {};
+    done.forEach(w => (w.ex || []).forEach(x => {
+      const sets = (x.sets || []).filter(isWork); if (!sets.length) return;
+      const e = exercise(x.eid, custom), top = topOf(sets, e ? e.kind : 'w');
+      if (w.date <= date) then[x.eid] = { ...top, date: w.date };
+      now[x.eid] = { ...top, date: w.date };
+    }));
+    const ex = Object.keys(then).filter(id => now[id].date > date && now[id].u === then[id].u)
+      .map(id => ({ eid: id, then: then[id], now: now[id], diff: Math.round((now[id].v - then[id].v) * 100) / 100, pct: then[id].v ? Math.round((now[id].v - then[id].v) / then[id].v * 1000) / 10 : 0 }))
+      .sort((a, b) => b.pct - a.pct);
+    const back = (k, n) => { const d = new Date(k + 'T12:00:00'); d.setDate(d.getDate() - n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+    const win = k => { const s = summary(workouts, back(k, 29), k, custom); return { days: s.days.length, sessions: s.sessions, sets: s.sets, volume: s.volume, minutes: s.minutes }; };
+    return { date, today, ex, then: win(date), now: win(today), newEx: Object.keys(now).filter(id => !then[id]).length };
+  }
+
   /* ---------- racha de semanas entrenando ----------
      Semanas seguidas (hasta la actual) con al menos `goal` días entrenados. La semana en curso cuenta si ya llega. */
   function weekStreak(workouts, weekKeysOf, today, goal = 1) {
@@ -300,7 +354,7 @@
   }
   const starterRoutine = (key, lang, id) => { const s = STARTERS.find(x => x.key === key); return s ? { id, name: s.name[lang] || s.name.es, ex: s.ex.map(([eid, sets, reps]) => ({ eid, sets, reps })) } : null; };
 
-  const api = { addCatalogue, extraCount: () => EXTRA.length, MUSCLES, MUSCLE_NAME, GROUPS, CATALOGUE, STARTERS, KINDS, EQUIP, LIMITS, exercise, exName, search, isWork, setVolume, e1rm, musclesOf, workoutStats, summary, weekSummary, trainedOn, bests, newRecords, history, lastSets, weekStreak, suggestHabit, cleanSet, cleanWorkout, cleanRoutine, fromRoutine, starterRoutine };
+  const api = { addCatalogue, extraCount: () => EXTRA.length, MUSCLES, MUSCLE_NAME, GROUPS, CATALOGUE, STARTERS, KINDS, EQUIP, LIMITS, exercise, exName, search, isWork, setVolume, e1rm, musclesOf, workoutStats, summary, weekSummary, trainedOn, bests, newRecords, history, lastSets, weekStreak, logDays, rangeFrom, compareAt, topOf, suggestHabit, cleanSet, cleanWorkout, cleanRoutine, fromRoutine, starterRoutine };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KGGym = api;
 })(typeof window !== 'undefined' ? window : this);

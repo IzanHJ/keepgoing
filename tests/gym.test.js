@@ -66,3 +66,39 @@ test('Gimnasio: rutinas, plantillas, limpieza y catálogo', () => {
   const ws = ['2026-10-20', '2026-10-27', '2026-11-03'].map((d, i) => W('s' + i, d, [{ eid: 'squat', sets: [{ w: 1, r: 1, done: true }] }]));
   assert.strictEqual(G.weekStreak(ws, wk, '2026-11-04', 1), 3);
 });
+
+test('Gimnasio v1.52: Log de ejercicios con diferencia frente a la vez anterior', () => {
+  const ws = [
+    W('a', '2026-11-06', [{ eid: 'bench', sets: [{ w: 57.5, r: 8, done: true }, { w: 57.5, r: 8, done: true }, { w: 57.5, r: 8, done: true }] }]),
+    W('b', '2026-11-07', [{ eid: 'preacher', sets: [{ w: 25, r: 8, done: true }] }]),
+    W('c', '2026-11-08', [
+      { eid: 'pullup', sets: [{ r: 15, done: true }, { r: 15, done: true }, { r: 15, done: true }, { r: 15, done: true }] },
+      { eid: 'bench', sets: [{ w: 60, r: 8, done: true }, { w: 60, r: 8, done: true }, { w: 60, r: 8, done: true }] },
+      { eid: 'plank', sets: [{ s: 60, done: true }, { s: 60, done: true }, { s: 60, done: true }] }
+    ]),
+    { id: 'live', date: '2026-11-08', status: 'live', ex: [{ eid: 'bench', sets: [{ w: 100, r: 1, done: true }] }] }
+  ];
+  const L = G.logDays(ws, '2026-11-01');
+  assert.deepStrictEqual(L.map(d => d.date), ['2026-11-08', '2026-11-07', '2026-11-06']);
+  assert.strictEqual(L[0].minutes, 60);
+  const bench = L[0].items.find(x => x.eid === 'bench');
+  assert.deepStrictEqual([bench.sets, bench.rMin, bench.top.v, bench.delta, bench.first], [3, 8, 60, 2.5, false]);
+  assert.strictEqual(L[2].items[0].first, true);
+  assert.strictEqual(L[0].items.find(x => x.eid === 'plank').sec, 60);
+  assert.deepStrictEqual(G.logDays(ws, '2026-11-08').map(d => d.date), ['2026-11-08']); // el rango corta, pero el anterior sigue contando para la diferencia
+  assert.strictEqual(G.logDays(ws, '2026-11-08')[0].items.find(x => x.eid === 'bench').delta, 2.5);
+});
+
+test('Gimnasio v1.52: rangos del log y comparar con una fecha', () => {
+  assert.strictEqual(G.rangeFrom('1m', '2026-03-31'), '2026-02-28');
+  assert.strictEqual(G.rangeFrom('1y', '2026-11-08'), '2025-11-08');
+  assert.strictEqual(G.rangeFrom('all', '2026-11-08'), '');
+  const ws = [
+    W('a', '2026-10-01', [{ eid: 'bench', sets: [{ w: 50, r: 8, done: true }] }]),
+    W('b', '2026-11-08', [{ eid: 'bench', sets: [{ w: 60, r: 8, done: true }] }, { eid: 'squat', sets: [{ w: 80, r: 5, done: true }] }])
+  ];
+  const C = G.compareAt(ws, '2026-10-08', '2026-11-08');
+  assert.deepStrictEqual(C.ex.map(x => [x.eid, x.then.v, x.now.v, x.diff, x.pct]), [['bench', 50, 60, 10, 20]]);
+  assert.strictEqual(C.newEx, 1);
+  assert.deepStrictEqual([C.then.days, C.now.days], [1, 1]);
+});
