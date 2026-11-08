@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.55.0';
+  const VERSION = '1.56.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -52,31 +52,30 @@
   const HABIT_COLORS = ['#3ddc97', '#5b8cff', '#ff8a5b', '#f7c948', '#c77dff', '#ff5d8f', '#2ec4b6', '#a3e635', '#ff6b6b', '#4cc9f0'];
   const EMOJIS = ['#', '🦷', '💧', '📚', '🏃', '🧘', '😴', '🚶', '✍️', '🎯', '💪', '🥗', '🍎', '🚭', '🧹', '💊', '🧠', '🎸', '🎨', '💻', '🗣️', '🙏', '☀️', '🌙', '🚿', '🏋️', '🚴', '🏊', '⚽', '💰', '📈', '📵', '🧴', '❤️', '😊', '🌱', '🐶', '✅', '⭐', '🔥', '⏰', '📝', '🎧', '🍵', '🥛', '🛏️', '🧗', '🎮'];
 
+  // v1.56: ocho apariencias (oscuras, de cristal, con degradado y claras), todas con texto, iconos y acento legibles
+  // (≥4,5:1 sobre el fondo). Se quitaron las de nivel y los colores personalizados; ver fixTheme().
   const PRESETS = [
     { id: 'noche', es: 'Noche', en: 'Night', bg: '#000000', fg: '#ffffff', accent: '#3ddc97' },
-    // v1.29: Glassformismo (cristal sobre espacio profundo)
+    { id: 'grafito', es: 'Grafito', en: 'Graphite', bg: '#1b1e24', fg: '#e9eef5', accent: '#7aa2ff' },
     { id: 'nebulosa', es: 'Nebulosa', en: 'Nebula', bg: '#03040b', bg2: '#1a1145', fg: '#f4f5ff', accent: '#8f7cff', bgMode: 'gradient', style: 'glass' },
     { id: 'portal', es: 'Portal', en: 'Portal', bg: '#000000', bg2: '#062a33', fg: '#effcff', accent: '#41e6d2', bgMode: 'gradient', style: 'glass' },
-    { id: 'cristal', es: 'Cristal', en: 'Crystal', bg: '#eef1fb', bg2: '#d6defa', fg: '#0d1330', accent: '#5b5cf0', bgMode: 'gradient', style: 'glass' },
-    { id: 'papel', es: 'Papel', en: 'Paper', bg: '#f1f1f4', fg: '#111111', accent: '#2f6bff' },
-    { id: 'grafito', es: 'Grafito', en: 'Graphite', bg: '#1b1e24', fg: '#e9eef5', accent: '#7aa2ff' },
-    { id: 'menta', es: 'Menta', en: 'Mint', bg: '#dcf3e7', fg: '#0f3a29', accent: '#109e66' },
-    { id: 'lavanda', es: 'Lavanda', en: 'Lavender', bg: '#e8e3fb', fg: '#271c52', accent: '#7c5cff' },
-    { id: 'arena', es: 'Arena', en: 'Sand', bg: '#f3e8da', fg: '#3a2817', accent: '#dd7326' },
     { id: 'aurora', es: 'Aurora', en: 'Aurora', bg: '#0b1026', bg2: '#3a1c71', fg: '#ffffff', accent: '#4ff0c2', bgMode: 'gradient' },
-    { id: 'atardecer', es: 'Atardecer', en: 'Sunset', bg: '#ff7e5f', bg2: '#5b1f66', fg: '#ffffff', accent: '#ffd36e', bgMode: 'gradient' },
-    { id: 'oceano', es: 'Océano', en: 'Ocean', bg: '#0f2027', bg2: '#2c5364', fg: '#ffffff', accent: '#56ccf2', bgMode: 'gradient' },
-    { id: 'minimal', es: 'Minimal', en: 'Minimal', bg: '#ffffff', fg: '#000000', accent: '#000000', style: 'minimal' },
-    // Temas que se desbloquean al subir de nivel
-    { id: 'oro', es: 'Oro', en: 'Gold', bg: '#1a1406', bg2: '#3d2c0a', fg: '#fff4d6', accent: '#f5c451', bgMode: 'gradient', lvl: 3 },
-    { id: 'neon', es: 'Neón', en: 'Neon', bg: '#07010f', fg: '#f2f2ff', accent: '#ff2bd6', lvl: 6 },
-    { id: 'sakura', es: 'Sakura', en: 'Sakura', bg: '#fde8ef', fg: '#4a1830', accent: '#ff6f9c', lvl: 9 },
-    { id: 'bosque', es: 'Bosque', en: 'Forest', bg: '#0b2014', bg2: '#1f4d2c', fg: '#eafff0', accent: '#8be78b', bgMode: 'gradient', lvl: 12 },
-    { id: 'galaxia', es: 'Galaxia', en: 'Galaxy', bg: '#050314', bg2: '#241147', fg: '#ffffff', accent: '#a78bfa', bgMode: 'gradient', lvl: 16 },
-    { id: 'lava', es: 'Lava', en: 'Lava', bg: '#1a0500', bg2: '#5c1300', fg: '#fff1e6', accent: '#ff7a1a', bgMode: 'gradient', lvl: 20 },
-    { id: 'hielo', es: 'Hielo', en: 'Ice', bg: '#e8f6ff', fg: '#0b2a3f', accent: '#2bb3ff', lvl: 25 },
-    { id: 'trascendente', es: 'Trascendente', en: 'Transcendent', bg: '#f9d9f0', bg2: '#b39ddb', fg: '#2b0f3a', accent: '#d6249f', bgMode: 'gradient', lvl: 30 }
+    { id: 'oceano', es: 'Océano', en: 'Ocean', bg: '#0f2027', bg2: '#2c5364', fg: '#ffffff', accent: '#6dd5ff', bgMode: 'gradient' },
+    { id: 'cristal', es: 'Cristal', en: 'Crystal', bg: '#eef1fb', bg2: '#d6defa', fg: '#0d1330', accent: '#4447d8', bgMode: 'gradient', style: 'glass' },
+    { id: 'papel', es: 'Papel', en: 'Paper', bg: '#f1f1f4', fg: '#111111', accent: '#1f5ae6' }
   ];
+
+  /* v1.56: menos apariencias y sin colores personalizados. Quien tenía una que ya no existe (o sus propios colores)
+     pasa a la más parecida de las que quedan, con su letra y su estilo de siempre. */
+  const PRESET_MOVED = { menta: 'papel', lavanda: 'cristal', arena: 'papel', hielo: 'papel', sakura: 'cristal', minimal: 'papel', trascendente: 'cristal',
+    atardecer: 'aurora', oro: 'grafito', lava: 'grafito', neon: 'nebulosa', galaxia: 'nebulosa', bosque: 'portal' };
+  function fixTheme(th) {
+    if (PRESETS.some(p => p.id === th.preset)) { const p = PRESETS.find(x => x.id === th.preset); return { ...th, bg: p.bg, fg: p.fg, accent: p.accent, bgMode: p.bgMode || 'solid', bg2: p.bg2 || th.bg2 }; }
+    let id = PRESET_MOVED[th.preset];
+    if (!id || !PRESETS.some(p => p.id === id)) { let L = .5; try { L = lum(th.bgMode === 'gradient' ? mix(th.bg, th.bg2, .5) : th.bg); } catch (e) { /* color raro */ } id = L > .4 ? 'papel' : 'noche'; }
+    const p = PRESETS.find(x => x.id === id) || PRESETS[0];
+    return { ...th, preset: p.id, bg: p.bg, fg: p.fg, accent: p.accent, bgMode: p.bgMode || 'solid', bg2: p.bg2 || th.bg2, style: p.style || (th.style === 'glass' && !p.style ? 'clay' : th.style) };
+  }
 
   /* ---------- Maestrías: rangos y maquetación de las cartas (px del diseño de Canva 1123×1587) ---------- */
   const RANKS = [['iniciado', 7], ['aprendiz', 14], ['discipulo', 21], ['experto', 30], ['elite', 45], ['maestro', 66], ['ascendente', 100], ['supremo', 150], ['mitico', 250], ['trascendente', 365]];
@@ -327,6 +326,7 @@
     const out = { ...d, ...s };
     out.theme = { ...d.theme, ...(s.theme || {}) };
     if (out.theme.font === 'nunito') out.theme.font = 'quicksand'; // la letra Nunito ya no existe
+    out.theme = fixTheme(out.theme);
     // v1.13: una fecha límite pasa a ser un reto que empezó al crear el proyecto
     if (Array.isArray(out.projects)) out.projects = out.projects.map(p => p && p.deadline && !p.retoFrom ? { ...p, retoFrom: p.createdAt || p.deadline } : p);
     out.ui = { ...d.ui, ...(s.ui || {}) };
@@ -536,8 +536,18 @@
   }
 
   /* ---------- tema ---------- */
+  // v1.56: contraste WCAG entre dos colores y texto secundario que siempre llega a 4,5:1 sobre el fondo (también en
+  // los dos extremos de un degradado); antes, en los temas claros, se quedaba en 3,5
+  const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+  function mutedFor(th, grad) {
+    const base = grad ? mix(th.bg, th.bg2, .5) : th.bg, card = mix(base, th.fg, lum(base) > .4 ? .04 : .17); // y sobre las tarjetas
+    const bgs = grad ? [th.bg, th.bg2, base, card] : [th.bg, card];
+    for (let f = .45; f > .05; f -= .03) { const m = mix(th.fg, base, f); if (bgs.every(b => contrast(m, b) >= 4.5)) return m; }
+    return mix(th.fg, base, .05);
+  }
   const T = { light: false, surfaceHex: '#1c1c1e' };
   function applyTheme() {
+    if (!PRESETS.some(p => p.id === state.theme.preset)) state.theme = fixTheme(state.theme); // llegó de otro dispositivo
     const th = state.theme;
     const grad = th.bgMode === 'gradient';
     const base = grad ? mix(th.bg, th.bg2, .5) : th.bg;
@@ -569,7 +579,7 @@
       '--bg': th.bg, '--fg': th.fg, '--accent': th.accent, '--accent-ink': ink(th.accent),
       '--app-bg': grad ? `linear-gradient(160deg, ${th.bg}, ${th.bg2})` : th.bg,
       '--surface': surface, '--surface-2': s2, '--surface-3': s3, '--surface-solid': mix(base, th.fg, light ? .04 : .12),
-      '--muted': mix(th.fg, base, .45), '--line': rgba(th.fg, .1),
+      '--muted': mutedFor(th, grad), '--line': rgba(th.fg, .1),
       '--glass': glass ? 'blur(14px) saturate(1.6)' : grad ? 'blur(12px) saturate(1.3)' : 'none',
       '--glass-blur': 'blur(14px) saturate(1.6)',
       '--glass-bg': light ? 'rgba(255,255,255,.46)' : rgba(th.fg, .06),
@@ -5157,6 +5167,7 @@
       P = { x: e.clientX, y: e.clientY, held: false, moved: false, wasOpen: ORB.open, id: e.pointerId };
       orb.classList.add('press');
       if (!ORB.open) P.timer = setTimeout(() => { if (!P) return; P.held = true; vibrate(15); orbSet(true); }, 260);
+      ctCharge(P, orb);
     });
     document.addEventListener('pointermove', e => {
       if (!P || e.pointerId !== P.id) return;
@@ -5165,11 +5176,13 @@
         clearTimeout(P.timer); const cur = Math.max(0, TABS.findIndex(x => x[0] === state.ui.tab)), n = clamp(cur + (dx > 0 ? 1 : -1), 0, TABS.length - 1);
         $('#orb') && $('#orb').classList.remove('press'); P = null; if (n !== cur) orbGo(n); return;
       }
+      if (Math.abs(dx) > 12 || Math.abs(dy) > 12) ctChargeStop(P);
       if (ORB.open && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) { P.moved = true; orbHot(nearest(e.clientX, e.clientY)); }
     });
     const up = e => {
       if (!P || e.pointerId !== P.id) return;
-      const p0 = P; P = null; clearTimeout(p0.timer); $('#orb') && $('#orb').classList.remove('press');
+      const p0 = P; P = null; clearTimeout(p0.timer); ctChargeStop(p0); $('#orb') && $('#orb').classList.remove('press');
+      if (p0.contract) return; // ya se ha abierto el contrato (3 s sin soltar)
       if (e.type === 'pointercancel') return;
       if (ORB.open && ORB.hot >= 0 && (p0.held || p0.moved)) { orbGo(ORB.hot); return; }
       if (!p0.held) orbSet(!p0.wasOpen); // toque corto: abre o cierra
@@ -5190,6 +5203,40 @@
       if (i >= 0 && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); ms[clamp(i + (e.key === 'ArrowRight' ? 1 : -1), 0, ms.length - 1)].focus(); }
     });
   })();
+  /* v1.56: CONTRATO ACTIVO. Ya no está en Hábitos: se abre manteniendo pulsado el orbe 3 segundos sin mover el dedo
+     (o desde Ajustes). A partir de 0,6 s se dibuja un anillo que se va llenando alrededor del orbe y el orbe vibra cada
+     vez más; al completarse, un círculo del color de acento con el sello del contrato llena la pantalla desde el orbe
+     y se abre el contrato. */
+  const CT_HOLD = 3000, CT_SHOW = 600;
+  function ctCharge(P, orb) {
+    const t0 = performance.now();
+    const step = now => {
+      if (P.ctOff || !orb.isConnected) return;
+      const e = now - t0, p = clamp((e - CT_SHOW) / (CT_HOLD - CT_SHOW), 0, 1);
+      if (e >= CT_SHOW) { orb.classList.add('ct-charge'); orb.style.setProperty('--ctp', p.toFixed(3)); }
+      if (p > 0 && Math.floor(p * 6) !== P.ctTick) { P.ctTick = Math.floor(p * 6); vibrate(4 + P.ctTick * 2); }
+      if (e >= CT_HOLD) { P.contract = true; ctChargeStop(P); ctWarp(orb); return; }
+      P.ctRaf = requestAnimationFrame(step);
+    };
+    P.ctRaf = requestAnimationFrame(step);
+  }
+  function ctChargeStop(P) {
+    if (!P) return; P.ctOff = true; cancelAnimationFrame(P.ctRaf);
+    const o = $('#orb'); if (o) { o.classList.remove('ct-charge'); o.style.removeProperty('--ctp'); }
+  }
+  function ctWarp(orb) {
+    const r = orb.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    vibrate([20, 40, 60]); sfx('unlock');
+    orbSet(false); $('#orb') && $('#orb').classList.remove('press');
+    immOrigin = { x, y, at: Date.now() };
+    if (reducedMotion()) { openContract(); return; }
+    const el = document.createElement('div'); el.className = 'ct-warp'; el.setAttribute('aria-hidden', 'true');
+    el.style.setProperty('--ox', x + 'px'); el.style.setProperty('--oy', y + 'px');
+    el.innerHTML = `<div class="ctw-bg"></div><div class="ctw-ring"></div><div class="ctw-seal">${ico('doc')}<b>${esc(t('setContract'))}</b></div>`;
+    document.body.appendChild(el);
+    setTimeout(() => { immOrigin = { x: innerWidth / 2, y: innerHeight / 2, at: Date.now() }; openContract(); el.classList.add('out'); }, 820);
+    setTimeout(() => el.remove(), 1400);
+  }
   // Al cambiar de pestaña la luna pequeña «aterriza» (pequeño rebote del orbe)
   function placeNavInd(prevIdx) {
     const n = $('#orb-nav'); if (!n) return;
@@ -5233,16 +5280,7 @@
   const hidW = k => (state.hiddenW || []).includes(k);
 
   /* ---------- HÁBITOS Y PROYECTOS ---------- */
-  function contractBanner() {
-    if (hidW('contract')) return '';
-    const c = state.contract;
-    if (!c) return `<div class="banner clay" data-w="contract"><div class="banner-ico">${ico('doc')}</div><span class="grow">${esc(t('contractNone'))}</span><button class="chip" data-act="contract">${esc(t('contractSignNow'))}</button></div>`;
-    const left = diffDays(todayKey(), c.endsAt);
-    if (left < 0) return `<div class="banner clay" data-w="contract"><div class="banner-ico">${ico('doc')}</div><span class="grow"><b>${esc(t('contractEnded'))}</b></span><button class="chip on" data-act="contract-renew">${esc(t('contractRenew'))}</button></div>`;
-    const total = Math.max(1, diffDays(c.signedAt, c.endsAt));
-    const pct = clamp((total - left) / total * 100, 0, 100);
-    return `<button class="banner clay" data-w="contract" data-act="contract" style="width:100%;border:0;text-align:left;color:inherit"><div class="banner-ico">${ico('doc')}</div><span class="grow"><b>${esc(left === 1 ? t('contractActive1') : t('contractActive', { n: left }))}</b><span class="bar" style="display:block;height:6px;margin-top:6px;max-width:260px"><i style="width:${pct}%"></i></span></span>${ico('right')}</button>`;
-  }
+  // v1.56: el contrato activo ya no sale aquí: se abre manteniendo pulsado el orbe 3 s o desde Ajustes
 
   // Un hábito está «dentro» de una carpeta si pertenece a algún proyecto sin terminar
   const activeProjects = () => state.projects.filter(p => !projectStats(p).achieved);
@@ -5254,11 +5292,12 @@
     const folder = openFolder();
     if (!folder && state.ui.folder) state.ui.folder = null;
     if (!active.length && !arch.length && !state.projects.length) {
-      return html + contractBanner() + emptyState('checklist', t('habitsEmptyTitle'), t('habitsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button><button class="btn" data-act="packs">${ico('box')} ${esc(t('fromTemplate'))}</button><button class="btn" data-act="proj-new">${ico('target')} ${esc(t('newProject'))}</button></div>`);
+      return html + emptyState('checklist', t('habitsEmptyTitle'), t('habitsEmptySub'), `<div class="row wrap" style="justify-content:center"><button class="btn primary" data-act="habit-new">${ico('plus')} ${esc(t('addHabit'))}</button><button class="btn" data-act="packs">${ico('box')} ${esc(t('fromTemplate'))}</button><button class="btn" data-act="proj-new">${ico('target')} ${esc(t('newProject'))}</button></div>`);
     }
     const view = habitsView();
-    html += `<div class="seg view-seg" role="tablist">${HVIEWS.map(([v, e, k]) => `<button data-act="hview" data-v="${v}" role="tab" aria-selected="${view === v}" class="${view === v ? 'on' : ''}"><span class="vi">${ico(e)}</span> ${esc(t(k))}</button>`).join('')}</div>`;
-    if (view === 'today') return html + contractBanner() + viewToday(active);
+    // v1.56: tres botones sueltos en vez de una barra de pestañas
+    html += `<div class="view-btns" role="group" aria-label="${esc(t('tabHabitsProjects'))}">${HVIEWS.map(([v, e, k]) => `<button class="btn vb ${view === v ? 'primary on' : ''}" data-act="hview" data-v="${v}" aria-pressed="${view === v}">${ico(e)}<span>${esc(t(k))}</span></button>`).join('')}</div>`;
+    if (view === 'today') return html + viewToday(active);
     const grid = list => `<div class="habit-grid" id="habit-grid">${list.map(habitCard).join('')}</div>${list.length > 1 ? `<p class="grid-hint">${esc(t('dragHint'))}</p>` : ''}`;
     if (view === 'challenges') {
       const on = active.filter(h => h.challenge && !h.challenge.done), done = active.filter(h => h.challenge && h.challenge.done);
@@ -5270,7 +5309,6 @@
       return html;
     }
     if (folder) return html + folderViewHtml(folder);
-    html += contractBanner();
     if (activeVacation()) html += `<div class="banner clay">${ico('beach')}<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span><button class="chip" data-act="vacations">${esc(t('edit'))}</button></div>`;
     const inF = folderedIds(), folders = activeProjects(), loose = active.filter(h => !inF.has(h.id));
     html += `<div class="habit-grid" id="habit-grid">${folders.map(folderCard).join('')}${loose.map(habitCard).join('')}</div>`;
@@ -6974,7 +7012,6 @@
   function presetName(p) { return p[state.lang] || p.es; }
   function themeEditorHtml() {
     const th = state.theme;
-    const pick = (key, label) => `<label class="row" style="gap:10px"><input type="color" class="swatch-input" data-th-color="${key}" value="${th[key]}"><span class="small" style="font-weight:var(--fw-label)">${esc(label)}</span></label>`;
     const myLevel = state.onboarded ? levelInfo().level : 0;
     return `<div class="stack" style="gap:20px">
       <div class="field"><span>${esc(t('fontTitle'))}</span><div class="font-list">${FONTS.map(([id, name]) => `<button type="button" class="font-opt ${(th.font || 'quicksand') === id ? 'on' : ''}" data-th-font="${id}" style="font-family:'${name}', sans-serif"><b>${esc(name)}</b><span>${esc(t('fontSample'))}</span>${id === 'quicksand' ? `<i>${esc(t('fontDefault'))}</i>` : ''}</button>`).join('')}</div></div>
@@ -6984,9 +7021,6 @@
         return `<button type="button" class="preset ${th.preset === p.id ? 'on' : ''} ${locked ? 'locked' : ''}" data-th-preset="${p.id}"><span class="pv" style="background:${bg}"><i style="background:${p.fg}"></i><i style="background:${p.accent}"></i>${locked ? `<b class="pv-lock">${ico('lock')} ${esc(t('lvShort', { n: p.lvl }))}</b>` : ''}</span><span class="pn">${esc(presetName(p))}${p.lvl && !locked ? ' ✨' : ''}</span></button>`;
       }).join('')}</div></div>
       <div class="field"><span>${esc(t('themeStyle'))}</span><div class="seg">${['clay', 'glass', 'minimal'].map(s => `<button type="button" data-th-style="${s}" class="${th.style === s ? 'on' : ''}">${esc(t(s === 'clay' ? 'styleClay' : s === 'glass' ? 'styleGlass' : 'styleMinimal'))}</button>`).join('')}</div></div>
-      <div class="field"><span>${esc(t('themeCustom'))}</span><div class="row wrap" style="gap:18px">${pick('bg', t('colorPrimary'))}${pick('fg', t('colorSecondary'))}${pick('accent', t('colorAccent'))}</div></div>
-      <div class="field"><span>${esc(t('bgMode'))}</span><div class="seg">${['solid', 'gradient'].map(m => `<button type="button" data-th-bg="${m}" class="${th.bgMode === m ? 'on' : ''}">${esc(t(m === 'solid' ? 'bgSolid' : 'bgGradient'))}</button>`).join('')}</div>
-        ${th.bgMode === 'gradient' ? `<div style="margin-top:6px">${pick('bg2', t('gradientTo'))}</div>` : ''}</div>
     </div>`;
   }
   function samplePreview() {
@@ -7006,15 +7040,9 @@
         Object.assign(state.theme, { preset: p.id, bg: p.bg, fg: p.fg, accent: p.accent, style: p.style || 'clay', bgMode: p.bgMode || 'solid', bg2: p.bg2 || state.theme.bg2 });
       } else if ((el = q('[data-th-font]'))) state.theme.font = el.dataset.thFont;
       else if ((el = q('[data-th-style]'))) state.theme.style = el.dataset.thStyle;
-      else if ((el = q('[data-th-bg]'))) { state.theme.bgMode = el.dataset.thBg; if (state.theme.bgMode === 'gradient' && state.theme.bg2 === state.theme.bg) state.theme.bg2 = mix(state.theme.bg, state.theme.accent, .5); }
       else return;
       save(); applyTheme(); redraw();
     });
-    root.addEventListener('input', e => {
-      const k = e.target.dataset && e.target.dataset.thColor; if (!k) return;
-      state.theme[k] = e.target.value; state.theme.preset = 'custom'; applyTheme();
-    });
-    root.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.thColor) { save(); redraw(); } });
   }
 
   /* ---------- v1.22: Ayuda en la aplicación (Ajustes) y novedades de cada versión ---------- */
@@ -7032,7 +7060,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -7601,7 +7629,7 @@
   const PLAN_GATES = [
     ['[data-act="calc-open"]', 'calc'], ['[data-act="ledger-import"], [data-act="ledger-imports"]', 'csv'],
     ['[data-act="ledger-share"]', 'ledgerShare'], ['[data-wo="cmp"]', 'compare'], ['[data-wo]', 'worth'],
-    ['[data-tf-go="routines"], [data-tf-tab="routines"], [data-tf-qtab="routines"], [data-tf-q^="rt:"]', 'routines'], ['[data-tf="share"]', 'calShare'], ['[data-th-color], [data-th-bg="gradient"]', 'themes'],
+    ['[data-tf-go="routines"], [data-tf-tab="routines"], [data-tf-qtab="routines"], [data-tf-q^="rt:"]', 'routines'], ['[data-tf="share"]', 'calShare'],
     ['[data-more-range="365"], [data-more-range="all"], [data-act="led-range"][data-v="12"], [data-act="led-range"][data-v="all"]', 'history']
   ];
   document.addEventListener('click', e => {
@@ -7652,10 +7680,10 @@
           acc('body', ico('user'), t('gySexTitle'), t('gySex_' + gySex()), gySexSegHtml('s')),
           acc('sound', ico('volume'), t('soundTitle'), audioHint(), audioSettingsHtml()),
           acc('anim', ico('sparkle'), t('anTitle'), t('anOpt_' + motionPref()), `<div class="seg" role="group" id="st-anim">${['auto', 'on', 'off'].map(v => `<button type="button" data-s-anim="${v}" class="${motionPref() === v ? 'on' : ''}">${esc(t('anOpt_' + v))}</button>`).join('')}</div><p class="muted small" id="st-anim-hint" style="margin:10px 0 0">${esc(t('anHint_' + motionPref()))}</p><div class="anim-prev"><button class="chip" data-s-anim-test="perfect">${ico('play')} ${esc(t('anTestPerfect'))}</button><button class="chip" data-s-anim-test="ach">${ico('play')} ${esc(t('anTestAch'))}</button></div>`),
-          acc('look', ico('palette'), t('setLook'), `${fontFamily(state.theme.font)} · ${preset ? presetName(preset) : t('themeCustom')}`, `<div id="st-theme">${themeEditorHtml()}</div>`)
+          acc('look', ico('palette'), t('setLook'), `${fontFamily(state.theme.font)}${preset ? ' · ' + presetName(preset) : ''}`, `<div id="st-theme">${themeEditorHtml()}</div>`)
         ])}
         ${group(t('setGroupCommit'), [
-          acc('contract', ico('doc'), t('setContract'), c ? (cLeft < 0 ? t('contractEnded') : t('contractActive', { n: cLeft })) : t('contractNone'), `<div class="row wrap"><button class="chip" data-s="contract">${esc(c ? t('contractView') : t('contractSignNow'))}</button>${c ? `<button class="chip" data-s="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}</div>`),
+          acc('contract', ico('doc'), t('setContract'), c ? (cLeft < 0 ? t('contractEnded') : t('contractActive', { n: cLeft })) : t('contractNone'), `<p class="muted small" style="margin-top:0">${ico('info', 'xs')} ${esc(t('ctHoldHint'))}</p><div class="row wrap"><button class="chip" data-s="contract">${esc(c ? t('contractView') : t('contractSignNow'))}</button>${c ? `<button class="chip" data-s="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}</div>`),
           acc('commit', '⭐', t('commitTitle'), t('commit_' + state.commitment), `<div id="st-commit">${commitSegHtml()}</div>`),
           acc('vac', '🏖️', t('vacTitle'), activeVacation() ? t('vacActive', { date: fmtDate(activeVacation().to) }) : '', `<div class="row wrap"><span class="grow muted small">${esc(t('vacHintShort'))}</span><button class="chip" data-s="vacations">${esc(t('vacManage'))}</button></div>`)
         ])}
@@ -11708,64 +11736,40 @@
     return d + 'Z';
   }
   const rateShape = (v, size = 44) => `<svg class="rate-shape" viewBox="0 0 100 100" width="${size}" height="${size}" aria-hidden="true"><path d="${ratePath(v, 40, 50, 50)}" fill="${rateColor(v)}"/></svg>`;
-  /* v1.32: valoración con CORONA a pantalla completa. Una corona de joyas en el centro crece con la nota: con 0-3 es
-     de bronce apagado, pequeña, ladeada y temblorosa; desde el 5 se endereza y se dora; cada 2 puntos se enciende una joya
-     (rubí, zafiro, esmeralda, amatista, topacio) y con 8 o más brillan las puntas, giran rayos detrás y suben chispas.
-     El fondo toma el color de la nota. Se abre desde la tarjeta «¿Qué tal tu día?» o desde el aviso de las 22:00. */
-  const CROWN_GEMS = ['#ff2d55', '#2f7bff', '#14d98b', '#b44dff', '#ffb020'];
-  function drawCrown(ctx, cx, cy, R, v, tm, fxOnly = false) { // fxOnly: solo rayos y halo (la corona la pinta el modelo 3D)
-    const q = v / 10, lit = Math.ceil(v / 2), tilt = v < 4 ? -.22 * (1 - v / 4) + Math.sin(tm * 9) * .02 * (1 - v / 4) : Math.sin(tm * 1.4) * .02;
-    const W = R * 2.3, bh = R * .5, top = cy - R * .1;
-    ctx.save(); ctx.translate(cx, cy); ctx.rotate(tilt); const sc = .72 + q * .38 + Math.sin(tm * 2) * .012; ctx.scale(sc, sc); ctx.translate(-cx, -cy);
-    // Rayos y halo
+  /* v1.32: valoración con CORONA a pantalla completa. v1.56: la corona es el LOGO de KeepGoing (la corona de llamas con
+     su cinta), plana y del color de la nota, sin oro ni joyas: con 0-2 está pequeña, ladeada y casi apagada; las llamas
+     se encienden de dentro afuera (la central desde el 3, las dos de al lado desde el 6, las de fuera desde el 9), las
+     curvas se dibujan poco a poco y con 10 late. Detrás, un halo y unos rayos suaves del mismo color, y chispas que suben. */
+  const CROWN_LIT = [3, 6, 6, 9, 9]; // nota a partir de la que se enciende cada llama (en el orden del logo)
+  function crownLook(v, tm = 0) {
+    v = clamp(+v || 0, 0, 10);
+    const q = v / 10, low = v < 3 ? 1 - v / 3 : 0;
+    return {
+      q, scale: .74 + q * .34 + (v >= 10 ? Math.sin(tm * 4) * .025 : 0),
+      tilt: -14 * low + Math.sin(tm * (low ? 9 : 1.4)) * (low ? 2.4 * low : 1.2),
+      lit: CROWN_LIT.map(n => v >= n), draw: .18 + q * .82
+    };
+  }
+  const hsla = (col, a) => col.replace('hsl(', 'hsla(').replace(')', `, ${a})`);
+  function drawCrownFx(ctx, cx, cy, R, v, tm, col) {
+    const q = v / 10;
     if (v >= 5) {
-      const n = 18, a0 = tm * .25;
-      ctx.save(); ctx.globalAlpha = (q - .4) * .55;
-      for (let i = 0; i < n; i++) { const a = a0 + i / n * Math.PI * 2; ctx.fillStyle = CROWN_GEMS[i % 5]; ctx.beginPath(); ctx.moveTo(cx, top); ctx.arc(cx, top, R * 3.4, a, a + .07); ctx.closePath(); ctx.fill(); }
+      const n = 14, a0 = tm * .18;
+      ctx.save(); ctx.globalAlpha = (q - .4) * .18; ctx.fillStyle = col;
+      for (let i = 0; i < n; i++) { const a = a0 + i / n * Math.PI * 2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R * 3.4, a, a + .06); ctx.closePath(); ctx.fill(); }
       ctx.restore();
     }
-    const g = ctx.createRadialGradient(cx, top, R * .2, cx, top, R * 2.2); g.addColorStop(0, `hsla(45, 100%, 70%, ${.15 + q * .45})`); g.addColorStop(1, 'hsla(45, 100%, 60%, 0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, top, R * 2.2, 0, Math.PI * 2); ctx.fill();
-    if (fxOnly) { ctx.restore(); return; }
-    // Silueta: banda + 5 puntas (la central más alta)
-    const L = cx - W / 2, Rr = cx + W / 2, base = top + bh, hs = [.75, .95, 1.25, .95, .75].map(h => h * R * (.55 + q * .55));
-    const path = new Path2D(); path.moveTo(L, base); path.lineTo(L, top);
-    const xs = [0, .25, .5, .75, 1].map(f => L + f * W);
-    xs.forEach((x, i) => { if (i) path.lineTo((xs[i - 1] + x) / 2, top + R * .18); path.lineTo(x, top - hs[i]); });
-    path.lineTo(Rr, top); path.lineTo(Rr, base); path.quadraticCurveTo(cx, base + R * .12, L, base); path.closePath();
-    const sat = 25 + q * 75, lig = 32 + q * 22;
-    const gold = ctx.createLinearGradient(0, top - R * 1.3, 0, base + R * .2);
-    gold.addColorStop(0, `hsl(48, ${sat}%, ${lig + 30}%)`); gold.addColorStop(.45, `hsl(42, ${sat}%, ${lig + 8}%)`); gold.addColorStop(1, `hsl(30, ${sat}%, ${lig - 12}%)`);
-    ctx.shadowColor = `hsla(45, 100%, 60%, ${q * .8})`; ctx.shadowBlur = 20 + q * 40; ctx.fillStyle = gold; ctx.fill(path); ctx.shadowBlur = 0;
-    ctx.lineWidth = 3; ctx.strokeStyle = `hsla(40, ${sat}%, ${lig + 35}%, .8)`; ctx.stroke(path);
-    // Grieta si la nota es muy baja
-    if (v <= 2) { ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx - R * .1, top - hs[2] * .6); ctx.lineTo(cx + R * .05, top - R * .1); ctx.lineTo(cx - R * .08, top + bh * .5); ctx.lineTo(cx + R * .06, base); ctx.stroke(); }
-    // Banda con brillo que pasa
-    const sh = ((tm * .35) % 1.6 - .3) * W;
-    ctx.save(); ctx.clip(path); const sg = ctx.createLinearGradient(L + sh - 40, 0, L + sh + 40, 0); sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, `rgba(255,255,255,${.15 + q * .35})`); sg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = sg; ctx.fillRect(L, top - R * 1.5, W, R * 2.5); ctx.restore();
-    // Joyas de la banda
-    [.14, .32, .5, .68, .86].forEach((f, i) => {
-      const x = L + f * W, y = top + bh * .52, on = i < lit, r = R * (i === 2 ? .17 : .13);
-      ctx.save(); if (on) { ctx.shadowColor = CROWN_GEMS[i]; ctx.shadowBlur = 18 + Math.sin(tm * 3 + i) * 6; }
-      ctx.fillStyle = on ? CROWN_GEMS[i] : 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); ctx.fill();
-      if (on) { ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(x - r * .3, y - r * .3, r * .22, 0, Math.PI * 2); ctx.fill(); }
-      ctx.restore();
-    });
-    // Perlas en las puntas (8 o más)
-    xs.forEach((x, i) => {
-      const on = v >= 8, y = top - hs[i] - R * .08, r = R * .1;
-      ctx.save(); if (on) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 16; }
-      ctx.fillStyle = on ? `hsl(${(tm * 60 + i * 72) % 360}, 90%, 80%)` : `hsl(40, ${sat}%, ${lig + 20}%)`; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    });
-    ctx.restore();
+    const g = ctx.createRadialGradient(cx, cy, R * .2, cx, cy, R * 2.3);
+    g.addColorStop(0, hsla(col, .1 + q * .28)); g.addColorStop(1, hsla(col, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 2.3, 0, Math.PI * 2); ctx.fill();
   }
   function openRateDay(k) {
     const cur = dayRateOf(k);
     let v = cur == null ? 5 : cur, shown = v, raf = 0;
-    const sparks = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), s: .5 + Math.random() * 2, sp: .02 + Math.random() * .06, c: CROWN_GEMS[Math.floor(Math.random() * 5)], ph: Math.random() * 6 }));
+    const sparks = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), s: .5 + Math.random() * 2, sp: .02 + Math.random() * .06, w: Math.random() < .3, ph: Math.random() * 6 }));
     openModal({
       cls: 'imm rate-imm crown', title: '',
-      body: `<div class="ri"><canvas class="ri-cv" aria-hidden="true"></canvas><canvas class="ri-3d" aria-hidden="true"></canvas>
+      body: `<div class="ri"><canvas class="ri-cv" aria-hidden="true"></canvas><div class="ri-crown" aria-hidden="true">${KG_LOGO()}</div>
         <div class="ri-top"><button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button><span class="ri-day">${esc(fmtDate(k, { weekday: 'long', day: 'numeric', month: 'long' }))}</span><span style="width:36px"></span></div>
         <div class="ri-mid"><span class="ri-q">${esc(t(k === todayKey() ? 'crownQ' : 'crownQy'))}</span><b class="ri-n" id="ri-n">${v}</b><span class="ri-w" id="ri-w">${esc(t(RATE_WORDS[v]))}</span></div>
         <div class="ri-bot"><input type="range" class="ri-range" id="ri-range" min="0" max="10" step="1" value="${v}" aria-label="${esc(t('rateTitle'))}" aria-valuetext="${v} · ${esc(t(RATE_WORDS[v]))}">
@@ -11773,22 +11777,15 @@
           <div class="row" style="gap:10px">${cur != null ? `<button class="btn grow" data-ri="clear">${ico('trash')} ${esc(t('riClear'))}</button>` : ''}<button class="btn primary grow" data-ri="save">${ico('crown')} ${esc(t('crownSave'))}</button></div></div></div>`,
       onMount: (w, close) => {
         immersiveIn(w);
-        const box = $('.ri', w), cv = $('.ri-cv', w), cv3 = $('.ri-3d', w), ctx = cv.getContext('2d'), rng = $('#ri-range', w), rm = reducedMotion();
+        const box = $('.ri', w), cv = $('.ri-cv', w), crown = $('.ri-crown', w), ctx = cv.getContext('2d'), rng = $('#ri-range', w), rm = reducedMotion();
+        const spears = $$('.kl-sp path', crown);
         const dpr = Math.min(2, devicePixelRatio || 1);
         sfx('rateOpen'); audioMood('rate', { v });
-        // v1.39: corona 3D (three.js solo al abrir); mientras carga, o si no hay WebGL, se ve la corona plana
-        let C3 = null, last = 0;
-        const fit3 = () => { const W = box.clientWidth, H = box.clientHeight, S = Math.round(Math.min(W, H) * .17 * 4.6); cv3.style.width = cv3.style.height = S + 'px'; cv3.style.top = Math.round(H * .36) + 'px'; if (C3) C3.resize(S, S); };
-        const fit = () => { cv.width = box.clientWidth * dpr; cv.height = box.clientHeight * dpr; fit3(); };
+        const fit = () => { cv.width = box.clientWidth * dpr; cv.height = box.clientHeight * dpr; };
         fit(); addEventListener('resize', fit);
-        if (window.KGCrown3D) (LW.three || (LW.three = import(new URL('js/vendor/three.module.min.js', document.baseURI).href))).then(THREE => {
-          if (!w.isConnected) return;
-          try { C3 = KGCrown3D.create(THREE, cv3, { motion: motionMode() }); fit3(); box.classList.add('c3d'); } catch (e) { C3 = null; }
-        }).catch(() => { LW.three = null; });
         const t0 = performance.now();
         const frame = now => {
-          if (!w.isConnected) { removeEventListener('resize', fit); if (C3) { C3.dispose(); C3 = null; } return; }
-          const dt = last ? Math.min(.1, (now - last) / 1000) : 0; last = now;
+          if (!w.isConnected) { removeEventListener('resize', fit); return; }
           shown += (v - shown) * (rm ? 1 : .1);
           const sv = Math.max(0, Math.min(10, shown)), col = rateColor(Math.round(sv * 10) / 10);
           box.style.setProperty('--rc', col);
@@ -11796,10 +11793,14 @@
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
           // Chispas que suben (más y más rápidas cuanto mejor el día)
           const nS = Math.round(sparks.length * Math.max(0, (sv - 3) / 7));
-          for (let i = 0; i < nS; i++) { const p = sparks[i], y = ((p.y - tm * p.sp * (.5 + sv / 10)) % 1 + 1) % 1; ctx.globalAlpha = .35 + .4 * Math.sin(tm * 3 + p.ph); ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x * W, y * H, p.s * (1 + sv / 10), 0, Math.PI * 2); ctx.fill(); }
+          for (let i = 0; i < nS; i++) { const p = sparks[i], y = ((p.y - tm * p.sp * (.5 + sv / 10)) % 1 + 1) % 1; ctx.globalAlpha = .3 + .35 * Math.sin(tm * 3 + p.ph); ctx.fillStyle = p.w ? '#fff' : col; ctx.beginPath(); ctx.arc(p.x * W, y * H, p.s * (1 + sv / 10), 0, Math.PI * 2); ctx.fill(); }
           ctx.globalAlpha = 1;
-          drawCrown(ctx, W / 2, H * .36, Math.min(W, H) * .17, sv, tm, !!C3);
-          if (C3) { C3.set(sv); C3.frame(tm, rm ? 0 : dt); }
+          drawCrownFx(ctx, W / 2, H * .36, Math.min(W, H) * .17, sv, tm, col);
+          const L = crownLook(sv, tm);
+          crown.style.transform = `translate(-50%, -50%) rotate(${L.tilt.toFixed(2)}deg) scale(${L.scale.toFixed(3)})`;
+          crown.style.setProperty('--q', L.q.toFixed(3)); crown.style.setProperty('--draw', (1 - L.draw).toFixed(3));
+          spears.forEach((sp, i) => sp.classList.toggle('on', L.lit[i]));
+          crown.classList.toggle('max', sv >= 9.95);
           raf = requestAnimationFrame(frame);
         };
         raf = requestAnimationFrame(frame);
@@ -14337,7 +14338,7 @@
      Hábitos, carpetas, retos, rutinas, chats, grupos, libretas compartidas y eventos se borran (o se dejan) con confirmación;
      el resto de tarjetas (mascota, energía, contrato, gráficas…) solo se ocultan y se recuperan en Ajustes. */
   const JIG_SEL = '.habit-grid > .habit, .habit-grid > .folder, .proj.finished, .today-row[data-trow], .routine-card[data-rid], .chat-sw, .ev-card[data-ev-open], [data-w]';
-  const HW = { dayrate: '⭐', contract: '📜', insights: '💡', reviews: '📝', ledPie: '🥧' };
+  const HW = { dayrate: '⭐', insights: '💡', reviews: '📝', ledPie: '🥧' };
   let jiggle = false, jgTimer = null, jigBlockClick = false;
   function enterJiggle() {
     if (jiggle) return;

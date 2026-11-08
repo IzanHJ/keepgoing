@@ -144,9 +144,7 @@
 .crown .ri-ends { color: rgba(255,255,255,.6); }
 .crown .ri-bot { max-width: 560px; width: 100%; margin: 0 auto; }
 .crown .ri-bot .btn:not(.primary) { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.16); box-shadow: none; }
-.crown .ri-bot .btn.primary { background: linear-gradient(135deg, #ffe08a, #ffb020); color: #2b1a00; box-shadow: 0 8px 30px rgba(255, 176, 32, .4); }
-.crown .ri-range::-webkit-slider-runnable-track { background: linear-gradient(90deg, #6b4a2b, #c99a3a, #ffd34d, #ff2d55, #b44dff, #2f7bff); }
-.crown .ri-range::-moz-range-track { background: linear-gradient(90deg, #6b4a2b, #c99a3a, #ffd34d, #ff2d55, #b44dff, #2f7bff); }
+.crown .ri-bot .btn.primary { background: var(--rc); color: #111; box-shadow: 0 8px 30px color-mix(in srgb, var(--rc) 40%, transparent); }
 /* tarjeta «¿Qué tal tu día?» con la corona */
 .rate-crown { flex: none; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; color: var(--rc); background: color-mix(in srgb, var(--rc) 16%, transparent); }
 .rate-crown.on { box-shadow: 0 0 18px color-mix(in srgb, var(--rc) 45%, transparent); }
@@ -276,11 +274,18 @@
 @keyframes kgRise { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 :root:is([data-motion="soft"], [data-motion="off"]) .streak-flame { animation: none; }
 
-/* v1.39: corona 3D de la valoración (encima del lienzo de rayos y chispas; se gira con el dedo) */
-.ri-3d { position: absolute; left: 50%; top: 36%; width: 60vmin; height: 60vmin; transform: translate(-50%, -50%); z-index: 0; touch-action: none; cursor: grab; opacity: 0; transition: opacity .5s; }
-.ri.c3d .ri-3d { opacity: 1; }
-.ri-3d:active { cursor: grabbing; }
-:root[data-motion="off"] .ri-3d { transition: none; }
+/* v1.56: la corona de la valoración es el logo de KeepGoing, plano y del color de la nota (--rc). JS pone transform,
+   --q (0-1), --draw (lo que falta por dibujar de las curvas) y .on en cada llama encendida. */
+.ri-crown { position: absolute; left: 50%; top: 36%; z-index: 0; width: min(52vmin, 250px); aspect-ratio: 1; color: var(--rc); pointer-events: none;
+  filter: drop-shadow(0 0 calc(2px + var(--q, 0) * 12px) color-mix(in srgb, var(--rc) 55%, transparent)); }
+.ri-crown .kg-logo { width: 100%; height: 100%; overflow: visible; }
+.ri-crown .kl-sp path { fill: currentColor; fill-opacity: .2;
+  transform-box: fill-box; transform-origin: 50% 100%; transform: scaleY(.82); transition: fill-opacity .35s, transform .45s cubic-bezier(.3, 1.6, .5, 1); }
+.ri-crown .kl-sp path.on { fill-opacity: 1; transform: none; }
+.ri-crown .kl-cv path { stroke-dasharray: 1; stroke-dashoffset: var(--draw, 1); transition: stroke-dashoffset .3s; }
+.ri-crown .kl-rb { opacity: calc(.45 + var(--q, 0) * .55); }
+.ri-crown.max .kl-sp path.on { fill: color-mix(in srgb, var(--rc) 55%, #fff); }
+:root[data-motion="off"] .ri-crown :is(.kl-sp path, .kl-cv path) { transition: none; }
 
 /* v1.39: Ajustes → Sonido */
 .au-row { align-items: center; }
@@ -342,3 +347,24 @@
 @keyframes orbEvolve { 0% { transform: scale(1); filter: none; } 30% { transform: scale(.82); filter: brightness(1.6); } 60% { transform: scale(1.2); filter: brightness(1.3) saturate(1.4); } 100% { transform: none; filter: none; } }
 :root:is([data-motion="soft"], [data-motion="off"]) :is(.orb-aura, .orb-aura::after, .orb-aura::before, .orb-aura i) { animation: none !important; }
 :root:is([data-motion="soft"], [data-motion="off"]) .orb-aura i { transform: rotate(calc(var(--k) * 60deg)) translateX(46px); }
+
+/* v1.56: contrato con el orbe. Mantener pulsado 3 s: un anillo se llena alrededor del orbe (--ctp de 0 a 1) y el orbe
+   tiembla cada vez más; al completarse, un círculo del color de acento con el sello del contrato llena la pantalla. */
+.orb.ct-charge::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(var(--fg) calc(var(--ctp, 0) * 360deg), color-mix(in srgb, var(--fg) 14%, transparent) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  filter: drop-shadow(0 0 calc(4px + var(--ctp, 0) * 14px) var(--accent)); }
+.orb-nav .orb.ct-charge .kg-logo { animation: ctShake .12s linear infinite; --sh: calc(var(--ctp, 0) * 2.4px); }
+@keyframes ctShake { 0%, 100% { translate: 0 0; } 25% { translate: var(--sh) calc(var(--sh) * -1); } 50% { translate: calc(var(--sh) * -1) 0; } 75% { translate: 0 var(--sh); } }
+.ct-warp { position: fixed; inset: 0; z-index: 9000; pointer-events: none; display: grid; place-items: center; }
+.ctw-bg { position: absolute; inset: 0; background: radial-gradient(circle at var(--ox) var(--oy), color-mix(in srgb, var(--accent) 65%, #fff) 0%, var(--accent) 30%, color-mix(in srgb, var(--accent) 55%, var(--bg)) 100%);
+  clip-path: circle(0 at var(--ox) var(--oy)); animation: ctwOpen .75s cubic-bezier(.7, 0, .2, 1) forwards; }
+.ctw-ring { position: absolute; left: var(--ox); top: var(--oy); width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 3px solid var(--accent-ink); opacity: 0; animation: ctwRing .8s .1s ease-out forwards; }
+.ctw-seal { position: relative; display: grid; justify-items: center; gap: 10px; color: var(--accent-ink); opacity: 0; transform: scale(.4) rotate(-14deg); animation: ctwSeal .55s .38s cubic-bezier(.3, 1.6, .5, 1) forwards; }
+.ctw-seal svg.i { width: 76px; height: 76px; }
+.ctw-seal b { font-size: 22px; font-weight: var(--fw-title, 800); letter-spacing: .02em; }
+.ct-warp.out { animation: kgFadeOut .55s ease forwards; }
+@keyframes ctwOpen { to { clip-path: circle(150vmax at var(--ox) var(--oy)); } }
+@keyframes ctwRing { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(14); } }
+@keyframes ctwSeal { to { opacity: 1; transform: none; } }
+:root:is([data-motion="soft"], [data-motion="off"]) .orb-nav .orb.ct-charge .kg-logo { animation: none; }

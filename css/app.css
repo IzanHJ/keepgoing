@@ -2737,6 +2737,13 @@ body.zc-grabbing, body.zc-grabbing * { cursor: grabbing !important; user-select:
 .rg-flash { animation: rgFlash 1.2s ease 2; }
 :root:is([data-motion="soft"], [data-motion="off"]) .rg-flash { outline: 3px solid var(--accent); }
 
+/* v1.56: Hábitos y Proyectos. Las vistas (Hoy, Todos, Retos) son botones sueltos, no una barra de pestañas */
+.view-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.view-btns .vb { min-height: 42px; padding: 0 16px; font-size: 15px; gap: 7px; }
+.view-btns .vb svg.i { width: 18px; height: 18px; }
+:root[data-style="minimal"] .view-btns .vb:not(.on) { box-shadow: none; border: 1px solid var(--line); }
+@media (max-width: 380px) { .view-btns { gap: 8px; } .view-btns .vb { padding: 0 12px; font-size: 14px; } }
+
 /* v1.52: Patrimonio actual y proyectado plegables bajo la cifra */
 .wo-fold { margin-top: 2px; }
 .wo-fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; margin: 0 auto; width: max-content; max-width: 100%; padding: 6px 14px; border-radius: 999px; background: var(--surface-2); color: var(--fg); font-size: 13px; font-weight: var(--fw-ui); }
