@@ -206,13 +206,15 @@
     const easeIn = x => x * x;
     /* v1.48: la cámara gira alrededor de su punto (con el dedo o el ratón, y sola en el modo cine del Replay) */
     const CAMS = { globe: [[0, 0.6, 6.2], [0, 0, 0]], travel: [[-4.6, 2.6, 4.2], [0.6, 0.5, 0]], scene: [[6.4, 5.2, 7.2], [0, 0.8, 0]] };
-    const ORB = { k: 'scene', pitch: 0, az: 0, vy: 0, drag: null, moved: false, idleAt: 0, cin: false, punch: 0 };
+    const ORB = { k: 'scene', pitch: 0, az: 0, vy: 0, drag: null, moved: false, idleAt: 0, cin: false, punch: 0, z: 1, zt: 1 };
+    /* v1.52: zoom (pellizco, Ctrl+rueda o los botones +/−). 1 = como siempre; acerca hasta ×3 y aleja hasta ×0,7 */
+    const ZMIN = 0.7, ZMAX = 3, zc = v => Math.max(ZMIN, Math.min(ZMAX, v));
     const tgt = new THREE.Vector3();
     function applyCam(now = performance.now()) {
       const [p, q] = CAMS[ORB.k]; tgt.set(q[0], q[1], q[2]);
       const vx = p[0] - q[0], vy = p[1] - q[1], vz = p[2] - q[2], r0 = Math.hypot(vx, vy, vz);
       const el = Math.max(0.06, Math.min(1.32, Math.asin(vy / r0) + (ORB.k === 'globe' ? 0 : ORB.pitch))), az = Math.atan2(vx, vz) + (ORB.k === 'globe' ? 0 : ORB.az);
-      const pk = ORB.punch ? Math.max(0, 1 - (now - ORB.punch) / 650) : 0, r = r0 * (1 - (ORB.cin ? 0.05 + 0.04 * Math.sin(now / 1900) : 0) - 0.1 * Math.sin(pk * Math.PI));
+      const pk = ORB.punch ? Math.max(0, 1 - (now - ORB.punch) / 650) : 0, r = r0 / ORB.z * (1 - (ORB.cin ? 0.05 + 0.04 * Math.sin(now / 1900) : 0) - 0.1 * Math.sin(pk * Math.PI));
       camera.position.set(q[0] + r * Math.cos(el) * Math.sin(az), q[1] + r * Math.sin(el), q[2] + r * Math.cos(el) * Math.cos(az)); camera.lookAt(tgt);
     }
     const setCam = k => { const ch = ORB.k !== k; ORB.k = k; applyCam(); if (ch && amb && amb.pal) paintAmb(amb.pal); };
@@ -305,8 +307,18 @@
       } else { cur.rotation.y += dx; if (dy) ORB.pitch = Math.max(-0.7, Math.min(0.6, ORB.pitch + dy)); applyCam(); }
     };
     let eatClick = 0;
-    canvas.addEventListener('pointerdown', e => { if (e.button > 0) return; ORB.drag = { x: e.clientX, y: e.clientY, id: e.pointerId, mouse: e.pointerType === 'mouse' }; ORB.moved = false; ORB.vy = 0; });
+    // dedos en pantalla: con dos, se pellizca (acercar/alejar) en vez de girar
+    const PTS = new Map(); let pinch = null;
+    const pdist = () => { const [a, b] = [...PTS.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+    canvas.addEventListener('pointerdown', e => {
+      if (e.button > 0) return; PTS.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (PTS.size === 2) { ORB.drag = null; ORB.vy = 0; pinch = { d: pdist(), z: ORB.zt }; eatClick = performance.now() + 400; for (const id of PTS.keys()) { try { canvas.setPointerCapture(id); } catch (er) { /* nada */ } } return; }
+      if (PTS.size > 2) return;
+      ORB.drag = { x: e.clientX, y: e.clientY, id: e.pointerId, mouse: e.pointerType === 'mouse' }; ORB.moved = false; ORB.vy = 0;
+    });
     canvas.addEventListener('pointermove', e => {
+      if (PTS.has(e.pointerId)) PTS.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && PTS.size >= 2) { e.preventDefault(); zoomTo(pinch.z * pdist() / pinch.d, true); eatClick = performance.now() + 400; return; }
       const d = ORB.drag; if (!d || e.pointerId !== d.id) return;
       const dx = e.clientX - d.x, dy = e.clientY - d.y;
       if (!ORB.moved) { if (Math.hypot(dx, dy) < 7) return; if (!d.mouse && Math.abs(dy) > Math.abs(dx)) { ORB.drag = null; return; } ORB.moved = true; try { canvas.setPointerCapture(e.pointerId); } catch (er) { /* nada */ } stage && stage.classList.add('grabbing'); }
@@ -314,10 +326,22 @@
       if (motion === 'full') kick(); else draw();
     });
     const release = e => {
+      if (e && PTS.delete(e.pointerId) && pinch && PTS.size < 2) { pinch = null; ORB.idleAt = performance.now(); eatClick = ORB.idleAt; return; }
       const d = ORB.drag; if (!d || (e && e.pointerId !== d.id)) return; ORB.drag = null; stage && stage.classList.remove('grabbing');
       if (ORB.moved) { eatClick = performance.now(); ORB.idleAt = eatClick; if (motion !== 'full') ORB.vy = 0; kick(); }
     };
     canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release); canvas.addEventListener('lostpointercapture', release);
+    // Ctrl+rueda (y el pellizco del trackpad, que llega así) acerca o aleja; la rueda sola sigue moviendo la página
+    canvas.addEventListener('wheel', e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); zoomTo(ORB.zt * Math.exp(-e.deltaY * 0.01), true); }, { passive: false });
+    // zoomTo(z, now): now = sin transición (pellizco y rueda siguen al dedo); los botones van suaves
+    function zoomTo(z, now) {
+      const v = zc(z); if (Math.abs(v - ORB.zt) < 1e-4 && (!now || Math.abs(v - ORB.z) < 1e-4)) return ORB.zt;
+      ORB.zt = v; ORB.idleAt = performance.now();
+      if (now || motion === 'off') { ORB.z = v; applyCam(); draw(); } else kick();
+      if (opts.onZoom) opts.onZoom(v, ZMIN, ZMAX);
+      return v;
+    }
+    const zoomBy = f => zoomTo(ORB.zt * f), zoomReset = () => zoomTo(1);
     // tras girar, soltar no cuenta como toque (no abre Mundo)
     canvas.addEventListener('click', e => { if (performance.now() - eatClick < 350) { e.stopPropagation(); e.preventDefault(); } }, true);
     // modo cine del Replay: la cámara rodea despacio y da un pequeño empujón en cada paso
@@ -410,11 +434,12 @@
       ambTick(now); partTick(now, dt);
       for (const c of clouds.children) { c.position.x += c.userData.v * dt; if (c.position.x > 11) c.position.x = -11; }
       if (ORB.cin) ORB.az += dt * 0.22;
+      if (Math.abs(ORB.zt - ORB.z) > 1e-3) { ORB.z += (ORB.zt - ORB.z) * Math.min(1, dt * 12); applyCam(now); } else if (ORB.z !== ORB.zt) { ORB.z = ORB.zt; applyCam(now); }
       if (ORB.cin || ORB.punch) { applyCam(now); if (ORB.punch && now - ORB.punch > 650) ORB.punch = 0; }
       // en reposo, giro muy lento del diorama (solo con calidad alta y animaciones completas); tras girarlo a mano, espera un poco
       if (mode === 'idle' && cur && !low && motion === 'full' && !(cur.userData.flight) && !ORB.drag && !ORB.cin && now - ORB.idleAt > 4000) cur.rotation.y += dt * 0.12;
       draw();
-      if (mode !== 'idle' || (!low && motion === 'full') || (pKind && parts.visible) || Math.abs(ORB.vy) > 0.0004 || amb.to || ORB.cin || ORB.punch) raf = requestAnimationFrame(tick);
+      if (mode !== 'idle' || (!low && motion === 'full') || (pKind && parts.visible) || Math.abs(ORB.vy) > 0.0004 || amb.to || ORB.cin || ORB.punch || ORB.z !== ORB.zt) raf = requestAnimationFrame(tick);
     }
     const kick = () => { if (!raf && alive && visible && motion !== 'off') { last = 0; raf = requestAnimationFrame(tick); } };
     function setVisible(v) { visible = v; if (v) kick(); else if (raf) { cancelAnimationFrame(raf); raf = 0; } }
@@ -427,7 +452,7 @@
       renderer.dispose(); try { renderer.forceContextLoss(); } catch (e) { /* nada */ }
     }
     paintAmb(amb.pal); resize();
-    return { show, resize, setVisible, dispose, draw, setAmbient, cinema, pulse, setAmbientOn: v => { amb.on = !!v; } };
+    return { show, resize, setVisible, dispose, draw, setAmbient, cinema, pulse, zoomBy, zoomReset, zoomTo, zoom: () => ORB.zt, setAmbientOn: v => { amb.on = !!v; } };
   }
   // ¿Hay WebGL? Si no, Mundo usa su versión fija (iconos y texto)
   function supported() { try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch (e) { return false; } }
