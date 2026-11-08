@@ -1,11 +1,11 @@
-/* KeepGoing — textos de la v1.52: Patrimonio desplegable, Comparar con la Proyección actual o varias guardadas,
+/* KeepGoing — textos de la v1.54: Patrimonio desplegable, Comparar con la Proyección actual o varias guardadas,
    números de comparación y una sola gráfica de Ingresos y gastos con filtro (ES / EN). */
 (function () {
   const es = {
-    wn_1_52_0_1: 'Patrimonio más limpio|El Patrimonio actual y el Patrimonio proyectado de la Calculadora enseñan solo la cifra y su retorno. Toca «Ver detalles» para desplegar el desglose, tus inversiones y el gráfico. Se recuerda cómo lo dejaste.',
-    wn_1_52_0_2: 'Comparar, a tu manera|En el Patrimonio actual, «Comparar» te deja elegir entre la Proyección actual (lo que tengas ahora en la Calculadora, guardado o no) y tus Proyecciones guardadas, con varias a la vez.',
-    wn_1_52_0_3: 'Números que enseñan|Al comparar ves lo que la proyección esperaba para hoy, cuánto vas por delante o por detrás, tu ritmo frente al previsto, dónde acabarías a tu ritmo y cuándo llegarías a su final.',
-    wn_1_52_0_4: 'Una sola gráfica|Fuera «Evolución» y «Filtrar por categoría y fechas»: ahora «Ingresos y gastos» tiene 12 meses, fechas a mano y filtro por categoría o evento, con sus totales.',
+    wn_1_54_0_1: 'Patrimonio más limpio|El Patrimonio actual y el Patrimonio proyectado de la Calculadora enseñan solo la cifra y su retorno. Toca «Ver detalles» para desplegar el desglose, tus inversiones y el gráfico. Se recuerda cómo lo dejaste.',
+    wn_1_54_0_2: 'Comparar, a tu manera|En el Patrimonio actual, «Comparar» te deja elegir entre la Proyección actual (lo que tengas ahora en la Calculadora, guardado o no) y tus Proyecciones guardadas, con varias a la vez.',
+    wn_1_54_0_3: 'Números que enseñan|Al comparar ves lo que la proyección esperaba para hoy, cuánto vas por delante o por detrás, tu ritmo frente al previsto, dónde acabarías a tu ritmo y cuándo llegarías a su final.',
+    wn_1_54_0_4: 'Una sola gráfica|Fuera «Evolución» y «Filtrar por categoría y fechas»: ahora «Ingresos y gastos» tiene 12 meses, fechas a mano y filtro por categoría o evento, con sus totales.',
     foldMore: 'Ver detalles', foldLess: 'Ocultar detalles',
     ledDates: 'Fechas',
     woCurProj: 'Proyección actual', woCmpMulti: 'Puedes elegir varias.',
@@ -25,10 +25,10 @@
     woStHint: 'Tu ritmo es la media de ingresos menos gastos de los últimos 3 meses completos; la proyección incluye además la rentabilidad que supusiste.'
   };
   const en = {
-    wn_1_52_0_1: 'Cleaner net worth|Current net worth and the Calculator’s projected net worth now show just the figure and its return. Tap “See details” to open the breakdown, your investments and the chart. It remembers how you left it.',
-    wn_1_52_0_2: 'Compare your way|In Current net worth, “Compare” lets you choose between the Current projection (whatever is in the Calculator now, saved or not) and your Saved projections, several at once.',
-    wn_1_52_0_3: 'Numbers that teach|When comparing you see what the projection expected for today, how far ahead or behind you are, your pace versus the planned one, where you would end at your pace and when you would reach its final value.',
-    wn_1_52_0_4: 'One chart|“Over time” and “Filter by category and dates” are gone: “Income and expenses” now has 12 months, custom dates and a category or event filter, with its totals.',
+    wn_1_54_0_1: 'Cleaner net worth|Current net worth and the Calculator’s projected net worth now show just the figure and its return. Tap “See details” to open the breakdown, your investments and the chart. It remembers how you left it.',
+    wn_1_54_0_2: 'Compare your way|In Current net worth, “Compare” lets you choose between the Current projection (whatever is in the Calculator now, saved or not) and your Saved projections, several at once.',
+    wn_1_54_0_3: 'Numbers that teach|When comparing you see what the projection expected for today, how far ahead or behind you are, your pace versus the planned one, where you would end at your pace and when you would reach its final value.',
+    wn_1_54_0_4: 'One chart|“Over time” and “Filter by category and dates” are gone: “Income and expenses” now has 12 months, custom dates and a category or event filter, with its totals.',
     foldMore: 'See details', foldLess: 'Hide details',
     ledDates: 'Dates',
     woCurProj: 'Current projection', woCmpMulti: 'You can pick several.',
