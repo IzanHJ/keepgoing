@@ -1,4 +1,4 @@
-/* KeepGoing — Gimnasio (v1.30): lógica pura, sin DOM.
+/* KeepGoing — Entrenamiento (antes Gimnasio, v1.30; deportes desde la v1.57 en js/sports.js): lógica pura, sin DOM.
    Catálogo de ejercicios propio (ES / EN), series, volumen, récords, músculos trabajados y resúmenes por periodo
    para la pestaña Gimnasio, el diario semanal y el hábito de entrenamiento vinculado.
    Escrito para KeepGoing a partir de las ideas de openGym (rutinas, series, mapa de músculos); no reutiliza su código.
@@ -153,9 +153,14 @@
   // Uno-máximo estimado (Epley); solo con repeticiones razonables
   const e1rm = (w, r) => (w > 0 && r > 0 && r <= 15) ? Math.round(w * (1 + (r === 1 ? 0 : r / 30)) * 10) / 10 : 0;
 
-  // Músculos de un entrenamiento: series hechas por músculo (principal = 1, secundario = 0,5)
+  // v1.57: los deportes (js/sports.js → KGSport) se cargan aparte; en Node se piden con require
+  const SP = () => root.KGSport || (typeof require === 'function' ? (() => { try { return require('./sports.js'); } catch (e) { return null; } })() : null);
+  const isSport = w => !!(w && w.sp && SP() && SP().get(w.sp));
+  const minutesOf = w => w.end && w.start ? Math.max(0, Math.round((w.end - w.start) / 60000)) : (+w.min || 0);
+  // Músculos de un entrenamiento: series hechas por músculo (principal = 1, secundario = 0,5).
+  // v1.57: en un deporte, los músculos del deporte según los minutos (KGSport.muscles)
   function musclesOf(w, custom) {
-    const out = {};
+    const out = isSport(w) ? SP().muscles(w.sp, minutesOf(w)) : {};
     (w.ex || []).forEach(x => {
       const e = exercise(x.eid, custom); if (!e) return;
       const n = (x.sets || []).filter(isWork).length; if (!n) return;
@@ -173,7 +178,8 @@
         if (kind === 'c') { cardioMin += (+st.s || 0) / 60; km += +st.d || 0; }
       });
     });
-    const minutes = w.end && w.start ? Math.max(0, Math.round((w.end - w.start) / 60000)) : (+w.min || 0);
+    const minutes = minutesOf(w);
+    if (isSport(w) && w.res && w.res.km) km += +w.res.km || 0;
     return { sets, volume: Math.round(volume), reps, minutes, cardioMin: Math.round(cardioMin), km: Math.round(km * 10) / 10, muscles: musclesOf(w, custom) };
   }
   const isDone = w => w && w.status === 'done' && RE_DATE.test(w.date || '');
@@ -259,6 +265,8 @@
         prev[x.eid] = top;
         items.push({ eid: x.eid, kind, sets: sets.length, rMin: reps.length ? Math.min(...reps) : 0, rMax: reps.length ? Math.max(...reps) : 0, sec: Math.max(0, ...sets.map(s => +s.s || 0)), km: Math.round(sets.reduce((a, s) => a + (+s.d || 0), 0) * 100) / 100, min: Math.round(sets.reduce((a, s) => a + (+s.s || 0), 0) / 60), top, delta, first: !p });
       });
+      // v1.57: una sesión de deporte es una línea con su duración y su resumen
+      if (isSport(w)) items.push({ sp: w.sp, kind: 'sp', min: minutesOf(w), st: w.st || [], ev: w.ev || [], res: w.res || null, wid: w.id, top: { v: 0, u: '' }, delta: 0 });
       if (!items.length || (from && w.date < from)) return;
       const d = days.get(w.date) || { date: w.date, minutes: 0, sessions: 0, items: [] };
       d.minutes += workoutStats(w, custom).minutes; d.sessions++; d.items.push(...items); days.set(w.date, d);
@@ -327,6 +335,7 @@
     if (typeof w.hab === 'string') o.hab = w.hab.slice(0, 40);
     if (+w.prs > 0) o.prs = Math.min(99, Math.floor(+w.prs));
     if (w.mt) o.mt = w.mt;
+    if (SP()) Object.assign(o, SP().cleanSport(w)); else if (typeof w.sp === 'string') { o.sp = w.sp.slice(0, 20); ['st', 'ev'].forEach(k => { if (Array.isArray(w[k])) o[k] = w[k].slice(0, 20).map(x => String(x).slice(0, 20)); }); if (w.res && typeof w.res === 'object') o.res = w.res; }
     o.ex = (Array.isArray(w.ex) ? w.ex : []).slice(0, LIMITS.exPerWorkout).filter(x => x && typeof x.eid === 'string').map(x => ({ eid: x.eid.slice(0, 40), sets: (Array.isArray(x.sets) ? x.sets : []).slice(0, LIMITS.setsPerEx).map(cleanSet).filter(Boolean), ...(x.note ? { note: str(x.note, 200) } : {}), ...(+x.rest > 0 ? { rest: Math.min(+x.rest, 900) } : {}) }));
     return o;
   }
@@ -354,7 +363,7 @@
   }
   const starterRoutine = (key, lang, id) => { const s = STARTERS.find(x => x.key === key); return s ? { id, name: s.name[lang] || s.name.es, ex: s.ex.map(([eid, sets, reps]) => ({ eid, sets, reps })) } : null; };
 
-  const api = { addCatalogue, extraCount: () => EXTRA.length, MUSCLES, MUSCLE_NAME, GROUPS, CATALOGUE, STARTERS, KINDS, EQUIP, LIMITS, exercise, exName, search, isWork, setVolume, e1rm, musclesOf, workoutStats, summary, weekSummary, trainedOn, bests, newRecords, history, lastSets, weekStreak, logDays, rangeFrom, compareAt, topOf, suggestHabit, cleanSet, cleanWorkout, cleanRoutine, fromRoutine, starterRoutine };
+  const api = { isSport, minutesOf, addCatalogue, extraCount: () => EXTRA.length, MUSCLES, MUSCLE_NAME, GROUPS, CATALOGUE, STARTERS, KINDS, EQUIP, LIMITS, exercise, exName, search, isWork, setVolume, e1rm, musclesOf, workoutStats, summary, weekSummary, trainedOn, bests, newRecords, history, lastSets, weekStreak, logDays, rangeFrom, compareAt, topOf, suggestHabit, cleanSet, cleanWorkout, cleanRoutine, fromRoutine, starterRoutine };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KGGym = api;
 })(typeof window !== 'undefined' ? window : this);
