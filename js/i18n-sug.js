@@ -1,9 +1,9 @@
-/* KeepGoing — textos de las Propuestas de Organización (v1.57): lo que apuntas en Entrenamiento y en la Libreta sale como
+/* KeepGoing — textos de las Propuestas de Organización (v1.60): lo que apuntas en Entrenamiento y en la Libreta sale como
    propuesta de turno o nota a la misma hora (ES / EN). */
 (function () {
   const es = {
-    wn_1_57_0_1: 'Organización te propone lo que ya hiciste|Si terminas un entrenamiento de 15:00 a 17:00, en Organización aparece a esa hora un bloque con borde discontinuo: tócalo y añádelo como turno con un toque. Lo que apuntes a mano en la Libreta se propone como nota a la hora en que lo apuntaste.',
-    wn_1_57_0_2: 'Vincula y se recuerda|Puedes añadir la propuesta como turno o nota nuevos, o vincularla a un turno o una nota modular tuya. La próxima vez que entrenes igual o apuntes en esa categoría, la propuesta ya sale vinculada. «Propuestas» en la barra de herramientas las reúne todas para añadirlas de golpe.',
+    wn_1_60_0_1: 'Organización te propone lo que ya hiciste|Si terminas un entrenamiento de 15:00 a 17:00, en Organización aparece a esa hora un bloque con borde discontinuo: tócalo y añádelo como turno con un toque. Lo que apuntes a mano en la Libreta se propone como nota a la hora en que lo apuntaste.',
+    wn_1_60_0_2: 'Vincula y se recuerda|Puedes añadir la propuesta como turno o nota nuevos, o vincularla a un turno o una nota modular tuya. La próxima vez que entrenes igual o apuntes en esa categoría, la propuesta ya sale vinculada. «Propuestas» en la barra de herramientas las reúne todas para añadirlas de golpe.',
     sgTitle: 'Propuestas', sgOne: 'Propuesta',
     sgFromGym: 'Viene de un entrenamiento terminado. Añádelo a tu Organización a la misma hora.',
     sgFromLed: 'Viene de un movimiento que apuntaste en la Libreta. Añádelo como nota a la misma hora.',
@@ -19,8 +19,8 @@
     tfLy26_sug: 'Propuestas (de Entrenamiento y Libreta)'
   };
   const en = {
-    wn_1_57_0_1: 'Organisation suggests what you already did|Finish a workout from 15:00 to 17:00 and a dashed block appears at that time in Organisation: tap it to add it as a shift in one go. What you enter by hand in the Ledger is suggested as a note at the time you entered it.',
-    wn_1_57_0_2: 'Link it once, it is remembered|Add a suggestion as a new shift or note, or link it to one of your shifts or modular notes. Next time you do the same workout or use that category, the suggestion already comes linked. «Suggestions» in the toolbar gathers them all to add at once.',
+    wn_1_60_0_1: 'Organisation suggests what you already did|Finish a workout from 15:00 to 17:00 and a dashed block appears at that time in Organisation: tap it to add it as a shift in one go. What you enter by hand in the Ledger is suggested as a note at the time you entered it.',
+    wn_1_60_0_2: 'Link it once, it is remembered|Add a suggestion as a new shift or note, or link it to one of your shifts or modular notes. Next time you do the same workout or use that category, the suggestion already comes linked. «Suggestions» in the toolbar gathers them all to add at once.',
     sgTitle: 'Suggestions', sgOne: 'Suggestion',
     sgFromGym: 'From a finished workout. Add it to your Organisation at the same time.',
     sgFromLed: 'From an entry you made in the Ledger. Add it as a note at the same time.',
