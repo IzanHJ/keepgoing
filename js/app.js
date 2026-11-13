@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.57.0';
+  const VERSION = '1.58.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -5137,7 +5137,10 @@
     if (!state.onboarded) { app.innerHTML = renderOnboarding(); mountOnboarding(); return; }
     const cc = awardContract();
     // Contrato indefinido: al acabar cada periodo se entrega la carta y se renueva solo
-    if (cc && contractForever()) { const c = state.contract, s = todayKey(); c.signedAt = s; c.endsAt = contractEnd(s, false); c.renewals = (c.renewals || 0) + 1; c.level = state.commitment; delete c.trial; save(); }
+    // v1.57: con el contrato indefinido la renovación espera a la pantalla de «Contrato cumplido» (botón «Renovar»);
+    // si no hay pantalla pendiente (p. ej. se cerró la app antes), se renueva sola como antes
+    if (cc) ctHold = true;
+    else if (!ctHold && contractForever() && contractEnded()) { const c = state.contract, s = todayKey(); c.signedAt = s; c.endsAt = contractEnd(s, false); c.renewals = (c.renewals || 0) + 1; c.level = state.commitment; delete c.trial; save(); }
     const ti = TABS.findIndex(x => x[0] === state.ui.tab), pos = viewPos();
     // Animación de entrada solo si cambia la vista: se desliza hacia la derecha o la izquierda según el orden
     const anim = lastView === null ? 'anim-in' : lastView.key === pos.key ? 'no-anim' : (pos.n > lastView.n ? 'anim-fwd' : 'anim-back');
@@ -6957,20 +6960,119 @@
     return cv;
   }
   function openContractCard(cc, celebrate = false) {
-    const c = state.contract, ended = c && diffDays(todayKey(), c.endsAt) < 0;
+    if (celebrate) return openContractDone(cc);
+    const c = state.contract;
     openModal({
       cls: 'card-view',
-      body: `<div class="flip ${celebrate ? 'unlock-burst' : ''}" style="cursor:default"><div class="flip-inner">${contractCardHtml(cc)}</div></div>
-        <div class="card-view-cap">${celebrate ? `<div class="ach-title" style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(t('contractDone'))}!</div><small>${esc(t('contractDoneMsg'))}</small>` : `${esc(t('tier_' + cc.tier))} · ${esc(fmtDate(cc.end))}`}</div>
-        <div class="row wrap" style="justify-content:center;margin-top:16px">${celebrate && ended ? `<button class="btn primary" data-m="renew">${ico('refresh')} ${esc(t('contractRenew'))}</button>` : ''}${c && c.witness ? `<button class="btn" data-m="witness">${ico('mail')} ${esc(t('witnessSendResult'))}</button>` : ''}<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
-      onClick: (e, close) => {
+      body: `<div class="flip" style="cursor:default"><div class="flip-inner">${contractCardHtml(cc)}</div></div>
+        <div class="card-view-cap">${esc(t('tier_' + cc.tier))} · ${esc(fmtDate(cc.end))}</div>
+        <div class="row wrap" style="justify-content:center;margin-top:16px">${c && c.witness ? `<button class="btn" data-m="witness">${ico('mail')} ${esc(t('witnessSendResult'))}</button>` : ''}<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button><button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
+      onClick: e => {
         if (e.target.closest('[data-m="witness"]')) witnessMail(state.contract, 'result', cc);
         if (e.target.closest('[data-m="share"]')) shareCanvas(() => contractCanvas(cc), `keepgoing-contrato-${cc.end}.png`, t('contractDone'));
-        if (e.target.closest('[data-m="renew"]')) { close(); renewContract(); }
       },
-      onMount: w => achieveFx(w, null, !celebrate)
+      onMount: w => achieveFx(w, null, true)
     });
-    if (celebrate) vibrate([20, 40, 20]);
+  }
+  /* v1.57: CONTRATO CUMPLIDO a pantalla completa. Fondo del color del nivel (oro, plata, bronce), la carta en grande y un
+     botón «Renovar» que late. Al pulsarlo, la carta gira, por detrás aparece la carta del periodo nuevo con el sello
+     vacío y la corona baja como un sello de lacre y la estampa (onda de luz, chispas y vibración). Con el plan indefinido
+     el contrato ya no se renueva solo en cuanto acaba: espera a esta pantalla; si se cierra sin pulsar «Renovar», se
+     renueva igual que antes (ctHold evita que otro render lo haga mientras la pantalla está pendiente). */
+  let ctHold = false;
+  const contractEnded = () => { const c = state.contract; return !!c && diffDays(todayKey(), c.endsAt) < 0; };
+  function contractRenewedHtml(cc) {
+    const c = state.contract, [tc, t2] = TIER_COLORS[cc.tier] || TIER_COLORS.bronce;
+    const s = todayKey(), e = contractEnd(s, false), lvl = (c && c.level) || state.commitment || 'serio';
+    return `<div class="ccard cc-new" style="--t:${tc};--t2:${t2}"><div class="cc-in">
+      <div class="cc-top">KEEPGOING</div>
+      <div class="cc-seal cc-seal-empty"><span class="cc-seal-ico">${ico('crown')}</span></div>
+      <div class="cc-title">${esc(t('ctRenewedCard'))}</div>
+      <div class="cc-name">${esc(cc.name)}</div>
+      <div class="cc-dates">${esc(fmtShort(s))} – ${esc(fmtShort(e))}</div>
+      <div><div class="cc-big">${diffDays(s, e) + 1}</div><div class="cc-lbl">${esc(t('ctRenewedDays'))}</div></div>
+      <div class="cc-stats"><div><b>${esc(t('ctPeriodN', { n: (c && c.renewals || 0) + 2 }))}</b><span>${esc(t('ctRenewedPeriod'))}</span></div><div><b>${state.contractCards.length}</b><span>${esc(t('contractCards'))}</span></div></div>
+      <div class="cc-tier">${esc(t('commit_' + lvl))}</div>
+      <div class="cc-serial">${esc(t('masterySerial', { n: String(cc.serial).padStart(4, '0') }))}</div>
+    </div></div>`;
+  }
+  function openContractDone(cc) {
+    const c = state.contract, [tc] = TIER_COLORS[cc.tier] || TIER_COLORS.bronce;
+    let renewed = false;
+    const canRenew = contractEnded();
+    openModal({
+      cls: 'card-view ct-done',
+      body: `<div class="ctd-top"><span class="ctd-eyebrow">${esc(t('masterySerial', { n: String(cc.serial).padStart(4, '0') }))}</span><button class="icon-btn sm ctd-x" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button></div>
+        <div class="ctd-stage"><div class="flip unlock-burst" style="cursor:default"><div class="flip-inner">${contractCardHtml(cc)}</div></div></div>
+        <div class="ctd-foot">
+          <div class="card-view-cap"><div class="ach-title">${esc(t('contractDone'))}!</div><small>${esc(t(canRenew ? 'contractDoneMsg' : 'ctDoneNoRenew'))}</small></div>
+          ${canRenew ? `<button class="ctd-renew" data-m="renew"><span class="ctd-renew-glow" aria-hidden="true"></span>${ico('refresh')}<span>${esc(t('ctRenewBtn'))}</span></button>` : ''}
+          <div class="ctd-acts">${c && c.witness ? `<button class="btn sm ghost" data-m="witness">${ico('mail')} ${esc(t('witnessSendResult'))}</button>` : ''}<button class="btn sm ghost" data-m="share">${ico('upload')} ${esc(t('share'))}</button>${canRenew ? '' : `<button class="btn sm ghost" data-m="x">${esc(t('close'))}</button>`}</div>
+        </div>
+        <div class="ctd-after" hidden><div class="card-view-cap"><div class="ctd-after-t">${esc(t('ctRenewedTitle'))}</div><small class="ctd-after-s"></small></div><button class="btn primary ctd-go" data-m="x">${esc(t('ctGo'))}</button></div>`,
+      onClick: (e, close, w) => {
+        if (e.target.closest('[data-m="witness"]')) witnessMail(state.contract, 'result', cc);
+        if (e.target.closest('[data-m="share"]')) shareCanvas(() => contractCanvas(cc), `keepgoing-contrato-${cc.end}.png`, t('contractDone'));
+        if (e.target.closest('[data-m="renew"]') && !renewed) { renewed = true; ctRenewFx(w, cc); }
+      },
+      onMount: w => { w.classList.add('ctd-wrap'); w.style.setProperty('--tier', tc); achieveFx(w, tc, false); },
+      onClose: () => {
+        ctHold = false;
+        // Plan indefinido: si se cierra sin pulsar «Renovar», se renueva solo como siempre
+        if (!renewed && contractForever() && contractEnded()) { renewContract(true); }
+      }
+    });
+    vibrate([20, 40, 20]);
+  }
+  function ctRenewFx(w, cc) {
+    const newFace = contractRenewedHtml(cc);
+    renewContract(true);
+    const c = state.contract, after = $('.ctd-after', w);
+    $('.ctd-after-s', w).textContent = t('ctRenewedUntil', { date: fmtDate(c.endsAt) });
+    const flip = $('.flip', w), inner = $('.flip-inner', w), foot = $('.ctd-foot', w);
+    const showAfter = () => { foot.hidden = true; after.hidden = false; };
+    if (reducedMotion() || !inner.animate) {
+      inner.innerHTML = newFace; $('.cc-seal', inner).classList.remove('cc-seal-empty'); showAfter(); sfx('levelup'); vibrate(30); return;
+    }
+    w.classList.add('ctd-renewing'); flip.classList.remove('unlock-burst'); flip.style.transform = 'none';
+    sfx('unlock'); vibrate(12);
+    foot.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(20px)' }], { duration: 260, fill: 'forwards' });
+    const ease = 'cubic-bezier(.5, 0, .75, 0)';
+    // 1) La carta gira hasta ponerse de canto…
+    inner.animate([{ transform: 'rotateY(0)' }, { transform: 'rotateY(90deg) scale(.94)' }], { duration: 340, easing: ease, fill: 'forwards' }).finished.then(() => {
+      // 2) …y vuelve con la carta del periodo nuevo y el sello vacío
+      inner.innerHTML = newFace;
+      return inner.animate([{ transform: 'rotateY(-90deg) scale(.94)' }, { transform: 'rotateY(0) scale(1)' }], { duration: 420, easing: 'cubic-bezier(.2, .9, .3, 1.15)', fill: 'forwards' }).finished;
+    }).then(() => {
+      // 3) La corona cae desde arriba como un sello de lacre
+      const seal = $('.cc-seal', inner), R = seal.getBoundingClientRect(), W = w.getBoundingClientRect();
+      const st = document.createElement('div'); st.className = 'ctd-stamp'; st.innerHTML = ico('crown'); st.setAttribute('aria-hidden', 'true');
+      st.style.left = (R.left - W.left + R.width / 2) + 'px'; st.style.top = (R.top - W.top + R.height / 2) + 'px'; st.style.setProperty('--s', R.width + 'px');
+      w.appendChild(st);
+      return st.animate([
+        { transform: 'translate(-50%, -50%) translateY(-38vh) scale(2.6) rotate(-14deg)', opacity: 0, filter: 'blur(6px)' },
+        { opacity: 1, filter: 'blur(0)', offset: .35 },
+        { transform: 'translate(-50%, -50%) translateY(-6vh) scale(1.6) rotate(-4deg)', offset: .78 },
+        { transform: 'translate(-50%, -50%) scale(.92) rotate(0)', opacity: 1 }
+      ], { duration: 620, easing: 'cubic-bezier(.55, 0, .9, .4)', fill: 'forwards' }).finished.then(() => st);
+    }).then(st => {
+      // 4) Impacto: el sello se llena, la carta se hunde un poco, onda de luz y chispas
+      const seal = $('.cc-seal', inner); seal.classList.remove('cc-seal-empty'); seal.classList.add('cc-seal-hit');
+      st.animate([{ opacity: 1 }, { opacity: 0, transform: 'translate(-50%, -50%) scale(1.15)' }], { duration: 260, fill: 'forwards' }).finished.then(() => st.remove());
+      flip.animate([{ transform: 'scale(1)' }, { transform: 'scale(.965)', offset: .25 }, { transform: 'scale(1.015)', offset: .6 }, { transform: 'scale(1)' }], { duration: 520, easing: 'ease-out' });
+      sfx('levelup'); vibrate([35, 30, 15]);
+      const R = seal.getBoundingClientRect(), W = w.getBoundingClientRect();
+      const x = R.left - W.left + R.width / 2, y = R.top - W.top + R.height / 2;
+      for (let i = 0; i < 3; i++) {
+        const ring = document.createElement('div'); ring.className = 'ctd-ring'; ring.style.left = x + 'px'; ring.style.top = y + 'px'; ring.style.animationDelay = (i * 120) + 'ms';
+        w.appendChild(ring); setTimeout(() => ring.remove(), 1400 + i * 120);
+      }
+      const sp = document.createElement('div'); sp.className = 'ctd-sparks'; sp.style.left = x + 'px'; sp.style.top = y + 'px';
+      sp.innerHTML = Array.from({ length: 18 }, (_, i) => `<i style="--a:${i * 20 + Math.random() * 10}deg;--d:${70 + Math.random() * 90}px;--z:${.6 + Math.random() * .8}"></i>`).join('');
+      w.appendChild(sp); setTimeout(() => sp.remove(), 1300);
+      w.classList.add('ctd-flash');
+      setTimeout(() => { showAfter(); after.animate([{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.23, 1, .32, 1)' }); }, 650);
+    }).catch(() => { inner.innerHTML = newFace; showAfter(); });
   }
 
   function openRanks() {
@@ -7055,10 +7157,10 @@
     save();
     if (witness) setTimeout(() => witnessMail(state.contract, 'sign'), 300);
   }
-  function renewContract() {
+  function renewContract(quiet = false) {
     const c = state.contract; if (!c) return;
     const s = todayKey(); c.signedAt = s; c.endsAt = contractEnd(s, false); c.renewals = (c.renewals || 0) + 1; c.level = state.commitment; delete c.trial;
-    save(); render(); toast(t('contractRenewed', { date: fmtDate(c.endsAt) }));
+    save(); render(); if (!quiet) toast(t('contractRenewed', { date: fmtDate(c.endsAt) }));
   }
   function openContract() {
     const c = state.contract;
@@ -7149,7 +7251,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.57', [['1.57.0', 6]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
