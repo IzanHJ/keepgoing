@@ -1,0 +1,62 @@
+/* KeepGoing — textos de la v1.61 del Chat: paquetes de stickers, búsqueda, gestos y menú de los mensajes, compartir,
+   apodos y perfiles amplios con banner y enlaces (ES / EN). */
+(function () {
+  const es = {
+    wn_1_61_0_1: 'Paquetes de stickers de WhatsApp|En Stickers, «Importar paquete» abre los archivos .wastickers: el paquete entra entero con su nombre y su icono, en su propia pestaña.',
+    wn_1_61_0_2: 'Busca en todos tus chats|Arriba del Chat hay una barra de búsqueda: encuentra mensajes de cualquier conversación, amigos, apodos y grupos mientras escribes. Toca un mensaje para ir a él.',
+    wn_1_61_0_3: 'Mensajes más limpios y con gestos|Desliza un mensaje a la izquierda para responder y a la derecha para ver la hora y eliminarlo. Mantén pulsado para reaccionar, copiar, reenviar a varios chats, fijar, editar (48 h) o ver la info.',
+    wn_1_61_0_4: 'Compartir renovado|El «+» del chat abre mosaicos de colores (foto, sticker, voz, hábito, proyecto, calendario e invitación) con buscador, vista previa y comentario.',
+    wn_1_61_0_5: 'Perfiles amplios y apodos|Toca el nombre de un chat para ver su perfil con banner, foto grande, enlaces y grupos en común. Pon apodos que solo ves tú. Toca una foto de la lista para verla en grande.',
+    wn_1_61_0_6: 'Banners y enlaces|Elige banner: fútbol, baloncesto, voleibol, dinero, ensueño, cinco paraísos, manos o tus emoticonos. Con Usuario KeepGoing, banner GIF y hasta 5 enlaces. Líder y Colíder cambian la foto, el banner y los enlaces del grupo.',
+    stkPackImport: 'Importar paquete', stkMine: 'Míos', stkPackRemove: 'Quitar paquete', stkPackRemoveQ: '¿Quitar el paquete «{name}» de este dispositivo?',
+    stkPackImported: '{n} stickers importados', stkPackBad: 'No se ha podido leer el paquete. Prueba con un archivo .wastickers o .zip con imágenes.',
+    stkPackOld: 'Este navegador no puede abrir paquetes. Actualiza iOS/Safari o Chrome.', stkPackFull: 'Caben hasta {n} stickers en este dispositivo. Quita algún paquete antes.',
+    stkPackHint: 'Desde WhatsApp o una app de stickers, exporta o guarda el paquete como archivo .wastickers (en iPhone, en Archivos) y ábrelo con «Importar paquete». También puedes añadir imágenes sueltas .webp o .png, o pegar un sticker copiado.',
+    avBig: 'Ver foto', avOpenChat: 'Abrir chat', avOpenProfile: 'Ver perfil',
+    chatSearchPh: 'Buscar mensajes, amigos o grupos', chatSearchChats: 'Chats y amigos', chatSearchMsgs: 'Mensajes', chatSearchMore: 'Escribe al menos 2 letras para buscar en los mensajes.', chatSearchNone: 'Ningún mensaje coincide.',
+    msgFwd: 'Reenviado', msgEdited: 'editado', msgPinned: 'Mensaje fijado', msgPin: 'Fijar', msgUnpin: 'Desfijar', msgEditing: 'Editando mensaje',
+    msgReply: 'Responder', msgCopy: 'Copiar', msgForward: 'Reenviar', msgEdit: 'Editar', msgInfo: 'Info', msgMenu: 'Opciones del mensaje', msgMoreEmoji: 'Más emojis',
+    msgCopyFail: 'No se ha podido copiar', msgForwardTo: 'Reenviar a…', msgEditOld: 'Solo se puede editar durante 48 horas',
+    msgNeedSql: 'Falta activar esta función en el servidor (SQL de la v1.57).',
+    attPhoto: 'Foto de una vez', attVoice: 'Nota de voz', prSearch: 'Buscar…', chatShareCalShort: 'Calendario', chatShareInviteShort: 'Invitación', shareCommentPh: 'Añade un comentario (opcional)', sendToN: 'Enviar a {n} chats',
+    wpOpen: 'Ver perfil', wpOpenGroup: 'Perfil del grupo', wpEdit: 'Editar perfil', wpLinks: 'Enlaces', wpLinksMax: '(hasta 5)',
+    wpProOnly: 'El banner GIF y los enlaces son para Usuario KeepGoing.', wpLinkLabel: 'Nombre', wpCommon: 'Grupos en común', wpMyGroups: 'Tus grupos',
+    wpSelfHint: 'Así te ven tus amigos. Tu apodo y los suyos solo los ves tú.', wpMine: 'Tu perfil', wpMineSub: 'Banner, foto y enlaces que ven tus amigos',
+    nickSet: 'Poner apodo', nickChange: 'Cambiar apodo', nickFor: 'Apodo para {name}', nickHint: 'Solo lo ves tú, en tus dispositivos.', nickRemove: 'Quitar apodo',
+    bnTitle: 'Banner', bnEmoji: 'Emoticonos', bnEmoji1: '1 emoticono', bnEmoji5: '5 emoticonos', bnEmojiHint: 'Escribe un emoji en cada casilla: se repartirán por todo el banner.',
+    bnGifOnly: 'Elige un archivo GIF', bnGifBig: 'El GIF puede pesar hasta 2 MB',
+    bn_futbol: 'Fútbol', bn_baloncesto: 'Baloncesto', bn_voleibol: 'Voleibol', bn_dinero: 'Dinero', bn_ensueno: 'Ensueño', bn_paraiso1: 'Playa', bn_paraiso2: 'Atardecer',
+    bn_paraiso3: 'Cascada', bn_paraiso4: 'Lago', bn_paraiso5: 'Aurora', bn_manos: 'Manos libres',
+    plf_profilePro: 'Banner GIF y enlaces en tu perfil'
+  };
+  const en = {
+    wn_1_61_0_1: 'WhatsApp sticker packs|In Stickers, «Import pack» opens .wastickers files: the whole pack comes in with its name and icon, in its own tab.',
+    wn_1_61_0_2: 'Search all your chats|The Chat has a search bar at the top: find messages from any conversation, friends, nicknames and groups as you type. Tap a message to jump to it.',
+    wn_1_61_0_3: 'Cleaner messages with gestures|Swipe a message left to reply and right to see the time and delete it. Hold it to react, copy, forward to several chats, pin, edit (48 h) or see info.',
+    wn_1_61_0_4: 'Fresh sharing|The chat «+» opens colourful tiles (photo, sticker, voice, habit, project, calendar and invite) with search, preview and a comment.',
+    wn_1_61_0_5: 'Big profiles and nicknames|Tap a chat name to see its profile with banner, big photo, links and groups in common. Set nicknames only you see. Tap a photo in the list to see it big.',
+    wn_1_61_0_6: 'Banners and links|Pick a banner: football, basketball, volleyball, money, dreamland, five paradises, hands or your own emojis. With KeepGoing User, GIF banner and up to 5 links. Leader and Co-leader change the group photo, banner and links.',
+    stkPackImport: 'Import pack', stkMine: 'Mine', stkPackRemove: 'Remove pack', stkPackRemoveQ: 'Remove the «{name}» pack from this device?',
+    stkPackImported: '{n} stickers imported', stkPackBad: 'The pack could not be read. Try a .wastickers or .zip file with images.',
+    stkPackOld: 'This browser cannot open packs. Update iOS/Safari or Chrome.', stkPackFull: 'Up to {n} stickers fit on this device. Remove a pack first.',
+    stkPackHint: 'From WhatsApp or a sticker app, export or save the pack as a .wastickers file (on iPhone, in Files) and open it with «Import pack». You can also add single .webp or .png images, or paste a copied sticker.',
+    avBig: 'See photo', avOpenChat: 'Open chat', avOpenProfile: 'See profile',
+    chatSearchPh: 'Search messages, friends or groups', chatSearchChats: 'Chats and friends', chatSearchMsgs: 'Messages', chatSearchMore: 'Type at least 2 letters to search messages.', chatSearchNone: 'No message matches.',
+    msgFwd: 'Forwarded', msgEdited: 'edited', msgPinned: 'Pinned message', msgPin: 'Pin', msgUnpin: 'Unpin', msgEditing: 'Editing message',
+    msgReply: 'Reply', msgCopy: 'Copy', msgForward: 'Forward', msgEdit: 'Edit', msgInfo: 'Info', msgMenu: 'Message options', msgMoreEmoji: 'More emojis',
+    msgCopyFail: 'Could not copy', msgForwardTo: 'Forward to…', msgEditOld: 'Messages can only be edited for 48 hours',
+    msgNeedSql: 'This feature still has to be switched on in the server (v1.57 SQL).',
+    attPhoto: 'View-once photo', attVoice: 'Voice note', prSearch: 'Search…', chatShareCalShort: 'Calendar', chatShareInviteShort: 'Invite', shareCommentPh: 'Add a comment (optional)', sendToN: 'Send to {n} chats',
+    wpOpen: 'See profile', wpOpenGroup: 'Group profile', wpEdit: 'Edit profile', wpLinks: 'Links', wpLinksMax: '(up to 5)',
+    wpProOnly: 'GIF banners and links are for KeepGoing User.', wpLinkLabel: 'Name', wpCommon: 'Groups in common', wpMyGroups: 'Your groups',
+    wpSelfHint: 'This is how your friends see you. Nicknames are only visible to you.', wpMine: 'Your profile', wpMineSub: 'Banner, photo and links your friends see',
+    nickSet: 'Set nickname', nickChange: 'Change nickname', nickFor: 'Nickname for {name}', nickHint: 'Only you see it, on your devices.', nickRemove: 'Remove nickname',
+    bnTitle: 'Banner', bnEmoji: 'Emojis', bnEmoji1: '1 emoji', bnEmoji5: '5 emojis', bnEmojiHint: 'Type one emoji per box: they will be spread across the banner.',
+    bnGifOnly: 'Choose a GIF file', bnGifBig: 'The GIF can be up to 2 MB',
+    bn_futbol: 'Football', bn_baloncesto: 'Basketball', bn_voleibol: 'Volleyball', bn_dinero: 'Money', bn_ensueno: 'Dreamland', bn_paraiso1: 'Beach', bn_paraiso2: 'Sunset',
+    bn_paraiso3: 'Waterfall', bn_paraiso4: 'Lake', bn_paraiso5: 'Aurora', bn_manos: 'Hands',
+    plf_profilePro: 'GIF banner and links on your profile'
+  };
+  Object.assign(window.I18N.es, es);
+  Object.assign(window.I18N.en, en);
+})();

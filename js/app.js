@@ -298,7 +298,8 @@
       ledgerProjs: [],
       ledgerWorth: [], ledgerContacts: [], // v1.25: contactos de la Libreta (cifrados)
       calDayK: {}, cdkmt: {}, perfectRules: [], ledDays: {}, ldmt: {},
-      calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, calGaps: {}, cgmt: {}, jrNotes: {}, jnmt: {}, tlSnaps: {}, tsmt: {}, tlViews: [], // v1.26: notas en los huecos entre turnos
+      calNotes: {}, cnmt: {}, dayRate: {}, drmt: {}, calGaps: {}, cgmt: {}, jrNotes: {}, jnmt: {}, tlSnaps: {}, tsmt: {}, tlViews: [], chatNicks: {}, cnkmt: {}, // v1.57: apodos del Chat (solo los ves tú)
+      // v1.26: notas en los huecos entre turnos
       // v1.25: nota de cada día del Calendario y valoración del día ({ r: 0..10 }) // v1.24: requisitos del día perfecto (historial por fecha) y días con movimientos
       // v1.24: tipo de día de cada fecha (Laboral, Libre, Festivo…) → id de calPrefs.dayKinds
       gymWorkouts: [], gymRoutines: [], gymEx: [], gymPrefs: {}, // v1.30: Gimnasio (entrenamientos, rutinas, ejercicios propios y ajustes)
@@ -320,7 +321,7 @@
   const ORDER_LISTS = ['projects', 'routines'];
   const SYNC_LISTS = ['habits', 'projects', 'routines', 'rewards', 'redemptions', 'vacations', 'ledgerEntries', 'ledgerCats', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'calTpls', 'calLists', 'gymWorkouts', 'gymRoutines', 'gymEx'];
   const SYNC_DAYMAPS = [['logs', 'lmt'], ['rest', 'rmt'], ['shields', 'shmt'], ['ltime', 'tmt'], ['sublogs', 'slmt']]; // hábito → día → valor (v1.23: sublogs = objetivos o maneras hechos ese día)
-  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt'], ['calGaps', 'cgmt'], ['jrNotes', 'jnmt'], ['tlSnaps', 'tsmt']];             // clave → valor
+  const SYNC_KEYMAPS = [['energy', 'emt'], ['reviews', 'rvmt'], ['prompts', 'pmt'], ['calDays', 'cdmt'], ['calExt', 'cemt'], ['calDayK', 'cdkmt'], ['ledDays', 'ldmt'], ['calNotes', 'cnmt'], ['dayRate', 'drmt'], ['calGaps', 'cgmt'], ['jrNotes', 'jnmt'], ['tlSnaps', 'tsmt'], ['chatNicks', 'cnkmt']];             // clave → valor
   function normalize(s) {
     const d = defaultState();
     const out = { ...d, ...s };
@@ -342,7 +343,7 @@
     out.perfectMastery = s.perfectMastery && typeof s.perfectMastery === 'object' && !Array.isArray(s.perfectMastery) ? s.perfectMastery : {};
     out.rest = s.rest && typeof s.rest === 'object' ? s.rest : {};
     out.contractCards = Array.isArray(s.contractCards) ? s.contractCards : [];
-    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'cgmt', 'calGaps', 'jnmt', 'jrNotes', 'tsmt', 'tlSnaps', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
+    for (const k of ['deleted', 'lmt', 'rmt', 'shmt', 'tmt', 'slmt', 'sublogs', 'emt', 'rvmt', 'pmt', 'cdmt', 'cemt', 'cdkmt', 'calDayK', 'ldmt', 'ledDays', 'cnmt', 'calNotes', 'drmt', 'dayRate', 'cgmt', 'calGaps', 'jnmt', 'jrNotes', 'tsmt', 'tlSnaps', 'cnkmt', 'chatNicks', 'shields', 'ltime', 'energy', 'reviews', 'prompts', 'secrets', 'routineRuns'])
       out[k] = s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) ? s[k] : {};
     for (const k of ['routines', 'rewards', 'redemptions', 'vacations', 'challengeCards', 'ledgerEntries', 'ledgerRecurring', 'ledgerEvents', 'ledgerCalc', 'ledgerBudgets', 'ledgerProjs', 'ledgerImports', 'ledgerWorth', 'ledgerContacts', 'calJobs', 'calShifts', 'calRoutines', 'calPlaces', 'calTpls', 'calLists', 'perfectRules', 'gymRoutines', 'gymEx']) out[k] = Array.isArray(s[k]) ? s[k] : [];
     if (window.KGNoteTpl) out.calTpls = out.calTpls.map(window.KGNoteTpl.sanitizeTpl).filter(Boolean).slice(0, window.KGNoteTpl.LIM.tpls);
@@ -7268,17 +7269,29 @@
     });
   }
   // Elegir un chat (grupo o amigo) y hacer algo con él
-  async function pickChat(title, onPick) {
+  /* v1.57: elegir chat con buscador, fotos y casillas (varios a la vez al reenviar), como en las apps de mensajería */
+  async function pickChat(title, onPick, opts = {}) {
     if (!auth) { toast(t('groupNeedLogin')); return; }
     await refreshMyGroups(true);
-    const list = myGroups.list || [];
+    const list = myGroups.list || [], sel = new Set(), multi = !!opts.multi;
     openModal({
-      title: `${ico('send')} ${esc(title)}`,
-      body: list.length ? `<div class="stack" style="gap:8px">${list.map(g => `<button class="btn block" style="justify-content:flex-start" data-pick-g="${esc(g.id)}">${g.chat === 'dm' ? avatarHtml(g.peer || {}, 'sm') : esc(g.icon || '👥')} ${esc(chatName(g))}</button>`).join('')}</div>` : `<p class="muted">${esc(t('shareNoChats'))}</p>`,
-      onClick: async (e, close) => {
-        const g = e.target.closest('[data-pick-g]'); if (!g) return;
-        g.disabled = true;
-        try { await onPick(g.dataset.pickG); sfx('share'); toast(t('shareSent')); close(); } catch (err) { g.disabled = false; toast(chatErr(err)); }
+      title: `${ico('send')} ${esc(title)}`, cls: 'pick-rich',
+      body: list.length ? `<label class="chat-search clay" style="margin-bottom:10px">${ico('search')}<input type="search" id="pc-q" autocomplete="off" placeholder="${esc(t('prSearch'))}"></label><div class="pr-list">${list.map((g, n) => `<button type="button" class="pr-card" data-pick-g="${esc(g.id)}" style="--n:${n}">${chatAvatar(g)}<span class="grow"><b class="ellipsis">${esc(chatName(g))}</b><span class="muted small ellipsis">${g.chat === 'dm' ? (g.peer && g.peer.nametag ? '@' + esc(g.peer.nametag) : '') : esc(t('chatGroupKind')) + ' · ' + (g.members || []).length}</span></span><span class="pr-check">${ico('check')}</span></button>`).join('')}</div>` : `<p class="muted">${esc(t('shareNoChats'))}</p>`,
+      foot: list.length ? `<button class="btn primary block" data-pc-go disabled>${ico('send')} ${esc(t('chatSend'))}</button>` : '',
+      onInput: (e, w) => { if (e.target.id !== 'pc-q') return; const q = e.target.value; $$('[data-pick-g]', w).forEach(b => { const g = list.find(x => x.id === b.dataset.pickG); b.hidden = !!q.trim() && !KGChat.matches(chatName(g) + ' ' + g.name, q); }); },
+      onClick: async (e, close, w) => {
+        const g = e.target.closest('[data-pick-g]');
+        if (g) {
+          const id = g.dataset.pickG;
+          if (!multi) sel.clear();
+          if (sel.has(id)) sel.delete(id); else sel.add(id);
+          $$('[data-pick-g]', w).forEach(b => b.classList.toggle('on', sel.has(b.dataset.pickG)));
+          const go = $('[data-pc-go]', w); go.disabled = !sel.size; go.innerHTML = `${ico('send')} ${esc(sel.size > 1 ? t('sendToN', { n: sel.size }) : t('chatSend'))}`;
+          vibrate(6); return;
+        }
+        const go = e.target.closest('[data-pc-go]'); if (!go || !sel.size) return;
+        go.disabled = true;
+        try { for (const id of sel) await onPick(id); sfx('share'); toast(t('shareSent')); close(); } catch (err) { go.disabled = false; toast(chatErr(err)); }
       }
     });
   }
@@ -7667,7 +7680,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.62', [['1.62.0', 2]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -13862,7 +13875,11 @@
   }
   const myName = () => (firstName() || myTag() || 'Yo').slice(0, 40);
   const personName = p => (p && (p.display_name || (p.nametag ? '@' + p.nametag : ''))) || '—';
-  const chatName = g => g.chat === 'dm' ? personName(g.peer) : g.name;
+  // v1.57: apodos privados (solo los ves tú; viajan con tu copia en la nube). Clave 'u:<persona>' o 'g:<grupo>'
+  const nickOf = key => String(((state.chatNicks || {})[key]) || '').trim();
+  function setNick(key, v) { state.chatNicks = state.chatNicks || {}; state.cnkmt = state.cnkmt || {}; state.chatNicks[key] = String(v || '').trim().slice(0, 40); state.cnkmt[key] = Date.now(); save(); }
+  const userName = (u, fallback) => nickOf('u:' + u) || fallback;
+  const chatName = g => g.chat === 'dm' ? userName(g.peer && g.peer.user_id, personName(g.peer)) : nickOf('g:' + g.id) || g.name;
   // v1.23: una imagen compartida solo se muestra si es de verdad un JPEG o PNG en base64
   const CARD_IMG = /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/;
   // Foto del grupo (si la hay) o su icono
@@ -13890,14 +13907,14 @@
   function convRow(g) {
     const u = unread(g), live = g.live === 'live';
     // Con un reto en vivo, toda la fila va en rojo con la banda «RETO EN VIVO»
-    return `<div class="swipe chat-sw" data-sw-w="76" data-cw="c:${esc(g.id)}">${chatSwActs()}<button class="chat-row swipe-front ${u ? 'unread' : ''} ${live ? 'live-row' : ''}" data-chat-open="${esc(g.id)}">${live ? `<span class="live-band" aria-hidden="true">${esc(t('liveBand'))}</span>` : ''}${chatAvatar(g)}
+    return `<div class="swipe chat-sw" data-sw-w="76" data-cw="c:${esc(g.id)}">${chatSwActs()}<button class="chat-row swipe-front ${u ? 'unread' : ''} ${live ? 'live-row' : ''}" data-chat-open="${esc(g.id)}">${live ? `<span class="live-band" aria-hidden="true">${esc(t('liveBand'))}</span>` : ''}<span class="av-tap" data-av-big="${esc(g.id)}" role="button" aria-label="${esc(t('avBig'))}">${chatAvatar(g)}</span>
       <span class="chat-mid"><b class="ellipsis">${esc(chatName(g))}${g.chat === 'group' ? ` <span class="muted small">· ${g.members.length}</span>` : ''}</b><span class="muted small ellipsis">${kindTag(g)}${esc(chatPreview(g))}</span></span>
       <span class="chat-end"><span class="small muted">${g.last ? esc(fmtTime(g.last.created_at)) : ''}</span>${g.reqs ? `<span class="count-dot" title="${esc(t('reqPending', { n: g.reqs }))}">${g.reqs}</span>` : ''}${u ? '<span class="unread-dot" aria-label="•"></span>' : live ? '' : liveBadge(g.live)}</span></button></div>`;
   }
   function friendsHtml(fr) {
     const inc = fr.filter(f => f.status === 'incoming'), acc = fr.filter(f => f.status === 'accepted'), out = fr.filter(f => f.status === 'outgoing');
-    const row = (f, actions) => `<div class="chat-row static">${avatarHtml(f, 'lg')}<span class="chat-mid"><b class="ellipsis">${esc(personName(f))}</b><span class="muted small ellipsis">@${esc(f.nametag || '')}</span></span><span class="chat-end row" style="gap:6px">${actions}</span></div>`;
-    let html = `<form class="clay card friend-add" id="friend-form"><label class="field" style="margin:0"><span>${esc(t('friendAdd'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="friend-tag" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('nametagPh'))}"><button class="btn primary" type="submit">${esc(t('friendSend'))}</button></div></label></form>`;
+    const row = (f, actions) => `<div class="chat-row static"><button type="button" class="av-tap" data-wp-friend="${esc(f.user_id)}" aria-label="${esc(t('wpOpen'))}">${avatarHtml(f, 'lg')}</button><span class="chat-mid"><b class="ellipsis">${esc(userName(f.user_id, personName(f)))}</b><span class="muted small ellipsis">@${esc(f.nametag || '')}</span></span><span class="chat-end row" style="gap:6px">${actions}</span></div>`;
+    let html = `<button class="clay card me-wide" data-wp-me>${avatarHtml({ user_id: auth.uid, display_name: myName() }, 'lg')}<span class="grow" style="min-width:0"><b class="ellipsis">${esc(t('wpMine'))}</b><span class="muted small ellipsis">${esc(t('wpMineSub'))}</span></span>${ico('right')}</button><form class="clay card friend-add" id="friend-form"><label class="field" style="margin:0"><span>${esc(t('friendAdd'))}</span><div class="row" style="gap:8px"><span class="at-prefix">@</span><input class="input grow" id="friend-tag" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('nametagPh'))}"><button class="btn primary" type="submit">${esc(t('friendSend'))}</button></div></label></form>`;
     if (inc.length) html += `<h2 class="section-title">${ico('inbox')} ${esc(t('friendRequests'))}</h2><div class="chat-rows clay">${inc.map(f => row(f, `<button class="btn primary sm" data-fr-yes="${f.user_id}">${esc(t('friendAccept'))}</button><button class="chip sm" data-fr-no="${f.user_id}">${esc(t('friendDecline'))}</button>`)).join('')}</div>`;
     html += `<h2 class="section-title">${ico('users')} ${esc(t('friendsTitle'))} · ${acc.length}</h2>`;
     html += acc.length ? `<div class="chat-rows clay">${acc.map(f => row(f, `<button class="icon-btn sm" data-fr-dm="${f.user_id}" aria-label="${esc(t('friendMessage'))}" title="${esc(t('friendMessage'))}">${ico('chat')}</button><button class="icon-btn sm" data-fr-rm="${f.user_id}" aria-label="${esc(t('friendRemove'))}" title="${esc(t('friendRemove'))}">${ico('x')}</button>`)).join('')}</div>` : `<p class="muted">${esc(t('friendsEmpty'))}</p>`;
@@ -13906,8 +13923,10 @@
   }
   function viewChat() {
     const v = state.ui.chatView === 'friends' ? 'friends' : 'chats';
-    let html = topBar(auth ? `<button class="icon-btn" data-act="chat-friends" aria-label="${esc(t('friendAdd'))}" title="${esc(t('friendAdd'))}">${ico('user')}</button><button class="icon-btn" data-act="chat-new" aria-label="${esc(t('chatNewGroup'))}" title="${esc(t('chatNewGroup'))}">${ico('plus')}</button>` : '');
-    if (!auth) return html + emptyState('chat', t('chatLoginTitle'), t('chatLoginSub'), `<button class="btn primary" data-act="chat-login">${esc(t('signIn'))}</button>`);
+    // v1.57: barra de búsqueda (mensajes de todos los chats, amigos, apodos y grupos) junto a amigos y «+»
+    if (!auth) return emptyState('chat', t('chatLoginTitle'), t('chatLoginSub'), `<button class="btn primary" data-act="chat-login">${esc(t('signIn'))}</button>`);
+    let html = `<div class="chat-top"><label class="chat-search clay">${ico('search')}<input id="chat-q" type="search" enterkeyhint="search" autocomplete="off" maxlength="60" placeholder="${esc(t('chatSearchPh'))}" aria-label="${esc(t('chatSearchPh'))}" value="${esc(CS.q)}">${CS.q ? `<button type="button" class="icon-btn sm" data-cs-x aria-label="${esc(t('cancel'))}">${ico('x')}</button>` : ''}</label><div class="pill-group"><button class="icon-btn" data-act="chat-friends" aria-label="${esc(t('friendAdd'))}" title="${esc(t('friendAdd'))}">${ico('user')}</button><button class="icon-btn" data-act="chat-new" aria-label="${esc(t('chatNewGroup'))}" title="${esc(t('chatNewGroup'))}">${ico('plus')}</button></div></div>`;
+    if (CS.q.trim()) { refreshMyGroups(); refreshChat(); return html + `<div id="chat-results">${chatSearchHtml()}</div>`; }
     refreshMyGroups(); refreshChat();
     const fr = chatData.friends || [], inc = fr.filter(f => f.status === 'incoming').length;
     html += `<div class="seg view-seg" role="tablist">${[['chats', '💬', 'chatChats'], ['friends', '👋', 'chatFriends']].map(([k, e, l]) => `<button data-act="cview" data-v="${k}" role="tab" aria-selected="${v === k}" class="${v === k ? 'on' : ''}"><span class="vi">${ico(e)}</span> ${esc(t(l))}${k === 'friends' && inc ? ` <span class="count-dot">${inc}</span>` : ''}</button>`).join('')}</div>`;
@@ -13921,6 +13940,199 @@
     if (shares.length) html += `<h2 class="section-title">${ico('wallet')} ${esc(t('lsShared'))}</h2><div class="chat-rows clay">${shares.map(shareRow).join('')}</div>`;
     if (convs.length) html += `<h2 class="section-title">${ico('chat')} ${esc(t('chatChats'))}</h2><div class="chat-rows clay">${convs.map(convRow).join('')}</div>`;
     return html;
+  }
+  /* ---- v1.57: búsqueda en el Chat. Filtra al momento chats, amigos, apodos y grupos; los mensajes de todos los
+     chats se buscan en el servidor (solo los de tus chats: lo impide la seguridad por filas) tras una pausa al escribir ---- */
+  const CS = { q: '', msgs: null, busy: false, timer: 0, seq: 0 };
+  const hl = (text, q) => KGChat.snippet(text, q).map(p => p.hit ? `<mark>${esc(p.t)}</mark>` : esc(p.t)).join('');
+  function chatSearchHtml() {
+    const q = CS.q.trim(), convs = myGroups.list || [], fr = (chatData.friends || []).filter(f => f.status === 'accepted');
+    const hay = g => [chatName(g), g.name, g.chat === 'dm' && g.peer ? [g.peer.display_name, g.peer.nametag, '@' + (g.peer.nametag || '')] : '', ...(g.members || []).map(m => [m.display_name, m.nametag, nickOf('u:' + m.user_id)])].flat(2).filter(Boolean).join(' ');
+    const chats = convs.filter(g => KGChat.matches(hay(g), q));
+    const dmPeers = new Set(convs.filter(g => g.chat === 'dm' && g.peer).map(g => g.peer.user_id));
+    const people = fr.filter(f => !dmPeers.has(f.user_id) && KGChat.matches([f.display_name, f.nametag, nickOf('u:' + f.user_id)].join(' '), q));
+    let html = '';
+    if (chats.length || people.length) html += `<h2 class="section-title">${ico('chat')} ${esc(t('chatSearchChats'))}</h2><div class="chat-rows clay">${chats.map(g => `<button class="chat-row" data-chat-open="${esc(g.id)}">${chatAvatar(g)}<span class="chat-mid"><b class="ellipsis">${hl(chatName(g), q)}</b><span class="muted small ellipsis">${g.chat === 'dm' ? (g.peer && g.peer.nametag ? '@' + esc(g.peer.nametag) : '') : esc(t('chatGroupKind')) + ' · ' + (g.members || []).length}</span></span>${ico('right')}</button>`).join('')}${people.map(f => `<button class="chat-row" data-fr-dm="${esc(f.user_id)}">${avatarHtml(f, 'lg')}<span class="chat-mid"><b class="ellipsis">${hl(userName(f.user_id, personName(f)), q)}</b><span class="muted small ellipsis">@${esc(f.nametag || '')} · ${esc(t('friendMessage'))}</span></span>${ico('chat')}</button>`).join('')}</div>`;
+    html += `<h2 class="section-title">${ico('search')} ${esc(t('chatSearchMsgs'))}</h2>`;
+    if (KGChat.ilikeSafe(q).length < 2) html += `<p class="muted small">${esc(t('chatSearchMore'))}</p>`;
+    else if (CS.msgs == null) html += `<p class="muted small">${esc(t('loading'))}</p>`;
+    else if (!CS.msgs.length) html += `<p class="muted small">${esc(t('chatSearchNone'))}</p>`;
+    else html += `<div class="chat-rows clay">${CS.msgs.map(m => { const g = convs.find(x => x.id === m.group_id); if (!g) return ''; const who = m.user_id === auth.uid ? t('chatYou') : g.chat === 'dm' ? '' : userName(m.user_id, ((g.members || []).find(x => x.user_id === m.user_id) || {}).display_name || ''); return `<button class="chat-row cs-hit" data-cs-open="${esc(g.id)}" data-cs-mid="${+m.id}">${chatAvatar(g)}<span class="chat-mid"><b class="ellipsis">${esc(chatName(g))}</b><span class="small ellipsis">${who ? `<b>${esc(who)}:</b> ` : ''}${hl(m.body, q)}</span></span><span class="chat-end"><span class="small muted">${esc(fmtTime(m.created_at))}</span></span></button>`; }).join('')}</div>`;
+    return html;
+  }
+  function chatSearchDraw() { const el = $('#chat-results'); if (el) el.innerHTML = chatSearchHtml(); else render(); }
+  function chatSearchInput(v) {
+    const was = !!CS.q.trim(); CS.q = v; CS.msgs = null; clearTimeout(CS.timer);
+    if (!!v.trim() !== was) { render(); const i = $('#chat-q'); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } } else chatSearchDraw();
+    const q = KGChat.ilikeSafe(v); if (q.length < 2) return;
+    const seq = ++CS.seq;
+    CS.timer = setTimeout(async () => {
+      const ids = (myGroups.list || []).map(g => g.id); let rows = [];
+      try { if (ids.length) rows = await sbFetch(`/rest/v1/kg_messages?group_id=in.(${ids.join(',')})&kind=eq.text&deleted=is.false&body=ilike.${encodeURIComponent('*' + q + '*')}&select=id,group_id,user_id,body,created_at&order=id.desc&limit=40`); }
+      catch (e) { rows = []; }
+      if (seq !== CS.seq) return;
+      CS.msgs = rows; chatSearchDraw();
+    }, 320);
+  }
+  document.addEventListener('input', e => { if (e.target && e.target.id === 'chat-q') chatSearchInput(e.target.value); });
+  // Foto de perfil en grande al tocarla en la lista de chats (o el icono del grupo si no tiene foto)
+  function openAvatarBig(g) {
+    const img = g.chat === 'dm' ? safeImg(g.peer && g.peer.avatar) : safeImg(g.avatar), name = chatName(g);
+    openModal({ cls: 'av-big-modal', body: `<div class="av-big">${img ? `<img src="${img}" alt="${esc(name)}">` : `<span class="av-big-ph">${esc(g.chat === 'dm' ? (name || '?').charAt(0).toUpperCase() : (g.icon || '👥'))}</span>`}</div><p class="center" style="margin:12px 0 0"><b>${esc(name)}</b></p>`,
+      foot: `<button class="btn" data-avb="chat">${ico('chat')} ${esc(t('avOpenChat'))}</button><button class="btn primary" data-avb="profile">${ico('user')} ${esc(t('avOpenProfile'))}</button>`,
+      onClick: (e, close) => { const b = e.target.closest('[data-avb]'); if (!b) return; close(); if (b.dataset.avb === 'chat') openGroup(g.id, null, 'chat'); else if (g.chat === 'dm' && g.peer) openWideProfile({ user: g.peer.user_id }); else openWideProfile({ group: g.id }); } });
+  }
+  /* ---- v1.57: perfil amplio (persona o grupo): banner, foto grande, apodo, enlaces y grupos en común ----
+     Banner: plantilla (fútbol, baloncesto, voleibol, dinero, ensueño, 5 paraísos y manos), emoticonos (1 o 5 repartidos
+     por el banner) o GIF animado (solo Usuario KeepGoing). Enlaces: hasta 5, solo Usuario KeepGoing. Lo comprueba el servidor. */
+  const BANNER_IMG = new Map(); // 'u:<id>' | 'g:<id>' → { v, src }
+  const bannerSrc = b => !b ? '' : b.t === 'tpl' ? KGChat.svgUrl(KGChat.tplSvg(b.id)) : b.t === 'emoji' ? KGChat.svgUrl(KGChat.emojiSvg(b.e)) : '';
+  async function bannerImg(slot, v) {
+    const c = BANNER_IMG.get(slot); if (c && c.v === v) return c.src;
+    try {
+      const r = (await sbFetch(`/rest/v1/kg_banner_imgs?slot=eq.${encodeURIComponent(slot)}&select=mime,data`))[0];
+      const src = r && /^image\/(gif|webp|png|jpeg)$/.test(r.mime) && /^[A-Za-z0-9+/=]+$/.test(r.data) ? `data:${r.mime};base64,${r.data}` : '';
+      BANNER_IMG.set(slot, { v, src }); return src;
+    } catch (e) { return ''; }
+  }
+  // Pinta el banner en el elemento (los GIF se piden aparte para no cargar megas en las listas)
+  async function paintBanner(el, b, slot) {
+    if (!el) return;
+    const tplDefault = { t: 'tpl', id: 'ensueno' };
+    if (b && b.t === 'gif') { el.classList.add('loading'); const src = await bannerImg(slot, b.v || 0); el.classList.remove('loading'); el.style.backgroundImage = `url("${src || bannerSrc(tplDefault)}")`; return; }
+    el.style.backgroundImage = `url("${bannerSrc(b && (b.t === 'tpl' || b.t === 'emoji') ? b : tplDefault)}")`;
+  }
+  async function openWideProfile({ user = null, group = null, info = null, onChange = null } = {}) {
+    if (!auth) return;
+    let data = null, ginfo = null;
+    try {
+      if (group) ginfo = info && info.group && info.group.id === group ? info : await rpc('kg_group_info', { p_group: group });
+      else {
+        try { data = (await sbFetch(`/rest/v1/kg_users?user_id=eq.${user}&select=user_id,nametag,display_name,avatar,banner,links`))[0]; }
+        catch (e) { data = (await sbFetch(`/rest/v1/kg_users?user_id=eq.${user}&select=user_id,nametag,display_name,avatar`))[0]; }
+      }
+    } catch (e) { toast(chatErr(e)); return; }
+    if (!group && !data) { const m = info && info.members.find(x => x.user_id === user); data = m ? { user_id: user, nametag: m.nametag, display_name: m.display_name, avatar: m.avatar } : null; }
+    if (!group && !data) { toast(t('groupGone')); return; }
+    const self = !group && user === auth.uid;
+    const g = ginfo && ginfo.group, gme = ginfo && ginfo.members.find(m => m.user_id === auth.uid), mod = !!gme && ['lider', 'colider'].includes(gme.role);
+    const key = group ? 'g:' + group : 'u:' + user;
+    const realName = group ? g.name : (data.display_name || (data.nametag ? '@' + data.nametag : '—'));
+    const banner = KGChat.cleanBanner(group ? g.banner : data.banner, { full: true }), links = KGChat.cleanLinks(group ? g.links : data.links);
+    const img = safeImg(group ? g.avatar : (self ? data.avatar || myAvatar() : data.avatar));
+    const all = (myGroups.list || []).filter(x => x.chat !== 'dm');
+    const common = group ? [] : all.filter(x => (x.members || []).some(m => m.user_id === user) && (self || (x.members || []).some(m => m.user_id === auth.uid)));
+    const repRow = !group && all.flatMap(x => x.members || []).find(m => m.user_id === user);
+    const dm = !group && !self && (myGroups.list || []).find(x => x.chat === 'dm' && x.peer && x.peer.user_id === user);
+    const friend = !group && !self && (chatData.friends || []).find(f => f.user_id === user && f.status === 'accepted');
+    const nick = nickOf(key), shown = nick || realName;
+    const avatar = img ? `<img src="${img}" alt="">` : `<span>${esc(group ? (g.icon || '👥') : (realName || '?').replace(/^@/, '').charAt(0).toUpperCase())}</span>`;
+    const canEdit = self || (group && mod && g.chat !== 'dm');
+    const body = `<div class="wp">
+      <div class="wp-banner" id="wp-banner">${canEdit ? `<button type="button" class="wp-edit-b" data-wp="edit">${ico('edit')} ${esc(t('wpEdit'))}</button>` : ''}</div>
+      <div class="wp-head"><button type="button" class="wp-av" data-wp="photo" aria-label="${esc(t('avBig'))}">${avatar}</button>${group && mod ? `<label class="wp-cam" title="${esc(t('gPicChange'))}">${ico('camera')}<input type="file" accept="image/*" class="sr-only" data-wp-pic></label>` : ''}</div>
+      <div class="wp-id"><h2>${esc(shown)}</h2>${nick ? `<span class="muted small">${esc(realName)}</span>` : ''}${!group && data.nametag ? `<span class="wp-tag">@${esc(data.nametag)}</span>` : ''}${group ? `<span class="muted small">${esc(t('chatGroupKind'))} · ${ginfo.members.length} ${esc(t('gMembersN')).toLowerCase()}${g.code ? ` · ${esc(t('gId'))} <b class="mono">${esc(g.code)}</b>` : ''}</span>` : ''}</div>
+      <div class="wp-acts">${!group && !self ? `<button class="btn primary" data-wp="dm">${ico('chat')} ${esc(t('friendMessage'))}</button>` : ''}${!self ? `<button class="btn" data-wp="nick">${ico('tag')} ${esc(t(nick ? 'nickChange' : 'nickSet'))}</button>` : ''}${canEdit ? `<button class="btn" data-wp="edit">${ico('palette')} ${esc(t('wpEdit'))}</button>` : ''}</div>
+      ${links.length ? `<section class="wp-sec"><h3 class="section-title">${ico('link')} ${esc(t('wpLinks'))}</h3><div class="wp-links">${links.map(l => `<a class="wp-link clay" href="${esc(l.u)}" target="_blank" rel="noopener noreferrer nofollow">${ico('link')}<span class="grow"><b class="ellipsis">${esc(l.l || KGChat.linkHost(l.u))}</b><span class="muted small ellipsis">${esc(KGChat.linkHost(l.u))}</span></span>${ico('right')}</a>`).join('')}</div></section>` : ''}
+      ${!group ? `<section class="wp-sec wp-stats"><div class="kpi clay"><b>${ico('medal')} ${repRow ? fmtNum(repRow.rep_total || 0) : '—'}</b><span>${esc(t('repTotal'))}</span></div><div class="kpi clay"><b>${ico('users')} ${common.length}</b><span>${esc(t(self ? 'wpMyGroups' : 'wpCommon'))}</span></div></section>
+        ${common.length ? `<section class="wp-sec"><div class="chat-rows clay">${common.slice(0, 8).map(x => `<button class="chat-row" data-wp-go="${esc(x.id)}">${groupAv(x, 'sm')}<span class="chat-mid"><b class="ellipsis">${esc(chatName(x))}</b></span>${ico('right')}</button>`).join('')}</div></section>` : ''}` : ''}
+      ${group ? `<section class="wp-sec"><h3 class="section-title">${ico('users')} ${esc(t('gMembersN'))}</h3><div class="wp-people">${ginfo.members.map(m => `<button type="button" class="wp-person" data-wp-user="${esc(m.user_id)}">${avatarHtml(m, 'lg')}<span class="small ellipsis">${esc(m.user_id === auth.uid ? t('gYou') : userName(m.user_id, m.display_name))}</span>${['lider', 'colider'].includes(m.role) ? `<span class="wp-role">${esc(t('role_' + m.role))}</span>` : ''}</button>`).join('')}</div></section>` : ''}
+      ${self ? `<p class="muted small center">${esc(t('wpSelfHint'))}</p>` : ''}
+    </div>`;
+    openModal({
+      title: `${ico(group ? 'users' : 'user')} ${esc(shown)}`, cls: 'wide wp-modal chat-full', body,
+      onMount: w => {
+        const head = $('.sheet-head', w); if (head) head.insertAdjacentHTML('afterbegin', `<button class="icon-btn sm g-back" data-m="x" aria-label="${esc(t('back'))}">${ico('left')}</button>`);
+        paintBanner($('#wp-banner', w), banner, key);
+        w.addEventListener('change', async e => {
+          if (!e.target.matches('[data-wp-pic]') || !e.target.files[0]) return;
+          try { const pic = await resizePhoto(e.target.files[0]); await rpc('kg_set_group_avatar', { p_group: group, p_avatar: pic }); toast(t('saved')); myGroups.at = 0; refreshMyGroups(true); onChange && onChange(); $('.wp-av', w).innerHTML = `<img src="${pic}" alt="">`; }
+          catch (err) { toast(chatErr(err)); }
+        });
+      },
+      onClick: async (e, close) => {
+        const pu = e.target.closest('[data-wp-user]'); if (pu) { openWideProfile({ user: pu.dataset.wpUser, info: ginfo }); return; }
+        const go = e.target.closest('[data-wp-go]'); if (go) { close(); openGroup(go.dataset.wpGo, null, 'chat'); return; }
+        const b = e.target.closest('[data-wp]'); if (!b) return;
+        const a = b.dataset.wp;
+        if (a === 'photo') { if (img) openModal({ cls: 'av-big-modal', body: `<div class="av-big"><img src="${img}" alt=""></div>` }); return; }
+        if (a === 'dm') { close(); if (dm) openGroup(dm.id, null, 'chat'); else if (friend) openDm(user); else toast(t('friendNotFriend')); return; }
+        if (a === 'nick') { askNick(key, realName, () => { close(); openWideProfile({ user, group, info, onChange }); render(); onChange && onChange(); }); return; }
+        if (a === 'edit') { openProfileEdit({ group: group ? g : null, banner, links, onSaved: () => { close(); myGroups.at = 0; refreshMyGroups(true); onChange && onChange(); openWideProfile({ user, group, onChange }); } }); }
+      }
+    });
+  }
+  function askNick(key, realName, done) {
+    openModal({
+      title: `${ico('tag')} ${esc(t('nickSet'))}`,
+      body: `<label class="field"><span>${esc(t('nickFor', { name: realName }))}</span><input class="input" id="nk" maxlength="40" value="${esc(nickOf(key))}" placeholder="${esc(realName)}" autocomplete="off"></label><p class="muted small" style="margin:0">${esc(t('nickHint'))}</p>`,
+      foot: `${nickOf(key) ? `<button class="btn" data-nk="rm">${esc(t('nickRemove'))}</button>` : ''}<button class="btn primary" data-nk="ok">${esc(t('save'))}</button>`,
+      onMount: w => { const i = $('#nk', w); i.focus(); i.select(); i.addEventListener('keydown', e => { if (e.key === 'Enter') $('[data-nk="ok"]', w).click(); }); },
+      onClick: (e, close, w) => { const b = e.target.closest('[data-nk]'); if (!b) return; setNick(key, b.dataset.nk === 'rm' ? '' : $('#nk', w).value); sfx('toggle'); close(); done && done(); }
+    });
+  }
+  // Editor del perfil amplio: banner (plantillas, emoticonos, GIF) y enlaces. group = fila de kg_groups o null (tu perfil)
+  function openProfileEdit({ group = null, banner = null, links = [], onSaved }) {
+    const full = PL().full;
+    let cur = banner || { t: 'tpl', id: 'ensueno' }, gif = null, emoN = cur.t === 'emoji' ? cur.e.length : 1;
+    const emo = cur.t === 'emoji' ? [...cur.e] : ['🔥', '⚽', '💪', '🌴', '😎'];
+    const slot = group ? 'g:' + group.id : 'u:' + auth.uid;
+    const thumbs = KGChat.TPLS.map(id => `<button type="button" class="bn-thumb" data-bn="tpl:${id}" style="background-image:url(&quot;${KGChat.svgUrl(KGChat.tplSvg(id))}&quot;)"><span>${esc(t('bn_' + id))}</span></button>`).join('');
+    const emoInputs = () => Array.from({ length: emoN }, (_, i) => `<input class="input emo-in" data-emo-i="${i}" maxlength="16" value="${esc(emo[i] || '')}" aria-label="${esc(t('bnEmoji'))} ${i + 1}">`).join('');
+    openModal({
+      title: `${ico('palette')} ${esc(t('wpEdit'))}`, cls: 'wide wp-edit',
+      body: `<div class="wp-banner preview" id="bn-prev"></div>
+        <h3 class="section-title">${ico('image')} ${esc(t('bnTitle'))}</h3>
+        <div class="bn-row">${thumbs}<button type="button" class="bn-thumb emo" data-bn="emoji"><span>${esc(t('bnEmoji'))}</span></button><label class="bn-thumb gif ${full ? '' : 'locked'}" data-bn-gif>${full ? '' : `<i class="bn-lock">${ico('lock')}</i>`}<span>GIF</span><input type="file" accept="image/gif" class="sr-only" id="bn-gif" ${full ? '' : 'disabled'}></label></div>
+        <div id="bn-emo" class="bn-emo" hidden><div class="seg" style="margin:10px 0">${[1, 5].map(n => `<button type="button" data-emo-n="${n}" class="${emoN === n ? 'on' : ''}">${esc(t(n === 1 ? 'bnEmoji1' : 'bnEmoji5'))}</button>`).join('')}</div><div class="row wrap" id="emo-ins" style="gap:8px">${emoInputs()}</div><p class="muted small" style="margin:6px 0 0">${esc(t('bnEmojiHint'))}</p></div>
+        <h3 class="section-title">${ico('link')} ${esc(t('wpLinks'))} <span class="muted small">${esc(t('wpLinksMax'))}</span></h3>
+        ${full ? '' : `<button type="button" class="banner clay" data-bn-up style="width:100%;border:0;text-align:left;color:inherit">${ico('lock')}<span class="grow">${esc(t('wpProOnly'))}</span>${ico('right')}</button>`}
+        <div class="stack" style="gap:8px">${Array.from({ length: 5 }, (_, i) => `<div class="row link-row" style="gap:6px"><input class="input" data-ln-l="${i}" maxlength="40" placeholder="${esc(t('wpLinkLabel'))}" value="${esc((links[i] || {}).l || '')}" style="flex:0 1 34%" ${full ? '' : 'disabled'}><input class="input grow" data-ln-u="${i}" maxlength="250" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…" value="${esc((links[i] || {}).u || '')}" ${full ? '' : 'disabled'}></div>`).join('')}</div>`,
+      foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-bn-save>${ico('check')} ${esc(t('save'))}</button>`,
+      onMount: w => {
+        const prev = () => {
+          $$('[data-bn]', w).forEach(b => b.classList.toggle('on', b.dataset.bn === (cur.t === 'tpl' ? 'tpl:' + cur.id : cur.t)));
+          $('[data-bn-gif]', w).classList.toggle('on', cur.t === 'gif');
+          $('#bn-emo', w).hidden = cur.t !== 'emoji';
+          const el = $('#bn-prev', w);
+          if (cur.t === 'gif') { if (gif) el.style.backgroundImage = `url("data:${gif.mime};base64,${gif.data}")`; else paintBanner(el, cur, slot); }
+          else paintBanner(el, cur, slot);
+        };
+        w._prev = prev; prev();
+        w.addEventListener('input', e => { const i = e.target.closest('[data-emo-i]'); if (!i) return; emo[+i.dataset.emoI] = i.value.trim(); const c = KGChat.cleanBanner({ t: 'emoji', e: emo.slice(0, emoN) }); if (c && c.e.length === emoN) { cur = c; prev(); } });
+        w.addEventListener('change', async e => {
+          if (e.target.id !== 'bn-gif' || !e.target.files[0]) return;
+          const f = e.target.files[0]; e.target.value = '';
+          if (f.type !== 'image/gif') { toast(t('bnGifOnly')); return; }
+          if (f.size > 2e6) { toast(t('bnGifBig')); return; }
+          const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
+          gif = { mime: 'image/gif', data }; cur = { t: 'gif', v: Date.now() }; prev();
+        });
+      },
+      onClick: async (e, close, w) => {
+        if (e.target.closest('[data-bn-up]')) { openUpsell({ feature: 'profilePro' }); return; }
+        if (e.target.closest('[data-bn-gif]') && !full) { e.preventDefault(); openUpsell({ feature: 'profilePro' }); return; }
+        const n = e.target.closest('[data-emo-n]');
+        if (n) { emoN = +n.dataset.emoN; $$('[data-emo-n]', w).forEach(b => b.classList.toggle('on', b === n)); $('#emo-ins', w).innerHTML = emoInputs(); const c = KGChat.cleanBanner({ t: 'emoji', e: emo.slice(0, emoN) }); if (c && c.e.length === emoN) cur = c; w._prev(); return; }
+        const b = e.target.closest('[data-bn]');
+        if (b) { const v = b.dataset.bn; if (v === 'emoji') { cur = KGChat.cleanBanner({ t: 'emoji', e: emo.slice(0, emoN) }) || { t: 'emoji', e: ['🔥'] }; } else cur = { t: 'tpl', id: v.slice(4) }; vibrate(6); w._prev(); return; }
+        const save = e.target.closest('[data-bn-save]'); if (!save) return;
+        if (cur.t === 'emoji' && (!KGChat.cleanBanner(cur) || cur.e.length !== emoN)) { toast(t('bnEmojiHint')); return; }
+        const ls = full ? KGChat.cleanLinks(Array.from({ length: 5 }, (_, i) => ({ l: $(`[data-ln-l="${i}"]`, w).value, u: $(`[data-ln-u="${i}"]`, w).value }))) : links;
+        save.disabled = true;
+        try {
+          if (cur.t === 'gif' && gif) await rpc('kg_banner_upload', { p_group: group ? group.id : null, p_mime: gif.mime, p_data: gif.data });
+          const bn = KGChat.cleanBanner(cur, { full: true });
+          if (group) await rpc('kg_set_group_profile', { p_group: group.id, p_banner: bn, p_links: ls.length ? ls : null });
+          else { await ensureToken(); await sbFetch(`/rest/v1/kg_users?user_id=eq.${auth.uid}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ banner: bn, links: ls.length ? ls : null }) }); }
+          BANNER_IMG.delete(slot); sfx('unlock'); toast(t('saved')); close(); onSaved && onSaved();
+        } catch (err) {
+          save.disabled = false;
+          const m = String(err.message || err);
+          toast(/^plan$|plan/.test(m) && !/kg_/.test(m) ? t('wpProOnly') : /banner|links|column|kg_set_group_profile|kg_banner_upload|PGRST/.test(m) ? t('msgNeedSql') : chatErr(err));
+        }
+      }
+    });
   }
   /* ---- «Notas para ti»: lo que te han puntuado tus compañeros en los rankings ya publicados ---- */
   const NOTES_KEY = 'keepgoing.notes';
@@ -14036,6 +14248,11 @@
     if (e.target.closest('[data-act="notes-all"]')) { openNotes(); return true; }
     if (e.target.closest('[data-act="notes-seen"]')) { markNotesSeen(); render(); return true; }
     if ((el = e.target.closest('[data-sw-chat]'))) { const row = el.closest('.chat-sw'); closeSwipe(); jigRemove(row && row.querySelector('.chat-row')); return true; }
+    if (e.target.closest('[data-wp-me]')) { openWideProfile({ user: auth.uid }); return true; }
+    if ((el = e.target.closest('[data-wp-friend]'))) { openWideProfile({ user: el.dataset.wpFriend }); return true; }
+    if ((el = e.target.closest('[data-av-big]'))) { const g = (myGroups.list || []).find(x => x.id === el.dataset.avBig); if (g) openAvatarBig(g); return true; }
+    if (e.target.closest('[data-cs-x]')) { CS.q = ''; CS.msgs = null; render(); return true; }
+    if ((el = e.target.closest('[data-cs-open]'))) { openGroup(el.dataset.csOpen, null, 'chat', { jump: +el.dataset.csMid }); return true; }
     if ((el = e.target.closest('[data-chat-open]'))) { openGroup(el.dataset.chatOpen, null, 'chat'); return true; }
     if ((el = e.target.closest('[data-ls-open]'))) { const s = (chatData.shares || []).find(x => x.id === el.dataset.lsOpen); if (s && s.pw) openPwShare(s.id); else openLedgerShareView(el.dataset.lsOpen); return true; }
     if ((el = e.target.closest('[data-fr-dm]'))) { openDm(el.dataset.frDm); return true; }
@@ -14086,18 +14303,45 @@
     });
   }
   async function importStickers(files) {
-    const list = stickersGet(); let n = 0;
+    const list = stickersGet(); let n = 0, packs = 0, loose = 0;
     for (const file of files) {
+      // v1.57: paquetes de WhatsApp (.wastickers / .zip): cada uno entra como paquete con su nombre y su icono
+      if (KGChat.isPack(file.name, file.type)) { const k = await importStickerPack(file); if (k) { n += k; packs++; } continue; }
       if (!/^image\//.test(file.type || 'image/')) continue;
-      try { const s = await stickerFromFile(file); if (!list.includes(s)) { list.unshift(s); n++; } } catch (e) { /* se salta */ }
+      try { const s = await stickerFromFile(file); if (!list.includes(s)) { list.unshift(s); n++; loose++; } } catch (e) { /* se salta */ }
     }
-    if (n && stickersSet(list)) toast(t('stkImported', { n }));
-    else if (!n) toast(t('stkNone'));
+    if (loose && !stickersSet(list)) return 0;
+    if (packs) toast(t('stkPackImported', { n }));
+    else if (n) toast(t('stkImported', { n }));
+    else toast(t('stkNone'));
     return n;
   }
-  async function openGroup(gid, freshCode = null, tab = 'profile') {
+  // Paquetes de stickers (v1.57): [{ id, title, author, tray, items: [dataURL] }] en este dispositivo
+  const STK_PACKS = 'keepgoing.stickerPacks', STK_MAX = 240;
+  const packsGet = () => { try { const a = JSON.parse(localStorage.getItem(STK_PACKS) || '[]'); return Array.isArray(a) ? a.filter(p => p && Array.isArray(p.items)).map(p => ({ ...p, items: p.items.filter(s => STK_RE.test(s)), tray: STK_RE.test(p.tray || '') ? p.tray : '' })) : []; } catch (e) { return []; } };
+  const packsSet = a => { try { localStorage.setItem(STK_PACKS, JSON.stringify(a)); return true; } catch (e) { toast(t('stkFull')); return false; } };
+  async function importStickerPack(file) {
+    let pack;
+    try { pack = await KGChat.readWaStickers(await file.arrayBuffer()); }
+    catch (e) { toast(t(e.message === 'nozip' ? 'stkPackOld' : 'stkPackBad')); return 0; }
+    const blobOf = f => new File([f.bytes], 'x', { type: f.mime });
+    const items = [];
+    for (const s of pack.stickers.slice(0, 60)) { try { items.push(await stickerFromFile(blobOf(s))); } catch (e) { /* se salta */ } }
+    if (!items.length) { toast(t('stkPackBad')); return 0; }
+    let tray = ''; try { tray = pack.tray ? await stickerFromFile(blobOf(pack.tray)) : items[0]; } catch (e) { tray = items[0]; }
+    const all = packsGet(), title = pack.title || file.name.replace(/\.\w+$/, '').slice(0, 40);
+    const old = all.findIndex(p => p.title === title && (p.author || '') === pack.author);
+    const used = all.reduce((a, p, i) => a + (i === old ? 0 : p.items.length), 0) + stickersGet().length;
+    if (used + items.length > STK_MAX) { toast(t('stkPackFull', { n: STK_MAX })); return 0; }
+    const entry = { id: old >= 0 ? all[old].id : uid(), title, author: pack.author || '', tray, items };
+    if (old >= 0) all[old] = entry; else all.unshift(entry);
+    return packsSet(all) ? items.length : 0;
+  }
+  async function openGroup(gid, freshCode = null, tab = 'profile', opts = {}) {
     if (!auth) { toast(t('groupNeedLogin')); return; }
-    const G = { tab, info: null, code: freshCode, msgs: [], sig: '', gone: false, timers: [], seen: new Set(), seenFor: '', rates: {}, rec: null, reply: null, cup: { data: undefined, err: '' } };
+    // v1.57: from = cargar desde ese mensaje (al abrir un resultado de búsqueda); reacts = reacciones por mensaje; edit = mensaje que se edita
+    const G = { tab, info: null, code: freshCode, msgs: [], sig: '', gone: false, timers: [], seen: new Set(), seenFor: '', rates: {}, rec: null, reply: null, cup: { data: undefined, err: '' },
+      from: opts.jump ? Math.max(0, opts.jump - 15) : 0, reacts: new Map(), rsig: '', noReact: false, edit: null, pinMsg: null };
     let wref = null;
     const me = () => G.info && G.info.members.find(m => m.user_id === auth.uid);
     const can = p => GG.can(me(), p);
@@ -14105,7 +14349,7 @@
     const isDm = () => !!G.info && G.info.group.chat === 'dm';
     const isChat = () => !!G.info && !!G.info.group.chat;
     const peer = () => G.info && G.info.members.find(m => m.user_id !== auth.uid);
-    const memberName = id => { const m = G.info && G.info.members.find(x => x.user_id === id); return m ? m.display_name : '—'; };
+    const memberName = id => { const m = G.info && G.info.members.find(x => x.user_id === id); return userName(id, m ? m.display_name : '—'); };
     const isMod = () => !!me() && ['lider', 'colider'].includes(me().role);
     // El líder mantiene al día la ficha del grupo (p. ej., los hábitos vinculados del proyecto)
     const canon = v => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter(k => v[k] != null).sort().map(k => [k, canon(v[k])])) : v;
@@ -14126,9 +14370,19 @@
       }
     };
     const loadMsgs = async () => {
-      const rows = await sbFetch(`/rest/v1/kg_messages?group_id=eq.${gid}&select=id,user_id,kind,body,payload,deleted,created_at&order=id.desc&limit=120`);
-      const sig = rows.map(r => r.id + (r.deleted ? 'd' : '')).join(',');
-      if (sig === G.sig) return false;
+      const rows = await sbFetch(`/rest/v1/kg_messages?group_id=eq.${gid}&select=id,user_id,kind,body,payload,deleted,created_at${G.from ? `&id=gte.${G.from}&limit=600` : '&limit=120'}&order=id.desc`);
+      // v1.57: reacciones (si el servidor aún no tiene la tabla, se deja de pedir) y cambios por edición
+      let rsig = G.rsig;
+      if (!G.noReact && rows.length) {
+        try {
+          const rr = await sbFetch(`/rest/v1/kg_reactions?group_id=eq.${gid}&message_id=gte.${rows[rows.length - 1].id}&select=message_id,user_id,emoji&order=created_at`);
+          G.reacts = new Map(); rr.forEach(r => { const a = G.reacts.get(r.message_id) || []; a.push({ u: r.user_id, e: r.emoji }); G.reacts.set(r.message_id, a); });
+          rsig = rr.map(r => r.message_id + r.user_id + r.emoji).join(',');
+        } catch (e) { G.noReact = true; }
+      }
+      const sig = rows.map(r => r.id + (r.deleted ? 'd' : '') + (r.payload && r.payload.edited ? 'e' + r.body : '')).join(',');
+      if (sig === G.sig && rsig === G.rsig) return false;
+      G.rsig = rsig;
       const fresh = G.msgs.length && rows.length && rows[0].id > G.msgs[G.msgs.length - 1].id && rows[0].user_id !== auth.uid;
       G.msgs = rows.reverse(); G.sig = sig;
       const photos = G.msgs.filter(m => m.kind === 'photo' && m.user_id !== auth.uid && !m.deleted).map(m => m.payload && m.payload.media).join(',');
@@ -14155,7 +14409,8 @@
       const { group: g, members, max_members: max } = G.info, link = G.code ? `${APP_URL}?join=${G.code}` : '';
       return `<div class="stack" style="gap:16px">
         <section class="clay card g-profile"><div class="g-head">${groupPic(g)}<div class="grow" style="min-width:0"><h2 class="ellipsis" style="margin:0">${esc(g.name)}</h2><div class="muted">${esc(t('chatGroupKind'))} · ${members.length}${max ? `/${max}` : ''} ${esc(t('gMembersN')).toLowerCase()}</div>${g.code ? `<div class="row" style="gap:8px;margin-top:6px"><span class="muted small">${esc(t('gId'))}</span><b class="mono">${esc(g.code)}</b><button class="chip sm" data-g="copy-id">${esc(t('gCopyId'))}</button></div>` : ''}${picRm(g)}</div></div>
-          <div class="g-people" style="margin-top:12px">${members.map(m => `<span class="g-person">${avatarHtml(m, 'sm')}<span class="small ellipsis">${esc(m.user_id === auth.uid ? t('gYou') : m.display_name)}</span></span>`).join('')}</div></section>
+          <div class="g-people" style="margin-top:12px">${members.map(m => `<button type="button" class="g-person" data-wp-user="${esc(m.user_id)}">${avatarHtml(m, 'sm')}<span class="small ellipsis">${esc(m.user_id === auth.uid ? t('gYou') : memberName(m.user_id))}</span></button>`).join('')}</div>
+          <div class="row wrap" style="gap:8px;margin-top:12px"><button class="btn sm" data-g="wide">${ico('user')} ${esc(t('wpOpenGroup'))}</button></div></section>
         ${can('invite') ? `<section class="clay card"><h3 class="section-title">${ico('link')} ${esc(t('gInvite'))}</h3><button class="btn primary" data-g="add-friends">${ico('user')} ${esc(t('chatAddFriends'))}</button>${link ? `<div class="row wrap" style="margin-top:12px"><input class="input grow" readonly value="${esc(link)}" style="flex:1 1 220px"><button class="btn" data-g="share">${esc(t('share'))}</button><button class="chip" data-g="newcode">${esc(t('gNewLink'))}</button></div><p class="muted small" style="margin-bottom:0">${esc(t('gInviteHint'))}</p>` : ''}</section>` : ''}
         ${isLeader() ? `<section class="clay card banner-cta"><span style="font-size:26px">${ico('trophy')}</span><span class="grow"><b>${esc(t('gUpgrade'))}</b><br><span class="muted small">${esc(t('gUpgradeSub'))}</span></span><button class="btn primary" data-g="upgrade">${esc(t('gUpgradeBtn'))}</button></section>` : ''}
         <div class="center"><button class="chip danger-text" data-g="leave">${esc(t('chatLeave'))}</button></div>
@@ -14246,15 +14501,47 @@
         const src = stickerSrc(m.payload || {});
         inner = src ? `<img class="sticker" src="${src}" alt="Sticker" draggable="false">` : '🙂';
       } else inner = `<span class="msg-text">${esc(m.body)}</span>`;
-      const bare = m.kind === 'sticker' && !m.deleted;
+      const bare = m.kind === 'sticker' && !m.deleted, p0 = (!m.deleted && m.payload) || {};
       // v1.27: cita del mensaje al que responde (se toca para saltar a él)
-      const rq = !m.deleted && m.payload && m.payload.reply, quote = rq && rq.id ? `<button type="button" class="msg-quote" data-gc-jump="${+rq.id || 0}"><b>${esc(memberName(rq.u))}</b><span>${esc(String(rq.b || '').slice(0, 140))}</span></button>` : '';
-      return `<div class="msg ${mine ? 'mine' : ''}" ${m.deleted ? '' : `data-mid="${+m.id || 0}"`}><span class="msg-swipe" aria-hidden="true">${ico('reply')}</span>${mine || isDm() ? '' : `<span class="msg-who small">${esc(memberName(m.user_id))}</span>`}<div class="msg-bubble ${bare ? 'bare' : ''}">${quote}${inner}</div><span class="msg-meta small muted">${esc(fmtTime(m.created_at))}${bare && !mine ? ` · <button class="link-btn" data-gc-stk="${m.id}">${esc(t('stkSave'))}</button>` : ''}${canDel ? ` · <button class="link-btn" data-gc-del="${m.id}">${esc(t('chatDelete'))}</button>` : ''}</span></div>`;
+      const rq = p0.reply, quote = rq && rq.id ? `<button type="button" class="msg-quote" data-gc-jump="${+rq.id || 0}"><b>${esc(memberName(rq.u))}</b><span>${esc(String(rq.b || '').slice(0, 140))}</span></button>` : '';
+      /* v1.57: la hora y «Eliminar» ya no se ven siempre: aparecen al deslizar el mensaje a la derecha (msg-info).
+         Reenviado y editado van como marcas pequeñas; las reacciones, debajo de la burbuja. */
+      const fwd = p0.fwd ? `<span class="msg-tag">${ico('send', 'xs')} ${esc(t('msgFwd'))}</span>` : '';
+      const edited = p0.edited ? `<span class="msg-edited">${esc(t('msgEdited'))}</span>` : '';
+      const info = `<div class="msg-info"><span class="mi-time">${ico('clock', 'xs')} ${esc(fmtWhen(m.created_at))}</span>${canDel ? `<button type="button" class="mi-del" data-gc-del="${m.id}">${ico('trash', 'xs')} ${esc(t('chatDelete'))}</button>` : ''}</div>`;
+      return `<div class="msg ${mine ? 'mine' : ''}" ${m.deleted ? '' : `data-mid="${+m.id || 0}"`}><span class="msg-swipe" aria-hidden="true">${ico('reply')}</span><span class="msg-swipe-i" aria-hidden="true">${ico('info')}</span>${mine || isDm() ? '' : `<button type="button" class="msg-who small" data-wp-user="${esc(m.user_id || '')}">${esc(memberName(m.user_id))}</button>`}<div class="msg-bubble ${bare ? 'bare' : ''}">${fwd}${quote}${inner}${edited}</div>${reactsHtml(m)}${info}</div>`;
+    };
+    // v1.57: reacciones agrupadas por emoji (la tuya resaltada; tocar una la pone o la quita)
+    const reactsHtml = m => {
+      const list = !m.deleted && G.reacts.get(+m.id); if (!list || !list.length) return '';
+      const by = new Map(); list.forEach(r => { const a = by.get(r.e) || []; a.push(r.u); by.set(r.e, a); });
+      return `<div class="msg-reacts">${[...by].map(([e, us]) => `<button type="button" class="react-chip ${us.includes(auth.uid) ? 'on' : ''}" data-react="${+m.id}" data-emo="${esc(e)}" title="${esc(us.map(memberName).join(', '))}">${esc(e)}${us.length > 1 ? `<b>${us.length}</b>` : ''}</button>`).join('')}</div>`;
+    };
+    // Separadores de día («Hoy», «Ayer», fecha) para no tener que mirar la hora de cada mensaje
+    const dayLabel = iso => { const d = new Date(iso), k = d.toDateString(), n = new Date(); if (k === n.toDateString()) return t('today'); n.setDate(n.getDate() - 1); if (k === n.toDateString()) return t('yesterday'); try { return d.toLocaleDateString(state.lang, { weekday: 'long', day: 'numeric', month: 'long', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) }); } catch (e) { return iso.slice(0, 10); } };
+    const listHtml = () => {
+      if (!G.msgs.length) return `<p class="muted center">${esc(t('chatEmpty'))}</p>`;
+      let last = '', out = '';
+      for (const m of G.msgs) { const k = new Date(m.created_at).toDateString(); if (k !== last) { last = k; out += `<div class="day-sep"><span>${esc(dayLabel(m.created_at))}</span></div>`; } out += msgHtml(m); }
+      return out;
+    };
+    // Mensaje fijado: barra arriba del chat (se toca para ir a él)
+    const canPin = () => isDm() || can('moderate');
+    const pinBarHtml = () => {
+      const id = G.info && G.info.group.pinned; if (!id) return '';
+      const m = G.msgs.find(x => +x.id === +id) || G.pinMsg; if (!m || +m.id !== +id || m.deleted) return '';
+      return `<span class="pin-ico">${ico('pin')}</span><button type="button" class="grow pin-go" data-gc-jump="${+m.id}"><b>${esc(t('msgPinned'))}</b><span class="muted small ellipsis">${esc(replySnippet(m))}</span></button>${canPin() ? `<button type="button" class="icon-btn sm" data-g="unpin" aria-label="${esc(t('msgUnpin'))}">${ico('x')}</button>` : ''}`;
+    };
+    const drawPin = async () => {
+      const id = G.info && G.info.group.pinned;
+      if (id && !G.msgs.some(x => +x.id === +id) && (!G.pinMsg || +G.pinMsg.id !== +id)) { try { G.pinMsg = (await sbFetch(`/rest/v1/kg_messages?id=eq.${+id}&group_id=eq.${gid}&select=id,user_id,kind,body,payload,deleted,created_at`))[0] || null; } catch (e) { G.pinMsg = null; } }
+      const bar = wref && $('#pin-bar', wref); if (!bar) return; const h = pinBarHtml(); bar.innerHTML = h; bar.hidden = !h;
     };
     const chatTab = () => `<div class="chat">${isChat() ? '' : localBanner()}
-        <div class="chat-list" id="chat-list" role="log" aria-live="polite">${G.msgs.length ? G.msgs.map(msgHtml).join('') : `<p class="muted center">${esc(t('chatEmpty'))}</p>`}</div>
-        <div class="reply-bar" id="reply-bar" ${G.reply ? '' : 'hidden'}>${replyBarHtml()}</div>
-        <form class="chat-compose ${G.rec ? 'recording' : ''}" id="chat-form">${can('share') ? `<button type="button" class="icon-btn" data-g="chat-more" aria-label="${esc(t('chatMore'))}">${ico('plus')}</button>` : ''}<button type="button" class="icon-btn" data-g="stk" aria-label="Stickers" title="Stickers">${ico('smile')}</button><input class="input grow" id="chat-in" maxlength="1000" autocomplete="off" placeholder="${esc(t('chatPh'))}" aria-label="${esc(t('chatPh'))}">
+        <div class="pin-bar" id="pin-bar" ${pinBarHtml() ? '' : 'hidden'}>${pinBarHtml()}</div>
+        <div class="chat-list" id="chat-list" role="log" aria-live="polite">${listHtml()}</div>
+        <div class="reply-bar" id="reply-bar" ${G.reply || G.edit ? '' : 'hidden'}>${replyBarHtml()}</div>
+        <form class="chat-compose ${G.rec ? 'recording' : ''}" id="chat-form"><button type="button" class="icon-btn" data-g="chat-more" aria-label="${esc(t('chatMore'))}">${ico('plus')}</button><button type="button" class="icon-btn" data-g="stk" aria-label="Stickers" title="Stickers">${ico('smile')}</button><input class="input grow" id="chat-in" maxlength="1000" autocomplete="off" placeholder="${esc(t('chatPh'))}" aria-label="${esc(t('chatPh'))}">
           <span class="rec-info grow" aria-live="polite"><span class="rec-dot"></span><span id="rec-t">0:00</span> <span class="muted small">${esc(t('recHint'))}</span></span>
           <label class="icon-btn photo-btn-chat" title="${esc(t('photoOnceSend'))}">${ico('camera')}<input type="file" accept="image/*" class="sr-only" data-g-photo aria-label="${esc(t('photoOnceSend'))}"></label><button type="button" class="icon-btn rec-cancel" data-g="rec-cancel" aria-label="${esc(t('cancel'))}">${ico('x')}</button><button type="button" class="icon-btn mic-btn" data-g="mic" aria-label="${esc(t('recStart'))}" title="${esc(t('recStart'))}">${ico('mic')}</button><button class="btn primary send-btn" type="submit" aria-label="${esc(t('chatSend'))}">${ico('send')}</button></form>
       </div>`;
@@ -14268,38 +14555,135 @@
       return t('rpShare');
     }
     function replyBarHtml() {
+      if (G.edit) return `<span class="reply-ico">${ico('edit')}</span><span class="grow"><b>${esc(t('msgEditing'))}</b><span class="muted small ellipsis">${esc(G.edit.b)}</span></span><button type="button" class="icon-btn sm" data-g="reply-x" aria-label="${esc(t('cancel'))}">${ico('x')}</button>`;
       const r = G.reply; if (!r) return '';
       return `<span class="reply-ico">${ico('reply')}</span><span class="grow"><b>${esc(t('rpTo', { name: memberName(r.u) }))}</b><span class="muted small ellipsis">${esc(r.b)}</span></span><button type="button" class="icon-btn sm" data-g="reply-x" aria-label="${esc(t('rpCancel'))}">${ico('x')}</button>`;
     }
-    function setReply(m) {
-      G.reply = m ? { id: +m.id, u: m.user_id, b: replySnippet(m) } : null;
+    const barUpdate = () => {
       const bar = wref && $('#reply-bar', wref); if (!bar) return;
-      bar.innerHTML = replyBarHtml(); bar.hidden = !G.reply;
-      if (G.reply) { bar.classList.remove('in'); void bar.offsetWidth; bar.classList.add('in'); const i = $('#chat-in', wref); if (i) i.focus(); }
+      bar.innerHTML = replyBarHtml(); bar.hidden = !(G.reply || G.edit);
+      if (G.reply || G.edit) { bar.classList.remove('in'); void bar.offsetWidth; bar.classList.add('in'); const i = $('#chat-in', wref); if (i) i.focus(); }
+    };
+    function setReply(m) { G.edit = null; G.reply = m ? { id: +m.id, u: m.user_id, b: replySnippet(m) } : null; barUpdate(); }
+    // v1.57: editar un texto propio (48 h): el texto vuelve a la caja y «Enviar» guarda el cambio
+    function setEdit(m) {
+      const i = wref && $('#chat-in', wref);
+      if (!m) { if (G.edit && i) { i.value = ''; i.form.classList.remove('has-text'); } G.edit = null; barUpdate(); return; }
+      G.reply = null; G.edit = { id: +m.id, b: replySnippet(m) };
+      if (i) { i.value = m.body || ''; i.form.classList.add('has-text'); }
+      barUpdate();
     }
-    function bindSwipeReply(w) {
+    /* v1.57: gestos de cada mensaje (como WhatsApp y Telegram):
+       · deslizar a la IZQUIERDA → responder
+       · deslizar a la DERECHA → abre debajo la hora completa y «Eliminar» (otro deslizamiento o tocar fuera lo cierra)
+       · mantener pulsado (o clic derecho) → menú con reacciones, responder, copiar, reenviar, fijar, editar, info y eliminar */
+    const closeInfo = except => { if (!wref) return; $$('#chat-list .msg.info-open', wref).forEach(x => { if (x !== except) x.classList.remove('info-open'); }); };
+    function bindMsgGestures(w) {
       let S = null;
+      const cancelPress = () => { if (S && S.lp) { clearTimeout(S.lp); S.lp = 0; } if (S && S.msg) S.msg.classList.remove('pressing'); };
       w.addEventListener('pointerdown', e => {
-        const msg = e.target.closest('#chat-list .msg[data-mid]'); if (!msg || e.button > 0 || e.target.closest('audio, button, a, input')) return;
-        S = { msg, id: msg.dataset.mid, x: e.clientX, y: e.clientY, dx: 0, lock: null, armed: false, pid: e.pointerId };
+        const msg = e.target.closest('#chat-list .msg[data-mid]');
+        if (!msg) { if (!e.target.closest('.msg-info')) closeInfo(); return; }
+        if (e.button > 0 || e.target.closest('audio, a, input, .msg-info, .react-chip')) return;
+        S = { msg, id: msg.dataset.mid, x: e.clientX, y: e.clientY, dx: 0, lock: null, armed: false, pid: e.pointerId, lp: 0 };
+        msg.classList.add('pressing');
+        S.lp = setTimeout(() => { if (!S || S.lock) return; const s0 = S; S = null; s0.msg.classList.remove('pressing'); vibrate(12); openMsgMenu(s0.id); }, 460);
       });
       w.addEventListener('pointermove', e => {
         if (!S || e.pointerId !== S.pid) return;
         const dx = e.clientX - S.x, dy = e.clientY - S.y;
-        if (S.lock == null) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; S.lock = Math.abs(dx) > Math.abs(dy) * 1.2 && dx > 0 ? 'x' : 'y'; if (S.lock === 'x') { S.msg.classList.add('swiping'); try { S.msg.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ } } }
-        if (S.lock !== 'x') return;
+        if (S.lock == null) {
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+          cancelPress();
+          S.lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? (dx < 0 ? 'l' : 'r') : 'y';
+          if (S.lock !== 'y') { S.msg.classList.add('swiping', S.lock === 'l' ? 'sw-l' : 'sw-r'); try { S.msg.setPointerCapture(e.pointerId); } catch (err) { /* sin captura */ } }
+        }
+        if (S.lock === 'y') return;
         e.preventDefault();
-        const d = Math.max(0, dx), eased = d < 60 ? d : 60 + (d - 60) * .25; S.dx = eased;
-        S.msg.style.setProperty('--sw', Math.min(eased, 96) + 'px'); S.msg.style.setProperty('--swp', Math.min(1, eased / 60));
-        const arm = eased >= 60; if (arm !== S.armed) { S.armed = arm; S.msg.classList.toggle('armed', arm); if (arm) vibrate(10); }
+        const d = S.lock === 'l' ? Math.max(0, -dx) : Math.max(0, dx), eased = d < 60 ? d : 60 + (d - 60) * .25; S.dx = eased;
+        S.msg.style.setProperty('--sw', (S.lock === 'l' ? -1 : 1) * Math.min(eased, 96) + 'px'); S.msg.style.setProperty('--swp', Math.min(1, eased / 60));
+        const arm = eased >= 56; if (arm !== S.armed) { S.armed = arm; S.msg.classList.toggle('armed', arm); if (arm) vibrate(10); }
       });
       const end = () => {
-        if (!S) return; const s0 = S; S = null;
-        if (s0.lock !== 'x') return;
-        s0.msg.classList.remove('swiping', 'armed'); s0.msg.style.setProperty('--sw', '0px'); s0.msg.style.setProperty('--swp', 0);
-        if (s0.armed) { const m = G.msgs.find(x => String(x.id) === s0.id); if (m) setReply(m); }
+        if (!S) return; const s0 = S; S = null; cancelPress.call(null); if (s0.lp) clearTimeout(s0.lp); s0.msg.classList.remove('pressing');
+        if (!s0.lock || s0.lock === 'y') return;
+        s0.msg.classList.remove('swiping', 'armed', 'sw-l', 'sw-r'); s0.msg.style.setProperty('--sw', '0px'); s0.msg.style.setProperty('--swp', 0);
+        if (!s0.armed) return;
+        if (s0.lock === 'l') { const m = G.msgs.find(x => String(x.id) === s0.id); if (m) setReply(m); }
+        else { const open = !s0.msg.classList.contains('info-open'); closeInfo(s0.msg); s0.msg.classList.toggle('info-open', open); }
       };
-      w.addEventListener('pointerup', end); w.addEventListener('pointercancel', end);
+      w.addEventListener('pointerup', end); w.addEventListener('pointercancel', () => { if (S) { if (S.lp) clearTimeout(S.lp); S.msg.classList.remove('pressing', 'swiping', 'armed', 'sw-l', 'sw-r'); S.msg.style.setProperty('--sw', '0px'); S = null; } });
+      w.addEventListener('contextmenu', e => { const msg = e.target.closest('#chat-list .msg[data-mid]'); if (!msg) return; e.preventDefault(); openMsgMenu(msg.dataset.mid, true); });
+    }
+    const QUICK = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+    const MORE_EMO = ['🔥', '👏', '🎉', '💪', '😍', '🤣', '😎', '🤔', '🙌', '💯', '✅', '❌', '😡', '🥲', '😴', '🤯', '🥳', '😇', '🤝', '👀', '💀', '🫡', '🙈', '⚽', '🏆', '💸', '🍕', '☕', '🌟', '💔', '🤞', '👋'];
+    async function react(id, emo) {
+      if (G.noReact) { toast(t('msgNeedSql')); return; }
+      // Al momento en pantalla; el servidor confirma en el siguiente refresco
+      const list = (G.reacts.get(+id) || []).filter(r => r.u !== auth.uid), had = (G.reacts.get(+id) || []).find(r => r.u === auth.uid);
+      if (!had || had.e !== emo) list.push({ u: auth.uid, e: emo });
+      G.reacts.set(+id, list); draw(true); vibrate(8); sfx('tap');
+      try { await rpc('kg_react', { p_id: +id, p_emoji: emo }); G.rsig = ''; } catch (err) { toast(/kg_react|PGRST202|404/.test(err.message) ? t('msgNeedSql') : chatErr(err)); }
+    }
+    const forwardable = m => !m.deleted && (m.kind === 'text' || m.kind === 'sticker' || (m.kind === 'share' && m.payload));
+    async function forwardMsg(m) {
+      pickChat(t('msgForwardTo'), async id => {
+        if (m.kind === 'text') return rpc('kg_post', { p_group: id, p_kind: 'text', p_body: m.body, p_payload: { fwd: true } });
+        if (m.kind === 'sticker') { const p = m.payload || {}; return rpc('kg_post_media', { p_group: id, p_kind: 'sticker', p_mime: p.mime, p_data: p.data, p_meta: {} }); }
+        return rpc('kg_post', { p_group: id, p_kind: 'share', p_body: '', p_payload: { ...(m.payload || {}), fwd: true } });
+      }, { multi: true });
+    }
+    // Menú al mantener pulsado: el mensaje se eleva sobre un fondo desenfocado, reacciones arriba y acciones debajo
+    function openMsgMenu(id, fromCtx = false) {
+      const m = G.msgs.find(x => String(x.id) === String(id)); if (!m || m.deleted || m.kind === 'system' || $('.mm-back')) return;
+      closeInfo();
+      const mine = m.user_id === auth.uid, canDel = mine || (!isDm() && can('moderate'));
+      const mineR = ((G.reacts.get(+m.id) || []).find(r => r.u === auth.uid) || {}).e;
+      const src = wref && $(`#chat-list .msg[data-mid="${+m.id}"] .msg-bubble`, wref);
+      const acts = [
+        ['reply', 'reply', t('msgReply')],
+        m.kind === 'text' && ['copy', 'copy', t('msgCopy')],
+        forwardable(m) && ['fwd', 'send', t('msgForward')],
+        canPin() && [+(G.info.group.pinned || 0) === +m.id ? 'unpin' : 'pin', 'pin', t(+(G.info.group.pinned || 0) === +m.id ? 'msgUnpin' : 'msgPin')],
+        mine && m.kind === 'text' && Date.now() - Date.parse(m.created_at) < 48 * 36e5 && ['edit', 'edit', t('msgEdit')],
+        m.kind === 'sticker' && ['stk', 'smile', t('stkSave')],
+        ['info', 'info', t('msgInfo')],
+        canDel && ['del', 'trash', t('chatDelete')]
+      ].filter(Boolean);
+      const ov = document.createElement('div');
+      ov.className = `mm-back ${mine ? 'mine' : ''}`;
+      ov.innerHTML = `<div class="mm-col" role="menu" aria-label="${esc(t('msgMenu'))}">
+        <div class="mm-reacts clay">${QUICK.map(e => `<button type="button" class="mm-emo ${mineR === e ? 'on' : ''}" data-mm-emo="${e}" aria-label="${e}">${e}</button>`).join('')}<button type="button" class="mm-emo more" data-mm-more aria-label="${esc(t('msgMoreEmoji'))}">${ico('plus')}</button></div>
+        <div class="mm-more clay" hidden>${MORE_EMO.map(e => `<button type="button" class="mm-emo ${mineR === e ? 'on' : ''}" data-mm-emo="${e}">${e}</button>`).join('')}</div>
+        <div class="mm-msg msg ${mine ? 'mine' : ''}">${src ? src.outerHTML : ''}</div>
+        <div class="mm-acts clay">${acts.map(([k, i, l]) => `<button type="button" class="mm-act ${k === 'del' ? 'danger-text' : ''}" data-mm="${k}" role="menuitem"><span>${esc(l)}</span>${ico(i)}</button>`).join('')}</div></div>`;
+      document.body.appendChild(ov);
+      requestAnimationFrame(() => ov.classList.add('in'));
+      // El dedo que mantuvo pulsado aún está encima: su «clic» al soltar no debe elegir nada del menú
+      let ready = false; const arm = () => setTimeout(() => { ready = true; }, 0);
+      document.addEventListener('pointerup', arm, { once: true }); if (fromCtx) setTimeout(() => { ready = true; }, 300);
+      const close = () => { ov.classList.remove('in'); ov.classList.add('out'); setTimeout(() => ov.remove(), reducedMotion() ? 0 : 220); document.removeEventListener('keydown', key); };
+      const key = e => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', key);
+      ov.addEventListener('click', async e => {
+        if (!ready) return;
+        if (e.target === ov || e.target.classList.contains('mm-col')) { close(); return; }
+        if (e.target.closest('[data-mm-more]')) { const mo = $('.mm-more', ov); mo.hidden = !mo.hidden; return; }
+        const em = e.target.closest('[data-mm-emo]'); if (em) { close(); react(m.id, em.dataset.mmEmo); return; }
+        const b = e.target.closest('[data-mm]'); if (!b) return;
+        close();
+        const k = b.dataset.mm;
+        try {
+          if (k === 'reply') setReply(m);
+          else if (k === 'copy') { try { await navigator.clipboard.writeText(m.body || ''); toast(t('copied')); } catch (err) { toast(t('msgCopyFail')); } }
+          else if (k === 'fwd') forwardMsg(m);
+          else if (k === 'pin' || k === 'unpin') { await rpc('kg_pin', { p_group: gid, p_id: k === 'pin' ? +m.id : null }); G.info.group.pinned = k === 'pin' ? +m.id : null; sfx('toggle'); drawPin(); }
+          else if (k === 'edit') setEdit(m);
+          else if (k === 'stk') { const s = stickerSrc(m.payload || {}); if (s) { const list = stickersGet(); if (!list.includes(s)) { list.unshift(s); stickersSet(list); } toast(t('stkSaved')); } }
+          else if (k === 'info') { const el = wref && $(`#chat-list .msg[data-mid="${+m.id}"]`, wref); if (el) { closeInfo(el); el.classList.add('info-open'); } }
+          else if (k === 'del') { if (await confirmDialog(t('chatDeleteQ'))) { await rpc('kg_delete_message', { p_id: +m.id }); await loadMsgs(); draw(true); } }
+        } catch (err) { toast(/kg_pin|kg_edit|PGRST202|404/.test(err.message) ? t('msgNeedSql') : chatErr(err)); }
+      });
     }
     function jumpTo(id) {
       const el = wref && $(`#chat-list .msg[data-mid="${+id}"]`, wref);
@@ -14487,8 +14871,8 @@
           ? `<div class="perm-row" role="group" aria-label="${esc(t('gPerms'))}">${GG.PERMS.map(p => `<label class="check-chip sm"><input type="checkbox" data-perm-user="${m.user_id}" data-perm="${p}" ${(m.perms || []).includes(p) ? 'checked' : ''}><span>${esc(t('perm_' + p))}</span></label>`).join('')}</div>`
           : (m.perms || []).filter(p => GG.PERMS.includes(p)).length ? `<div class="perm-row">${m.perms.filter(p => GG.PERMS.includes(p)).map(p => `<span class="perm-chip">${esc(t('perm_' + p))}</span>`).join('')}</div>` : '';
         const status = g.kind === 'habit' ? (m.done_today ? `<span class="ok-chip">${ico('check')} ${esc(t('gDoneToday'))}</span>` : `<span class="warn-chip">⏳ ${esc(t('gNotToday'))}</span>`) : '';
-        return `<div class="member-row">${avatarHtml(m)}
-          <div class="grow" style="min-width:0"><b class="ellipsis">${esc(m.display_name)}${self ? ' · ' + esc(t('gYou')) : ''}</b>${m.nametag ? ` <span class="muted small">@${esc(m.nametag)}</span>` : ''}
+        return `<div class="member-row"><button type="button" class="av-tap" data-wp-user="${esc(m.user_id)}" aria-label="${esc(t('wpOpen'))}">${avatarHtml(m)}</button>
+          <div class="grow" style="min-width:0"><b class="ellipsis">${esc(memberName(m.user_id))}${self ? ' · ' + esc(t('gYou')) : ''}</b>${m.nametag ? ` <span class="muted small">@${esc(m.nametag)}</span>` : ''}
             <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${roleCtl}${status}<span class="rep-chip" title="${esc(t('repInGroup'))}">${ico('medal')} ${esc(t('repShort', { n: m.rep || 0 }))}</span></div>${perms}</div>
           ${leader && !self ? `<button class="icon-btn sm" data-g-kick="${m.user_id}" aria-label="${esc(t('gKick'))}">${ico('x')}</button>` : ''}
         </div>`;
@@ -14501,7 +14885,8 @@
     const setTitle = () => {
       const h = wref && $('.sheet-head h2', wref); if (!h || !G.info) return;
       const g = G.info.group, p = peer();
-      h.innerHTML = isDm() ? `<span class="row" style="gap:10px;min-width:0">${avatarHtml(p || {}, 'sm')}<span class="ellipsis">${esc(p ? p.display_name : '—')}${p && p.nametag ? ` <span class="muted small">@${esc(p.nametag)}</span>` : ''}</span></span>` : `<span class="row" style="gap:10px;min-width:0">${groupAv(g, 'sm')}<span class="ellipsis">${esc(g.name)}</span></span>`;
+      // v1.57: tocar el nombre abre el perfil amplio (de tu amigo o del grupo)
+      h.innerHTML = isDm() ? `<button type="button" class="title-btn" data-g="wide" aria-label="${esc(t('wpOpen'))}">${avatarHtml(p || {}, 'sm')}<span class="ellipsis">${esc(p ? memberName(p.user_id) : '—')}${p && p.nametag ? ` <span class="muted small">@${esc(p.nametag)}</span>` : ''}</span></button>` : `<button type="button" class="title-btn" data-g="wide" aria-label="${esc(t('wpOpen'))}">${groupAv(g, 'sm')}<span class="ellipsis">${esc(nickOf('g:' + gid) || g.name)}</span></button>`;
     };
     const draw = (keepChat = false) => {
       const el = body(); if (!el) return;
@@ -14511,50 +14896,75 @@
       setTitle();
       if (keepChat && G.tab === 'chat' && $('#chat-list', el)) {
         const l = $('#chat-list', el), atEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 60;
-        l.innerHTML = G.msgs.length ? G.msgs.map(msgHtml).join('') : `<p class="muted center">${esc(t('chatEmpty'))}</p>`;
+        l.innerHTML = listHtml(); drawPin();
         loadRates(); if (atEnd) scrollChat(); return;
       }
       const draft = $('#chat-in', el) ? $('#chat-in', el).value : '';
       el.innerHTML = `${TABS.length < 2 ? '' : `<div class="seg g-tabs" role="tablist">${TABS.map(([k, e, l]) => `<button role="tab" aria-selected="${G.tab === k}" class="${G.tab === k ? 'on' : ''}" data-gt="${k}"><span aria-hidden="true">${e}</span> <span class="g-tab-l">${esc(t(l))}</span></button>`).join('')}</div>`}
         <div class="g-pane" role="tabpanel">${G.tab === 'chat' ? chatTab() : G.tab === 'live' ? liveTab() : G.tab === 'rank' ? rankTab() : G.tab === 'cup' ? cupTab() : G.tab === 'members' ? membersTab() : profileTab()}</div>`;
-      if (G.tab === 'chat') { const i = $('#chat-in', el); if (draft) { i.value = draft; i.form.classList.add('has-text'); } loadRates(); scrollChat(); }
+      if (G.tab === 'chat') { const i = $('#chat-in', el); if (draft) { i.value = draft; i.form.classList.add('has-text'); } loadRates(); scrollChat(); drawPin(); }
     };
     const refresh = async (info = true) => { if (info) await loadInfo(); if (G.tab === 'chat') await loadMsgs(); draw(); };
     const poll = () => {
       G.timers.push(setInterval(async () => { if (G.tab !== 'chat' || document.hidden) return; try { if (await loadMsgs()) draw(true); } catch (e) { /* sin conexión */ } }, 4000));
       G.timers.push(setInterval(async () => { if (document.hidden) return; try { const before = JSON.stringify(G.info && G.info.active); await loadInfo(); if (G.tab !== 'chat' && JSON.stringify(G.info.active) !== before) draw(); } catch (e) { /* sin conexión */ } }, 20000));
     };
+    /* v1.57: «+» del chat con aspecto actual: hoja con mosaicos de colores (foto, sticker, voz, hábito, proyecto,
+       calendario, invitación). Elegir un hábito o proyecto abre un buscador con tarjetas, vista previa y comentario. */
     async function chatShare() {
-      const opts = [['invite', '🔗', 'chatShareInvite'], ['habit', '📋', 'chatShareHabit'], ['project', '🎯', 'chatShareProject'], ['calendar', '📅', 'chatShareCal']].filter(o => !(isDm() && o[0] === 'invite'));
+      const sh = can('share');
+      const tiles = [
+        ['photo', 'camera', 't-photo', t('attPhoto'), true],
+        ['stk', 'smile', 't-stk', 'Stickers', true],
+        ['mic', 'mic', 't-mic', t('attVoice'), true],
+        ['habit', 'checklist', 't-habit', t('gHabit'), sh],
+        ['project', 'target', 't-proj', t('gProject'), sh],
+        ['calendar', 'calendar', 't-cal', t('chatShareCalShort'), sh],
+        !isDm() && ['invite', 'link', 't-inv', t('chatShareInviteShort'), sh]
+      ].filter(Boolean);
       openModal({
-        title: esc(t('chatMore')),
-        body: `<div class="stack" style="gap:10px">${opts.map(([k, e, l]) => `<button class="btn block" data-cs="${k}">${e} ${esc(t(l))}</button>`).join('')}</div>`,
+        title: esc(t('chatMore')), cls: 'att-modal',
+        body: `<div class="att-grid">${tiles.map(([k, i, c, l, ok], n) => k === 'photo'
+          ? `<label class="att-tile" style="--n:${n}"><span class="att-ico ${c}">${ico(i)}</span><span class="small">${esc(l)}</span><input type="file" accept="image/*" class="sr-only" data-att-photo></label>`
+          : `<button type="button" class="att-tile" data-att="${k}" style="--n:${n}" ${ok ? '' : 'disabled'}><span class="att-ico ${c}">${ico(i)}</span><span class="small">${esc(l)}</span></button>`).join('')}</div>${sh ? '' : `<p class="muted small center" style="margin:10px 0 0">${esc(t('chatNoPerm'))}</p>`}`,
+        onMount: (w, close) => w.addEventListener('change', async e => { if (!e.target.matches('[data-att-photo]') || !e.target.files[0]) return; const f = e.target.files[0]; close(); toast(t('photoSending')); try { await sendPhoto(f); } catch (err) { toast(t('groupError', { e: err.message })); } }),
         onClick: async (e, close) => {
-          const b = e.target.closest('[data-cs]'); if (!b) return; close();
-          const k = b.dataset.cs;
+          const b = e.target.closest('[data-att]'); if (!b || b.disabled) return; close();
+          const k = b.dataset.att;
+          if (k === 'stk') return openStickers();
+          if (k === 'mic') return startRec();
           if (k === 'calendar') { if (!gate('calShare')) return; tfOpenShare(gid, async () => { await loadMsgs(); draw(); }); return; }
           if (k === 'invite') {
             await refreshMyGroups(true);
             const list = (myGroups.list || []).filter(g => g.id !== gid && GG.can({ role: g.my_role, perms: (g.members.find(m => m.user_id === auth.uid) || {}).perms }, 'invite'));
-            pick(t('chatPickGroup'), list.map(g => ({ id: g.id, label: `${g.icon} ${g.name}` })), async id => { await rpc('kg_post_invite', { p_group: gid, p_target: id }); });
-          } else {
-            const items = k === 'habit' ? state.habits.filter(h => !h.archived) : state.projects;
-            pick(t(k === 'habit' ? 'chatPickHabit' : 'chatPickProject'), items.map(o => ({ id: o.id, label: `${o.icon || ''} ${o.name}` })), async id => {
-              const o = items.find(x => x.id === id);
-              await rpc('kg_post', { p_group: gid, p_kind: 'share', p_body: '', p_payload: { type: k, spec: k === 'habit' ? habitSpec(o) : projectSpec(o) } }); sfx('share');
-            });
+            return pickRich(t('chatPickGroup'), list.map(g => ({ id: g.id, icon: g.icon || '👥', name: chatName(g), sub: t(g.kind === 'habit' ? 'gHabit' : 'gProject') + ' · ' + (g.members || []).length })), id => rpc('kg_post_invite', { p_group: gid, p_target: id }));
           }
+          const items = k === 'habit' ? state.habits.filter(h => !h.archived) : state.projects.filter(p => !p.archived);
+          pickRich(t(k === 'habit' ? 'chatPickHabit' : 'chatPickProject'), items.map(o => ({ id: o.id, icon: o.icon || (k === 'habit' ? '📋' : '🎯'), name: o.name, sub: k === 'habit' ? (isQuit(o) ? t('kindQuit') : packSub(o)) : t('pvHabits') + ' · ' + (o.habitIds || []).length })), async id => {
+            const o = items.find(x => x.id === id);
+            await rpc('kg_post', { p_group: gid, p_kind: 'share', p_body: '', p_payload: { type: k, spec: k === 'habit' ? habitSpec(o) : projectSpec(o) } }); sfx('share');
+          });
         }
       });
-      function pick(title, items, fn) {
+      function pickRich(title, items, fn) {
+        let sel = null;
         openModal({
-          title: esc(title),
-          body: items.length ? `<div class="stack" style="gap:8px">${items.map(i => `<button class="btn block" style="justify-content:flex-start" data-pk="${esc(i.id)}">${esc(i.label)}</button>`).join('')}</div>` : `<p class="muted">${esc(t(title === t('chatPickGroup') ? 'chatNoGroups' : 'chatNoItems'))}</p>`,
-          onClick: async (e, close) => {
-            const b = e.target.closest('[data-pk]'); if (!b) return;
-            b.disabled = true;
-            try { await fn(b.dataset.pk); sfx('pop'); close(); await loadMsgs(); draw(); }
-            catch (err) { b.disabled = false; toast(/not allowed/.test(err.message) ? t('chatNoPerm') : t('groupError', { e: err.message })); }
+          title: esc(title), cls: 'pick-rich',
+          body: items.length ? `<label class="chat-search clay" style="margin-bottom:10px">${ico('search')}<input type="search" id="pr-q" autocomplete="off" placeholder="${esc(t('prSearch'))}"></label><div class="pr-list" id="pr-list">${items.map((i, n) => `<button type="button" class="pr-card" data-pk="${esc(i.id)}" style="--n:${n}"><span class="pr-ico">${esc(i.icon)}</span><span class="grow"><b class="ellipsis">${esc(i.name)}</b><span class="muted small ellipsis">${esc(i.sub || '')}</span></span><span class="pr-check">${ico('check')}</span></button>`).join('')}</div>
+            <input class="input" id="pr-note" maxlength="1000" placeholder="${esc(t('shareCommentPh'))}" style="margin-top:10px" autocomplete="off">`
+            : `<p class="muted">${esc(t(title === t('chatPickGroup') ? 'chatNoGroups' : 'chatNoItems'))}</p>`,
+          foot: items.length ? `<button class="btn primary block" data-pr-go disabled>${ico('send')} ${esc(t('chatSend'))}</button>` : '',
+          onInput: (e, w) => { if (e.target.id !== 'pr-q') return; const q = e.target.value; $$('[data-pk]', w).forEach(b => { const it = items.find(x => x.id === b.dataset.pk); b.hidden = !!q.trim() && !KGChat.matches(`${it.name} ${it.sub || ''}`, q); }); },
+          onClick: async (e, close, w) => {
+            const c = e.target.closest('[data-pk]');
+            if (c) { sel = c.dataset.pk; $$('[data-pk]', w).forEach(b => b.classList.toggle('on', b === c)); $('[data-pr-go]', w).disabled = false; vibrate(6); return; }
+            const go = e.target.closest('[data-pr-go]'); if (!go || !sel) return;
+            go.disabled = true;
+            try {
+              await fn(sel);
+              const note = ($('#pr-note', w).value || '').trim(); if (note) await rpc('kg_post', { p_group: gid, p_kind: 'text', p_body: note, p_payload: {} });
+              sfx('pop'); close(); await loadMsgs(); draw(true); scrollChat();
+            } catch (err) { go.disabled = false; toast(/not allowed/.test(err.message) ? t('chatNoPerm') : t('groupError', { e: err.message })); }
           }
         });
       }
@@ -14654,21 +15064,33 @@
     }
     const stopRec = (cancel = false) => { if (!G.rec) return; G.rec.cancel = cancel; if (G.rec.rec.state !== 'inactive') G.rec.rec.stop(); };
     function openStickers() {
-      let edit = false;
+      let edit = false, tab = 'mine';
+      // v1.57: pestañas con el icono de cada paquete importado; «Míos» son los sueltos
+      const cur = () => tab === 'mine' ? stickersGet() : ((packsGet().find(p => p.id === tab) || {}).items || []);
       const grid = w => {
-        const list = stickersGet();
-        $('#stk-grid', w).innerHTML = list.length ? list.map((s, i) => `<span class="stk-cell"><button type="button" class="stk-btn" data-stk="${i}" aria-label="Sticker ${i + 1}"><img src="${s}" alt=""></button>${edit ? `<button type="button" class="stk-del" data-stk-del="${i}" aria-label="${esc(t('delete'))}">${ico('x')}</button>` : ''}</span>`).join('') : `<p class="muted small" style="grid-column:1/-1;margin:0">${esc(t('stkEmpty'))}</p>`;
+        const packs = packsGet(); if (tab !== 'mine' && !packs.some(p => p.id === tab)) tab = 'mine';
+        $('#stk-tabs', w).innerHTML = `<button type="button" class="stk-tab ${tab === 'mine' ? 'on' : ''}" data-stk-tab="mine" title="${esc(t('stkMine'))}">${ico('smile')}</button>${packs.map(p => `<button type="button" class="stk-tab ${tab === p.id ? 'on' : ''}" data-stk-tab="${esc(p.id)}" title="${esc(p.title)}"><img src="${p.tray || p.items[0]}" alt="${esc(p.title)}"></button>`).join('')}`;
+        const pk = packs.find(p => p.id === tab), list = cur();
+        $('#stk-head', w).innerHTML = pk ? `<b class="ellipsis">${esc(pk.title)}</b>${pk.author ? `<span class="muted small ellipsis">${esc(pk.author)}</span>` : ''}<span class="grow"></span>${edit ? `<button type="button" class="chip sm danger-text" data-stk-rmpack>${ico('trash')} ${esc(t('stkPackRemove'))}</button>` : ''}` : `<b>${esc(t('stkMine'))}</b><span class="grow"></span>`;
+        $('#stk-grid', w).innerHTML = list.length ? list.map((s, i) => `<span class="stk-cell" style="--i:${i}"><button type="button" class="stk-btn" data-stk="${i}" aria-label="Sticker ${i + 1}"><img src="${s}" alt=""></button>${edit ? `<button type="button" class="stk-del" data-stk-del="${i}" aria-label="${esc(t('delete'))}">${ico('x')}</button>` : ''}</span>`).join('') : `<p class="muted small" style="grid-column:1/-1;margin:0">${esc(t('stkEmpty'))}</p>`;
         $('[data-stk-edit]', w).textContent = t(edit ? 'done' : 'edit');
       };
       openModal({
-        title: `${ico('smile')} Stickers`,
-        body: `<div class="stk-grid" id="stk-grid"></div>
-          <div class="row wrap" style="gap:8px;margin-top:12px"><label class="btn primary">${ico('plus')} ${esc(t('stkImport'))}<input type="file" accept="image/webp,image/png,image/gif,image/jpeg" multiple class="sr-only" id="stk-file"></label><button type="button" class="chip" data-stk-edit></button></div>
+        title: `${ico('smile')} Stickers`, cls: 'stk-modal',
+        body: `<div class="stk-tabs" id="stk-tabs"></div><div class="stk-head row" id="stk-head"></div><div class="stk-grid" id="stk-grid"></div>
+          <div class="row wrap" style="gap:8px;margin-top:12px"><label class="btn primary">${ico('box')} ${esc(t('stkPackImport'))}<input type="file" multiple class="sr-only" id="stk-pack"></label><label class="btn">${ico('plus')} ${esc(t('stkImport'))}<input type="file" accept="image/webp,image/png,image/gif,image/jpeg" multiple class="sr-only" id="stk-file"></label><button type="button" class="chip" data-stk-edit></button></div>
           <input class="input" id="stk-paste" style="margin-top:10px" placeholder="${esc(t('stkPaste'))}" aria-label="${esc(t('stkPaste'))}" autocomplete="off">
-          <details class="muted small" style="margin-top:10px"><summary>${esc(t('stkWaTitle'))}</summary><p style="margin:8px 0 0">${esc(t('stkWaHint'))}</p></details>`,
+          <details class="muted small" style="margin-top:10px"><summary>${esc(t('stkWaTitle'))}</summary><p style="margin:8px 0 0">${esc(t('stkPackHint'))}</p></details>`,
         onMount: w => {
           grid(w);
-          w.addEventListener('change', async e => { if (e.target.id === 'stk-file' && e.target.files.length) { await importStickers([...e.target.files]); e.target.value = ''; grid(w); } });
+          w.addEventListener('change', async e => {
+            if (!['stk-file', 'stk-pack'].includes(e.target.id) || !e.target.files.length) return;
+            const files = [...e.target.files]; e.target.value = '';
+            const before = packsGet().map(p => p.id);
+            await importStickers(files);
+            const fresh = packsGet().find(p => !before.includes(p.id)); if (fresh) tab = fresh.id;
+            grid(w);
+          });
           $('#stk-paste', w).addEventListener('paste', async e => {
             const files = [...((e.clipboardData && e.clipboardData.files) || [])].filter(x => /^image\//.test(x.type));
             e.preventDefault(); e.target.value = '';
@@ -14678,10 +15100,16 @@
         },
         onClick: async (e, close, w) => {
           if (e.target.closest('[data-stk-edit]')) { edit = !edit; grid(w); return; }
+          const tb = e.target.closest('[data-stk-tab]'); if (tb) { tab = tb.dataset.stkTab; grid(w); return; }
+          if (e.target.closest('[data-stk-rmpack]')) { const pk = packsGet().find(p => p.id === tab); if (pk && await confirmDialog(t('stkPackRemoveQ', { name: pk.title }))) { packsSet(packsGet().filter(p => p.id !== tab)); tab = 'mine'; grid(w); } return; }
           const d = e.target.closest('[data-stk-del]');
-          if (d) { const list = stickersGet(); list.splice(+d.dataset.stkDel, 1); stickersSet(list); grid(w); return; }
+          if (d) {
+            if (tab === 'mine') { const list = stickersGet(); list.splice(+d.dataset.stkDel, 1); stickersSet(list); }
+            else { const all = packsGet(), pk = all.find(p => p.id === tab); if (pk) { pk.items.splice(+d.dataset.stkDel, 1); packsSet(pk.items.length ? all : all.filter(p => p !== pk)); } }
+            grid(w); return;
+          }
           const b = e.target.closest('[data-stk]'); if (!b || edit) return;
-          const m = /^data:([^;]+);base64,(.+)$/.exec(stickersGet()[+b.dataset.stk] || ''); if (!m) return;
+          const m = /^data:([^;]+);base64,(.+)$/.exec(cur()[+b.dataset.stk] || ''); if (!m) return;
           b.disabled = true;
           try { await rpc('kg_post_media', { p_group: gid, p_kind: 'sticker', p_mime: m[1], p_data: m[2], p_meta: {} }); close(); await afterPost(); }
           catch (err) { b.disabled = false; toast(t('groupError', { e: err.message })); }
@@ -14739,6 +15167,7 @@
         w.addEventListener('touchstart', e => { const p = e.touches[0]; sx = p.clientX < 28 ? p.clientX : null; sy = p.clientY; }, { passive: true });
         w.addEventListener('touchend', e => { if (sx == null) return; const p = e.changedTouches[0]; if (p.clientX - sx > 80 && Math.abs(p.clientY - sy) < 60) $('[data-m="x"]', w)?.click(); sx = null; }, { passive: true });
         try { await pushGroupProgress(); await refresh(); } catch (e) { G.gone = true; draw(); }
+        if (opts.jump) setTimeout(() => jumpTo(opts.jump), 120);
         poll();
         w.addEventListener('change', async e => {
           const el = e.target;
@@ -14759,13 +15188,19 @@
             }
           } catch (err) { toast(t('groupError', { e: err.message })); await refresh(); }
         });
-        bindSwipeReply(w);
+        bindMsgGestures(w);
         // Como en WhatsApp: con texto aparece «Enviar»; sin texto, la cámara y el micro
         w.addEventListener('input', e => { if (e.target.id === 'chat-in') e.target.form.classList.toggle('has-text', !!e.target.value.trim()); });
         w.addEventListener('submit', async e => {
           if (e.target.id !== 'chat-form') return; e.preventDefault();
           if (G.rec) { stopRec(); return; }
           const i = $('#chat-in', w), text = i.value.trim(); if (!text) return;
+          if (G.edit) {
+            const ed = G.edit; i.value = ''; e.target.classList.remove('has-text'); G.edit = null; barUpdate();
+            try { await rpc('kg_edit_message', { p_id: ed.id, p_body: text }); sfx('tap'); await loadMsgs(); draw(true); }
+            catch (err) { i.value = text; e.target.classList.add('has-text'); toast(/kg_edit|PGRST202|404/.test(err.message) ? t('msgNeedSql') : /too old/.test(err.message) ? t('msgEditOld') : chatErr(err)); }
+            return;
+          }
           i.value = ''; e.target.classList.remove('has-text');
           const reply = G.reply; setReply(null);
           try { await rpc('kg_post', { p_group: gid, p_kind: 'text', p_body: text, p_payload: reply ? { reply } : {} }); sfx('tap'); firstTime('chat'); await loadMsgs(); draw(true); scrollChat(); }
@@ -14780,7 +15215,12 @@
         if (cb) { if (cb.dataset.cup === 'new') cupNew(); else if (cb.dataset.cup === 'cancel' && await confirmDialog(t('cupCancelQ'))) { try { await rpc('kg_tourney_cancel', { p_tourney: G.cup.data.id }); await loadCup(); } catch (err) { toast(t('groupError', { e: err.message })); } } return; }
         const cv = e.target.closest('[data-cup-vote]');
         if (cv) { cv.disabled = true; try { await rpc('kg_tourney_vote', { p_tourney: G.cup.data.id, p_round: +cv.dataset.r, p_match: +cv.dataset.m, p_pick: cv.dataset.cupVote }); vibrate(8); await loadCup(); } catch (err) { cv.disabled = false; toast(t('groupError', { e: err.message })); } return; }
-        if (e.target.closest('[data-g="reply-x"]')) { setReply(null); return; }
+        if (e.target.closest('[data-g="reply-x"]')) { if (G.edit) setEdit(null); else setReply(null); return; }
+        // v1.57: reacciones, perfiles amplios y mensaje fijado
+        const rc = e.target.closest('[data-react]'); if (rc) { react(rc.dataset.react, rc.dataset.emo); return; }
+        const wu = e.target.closest('[data-wp-user]'); if (wu && wu.dataset.wpUser) { openWideProfile({ user: wu.dataset.wpUser, info: G.info, onChange: () => refresh() }); return; }
+        if (e.target.closest('[data-g="wide"]') && G.info) { if (isDm()) { const p = peer(); if (p) openWideProfile({ user: p.user_id, info: G.info }); } else openWideProfile({ group: gid, info: G.info, onChange: () => refresh() }); return; }
+        if (e.target.closest('[data-g="unpin"]')) { try { await rpc('kg_pin', { p_group: gid, p_id: null }); G.info.group.pinned = null; drawPin(); } catch (err) { toast(chatErr(err)); } return; }
         const tabB = e.target.closest('[data-gt]');
         if (tabB) { G.tab = tabB.dataset.gt; draw(); if (G.tab === 'cup') { loadCup(); return; } if (G.tab === 'chat') { try { await loadMsgs(); } catch (err) { /* nada */ } draw(); $('#chat-in', body()) && $('#chat-in', body()).focus(); } return; }
         const fr = e.target.closest('[data-rk-freq]');

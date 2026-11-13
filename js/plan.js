@@ -29,7 +29,8 @@
     'ledgerShare', // libretas compartidas
     'calShare',    // compartir el calendario
     'themes',      // temas, colores y mascotas extra
-    'history'      // gráficos con más de 90 días
+    'history',     // gráficos con más de 90 días
+    'profilePro'   // v1.57: banner GIF y enlaces en el perfil amplio
   ];
 
   // Funciones que se pueden encender o apagar desde el panel del equipo, con su valor si el servidor no dice nada
