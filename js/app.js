@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.61.0';
+  const VERSION = '1.62.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1353,7 +1353,7 @@
       <div class="seg seg-sm tf-cv" role="group" title="${esc(t('tfPinchHint'))}">${[['day', 'tfDay'], ['week', 'tfWeek'], ['month', 'tfMonth'], ['year', 'tfYear']].map(([v, k]) => `<button data-tf-cv="${v}" class="${cv === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div></div>`;
     html += tfClockChip();
     // v1.52: en la misma fila, «Fichar entrada» (hoy, en Día) a la izquierda y deshacer, rehacer y la cuchilla a la derecha
-    html += `<div class="row tf-toolrow">${cv === 'day' && u.d === tk && !tfClock() ? `<button class="btn sm" data-tf="clock-in">${ico('clock')} ${esc(t('tfClockInBtn'))}</button>` : ''}<span class="grow"></span>${tfToolsHtml(cv)}</div>`;
+    html += `<div class="row tf-toolrow">${cv === 'day' && u.d === tk && !tfClock() ? `<button class="btn sm" data-tf="clock-in">${ico('clock')} ${esc(t('tfClockInBtn'))}</button>` : ''}${sgChip(cv, u.d)}<span class="grow"></span>${tfToolsHtml(cv)}</div>`;
     let range;
     const LY = tfLayers();
     if (TFS.cut) html += `<div class="tf-cutbar" role="status">${ico('scissors', 'xs')}<span class="grow small">${esc(t('cutHint'))}</span><button class="btn sm primary" data-tf="cut">${ico('check', 'xs')} ${esc(t('tfQDone'))}</button></div>`;
@@ -1366,6 +1366,146 @@
     if (state.calPrefs.summary !== false) html += tfSummary(range);
     html += tfFab(year);
     return html;
+  }
+  /* ---------- v1.57: PROPUESTAS en Organización (lógica en js/suggest.js) ----------
+     Un entrenamiento terminado propone un turno a su hora; un movimiento apuntado a mano en la Libreta propone una nota (solo con
+     la Libreta abierta: está cifrada). Se ven como bloques con borde discontinuo en Día y Semana y en «Propuestas» (barra de
+     herramientas). Al tocar: Añadir (como turno o nota nuevos, o vinculado a un turno o una nota modular tuya) o Descartar.
+     El vínculo elegido se recuerda para la próxima propuesta igual (calPrefs.sgLink). El importe solo pasa a la nota si lo pides. */
+  const SG = window.KGSuggest;
+  const sgOn = () => !!SG && tfLayers().sug;
+  function sgFrom() {
+    if (!state.calPrefs.sgFrom) { state.calPrefs = { ...state.calPrefs, sgFrom: SG.firstFrom(todayKey()) }; save(); }
+    return state.calPrefs.sgFrom;
+  }
+  const sgSport = sp => (window.KGSport && KGSport.name ? KGSport.name(sp, state.lang) : '') || sp;
+  const sgLedType = ty => t(ty === 'income' ? 'ledgerIncomeOne' : ty === 'invest' ? 'ledgerInvestOne' : 'ledgerExpenseOne');
+  // Texto de la nota de un movimiento: tipo · categoría · concepto (· importe solo si se pide)
+  function sgLedText(p, amt) {
+    const e = LV.entries.find(x => x.id === p.ref); if (!e) return '';
+    const c = catOf(e.categoryId);
+    return [sgLedType(e.type), catName(c), String(e.note || '').trim(), amt ? fmtMoney((e.amountCents || 0) / 100) : ''].filter(Boolean).join(' · ').slice(0, TF.LIMITS.note);
+  }
+  function sgAll(from, to) {
+    if (!sgOn()) return [];
+    const items = [...SG.fromGym(state.gymWorkouts, { sportName: sgSport, gymLabel: t('gyTab') }), ...(ledgerOpen() ? SG.fromLedger(LV.entries) : [])];
+    const l = SG.pending({ items, today: todayKey(), sgFrom: sgFrom(), done: state.calPrefs.sgDone, days: state.calDays, gaps: state.calGaps, link: state.calPrefs.sgLink, shiftIds: state.calShifts.map(s => s.id), tplIds: state.calTpls.map(p => p.id) }, from, to);
+    for (const p of l) if (p.src === 'led') { const e = LV.entries.find(x => x.id === p.ref), c = e && catOf(e.categoryId); p.title = c ? catName(c) : t('tabLedger'); p.sub = e ? [sgLedType(e.type), String(e.note || '').trim()].filter(Boolean).join(' · ') : ''; }
+    return l;
+  }
+  const sgIco = p => p.src === 'gym' ? 'dumbbell' : 'wallet';
+  // Lo que será al aceptarla (para el bloque y la hoja)
+  function sgTargetName(tg) {
+    if (tg.t === 's') { const s = tfShift(tg.id); return s ? s.name : ''; }
+    if (tg.t === 'm') { const p = tfTpl(tg.id); return p ? p.name : ''; }
+    return t(tg.t === 'o' ? 'sgNewShift' : 'sgNewNote');
+  }
+  // Bloques fantasma de un día (Día y Semana). Los del día entero solo salen en «Propuestas».
+  function sgBlocks(k, big) {
+    if (!sgOn()) return '';
+    return sgAll(k, k).filter(p => p.a).map(p => {
+      const a = tfMin(p.a), b = Math.max(a + 15, tfMin(p.b)), tg = SG.target(p), s = tg.t === 's' ? tfShift(tg.id) : null, m = tg.t === 'm' ? tfTpl(tg.id) : null;
+      const c = s ? tfColor(s.color) : m ? tfColor(m.color) : p.src === 'gym' ? lwAccent() : '#8e8e93';
+      return `<span class="sg-blk ${big ? 'big' : ''}" role="button" data-sg="${esc(p.id)}" data-sg-k="${k}" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:max(16px, calc(var(--ph) * ${+((b - a) / 60).toFixed(4)}));--c:${c}" title="${esc(t('sgTitle') + ': ' + p.title + ' ' + p.a + '–' + p.b)}">${ico(sgIco(p), 'xs')}<span>${big ? `<b>${esc(p.a)}–${esc(p.b)}</b> ` : ''}${esc(p.title)}</span>${big ? `<i class="sg-plus">${ico('plus', 'xs')}</i>` : ''}</span>`;
+    }).join('');
+  }
+  // Botón «Propuestas · n» de la barra de herramientas (Día, Semana y Mes)
+  function sgChip(cv, d) {
+    if (!sgOn() || cv === 'year') return '';
+    const r = cv === 'day' ? [d, d] : cv === 'week' ? (ks => [ks[0], ks[6]])(tfWeekKeys(d)) : [d.slice(0, 8) + '01', TF.iso(new Date(+d.slice(0, 4), +d.slice(5, 7), 0))];
+    const n = sgAll(r[0], r[1]).length; if (!n) return '';
+    const slim = cv === 'day' && d === todayKey() && !tfClock(); // junto a «Fichar entrada» no cabe el nombre
+    return `<button class="chip sg-chip" data-sg-tray="${r[0]}|${r[1]}" aria-label="${esc(t('sgTitle') + ': ' + n)}" title="${esc(t('sgTitle'))}">${ico('sparkle', 'xs')}${slim ? '' : ' ' + esc(t('sgTitle'))} <b>${n}</b></button>`;
+  }
+  // Crear lo que toque. Devuelve true si se creó (una nota modular desde una sola propuesta abre su editor: open = true)
+  function sgAccept(p, tg, o = {}) {
+    const k = p.date;
+    if (tg.t === 'm' && tfTpl(tg.id)) {
+      const x = p.src === 'led' ? sgLedText(p, o.amt) : p.title;
+      if (o.open) { tfTplNote(k, -1, tg.id, { a: p.a, b: p.b, timed: !!p.a, x, src: p.id }, () => render()); return false; }
+      const tp = tfTpl(tg.id), n = { a: p.a, b: p.b, t: NT.summary(tp, {}, x, tfNum) || x, tp: tp.id, v: {}, ...(x ? { x } : {}), src: p.id };
+      tfSetGaps(k, [...tfGaps(k), n]); return true;
+    }
+    if (tg.t === 'n' || (tg.t === 'm')) {
+      const txt = p.src === 'led' ? sgLedText(p, o.amt) : p.title; if (!txt) return false;
+      tfSetGaps(k, [...tfGaps(k), { a: p.a, b: p.b, t: txt, src: p.id }]); return true;
+    }
+    const list = [...(state.calDays[k] || [])]; if (list.length >= TF.LIMITS.perDay) { toast(t('tfRtFull')); return false; }
+    if (tg.t === 's' && tfShift(tg.id)) list.push({ sid: tg.id, note: '', start: p.a, end: p.b, src: p.id });
+    else list.push({ sid: 'o_' + uid(), once: { name: (p.title || t('gyTab')).slice(0, 40), emoji: '', color: p.src === 'gym' ? lwAccent() : '#8e8e93', start: p.a, end: p.b, jobId: '' }, note: '', start: '', end: '', src: p.id });
+    tfSetDay(k, list); return true;
+  }
+  const sgDone = p => { state.calPrefs = { ...state.calPrefs, sgDone: SG.markDone(state.calPrefs.sgDone, p, todayKey()) }; };
+  const sgRemember = (p, tg) => { state.calPrefs = { ...state.calPrefs, sgLink: SG.remember(state.calPrefs.sgLink, p.key, tg) }; };
+  // Hoja de una propuesta: qué es, a qué hora, en qué se convierte (con un toque se cambia) y Añadir / Descartar
+  function sgOpen(id, k, after) {
+    const p = sgAll(k, k).find(x => x.id === id); if (!p) return;
+    let tg = SG.target(p), amt = false, keep = true;
+    const shifts = state.calShifts, tpls = tfTpls();
+    const chip = (attr, on, c, label, icon) => `<button type="button" class="chip tf-tpl-chip sg-opt ${on ? 'on' : ''}" ${attr} style="--c:${c}" aria-pressed="${on}">${icon} ${esc(label)}</button>`;
+    const draw = w => {
+      const same = (a, b) => a.t === b.t && (a.id || '') === (b.id || '');
+      $('#sgb', w).innerHTML = `<div class="stack" style="gap:12px">
+        <div class="sg-head" style="--c:${p.src === 'gym' ? lwAccent() : '#8e8e93'}">${ico(sgIco(p))}<div class="grow"><b>${esc(p.title)}</b>${p.sub ? `<small class="muted">${esc(p.sub)}</small>` : ''}<small class="muted">${esc(tfLong(k))} · ${esc(p.a ? p.a + '–' + p.b : t('tfAllDay'))}</small></div></div>
+        <p class="muted small" style="margin:0">${esc(t(p.src === 'gym' ? 'sgFromGym' : 'sgFromLed'))}</p>
+        <div class="field"><span>${esc(t('sgAddAs'))}</span><div class="row wrap" style="gap:6px">
+          ${chip('data-sg-t="o"', same(tg, { t: 'o' }), 'var(--accent)', t('sgNewShift'), ico('plus', 'xs'))}${chip('data-sg-t="n"', same(tg, { t: 'n' }), 'var(--accent)', t('sgNewNote'), ico('doc', 'xs'))}</div></div>
+        ${shifts.length ? `<div class="field"><span>${esc(t('sgLinkShift'))}</span><div class="row wrap sg-opts" style="gap:6px">${shifts.map(s => chip(`data-sg-t="s" data-id="${esc(s.id)}"`, same(tg, { t: 's', id: s.id }), tfColor(s.color), s.name, s.emoji ? esc(s.emoji) : ico('clock', 'xs'))).join('')}</div></div>` : ''}
+        ${tpls.length ? `<div class="field"><span>${esc(t('sgLinkNote'))}</span><div class="row wrap sg-opts" style="gap:6px">${tpls.map(m => chip(`data-sg-t="m" data-id="${esc(m.id)}"`, same(tg, { t: 'm', id: m.id }), tfColor(m.color), m.name, ico(m.icon, 'xs'))).join('')}</div></div>` : ''}
+        ${p.src === 'led' && tg.t !== 'o' && tg.t !== 's' ? `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-sg-amt ${amt ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('sgAmt'))}</b><br><span class="muted small">${esc(t('sgAmtHint'))}</span></span></label>` : ''}
+        <label class="row" style="gap:14px"><span class="switch"><input type="checkbox" data-sg-keep ${keep ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('sgKeep'))}</b><br><span class="muted small">${esc(t('sgKeepHint', { x: p.title }))}</span></span></label></div>`;
+    };
+    openModal({
+      title: `${ico('sparkle')} ${esc(t('sgOne'))}`, cls: 'tf-sheet',
+      body: '<div id="sgb"></div>',
+      foot: `<button class="btn" data-sg-do="x">${ico('x')} ${esc(t('sgDismiss'))}</button><button class="btn primary" data-sg-do="ok">${ico('check')} ${esc(t('sgAdd'))}</button>`,
+      onMount: w => draw(w),
+      onClick: (e, close, w) => {
+        const o = e.target.closest('[data-sg-t]'); if (o) { tg = o.dataset.sgT === 's' || o.dataset.sgT === 'm' ? { t: o.dataset.sgT, id: o.dataset.id } : { t: o.dataset.sgT }; draw(w); sfx('tap'); return; }
+        if (e.target.matches('[data-sg-amt]')) { amt = e.target.checked; return; }
+        if (e.target.matches('[data-sg-keep]')) { keep = e.target.checked; return; }
+        const b = e.target.closest('[data-sg-do]'); if (!b) return;
+        if (b.dataset.sgDo === 'x') { sgDone(p); save(); close(); toast(t('sgDismissed')); after && after(); return; }
+        if (keep) sgRemember(p, tg);
+        close();
+        if (tg.t === 'm') { save(); sgAccept(p, tg, { amt, open: true }); return; }
+        if (sgAccept(p, tg, { amt })) { sgDone(p); tfSave(); sfx('complete'); toast(t('sgAdded')); after && after(); }
+      }
+    });
+  }
+  // «Propuestas» del periodo: lista para tocar una a una, o «Añadir todas» con lo que tenga cada una
+  function sgTray(from, to) {
+    const draw = w => {
+      const l = sgAll(from, to);
+      if (!l.length) { $('#sgt', w).innerHTML = `<p class="muted" style="margin:0">${esc(t('sgNone'))}</p>`; $('[data-sg-all]', w)?.remove(); return; }
+      $('#sgt', w).innerHTML = `<p class="muted small" style="margin:0 0 6px">${esc(t('sgTrayHint'))}</p><div class="stack" style="gap:8px">${l.map(p => `<div class="sg-row">
+        <button type="button" class="sg-row-open grow" data-sg="${esc(p.id)}" data-sg-k="${p.date}">${ico(sgIco(p))}<span class="grow"><b>${esc(p.title)}</b><small class="muted">${esc(fmtDate(p.date, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(p.a ? p.a + '–' + p.b : t('tfAllDay'))} → ${esc(sgTargetName(SG.target(p)))}</small></span></button>
+        <button class="icon-btn sm" data-sg-x="${esc(p.id)}" data-sg-k="${p.date}" aria-label="${esc(t('sgDismiss'))}">${ico('x')}</button><button class="icon-btn sm primary-text" data-sg-ok="${esc(p.id)}" data-sg-k="${p.date}" aria-label="${esc(t('sgAdd'))}">${ico('check')}</button></div>`).join('')}</div>
+        ${ledgerOpen() || !state.ledgerVault ? '' : `<p class="muted small" style="margin:8px 0 0">${ico('lock', 'xs')} ${esc(t('sgLedLocked'))}</p>`}`;
+    };
+    const one = (id, k, fn) => { const p = sgAll(k, k).find(x => x.id === id); if (p) fn(p); };
+    openModal({
+      title: `${ico('sparkle')} ${esc(t('sgTitle'))}`, cls: 'tf-sheet',
+      body: '<div id="sgt"></div>',
+      foot: `<button class="btn primary block" data-sg-all>${ico('check')} ${esc(t('sgAddAll'))}</button>`,
+      onMount: w => draw(w),
+      onClick: (e, close, w) => {
+        const op = e.target.closest('.sg-row-open'); if (op) { close(); sgOpen(op.dataset.sg, op.dataset.sgK, () => render()); return; }
+        const x = e.target.closest('[data-sg-x]'); if (x) { one(x.dataset.sgX, x.dataset.sgK, p => { sgDone(p); save(); }); draw(w); render(); return; }
+        const ok = e.target.closest('[data-sg-ok]');
+        if (ok) { one(ok.dataset.sgOk, ok.dataset.sgK, p => { if (sgAccept(p, SG.target(p), {})) { sgDone(p); tfSave(); sfx('tap'); } }); draw(w); return; }
+        if (e.target.closest('[data-sg-all]')) {
+          let n = 0; for (const p of sgAll(from, to)) if (sgAccept(p, SG.target(p), {})) { sgDone(p); n++; }
+          if (n) { tfSave(); sfx('complete'); toast(t('sgAddedN', { n })); } close();
+        }
+      }
+    });
+  }
+  // Clics de las propuestas dentro de Organización (se llama al principio de tfClick)
+  function sgClick(e) {
+    const tr = e.target.closest('[data-sg-tray]'); if (tr) { const [a, b] = tr.dataset.sgTray.split('|'); sgTray(a, b); return true; }
+    const b = e.target.closest('.tf-zoom [data-sg]'); if (b) { e.preventDefault(); e.stopPropagation(); sgOpen(b.dataset.sg, b.dataset.sgK, () => render()); return true; }
+    return false;
   }
   /* ---------- v1.35: LÍNEA DE TIEMPO (antes «Diario»; sexta luna del orbe, id interno 'journal') ----------
      Una sola barra de tiempo manda en toda la pestaña: la escala (Día, Semana, Mes, Año, Todo) y la fecha van en state.ui.tl.
@@ -3777,7 +3917,7 @@
   const tfSetDay = (k, list) => { tfOnceGen++; if (list.length) state.calDays[k] = tfSorted(list); else delete state.calDays[k]; };
   /* v1.25: capas de vista del Calendario. v1.26: botón «Vista» en el menú, para todos, y se guarda en calPrefs.view (igual en todos
      tus dispositivos). Turnos y Rutinas (con «Nombres»), Colores de celdas, Notas, Lugares y Valoraciones. */
-  const TF_LAYERS = ['shifts', 'text', 'days', 'notes', 'places', 'transport', 'rates'];
+  const TF_LAYERS = ['shifts', 'text', 'days', 'notes', 'places', 'transport', 'rates', 'sug']; // v1.57: sug = Propuestas
   function tfLayers() {
     const u = state.calPrefs.view && typeof state.calPrefs.view === 'object' ? state.calPrefs.view : {};
     return Object.fromEntries(TF_LAYERS.map(k => [k, u[k] !== false]));
@@ -3823,7 +3963,7 @@
           if (!a || !z) { toast(t('tfBothTimes')); return; }
           if (!txt) { toast(t('tfGapNeed')); return; }
           if (z < a) [a, z] = [z, a];
-          const n = { a, b: z, t: txt }; if (i >= 0) l[i] = n; else l.push(n);
+          const n = { a, b: z, t: txt, ...(cur && cur.src ? { src: cur.src } : {}) }; if (i >= 0) l[i] = n; else l.push(n);
         }
         tfSetGaps(k, l); tfSave(); sfx('tap'); close(); after && after();
       }
@@ -3867,7 +4007,7 @@
     // v1.43: la última nota de esta plantilla (hasta este día) para repetirla con un toque
     const prevN = cur ? null : (l => l.length ? l[l.length - 1] : null)(NT.notesOf(state.calGaps, p.id, '', k));
     // v1.57: la nota de un entrenamiento (pre.wid) va a la hora del entrenamiento
-    const st = { allDay: cur ? !cur.a : !(pre && pre.wid && pre.a), a: (cur && cur.a) || (pre && pre.a) || '', b: (cur && cur.b) || (pre && pre.b) || '', x: (cur && cur.x) || '' };
+    const st = { allDay: cur ? !cur.a : !(pre && (pre.wid || pre.timed) && pre.a), a: (cur && cur.a) || (pre && pre.a) || '', b: (cur && cur.b) || (pre && pre.b) || '', x: (cur && cur.x) || (pre && pre.x) || '' }; // v1.62: también una propuesta
     let wref;
     const fieldHtml = f => {
       const val = v[f.id], id = `ntf-${esc(f.id)}`;
@@ -3948,6 +4088,7 @@
         const sid = (cur && cur.sid) || (pre && pre.sid); // v1.43: nota de un turno (se ve dentro del turno)
         const wid = (cur && cur.wid) || (pre && pre.wid); // v1.57: nota de un entrenamiento (se ve también en Entrenamiento)
         const n = { a, b: z, t: NT.summary(p, vals, x, tfNum), tp: p.id, v: vals, ...(x ? { x } : {}), ...(sid ? { sid } : {}), ...(wid ? { wid } : {}) };
+        if ((cur && cur.src) || (pre && pre.src)) n.src = (cur && cur.src) || pre.src; // v1.62: viene de una propuesta
         if (at >= 0) l[at] = n; else l.push(n);
         const gr = NT.grow(state.calLists, p, vals, Date.now()); if (gr.added.length) state.calLists = gr.lists; // v1.43: lo nuevo entra en su Lista
         tfSetGaps(k, l); tfSave(); sfx(fin ? 'complete' : 'tap'); close(); after && after();
@@ -5199,6 +5340,7 @@
 
   // Clics del Calendario (data-tf*)
   function tfClick(e) {
+    if (sgClick(e)) return true; // v1.57: propuestas
     if (tfPlanClick(e)) return true;
     if (e.target.closest('[data-tf="layers"]')) { tfOpenLayers(); return true; }
     const xm = e.target.closest('[data-tf-extmap]');
@@ -7538,7 +7680,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
