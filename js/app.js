@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.56.0';
+  const VERSION = '1.57.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -717,6 +717,7 @@
     const L = state.logs[h.id] || (state.logs[h.id] = {});
     const before = L[k] || 0;
     const snap = { day: dayInfo(k), lvl: levelInfo().level, done: !isQuit(h) && cnt(h, k) >= dayGoal(h, k) };
+    const wasMet = !isQuit(h) && !subModeAt(h, k) && periodSum(h, k) >= tgtAt(h, periodStart(h, k)); // v1.57: para ofrecer adelantar
     v = Math.max(0, isAmount(h) ? Math.round(v * 100) / 100 : Math.floor(v));
     if (v) L[k] = v; else delete L[k];
     // Hora del registro (para «a qué hora sueles hacerlo» y las cartas secretas)
@@ -725,7 +726,43 @@
     habitFeedback(h, k, before, v, snap);
     checkPerfectMastery();
     checkChallenge(h);
+    checkTotalGoal(h);
     checkSecrets();
+    if (wasMet && v > before && k === todayKey() && !(hasTotal(h) && h.total.done)) setTimeout(() => offerAdvance(h, k, v - before), 350);
+  }
+  /* v1.57: adelantar. Si el periodo ya estaba cumplido y vuelves a marcar, un aviso ofrece pasar lo que sobra al
+     siguiente periodo (día, semana o mes). El registro se mueve al primer día del siguiente periodo y queda anotado en
+     h.adv = [{ from, to, n }] para poder deshacerlo y explicarlo. */
+  function advanceTarget(h, k) { return nextPeriod(h, periodStart(h, k)); }
+  function advanceExcess(h, k, max) {
+    const L = state.logs[h.id] || {}, extra = periodSum(h, k) - tgtAt(h, periodStart(h, k));
+    const n = Math.min(extra, max, L[k] || 0);
+    if (!(n > 0)) return 0;
+    const to = advanceTarget(h, k), r = x => isAmount(h) ? Math.round(x * 100) / 100 : x;
+    L[k] = r(L[k] - n); if (!L[k]) delete L[k];
+    L[to] = r((L[to] || 0) + n);
+    h.adv = [...(h.adv || []), { from: k, to, n: r(n) }].slice(-200);
+    save();
+    return n;
+  }
+  function undoAdvance(h, a) {
+    const L = state.logs[h.id] || (state.logs[h.id] = {}), r = x => isAmount(h) ? Math.round(x * 100) / 100 : x;
+    const back = Math.min(a.n, L[a.to] || 0); if (!back) return;
+    L[a.to] = r(L[a.to] - back); if (!L[a.to]) delete L[a.to];
+    L[a.from] = r((L[a.from] || 0) + back);
+    h.adv = (h.adv || []).filter(x => x !== a); if (!h.adv.length) delete h.adv;
+    save();
+  }
+  const advLabel = (h, to) => t(h.freq === 'weekly' ? 'advNextWeek' : h.freq === 'monthly' ? 'advNextMonth' : 'advNextDay', { d: fmtShort(to) });
+  function offerAdvance(h, k, added) {
+    if (!getHabit(h.id) || periodSum(h, k) <= tgtAt(h, periodStart(h, k))) return;
+    const to = advanceTarget(h, k);
+    actionToast(t('advQ'), advLabel(h, to), () => {
+      const n = advanceExcess(h, k, added); if (!n) return;
+      const a = h.adv[h.adv.length - 1];
+      sfx('complete'); vibrate([8, 30, 8]); render();
+      actionToast(t('advDone', { d: fmtShort(to) }), t('advUndo'), () => { undoAdvance(h, a); render(); });
+    });
   }
   /* ---------- respuesta al marcar: sonido, «+puntos» y subida de nivel ---------- */
   /* v1.39: sonido. Los efectos (soundOn) se sincronizan; música, audio espacial, volúmenes y ambiente van por dispositivo
@@ -1457,7 +1494,7 @@
   const tlMarks = () => cached('tlmarks' + (ledgerOpen() ? 1 : 0), () => {
     const out = [];
     for (const [r, v] of Object.entries(state.perfectMastery || {})) if (v && KGT.isKey(v.date)) out.push({ date: v.date, kind: 'mastery', ic: 'crown', label: t('tlMkMastery', { r: t('rank_' + r) }) });
-    for (const c of state.challengeCards || []) if (c && KGT.isKey(c.end)) out.push({ date: c.end, kind: 'challenge', ic: 'flag', label: t('tlMkChallenge', { n: c.name || '' }) });
+    for (const c of state.challengeCards || []) if (c && KGT.isKey(c.end)) out.push({ date: c.end, kind: 'challenge', ic: c.kind === 'goal' ? 'target' : 'flag', label: t(c.kind === 'goal' ? 'tlMkGoal' : 'tlMkChallenge', { n: c.name || '' }) });
     for (const [k, d] of Object.entries(tlGym())) if (d.rec) out.push({ date: k, kind: 'record', ic: 'trophy', label: t('tlMkRecord', { n: d.rec }) });
     for (const s of tlSteps()) out.push({ date: s.date, kind: 'step', ic: 'target', label: t('tlMkStep', { p: s.p.name || '' }) });
     if (ledgerOpen()) for (const ev of LV.events || []) if (ev && KGT.isKey(ev.from)) out.push({ date: ev.from, kind: 'event', ic: 'folder', label: ev.name || '' });
@@ -5297,10 +5334,12 @@
     const view = habitsView();
     // v1.56: tres botones sueltos en vez de una barra de pestañas
     html += `<div class="view-btns" role="group" aria-label="${esc(t('tabHabitsProjects'))}">${HVIEWS.map(([v, e, k]) => `<button class="btn vb ${view === v ? 'primary on' : ''}" data-act="hview" data-v="${v}" aria-pressed="${view === v}">${ico(e)}<span>${esc(t(k))}</span></button>`).join('')}</div>`;
+    if (view === 'all' && !folder) html += layoutSeg();
     if (view === 'today') return html + viewToday(active);
     const grid = list => `<div class="habit-grid" id="habit-grid">${list.map(habitCard).join('')}</div>${list.length > 1 ? `<p class="grid-hint">${esc(t('dragHint'))}</p>` : ''}`;
     if (view === 'challenges') {
-      const on = active.filter(h => h.challenge && !h.challenge.done), done = active.filter(h => h.challenge && h.challenge.done);
+      // v1.57: las metas totales (Llegar a una cifra) también son retos; al lograrlas se archivan y salen en Superados
+      const on = active.filter(h => (h.challenge && !h.challenge.done) || (hasTotal(h) && !h.total.done)), done = [...active.filter(h => h.challenge && h.challenge.done && !on.includes(h)), ...arch.filter(h => hasTotal(h) && h.total.done)];
       const pr = activeProjects().filter(p => p.deadline || (p.goal && p.goal.worth));
       if (pr.length) html += `<h2 class="section-title" style="margin:0 0 14px">${ico('target')} ${esc(t('retoProjects'))}</h2><div class="habit-grid" style="margin-bottom:24px">${pr.map(folderCard).join('')}</div>`;
       if (pr.length && on.length) html += `<h2 class="section-title" style="margin:0 0 14px">${ico('checklist')} ${esc(t('retoHabits'))}</h2>`;
@@ -5309,6 +5348,11 @@
       return html;
     }
     if (folder) return html + folderViewHtml(folder);
+    const lay = habitsLayout();
+    if (lay !== 'cards' && (active.length || state.projects.length)) {
+      if (activeVacation()) html += `<div class="banner clay">${ico('beach')}<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span><button class="chip" data-act="vacations">${esc(t('edit'))}</button></div>`;
+      return html + (lay === 'check' ? checklistHtml(active) : listHtml(active));
+    }
     if (activeVacation()) html += `<div class="banner clay">${ico('beach')}<span class="grow"><b>${esc(t('vacActive', { date: fmtDate(activeVacation().to) }))}</b></span><button class="chip" data-act="vacations">${esc(t('edit'))}</button></div>`;
     const inF = folderedIds(), folders = activeProjects(), loose = active.filter(h => !inF.has(h.id));
     html += `<div class="habit-grid" id="habit-grid">${folders.map(folderCard).join('')}${loose.map(habitCard).join('')}</div>`;
@@ -5320,6 +5364,52 @@
       if (state.ui.showArchived) html += `<div class="habit-grid archived-list" style="margin-top:18px">${arch.map(habitCard).join('')}</div>`;
     }
     return html;
+  }
+
+  /* v1.57: otras dos formas de ver «Todo»: Lista (una fila por hábito o carpeta con su progreso, racha y anillo) y
+     Checklist (casillas para marcar rápido: pendientes, hechos y los que hoy no tocan). */
+  const LAYOUTS = [['cards', 'grid', 'layCards'], ['list', 'list', 'layList'], ['check', 'checklist', 'layCheck']];
+  const habitsLayout = () => LAYOUTS.some(l => l[0] === state.ui.habitsLayout) ? state.ui.habitsLayout : 'cards';
+  const layoutSeg = () => `<div class="lay-seg" role="group" aria-label="${esc(t('layTitle'))}"><span class="muted small">${esc(t('layTitle'))}</span>${LAYOUTS.map(([v, ic, k]) => `<button type="button" class="${habitsLayout() === v ? 'on' : ''}" data-act="hlayout" data-v="${v}" aria-pressed="${habitsLayout() === v}" aria-label="${esc(t(k))}" title="${esc(t(k))}">${ico(ic)}<span>${esc(t(k))}</span></button>`).join('')}</div>`;
+  function listRowHtml(h) {
+    const today = todayKey(), sum = periodSum(h, today), q = isQuit(h), streak = currentStreak(h);
+    const r30 = rate(h, 30);
+    const bits = [esc(progressText(h))];
+    if (streak && !q) bits.push(`<span class="flame">${ico('flame')}</span>${streak}`);
+    if (r30 != null) bits.push(`${Math.round(r30 * 100)}% · 30 ${esc(t('layDays'))}`);
+    if (h.challenge && !h.challenge.done) bits.push(`${ico('flag')} ${challengeProgress(h)}/${h.challenge.days}`);
+    if (hasTotal(h)) bits.push(`${ico('target')} ${esc(fmtNum(totalSum(h)))}/${esc(fmtNum(h.total.target))} ${esc(h.unit || '')}`);
+    const ring = q ? `<button class="ring quit ${cnt(h, today) ? 'slipped' : 'full'}" data-ring="${h.id}" aria-label="${esc(t('relapse'))}"><svg viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="23" fill="none" stroke="var(--h)" stroke-opacity=".4" stroke-width="3.5"/></svg><span class="ring-in">${cnt(h, today) ? ico('x') : streak}</span></button>`
+      : isAmount(h) ? ringHtml(Math.min(sum, h.target), h.target, `data-ring="${h.id}" aria-label="${esc(t('today'))}"`).replace(/<span class="ring-in">.*<\/span><\/button>$/, `<span class="ring-in" style="font-size:11px">${sum >= h.target ? ico('check') : Math.round(sum / h.target * 100) + '%'}</span></button>`)
+      : ringHtml(sum, h.target, `data-ring="${h.id}" aria-label="${esc(t('today'))}: ${sum}/${h.target}"`);
+    return `<div class="hl-row clay" data-id="${h.id}" style="${habitVars(hColor(h))}">
+      <button class="habit-ico sm" data-act="habit-edit" data-id="${h.id}" aria-label="${esc(t('editHabit'))}">${esc(h.icon || '#')}</button>
+      <button class="hl-main" data-act="habit-edit" data-id="${h.id}"><b class="ellipsis">${esc(h.name)}</b><span class="hl-meta">${bits.map(b => `<span>${b}</span>`).join('')}</span>${hasTotal(h) ? `<span class="hl-total"><i style="width:${(totalPct(h) * 100).toFixed(1)}%"></i></span>` : ''}</button>
+      ${ring}
+    </div>`;
+  }
+  function listHtml(active) {
+    const inF = folderedIds(), folders = activeProjects(), loose = active.filter(h => !inF.has(h.id));
+    const fRow = p => { const s = projectStats(p), hs = p.habitIds.map(getHabit).filter(h => h && !h.archived), due = hs.filter(h => todayStatus(h).due), done = due.filter(h => todayStatus(h).done && !isQuit(h)).length;
+      return `<button class="hl-row hl-folder clay" data-act="folder-open" data-id="${p.id}" style="--h:${p.color || 'var(--accent)'}"><span class="habit-ico sm">${esc(p.icon || '📁')}</span><span class="hl-main"><b class="ellipsis">${esc(p.name)}</b><span class="hl-meta"><span>${ico('folder')} ${esc(t('folderCount', { n: hs.length }))}</span>${due.length ? `<span>${esc(t('folderToday', { a: done, b: due.length }))}</span>` : ''}<span>${esc(s.achieved ? t('achieved') : deadlineText(p, s))}</span></span></span>${ico('right')}</button>`; };
+    return `<div class="hl-list">${folders.map(fRow).join('')}${loose.map(listRowHtml).join('')}</div>`;
+  }
+  function checkRowHtml(h) {
+    const st = todayStatus(h), q = isQuit(h), on = q ? !!cnt(h, todayKey()) : st.done;
+    return `<div class="hc-row ${on && !q ? 'done' : ''} ${q ? 'quit' : ''}" style="${habitVars(hColor(h))}">
+      <button class="hc-box ${on ? 'on' : ''}" data-today="${q ? 'slip' : 'tap'}" data-id="${h.id}" aria-pressed="${on}" aria-label="${esc(h.name)} · ${esc(t(q ? 'relapse' : 'markDone'))}">${q ? (on ? ico('x') : '') : isAmount(h) && !on ? ico('plus') : ico('check')}</button>
+      <button class="hc-main" data-act="habit-edit" data-id="${h.id}"><span class="hc-ico">${esc(h.icon || '#')}</span><span class="grow" style="min-width:0"><b class="ellipsis">${esc(h.name)}</b><span class="muted small">${esc(progressText(h))}</span></span></button>
+    </div>`;
+  }
+  function checklistHtml(active) {
+    const st = new Map(active.map(h => [h, todayStatus(h)]));
+    const quit = active.filter(isQuit), done = active.filter(h => !isQuit(h) && st.get(h).done);
+    const pend = active.filter(h => !isQuit(h) && st.get(h).due && !st.get(h).done), rest = active.filter(h => !isQuit(h) && !st.get(h).due && !st.get(h).done);
+    const sec = (title, list, extra = '') => list.length ? `<h3 class="hc-title">${esc(title)} <span class="muted">${list.length}</span></h3><div class="hc-list clay ${extra}">${list.map(checkRowHtml).join('')}</div>` : '';
+    let html = `<div class="hc-wrap">`;
+    if (!pend.length && done.length) html += `<p class="hc-all">${ico('check')} ${esc(t('layAllDone'))}</p>`;
+    html += sec(t('layPending'), pend) + sec(t('kindQuit'), quit) + sec(t('layDone'), done) + sec(t('layNotToday'), rest, 'off');
+    return html + '</div>';
   }
 
   /* v1.22: cuadrícula sin huecos (tipo mosaico). Cada tarjeta ocupa tantas filas de 1 px como su altura, así una tarjeta
@@ -5419,12 +5509,17 @@
     if (h.reminder && h.reminder.on) meta.push(`${ico('bell')}${esc(h.reminder.time)}`);
     if (h.groupId) meta.push(`<span class="grp-chip" data-group="${h.groupId}">${ico('users')}</span>`);
     if (inFolders > 1) meta.push(`${ico('folder')}${inFolders}`);
+    const advIn = advancedInto(h, periodStart(h, today)); if (advIn) meta.push(`${ico('right', 'xs')} ${esc(t('advIn', { n: fmtNum(advIn) }))}`);
     // En hábitos con cantidad, el anillo muestra el porcentaje del objetivo
     const ring = isAmount(h)
       ? ringHtml(Math.min(sum, h.target), h.target, `data-ring="${h.id}" aria-label="${esc(t('today'))}: ${fmtNum(sum)}/${fmtNum(h.target)}"`).replace(/<span class="ring-in">.*<\/span><\/button>$/, `<span class="ring-in" style="font-size:12px">${sum >= h.target ? ico('check') : Math.round(sum / h.target * 100) + '%'}</span></button>`)
       : ringHtml(sum, h.target, `data-ring="${h.id}" aria-label="${esc(t('today'))}: ${sum}/${h.target}"`);
     return cardShell(h, c, meta, ring);
   }
+  // v1.57: lo adelantado que cae en este periodo (desde el anterior)
+  const advancedInto = (h, p) => (h.adv || []).filter(a => a.to === p).reduce((x, a) => x + a.n, 0);
+  // v1.57: barra de la meta total (p. ej. 32 / 50 GB)
+  const totalBar = h => hasTotal(h) ? `<div class="total-bar" role="progressbar" aria-valuenow="${Math.round(totalPct(h) * 100)}" aria-valuemin="0" aria-valuemax="100"><div class="total-track"><i style="width:${(totalPct(h) * 100).toFixed(1)}%"></i></div><span>${ico('target', 'xs')} ${esc(fmtNum(totalSum(h)))} / ${esc(fmtNum(h.total.target))} ${esc(h.unit || '')}${h.total.done ? ' · ' + esc(t('goalReached')) : h.total.by ? ' · ' + esc(t('goalLeft', { n: Math.max(0, diffDays(todayKey(), h.total.by)) })) : ''}</span></div>` : '';
   function cardShell(h, c, meta, ring) {
     return `<article class="habit clay" data-id="${h.id}" style="${habitVars(c)}">
       <div class="habit-head">
@@ -5433,6 +5528,7 @@
         ${+h.duration > 0 && !isQuit(h) ? `<button class="icon-btn sm timer-btn" data-timer="${h.id}" aria-label="${esc(t('timer'))}">${ico('timer')}</button>` : ''}
         ${ring}
       </div>
+      ${totalBar(h)}
       ${h.hideCal ? '' : calHtml(h)}
       <button class="more-btn" data-act="more" data-kind="habit" data-id="${h.id}">${esc(t('seeMore'))} ${ico('down')}</button>
     </article>`;
@@ -5613,6 +5709,7 @@
     f.days = [...(f.days || [0, 1, 2, 3, 4, 5, 6])];
     f.measure = f.measure || 'count'; f.timeOfDay = f.timeOfDay || 'any'; f.duration = +f.duration || 0; f.step = +f.step || 1; f.unit = f.unit || '';
     f.chDays = h && h.challenge && !h.challenge.done ? h.challenge.days : 0;
+    f.totalT = h && hasTotal(h) ? +h.total.target : 0; // v1.57: meta total
     f.remOn = !!(h && h.reminder && h.reminder.on); f.remTime = (h && h.reminder && h.reminder.time) || ''; f.share = false;
     // v1.23: cómo se cumple (simple, varios objetivos o varias maneras) y Continuidad al cambiar la regla
     f.mode = ['goals', 'ways'].includes(f.mode) ? f.mode : 'simple'; f.goals = (f.goals || []).map(g => ({ ...g })); f.ways = (f.ways || []).map(w => ({ ...w })); f.cont = true;
@@ -5666,7 +5763,8 @@
           <label class="field grow"><span>${esc(t('amountGoal', { period }))}</span><input class="input" id="hf-target" type="number" min="0" step="any" inputmode="decimal" value="${f.target}"></label>
           <label class="field" style="width:120px"><span>${esc(t('goalUnit'))}</span><input class="input" id="hf-unit" maxlength="12" value="${esc(f.unit)}" placeholder="L, min, km…"></label>
           <label class="field" style="width:110px"><span>${esc(t('amountStep'))}</span><input class="input" id="hf-stepv" type="number" min="0" step="any" inputmode="decimal" value="${f.step}"></label>
-        </div>` : f.mode === 'goals' ? '' : `<div class="field"><span>${esc(t(f.mode === 'ways' ? 'subWaysTarget' : 'habitTarget'))}</span>
+        </div>
+        <label class="field"><span>${ico('target', 'xs')} ${esc(t('goalTotalField'))}</span><input class="input" id="hf-total" type="number" min="0" step="any" inputmode="decimal" value="${f.totalT || ''}" placeholder="${esc(t('goalTotalPh'))}" style="max-width:200px"><span class="muted small">${esc(h && hasTotal(h) ? t('goalTotalNow', { a: fmtNum(totalSum(h)), b: fmtNum(h.total.target), u: h.unit || '' }) : t('goalTotalHint'))}</span></label>` : f.mode === 'goals' ? '' : `<div class="field"><span>${esc(t(f.mode === 'ways' ? 'subWaysTarget' : 'habitTarget'))}</span>
           <div class="stepper"><button type="button" class="icon-btn sm" data-step="-1" aria-label="-1">${ico('minus')}</button><input class="input" id="hf-target" type="number" min="1" inputmode="numeric" value="${f.target}"><button type="button" class="icon-btn sm" data-step="1" aria-label="+1">${ico('plus')}</button></div>
           <div class="muted small">${esc(t('habitTargetHint', { period }))}</div>
         </div>
@@ -5701,6 +5799,7 @@
       f.note = $('#hf-note', w).value.trim();
       const mu = $('#hf-multi', w); if (mu && !mu.disabled) f.multi = mu.checked;
       if ($('#hf-unit', w)) { f.unit = $('#hf-unit', w).value.trim(); f.step = Math.max(.01, parseFloat($('#hf-stepv', w).value) || 1); }
+      if ($('#hf-total', w)) f.totalT = Math.max(0, parseFloat($('#hf-total', w).value) || 0);
       f.duration = Math.max(0, parseInt($('#hf-dur', w).value, 10) || 0);
       f.chDays = Math.max(0, parseInt($('#hf-ch', w).value, 10) || 0);
       if ($('#hf-rem', w)) { f.remOn = $('#hf-rem', w).checked; f.remTime = $('#hf-rem-time', w).value; }
@@ -5784,6 +5883,10 @@
           const oldCh = h && h.challenge;
           if (f.chDays > 0) props.challenge = oldCh && !oldCh.done ? { ...oldCh, days: f.chDays } : { tid: 'custom', days: f.chDays, start: todayKey() };
           else props.challenge = oldCh && oldCh.done ? oldCh : undefined;
+          // v1.57: meta total (solo con cantidad). Si subes la cifra por encima de lo hecho, vuelve a estar en marcha
+          const oldT = h && h.total;
+          props.total = f.measure === 'amount' && f.kind !== 'quit' && f.totalT > 0 ? { ...(oldT || { from: todayKey() }), target: f.totalT } : undefined;
+          if (props.total && props.total.done && h && totalSum({ ...h, total: props.total }) < f.totalT) delete props.total.done;
           let target = h;
           if (isNew && !gateAdd('habits', activeHabitCount())) return;
           if (isNew) {
@@ -5801,9 +5904,11 @@
             for (const k of ['mode', 'goals', 'ways']) if (props[k] === undefined) delete h[k];
             if (changed) recountSubs(h, f.cont ? today : '');
             if (!props.challenge) delete h.challenge;
+            if (!props.total) delete h.total;
             if (!props.hideCal) delete h.hideCal;
             checkPerfectMastery(true); checkChallenge(h);
           }
+          checkTotalGoal(target);
           setHabitProjects(target, f.projs);
           save(); close();
           if (state.ui.tab !== 'habits') state.ui.tab = 'habits';
@@ -6566,7 +6671,7 @@
       <div class="cards-row">${RANKS.map(([r, th], i) => { const m = state.perfectMastery[r]; return `<button class="kcard-btn" data-act="pcard-open" data-i="${i}" aria-label="${esc(t('rank_' + r))}">${m ? cardFace(PSUBJ(), i, 'front') : cardLocked(i)}<span class="cap">${esc(t('rank_' + r))}<small>${m ? esc(fmtShort(m.date)) : esc(t('perfectReq', { n: th }))}</small></span></button>`; }).join('')}</div></section>`;
     if (state.challengeCards.length) {
       html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${ico('flag')}</div><div class="grow"><h3>${esc(t('challengeCards'))}</h3></div><b style="font-size:20px">${state.challengeCards.length}</b></div>
-        <div class="cards-row">${[...state.challengeCards].reverse().map(c => `<button class="kcard-btn" data-act="chal-open" data-id="${c.id}">${challengeCardHtml(c)}<span class="cap">${esc(c.name)}<small>${esc(fmtShort(c.end))}</small></span></button>`).join('')}</div></section>`;
+        <div class="cards-row">${[...state.challengeCards].reverse().map(c => `<button class="kcard-btn" data-act="chal-open" data-id="${c.id}">${c.kind === 'goal' ? goalCardHtml(c) : challengeCardHtml(c)}<span class="cap">${esc(c.name)}<small>${esc(fmtShort(c.end))}</small></span></button>`).join('')}</div></section>`;
     }
     if (state.contractCards.length) {
       html += `<section class="series clay"><div class="series-head"><div class="habit-ico" style="width:46px;height:46px;font-size:22px;--h-soft:var(--surface-2)">${ico('doc')}</div><div class="grow"><h3>${esc(t('contractCards'))}</h3></div><b style="font-size:20px">${state.contractCards.length}</b></div>
@@ -7060,7 +7165,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.57', [['1.57.0', 4]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -12004,6 +12109,186 @@
       }
     });
   }
+  /* ---------- v1.57: una sola ventana para crear ----------
+     Hábito, proyecto y reto eran tres caminos distintos y era fácil perderse (p. ej. «exportar hasta 50 GB»). Ahora todo
+     se crea aquí: nombre, icono y color arriba; luego qué quieres conseguir (Repetir algo, Llegar a una cifra, Completar
+     pasos o Dejar algo) y los extras en mosaico (plazo, recordatorio, momento, duración, carpeta, compartir y nota).
+     Por dentro se guarda como hábito o como proyecto, igual que antes: los editores de cada uno siguen para editar. */
+  const CR_KINDS = [['repeat', 'repeat'], ['amount', 'trend'], ['steps', 'list'], ['quit', 'shield']];
+  const CR_IDEAS = [
+    ['export50', 'amount', 'Exportar 50 GB', 'Export 50 GB', '💻', { sum: true, total: 50, unit: 'GB', step: 5, freq: 'weekly' }],
+    ['save1000', 'amount', 'Ahorrar 1.000 €', 'Save €1,000', '💰', { sum: true, total: 1000, unit: '€', step: 50, freq: 'monthly' }],
+    ['read12', 'amount', 'Leer 12 libros', 'Read 12 books', '📚', { sum: true, total: 12, unit: 'libros|books', step: 1, freq: 'monthly' }],
+    ['weight', 'amount', 'Llegar a mi peso objetivo', 'Reach my target weight', '⚖️', { sum: false, from: 80, total: 72, unit: 'kg' }],
+    ['run10k', 'amount', 'Correr 100 km', 'Run 100 km', '🏃', { sum: true, total: 100, unit: 'km', step: 5, freq: 'weekly' }],
+    ['lang', 'steps', 'Aprender un idioma', 'Learn a language', '🗣️', { steps: ['A1', 'A2', 'B1', 'B2', 'C1'] }],
+    ...CHALLENGES.map(([id, es, en, icon, days, x]) => [id, x.kind === 'quit' ? 'quit' : 'repeat', es, en, icon, { ...x, ch: days }])
+  ];
+  function openCreator(preset = {}) {
+    const fo = openFolder();
+    const f = { kind: 'repeat', name: '', icon: '#', color: null, freq: 'daily', target: 1, days: [0, 1, 2, 3, 4, 5, 6], withAmt: false, amt: 1, unit: '', step: 1,
+      sum: true, total: 0, from: 0, rhythm: 0, steps: [], hIds: [], ch: 0, by: '', remOn: false, remTime: '', tod: 'any', dur: 0, projs: fo ? [fo.id] : [], share: false, note: '', open: '', ...preset };
+    const autoC = HABIT_COLORS[state.colorSeq % HABIT_COLORS.length];
+    const isHabit = () => f.kind !== 'steps' && !(f.kind === 'amount' && !f.sum);
+    const per = q => t(q === 'weekly' ? 'periodWeek' : q === 'monthly' ? 'periodMonth' : 'periodDay');
+    const seg = (attr, list, cur) => `<div class="seg">${list.map(([v, k]) => `<button type="button" ${attr}="${v}" class="${cur === v ? 'on' : ''}" aria-pressed="${cur === v}">${esc(t(k))}</button>`).join('')}</div>`;
+    const freqSeg = (attr, cur) => seg(attr, [['daily', 'freqDaily'], ['weekly', 'freqWeekly'], ['monthly', 'freqMonthly']], cur);
+    const num = (id, v, ph = '', extra = '') => `<input class="input" id="${id}" type="number" min="0" step="any" inputmode="decimal" value="${v || v === 0 && extra.includes('zero') ? v : ''}" placeholder="${esc(ph)}">`;
+    const cell = (label, body, wide = false) => `<div class="cr-cell ${wide ? 'wide' : ''}"><span class="cr-lbl">${esc(label)}</span>${body}</div>`;
+    const detail = () => {
+      const wd = t('weekdaysShort').split(',');
+      if (f.kind === 'repeat') return cell(t('crHowOften'), `${freqSeg('data-cr-freq', f.freq)}<div class="stepper"><button type="button" class="icon-btn sm" data-cr-step="-1" aria-label="-1">${ico('minus')}</button><input class="input" id="cr-target" type="number" min="1" inputmode="numeric" value="${f.target}"><button type="button" class="icon-btn sm" data-cr-step="1" aria-label="+1">${ico('plus')}</button></div><span class="muted small">${esc(t('crTimesPer', { p: per(f.freq) }))}</span>`)
+        + (f.freq === 'daily' ? cell(t('habitDays'), `<div class="row wrap" style="gap:6px">${wd.map((l, i) => `<button type="button" class="chip daychip ${f.days.includes(i) ? 'on' : ''}" data-cr-wd="${i}">${esc(l)}</button>`).join('')}</div>`) : '')
+        + cell(t('crWithAmt'), `<label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="cr-withamt" ${f.withAmt ? 'checked' : ''}><span></span></span><span class="muted small grow">${esc(t('crWithAmtHint'))}</span></label>${f.withAmt ? `<div class="row" style="gap:8px">${num('cr-amt', f.amt, '2')}<input class="input" id="cr-unit" maxlength="12" value="${esc(f.unit)}" placeholder="L, km, min…" style="max-width:110px"></div>` : ''}`, !f.withAmt ? false : f.freq !== 'daily');
+      if (f.kind === 'amount') {
+        let h = cell(t('crAmtHow'), `${seg('data-cr-sum', [['1', 'crSumYes'], ['0', 'crSumNo']], f.sum ? '1' : '0')}<span class="muted small">${esc(t(f.sum ? 'crSumYesHint' : 'crSumNoHint'))}</span>`, true);
+        h += cell(t(f.sum ? 'crTotal' : 'goalTarget'), `<div class="row" style="gap:8px">${num('cr-total', f.total, '50')}<input class="input" id="cr-unit" maxlength="12" value="${esc(f.unit)}" placeholder="GB, €, km…" style="max-width:110px"></div>`);
+        h += cell(t(f.sum ? 'crAlready' : 'goalStart'), num('cr-from', f.from, '0', 'zero'));
+        if (f.sum) h += cell(t('crRhythm'), `${freqSeg('data-cr-freq', f.freq)}<div class="row" style="gap:8px;align-items:center">${num('cr-rhythm', f.rhythm || '', t('crRhythmPh'))}<span class="muted small">${esc((f.unit || '') + ' / ' + per(f.freq))}</span></div><span class="muted small">${esc(t('crRhythmHint'))}</span>`, true);
+        return h;
+      }
+      if (f.kind === 'steps') return cell(t('crSteps'), `<div class="stack" style="gap:6px">${f.steps.map((x, i) => `<div class="check-item"><span class="cr-n">${i + 1}</span><span class="grow">${esc(x)}</span><button type="button" class="icon-btn sm" data-cr-del-step="${i}" aria-label="${esc(t('delete'))}">${ico('x')}</button></div>`).join('')}</div><div class="row" style="gap:8px"><input class="input grow" id="cr-step-in" maxlength="80" placeholder="${esc(t('goalItemPh'))}"><button type="button" class="btn" data-cr-add-step>${ico('plus')}</button></div>`, true);
+      return cell(t('crQuitWhat'), `<span class="muted small">${esc(t('quitHint'))}</span>`, true);
+    };
+    // Extras en mosaico: cada uno es una baldosa; al tocarla se abre a lo ancho con sus opciones
+    const extras = () => {
+      const hab = isHabit(), deadlineK = f.kind === 'steps' || f.kind === 'amount';
+      const list = [
+        ['plazo', 'flag', t(deadlineK ? 'crDeadline' : 'crChallenge'), deadlineK ? (f.by ? fmtShort(f.by) : '') : (f.ch ? t('challengeDays', { n: f.ch }) : ''),
+          deadlineK ? `<div class="row wrap" style="gap:6px">${[[7, 'retoWeek'], [30, 'retoMonth'], [90, 'reto3Months']].map(([d, k]) => `<button type="button" class="chip ${f.by === addDays(todayKey(), d) ? 'on' : ''}" data-cr-by="${d}">${esc(t(k))}</button>`).join('')}</div><input class="input" id="cr-by" type="date" min="${addDays(todayKey(), 1)}" value="${esc(f.by)}" style="max-width:190px">`
+            : `<div class="row wrap" style="gap:6px">${[7, 21, 30, 66, 100].map(d => `<button type="button" class="chip ${f.ch === d ? 'on' : ''}" data-cr-ch="${d}">${esc(t('challengeDays', { n: d }))}</button>`).join('')}</div><input class="input" id="cr-ch" type="number" min="0" max="1000" inputmode="numeric" value="${f.ch || ''}" placeholder="${esc(t('habitChallengePh'))}" style="max-width:190px">`],
+        hab && f.kind !== 'quit' ? ['rem', 'bell', t('remindTitle'), f.remOn && f.remTime ? f.remTime : '', `<input class="input" id="cr-rem" type="time" value="${esc(f.remTime)}" style="max-width:150px"><span class="muted small">${esc(t('remindHint'))}</span>`] : null,
+        hab ? ['tod', 'sun', t('timeOfDay'), f.tod !== 'any' ? t('tod_' + f.tod) : '', `<div class="seg" style="flex-wrap:wrap">${TOD.map(x => `<button type="button" data-cr-tod="${x}" class="${f.tod === x ? 'on' : ''}">${TOD_ICON[x]} ${esc(t('tod_' + x))}</button>`).join('')}</div>`] : null,
+        hab && f.kind !== 'quit' ? ['dur', 'timer', t('habitDuration'), f.dur ? f.dur + ' min' : '', `<input class="input" id="cr-dur" type="number" min="0" max="600" inputmode="numeric" value="${f.dur || ''}" placeholder="${esc(t('habitDurationPh'))}" style="max-width:190px">`] : null,
+        hab && state.projects.length ? ['folder', 'folder', t('hProjects'), f.projs.length ? String(f.projs.length) : '', `<div class="row wrap" style="gap:6px">${state.projects.filter(p => !p.archived).map(p => `<button type="button" class="calc-toggle ${f.projs.includes(p.id) ? 'on' : ''}" data-cr-proj="${esc(p.id)}" aria-pressed="${f.projs.includes(p.id)}">${esc(p.icon || '')} ${esc(p.name)}</button>`).join('')}</div>`] : null,
+        !hab && state.habits.some(h => !h.archived) ? ['habits', 'checklist', t('projectHabits'), f.hIds.length ? String(f.hIds.length) : '', `<span class="muted small">${esc(t('projectHabitsHint'))}</span><div class="row wrap" style="gap:6px">${state.habits.filter(h => !h.archived).map(h => `<button type="button" class="calc-toggle ${f.hIds.includes(h.id) ? 'on' : ''}" data-cr-hab="${esc(h.id)}" aria-pressed="${f.hIds.includes(h.id)}">${esc(h.icon || '')} ${esc(h.name)}</button>`).join('')}</div>`] : null,
+        ['share', 'users', t('shareWithFriends'), f.share ? t('crOn') : '', `<label class="row" style="gap:12px"><span class="switch"><input type="checkbox" id="cr-share" ${f.share ? 'checked' : ''}><span></span></span><span class="muted small grow">${esc(t(auth ? (hab ? 'shareWithFriendsHint' : 'shareProjectHint') : 'groupNeedLogin'))}</span></label>`],
+        ['note', 'pen', t(hab ? 'habitDesc' : 'projectDesc'), f.note ? '…' : '', `<textarea class="input" id="cr-note" maxlength="400" placeholder="${esc(t('habitDescPh'))}">${esc(f.note)}</textarea>`]
+      ].filter(Boolean);
+      return `<div class="cr-extras">${list.map(([k, ic, label, val, body]) => `<div class="cr-x ${f.open === k ? 'open' : ''} ${val ? 'set' : ''}" data-crx="${k}"><button type="button" class="cr-x-head" data-cr-open="${k}" aria-expanded="${f.open === k}">${ico(ic)}<span class="grow">${esc(label)}</span>${val ? `<b>${esc(val)}</b>` : ico('plus', 'xs')}</button>${f.open === k ? `<div class="cr-x-body">${body}</div>` : ''}</div>`).join('')}</div>`;
+    };
+    const draw = w => {
+      const c = f.color || autoC;
+      $('#cr', w).innerHTML = `<div class="cr" style="${habitVars(c)}">
+        <div class="cr-top">
+          <button type="button" class="cr-ico" data-cr-open="icon" aria-label="${esc(t('habitIcon'))}">${esc(f.icon || '#')}</button>
+          <input class="input cr-name" id="cr-name" maxlength="80" value="${esc(f.name)}" placeholder="${esc(t('crNamePh'))}" autocomplete="off" aria-label="${esc(t('habitName'))}">
+        </div>
+        ${f.open === 'icon' ? `<div class="cr-pick"><div class="emoji-grid">${EMOJIS.map(e => `<button type="button" data-cr-emoji="${esc(e)}" class="${f.icon === e ? 'on' : ''}">${esc(e)}</button>`).join('')}</div><div class="row" style="gap:8px;align-items:center"><input class="input" id="cr-icon" maxlength="8" value="${esc(f.icon)}" style="max-width:90px;text-align:center" aria-label="${esc(t('habitIcon'))}"><div class="swatches grow">${HABIT_COLORS.map(x => `<button type="button" class="sw ${f.color === x ? 'on' : ''}" data-cr-color="${x}" style="--c:${x}" aria-label="${x}"></button>`).join('')}<input type="color" class="swatch-input" id="cr-color" value="${c}" aria-label="${esc(t('habitColor'))}"></div></div></div>` : ''}
+        <div class="cr-ideas" role="list">${CR_IDEAS.map(([id, , es, en, icon]) => `<button type="button" class="chip" data-cr-idea="${id}" role="listitem">${esc(icon)} ${esc(L2(es, en))}</button>`).join('')}<button type="button" class="chip" data-cr-more="pack">${ico('box', 'xs')} ${esc(t('fromTemplate'))}</button></div>
+        <div class="cr-q">${esc(t('crWhat'))}</div>
+        <div class="cr-kinds" role="radiogroup">${CR_KINDS.map(([k, ic]) => `<button type="button" class="cr-kind ${f.kind === k ? 'on' : ''}" data-cr-kind="${k}" role="radio" aria-checked="${f.kind === k}">${ico(ic)}<b>${esc(t('crK_' + k))}</b><span>${esc(t('crK_' + k + '_ex'))}</span></button>`).join('')}</div>
+        <div class="cr-detail">${detail()}</div>
+        ${extras()}
+        <div class="cr-more"><span class="muted small">${esc(t('crAlso'))}</span><button type="button" class="chip" data-cr-more="routine">${ico('repeat', 'xs')} ${esc(t('newRoutine'))}</button><button type="button" class="chip" data-cr-more="vacation">${ico('beach', 'xs')} ${esc(t('vacTitle'))}</button></div>
+      </div>`;
+    };
+    const readInputs = w => {
+      const v = id => { const el = $('#' + id, w); return el ? el.value : null; }, n = id => { const x = v(id); return x == null ? null : parseFloat(String(x).replace(',', '.')); };
+      f.name = (v('cr-name') || '').trim();
+      if (v('cr-icon') != null) f.icon = v('cr-icon').trim() || '#';
+      if (v('cr-target') != null) f.target = Math.max(1, Math.round(n('cr-target')) || 1);
+      if ($('#cr-withamt', w)) f.withAmt = $('#cr-withamt', w).checked;
+      if (v('cr-amt') != null) f.amt = Math.max(0, n('cr-amt') || 0);
+      if (v('cr-unit') != null) f.unit = v('cr-unit').trim();
+      if (v('cr-total') != null) f.total = Math.max(0, n('cr-total') || 0);
+      if (v('cr-from') != null) f.from = n('cr-from') || 0;
+      if (v('cr-rhythm') != null) f.rhythm = Math.max(0, n('cr-rhythm') || 0);
+      if (v('cr-by') != null) f.by = v('cr-by') || '';
+      if (v('cr-ch') != null) f.ch = Math.max(0, Math.round(n('cr-ch')) || 0);
+      if (v('cr-rem') != null) { f.remTime = v('cr-rem'); f.remOn = !!f.remTime; }
+      if (v('cr-dur') != null) f.dur = Math.max(0, Math.round(n('cr-dur')) || 0);
+      if ($('#cr-share', w)) f.share = $('#cr-share', w).checked;
+      if (v('cr-note') != null) f.note = v('cr-note').trim();
+    };
+    const addStep = w => { const i = $('#cr-step-in', w); const x = i && i.value.trim(); if (!x) return; readInputs(w); if (f.steps.length < 40) f.steps.push(x.slice(0, 80)); draw(w); setTimeout(() => $('#cr-step-in', w)?.focus(), 0); };
+    const applyIdea = id => {
+      const [, kind, es, en, icon, x] = CR_IDEAS.find(i => i[0] === id);
+      Object.assign(f, { kind, name: L2(es, en), icon, ch: x.ch || 0, freq: x.freq || 'daily', target: x.target || 1, withAmt: x.measure === 'amount', amt: x.measure === 'amount' ? x.target : 1, unit: unitL(x.unit || ''), step: x.step || 1, dur: x.duration || 0, tod: x.timeOfDay || 'any' });
+      if (kind === 'repeat' && x.measure === 'amount') f.target = 1;
+      if (kind === 'amount') Object.assign(f, { sum: x.sum, total: x.total, from: x.from || 0, rhythm: x.sum ? x.step : 0 });
+      if (kind === 'steps') f.steps = [...x.steps];
+    };
+    const create = async (close, w) => {
+      readInputs(w);
+      if (!f.name) { toast(t('crNeedName')); $('#cr-name', w).focus(); return; }
+      const reminder = { on: !!(f.remOn && f.remTime) && f.kind !== 'quit', time: f.remTime || '' };
+      if (isHabit()) {
+        if (!gateAdd('habits', activeHabitCount())) return;
+        const base = { kind: 'build', name: f.name, icon: f.icon, color: f.color, freq: 'daily', target: 1, multi: false, note: f.note, days: [0, 1, 2, 3, 4, 5, 6], measure: 'count', unit: '', step: 1, timeOfDay: f.tod, duration: f.dur, reminder };
+        let props;
+        if (f.kind === 'quit') props = { ...base, kind: 'quit', duration: 0, reminder: { on: false, time: '' } };
+        else if (f.kind === 'repeat') props = f.withAmt && f.amt > 0
+          ? { ...base, freq: f.freq, measure: 'amount', target: f.amt, unit: f.unit, step: f.amt >= 4 ? Math.round(f.amt / 4 * 100) / 100 : f.amt / 2 >= .25 ? f.amt / 2 : f.amt, days: f.freq === 'daily' ? f.days : base.days }
+          : { ...base, freq: f.freq, target: f.target, multi: f.target > 1, days: f.freq === 'daily' ? f.days : base.days };
+        else {
+          if (!(f.total > 0)) { toast(t('crNeedTotal')); $('#cr-total', w)?.focus(); return; }
+          const r = f.rhythm > 0 ? f.rhythm : Math.max(.01, Math.round(f.total / 10 * 100) / 100);
+          props = { ...base, freq: f.freq, measure: 'amount', target: r, unit: f.unit, step: r, total: { target: f.total, start: f.from || 0, from: todayKey(), ...(f.by ? { by: f.by } : {}) } };
+        }
+        if (f.ch > 0 && (f.kind === 'repeat' || f.kind === 'quit')) props.challenge = { tid: 'custom', days: f.ch, start: todayKey() };
+        const h = { id: uid(), ...props, autoColor: HABIT_COLORS[state.colorSeq++ % HABIT_COLORS.length], createdAt: todayKey(), archived: false };
+        state.habits.push(h); firstTime('habits', state.habits.length === 1);
+        setHabitProjects(h, f.projs);
+        checkTotalGoal(h, true);
+        save(); close(); state.ui.tab = 'habits';
+        render(); sfx('complete'); toast(t('crCreated', { name: h.name }));
+        if (reminder.on && (await pushStatus()) !== 'on') enablePush();
+        if (f.share) shareAsGroup('habit', h);
+        return;
+      }
+      if (!gateAdd('projects', state.projects.length)) return;
+      if (f.kind === 'steps' && !f.steps.length) { toast(t('crNeedSteps')); $('#cr-step-in', w)?.focus(); return; }
+      if (f.kind === 'amount' && !f.total && f.total !== 0) { toast(t('crNeedTotal')); return; }
+      const goal = f.kind === 'steps'
+        ? { type: 'checklist', start: 0, target: 0, unit: '', entries: [], items: f.steps.map(text => ({ id: uid(), text, done: false })), achieved: false }
+        : { type: 'numeric', start: f.from || 0, target: f.total, unit: f.unit, entries: [], items: [], achieved: false };
+      const p = { id: uid(), name: f.name, icon: f.icon === '#' ? '🎯' : f.icon, color: f.color, desc: f.note, habitIds: [...f.hIds], goal, deadline: f.by || null, ...(f.by ? { retoFrom: todayKey() } : {}), milestones: [], photos: {}, createdAt: todayKey() };
+      state.projects.push(p); firstTime('projects', state.projects.length === 1);
+      save(); close(); state.ui.tab = 'habits'; render(); sfx('complete'); toast(t('crCreated', { name: p.name }));
+      if (f.share) shareAsGroup('project', p); else openProject(p);
+    };
+    let cw = null;
+    const guard = unsavedGuard(() => { if (cw && $('#cr-name', cw)) readInputs(cw); const { open, ...rest } = f; return JSON.stringify(rest); });
+    openModal({
+      title: esc(t('crCreate')), cls: 'cr-sheet',
+      body: '<div id="cr"></div>',
+      foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-m="save">${ico('check')} ${esc(t('crCreate'))}</button>`,
+      beforeClose: w => guard.check(w),
+      onMount: w => { cw = w; draw(w); guard.start(); setTimeout(() => $('#cr-name', w)?.focus(), 250); w.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'cr-step-in') { ev.preventDefault(); addStep(w); } }); },
+      onInput: (e, w) => {
+        if (e.target.id === 'cr-color') { f.color = e.target.value; $('.cr', w).setAttribute('style', habitVars(f.color)); $$('[data-cr-color]', w).forEach(s => s.classList.remove('on')); }
+        if (e.target.id === 'cr-icon') { f.icon = e.target.value.trim() || '#'; $('.cr-ico', w).textContent = f.icon; }
+      },
+      onClick: (e, close, w) => {
+        const q = s => e.target.closest(s); let el;
+        if (q('[data-m="save"]')) { create(close, w); return; }
+        if ((el = q('[data-cr-more]'))) { const m = el.dataset.crMore; close(); ({ pack: openPacks, routine: () => openRoutineEditor(), vacation: openVacations })[m](); return; }
+        if (q('[data-cr-add-step]')) { addStep(w); return; }
+        if (e.target.matches('input:not([type=checkbox]), textarea')) return;
+        readInputs(w);
+        if ((el = q('[data-cr-kind]'))) { if (f.kind !== el.dataset.crKind && el.dataset.crKind === 'amount' && f.freq === 'daily') f.freq = 'weekly'; f.kind = el.dataset.crKind; if (f.open === 'habits' || f.open === 'folder') f.open = ''; }
+        else if ((el = q('[data-cr-idea]'))) applyIdea(el.dataset.crIdea);
+        else if ((el = q('[data-cr-open]'))) f.open = f.open === el.dataset.crOpen ? '' : el.dataset.crOpen;
+        else if ((el = q('[data-cr-emoji]'))) f.icon = el.dataset.crEmoji;
+        else if ((el = q('[data-cr-color]'))) f.color = el.dataset.crColor;
+        else if ((el = q('[data-cr-freq]'))) f.freq = el.dataset.crFreq;
+        else if ((el = q('[data-cr-sum]'))) f.sum = el.dataset.crSum === '1';
+        else if ((el = q('[data-cr-step]'))) f.target = Math.max(1, f.target + +el.dataset.crStep);
+        else if ((el = q('[data-cr-wd]'))) { const i = +el.dataset.crWd; f.days = f.days.includes(i) ? f.days.filter(x => x !== i) : [...f.days, i].sort(); if (!f.days.length) f.days = [i]; }
+        else if ((el = q('#cr-withamt'))) f.withAmt = el.checked;
+        else if ((el = q('[data-cr-by]'))) f.by = addDays(todayKey(), +el.dataset.crBy);
+        else if ((el = q('[data-cr-ch]'))) f.ch = f.ch === +el.dataset.crCh ? 0 : +el.dataset.crCh;
+        else if ((el = q('[data-cr-tod]'))) f.tod = el.dataset.crTod;
+        else if ((el = q('[data-cr-proj]'))) { const id = el.dataset.crProj; f.projs = f.projs.includes(id) ? f.projs.filter(x => x !== id) : [...f.projs, id]; }
+        else if ((el = q('[data-cr-hab]'))) { const id = el.dataset.crHab; f.hIds = f.hIds.includes(id) ? f.hIds.filter(x => x !== id) : [...f.hIds, id]; }
+        else if ((el = q('[data-cr-del-step]'))) f.steps.splice(+el.dataset.crDelStep, 1);
+        else return;
+        const sc = $('.sheet-body', w), top = sc ? sc.scrollTop : 0;
+        draw(w); if (sc) sc.scrollTop = top;
+      }
+    });
+  }
   function packSub(x) {
     if (x.kind === 'quit') return t('kindQuit');
     const pk = x.freq === 'weekly' ? 'periodWeek' : x.freq === 'monthly' ? 'periodMonth' : 'periodDay', per = ' / ' + t(pk);
@@ -12059,6 +12344,33 @@
         save(); close(); state.ui.tab = 'habits'; render(); toast(t('challengeStarted'));
       }
     });
+  }
+  /* v1.57: meta total. Un hábito con cantidad puede tener h.total = { target, start, done }: cada registro suma y,
+     al llegar a la cifra (p. ej. 50 GB exportados), se celebra con una carta y el hábito pasa a «Metas logradas». */
+  const hasTotal = h => !!(h && h.total && +h.total.target > 0 && isAmount(h));
+  function totalSum(h) { let s = +(h.total && h.total.start) || 0; const L = state.logs[h.id] || {}; for (const k in L) s += +L[k] || 0; return Math.round(s * 100) / 100; }
+  const totalPct = h => clamp(totalSum(h) / h.total.target, 0, 1);
+  function checkTotalGoal(h, silent = false) {
+    if (!hasTotal(h) || h.total.done || totalSum(h) < h.total.target) return;
+    h.total.done = todayKey(); h.archived = true;
+    const card = { kind: 'goal', id: h.id + '_total_' + todayKey(), hid: h.id, name: h.name, icon: h.icon, total: h.total.target, unit: h.unit || '', start: h.total.from || h.createdAt, end: todayKey(), serial: ++state.serial };
+    state.challengeCards.push(card); save();
+    if (!silent) setTimeout(() => whenFree(() => sfx('levelup') || openTrophy(goalCardHtml(card), t('goalReached'), t('goalReachedMsg', { name: h.name }), () => trophyCanvas('goal', card), () => renewTotal(h))), 450);
+  }
+  // «Otra vez»: la meta vuelve a empezar desde cero (los registros pasados siguen, pero ya no cuentan para la nueva)
+  function renewTotal(h) {
+    if (!gateAdd('habits', activeHabitCount())) return;
+    h.total = { target: h.total.target, start: -(totalSum(h) - (+h.total.start || 0)), from: todayKey() };
+    h.archived = false; save(); render(); toast(t('goalAgainToast'));
+  }
+  function goalCardHtml(c) {
+    return `<div class="ccard" style="--t:#fcd34d;--t2:#3b2a05"><div class="cc-in">
+      <div class="cc-top">KEEPGOING</div><div class="cc-seal" style="font-size:11cqw">${esc(c.icon || '🎯')}</div>
+      <div class="cc-title">${esc(t('goalReached'))}</div><div class="cc-name">${esc(c.name)}</div>
+      <div class="cc-dates">${esc(fmtShort(c.start))} – ${esc(fmtShort(c.end))}</div>
+      <div><div class="cc-big">${esc(fmtNum(c.total))}</div><div class="cc-lbl">${esc(c.unit || t('goalTotalLbl'))}</div></div>
+      <div class="cc-serial">${esc(t('masterySerial', { n: String(c.serial).padStart(4, '0') }))}</div>
+    </div></div>`;
   }
   // Días cumplidos desde que empezó el reto
   function challengeProgress(h) {
@@ -12143,14 +12455,14 @@
     </div></div>`;
   }
   // Ventana de trofeo genérica (retos, cartas secretas)
-  function openTrophy(cardHtml, title, msg, canvasFn) {
+  function openTrophy(cardHtml, title, msg, canvasFn, againFn) {
     vibrate([20, 40, 20]);
     openModal({
       cls: 'card-view',
       body: `<div class="flip unlock-burst" style="cursor:default"><div class="flip-inner">${cardHtml}</div></div>
         <div class="card-view-cap"><div class="ach-title" style="font-size:22px;font-weight:var(--fw-title);margin-bottom:4px">${esc(title)}</div><small>${esc(msg)}</small></div>
-        <div class="row" style="justify-content:center;margin-top:16px">${canvasFn ? `<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button></div>`,
-      onClick: e => { if (canvasFn && e.target.closest('[data-m="share"]')) shareCanvas(canvasFn, 'keepgoing-trofeo.png', title); },
+        <div class="row wrap" style="justify-content:center;margin-top:16px;gap:8px">${canvasFn ? `<button class="btn" data-m="share">${ico('upload')} ${esc(t('share'))}</button>` : ''}<button class="btn" data-m="x">${esc(t('close'))}</button>${againFn ? `<button class="btn primary" data-m="again">${ico('repeat')} ${esc(t('goalAgain'))}</button>` : ''}</div>`,
+      onClick: (e, close) => { if (canvasFn && e.target.closest('[data-m="share"]')) shareCanvas(canvasFn, 'keepgoing-trofeo.png', title); if (againFn && e.target.closest('[data-m="again"]')) { close(); againFn(); } },
       onMount: w => achieveFx(w)
     });
   }
@@ -12158,7 +12470,7 @@
     await fontsReady();
     const W = CARD_W, H = CARD_H, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d');
-    const [tc, t2] = kind === 'secret' ? ['#c4b5fd', '#2e1065'] : ['#5eead4', '#053b38'];
+    const [tc, t2] = kind === 'secret' ? ['#c4b5fd', '#2e1065'] : kind === 'goal' ? ['#fcd34d', '#3b2a05'] : ['#5eead4', '#053b38'];
     const g = ctx.createRadialGradient(W / 2, H * .1, 50, W / 2, H * .3, H); g.addColorStop(0, t2); g.addColorStop(.75, '#07070a'); g.addColorStop(1, '#07070a');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = tc; ctx.lineWidth = 7; ctx.strokeRect(40, 40, W - 80, H - 80); ctx.lineWidth = 2; ctx.strokeRect(62, 62, W - 124, H - 124);
@@ -12169,6 +12481,11 @@
       txt(t('sec_' + d.id).toUpperCase(), 760, 72, tc, 700);
       ctx.font = '500 38px Cinzel, Georgia, serif'; ctx.fillStyle = '#ffffffcc'; wrapLines(ctx, t('secd_' + d.id), W - 240, 4).forEach((ln, j) => ctx.fillText(ln, W / 2, 880 + j * 54));
       txt(fmtShort(state.secrets[d.id] || todayKey()), 1400, 34, '#ffffff99');
+    } else if (kind === 'goal') {
+      txt('KEEPGOING', 160, 38, tc); ctx.font = '200px serif'; ctx.fillText(d.icon || '🎯', W / 2, 420);
+      txt(t('goalReached').toUpperCase(), 640, 70, tc, 700); txt(String(d.name).toUpperCase(), 740, 50, '#fff');
+      txt(`${fmtShort(d.start)} – ${fmtShort(d.end)}`, 810, 34, '#ffffffbb'); txt(fmtNum(d.total), 1010, 180, '#fff', 700);
+      txt(String(d.unit || t('goalTotalLbl')).toUpperCase(), 1140, 34, '#ffffffbb'); txt(t('masterySerial', { n: String(d.serial).padStart(4, '0') }), 1430, 30, '#ffffff99');
     } else {
       txt('KEEPGOING', 160, 38, tc); ctx.font = '200px serif'; ctx.fillText(d.icon || '🏁', W / 2, 420);
       txt(t('challengeDone').toUpperCase(), 640, 70, tc, 700); txt(String(d.name).toUpperCase(), 740, 50, '#fff');
@@ -14100,6 +14417,8 @@
   // Las celebraciones esperan su turno si ya hay una ventana abierta
   const modalQueue = [];
   const whenFree = fn => { if ($('#modal-root').children.length) modalQueue.push(fn); else fn(); };
+  // v1.57: si lo que estaba en cola no abre una hoja (p. ej. una celebración a pantalla completa), sigue con lo siguiente
+  function runQueued() { const fn = modalQueue.shift(); if (fn) fn(); if (modalQueue.length && !$('#modal-root').children.length) setTimeout(runQueued, 280); }
   function openModal({ title = '', body = '', foot = '', cls = '', onClick, onInput, onMount, onClose, beforeClose, dismissable = true }) {
     const root = $('#modal-root');
     const wrap = document.createElement('div'); wrap.className = 'backdrop';
@@ -14119,7 +14438,7 @@
       const finish = () => {
         wrap.remove();
         if (!root.children.length) document.body.style.overflow = '';
-        if (!root.children.length && modalQueue.length) setTimeout(modalQueue.shift(), 280);
+        if (!root.children.length && modalQueue.length) setTimeout(runQueued, 280);
       };
       const back = wrap._zoomBack ? wrap._zoomBack() : wrap._immOut && !reducedMotion() ? (wrap._immOut(), 420) : 0, dur = reducedMotion() ? 0 : Math.max(back, 200);
       onClose && onClose();
@@ -14198,6 +14517,14 @@
     const root = $('#toast-root'); const el = document.createElement('div');
     el.className = 'toast'; el.textContent = msg; root.appendChild(el);
     setTimeout(() => el.remove(), 2200);
+  }
+  // v1.57: aviso con un botón (adelantar, deshacer…). Se queda unos segundos más que un aviso normal
+  function actionToast(msg, label, fn, ms = 6000) {
+    const root = $('#toast-root'); const el = document.createElement('div');
+    el.className = 'toast act-toast'; el.innerHTML = `<span>${esc(msg)}</span><button type="button">${esc(label)}</button>`;
+    root.appendChild(el);
+    const tm = setTimeout(() => el.remove(), ms);
+    el.querySelector('button').addEventListener('click', () => { clearTimeout(tm); el.remove(); fn(); });
   }
 
   /* =========================================================
@@ -14602,9 +14929,10 @@
       case 'go': pendingShare = null; if (state.ui.tab === a.dataset.tab && state.ui.folder) state.ui.folder = null; if (state.ui.tab !== a.dataset.tab) state.ui.ledgerView = ''; state.ui.tab = a.dataset.tab; save(); render(); window.scrollTo(0, 0); break;
       case 'calc-open': state.ui.ledgerView = 'calc'; save(); render(); window.scrollTo(0, 0); break;
       case 'calc-close': state.ui.ledgerView = ''; save(); render(); window.scrollTo(0, 0); break;
-      case 'create': openCreateMenu(); break;
+      case 'create': openCreator(); break;
       case 'packs': openPacks(); break;
       case 'hview': state.ui.habitsView = a.dataset.v; state.ui.folder = null; save(); render(); break;
+      case 'hlayout': state.ui.habitsLayout = a.dataset.v; save(); render(); sfx('toggle'); break;
       case 'folder-open': state.ui.folder = id; save(); render(); window.scrollTo(0, 0); break;
       case 'folder-close': state.ui.folder = null; save(); render(); break;
       case 'proj-edit': { const p = state.projects.find(x => x.id === id); if (p) openProjectEditor(p); break; }
@@ -14652,14 +14980,14 @@
       case 'review-now': openReview(weekStart(todayKey())); break;
       case 'review-open': openReview(a.dataset.v); break;
       case 'secret-open': { const s = SECRETS.find(x => x[0] === id); if (s) openTrophy(secretCardHtml(s[0], s[1]), state.secrets[id] ? t('sec_' + id) : '???', state.secrets[id] ? t('secd_' + id) : t('secretHidden'), state.secrets[id] ? () => trophyCanvas('secret', { id, icon: s[1] }) : null); break; }
-      case 'chal-open': { const c = state.challengeCards.find(x => x.id === id); if (c) openTrophy(challengeCardHtml(c), t('challengeDone'), c.name, () => trophyCanvas('challenge', c)); break; }
+      case 'chal-open': { const c = state.challengeCards.find(x => x.id === id); if (c) { const g = c.kind === 'goal'; openTrophy(g ? goalCardHtml(c) : challengeCardHtml(c), t(g ? 'goalReached' : 'challengeDone'), c.name, () => trophyCanvas(g ? 'goal' : 'challenge', c)); } break; }
       case 'settings': openSettings(); break;
-      case 'habit-new': openHabitEditor(); break;
+      case 'habit-new': openCreator(); break;
       case 'habit-edit': openHabitEditor(getHabit(id)); break;
       case 'toggle-archived': state.ui.showArchived = !state.ui.showArchived; save(); render(); break;
       case 'contract': openContract(); break;
       case 'contract-renew': renewContract(); break;
-      case 'proj-new': openProjectEditor(); break;
+      case 'proj-new': openCreator({ kind: 'steps' }); break;
       case 'proj-open': { const p = state.projects.find(x => x.id === id); if (p) openProject(p); break; }
       case 'range': state.ui.range = a.dataset.v === 'all' ? 'all' : +a.dataset.v; save(); render(); break;
       case 'card-open': { const h = getHabit(id); if (h) openCard(h, +a.dataset.i); break; }
