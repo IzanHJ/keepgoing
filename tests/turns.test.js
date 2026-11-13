@@ -257,3 +257,11 @@ test('v1.52: dividir un turno de un toque', () => {
   const n = T.splitEntry([{ sid: 'o_x', once: { name: 'N', start: '22:00', end: '02:00' }, start: '', end: '' }], 0, { id: 'o_x', start: '22:00', end: '02:00' }, 25 * 60, 'o_y');
   assert.deepStrictEqual([n[0].once.end, n[1].sid, n[1].once.start, n[1].once.end], ['01:00', 'o_y', '01:00', '02:00']);
 });
+
+test('v1.57: nombre, icono y color propios de un día', () => {
+  const d = T.defaults();
+  const out = T.sanitize({ ...d, days: { '2026-11-13': [{ sid: 's_man', nm: 'Partido', em: '⚽', co: '#112233' }, { sid: 's_tar', em: '', co: 'rojo' }] } });
+  const [a, b] = out.days['2026-11-13'];
+  assert.strictEqual(a.nm, 'Partido'); assert.strictEqual(a.em, '⚽'); assert.strictEqual(a.co, '#112233');
+  assert.ok(!('em' in b) && !('co' in b));
+});
