@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.56.0';
+  const VERSION = '1.57.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1222,7 +1222,8 @@
   const tfWs = () => [0, 1, 6].includes(state.calPrefs.weekStart) ? state.calPrefs.weekStart : 1;
   const tfShift = id => state.calShifts.find(s => s.id === id) || (typeof id === 'string' && id.startsWith('o_') ? tfOnceMap()[id] : undefined);
   // v1.52: el turno de una entrada tal y como se ve ese día (e.nm = nombre solo para ese día; la plantilla no cambia)
-  const tfShiftE = e => { const s = e && tfShift(e.sid); return s && typeof e.nm === 'string' && e.nm.trim() ? { ...s, name: e.nm.trim().slice(0, 40) } : s; };
+  // v1.57: además del nombre, el icono (e.em) y el color (e.co) pueden cambiar solo ese día
+  const tfShiftE = e => { const s = e && tfShift(e.sid); if (!s) return s; const o = {}; if (typeof e.nm === 'string' && e.nm.trim()) o.name = e.nm.trim().slice(0, 40); if (typeof e.em === 'string' && e.em.trim()) o.emoji = e.em.trim(); if (/^#[0-9a-f]{6}$/i.test(e.co || '')) o.color = e.co; return Object.keys(o).length ? { ...s, ...o } : s; };
   /* v1.25: turnos puntuales (médico, quedada, taxi…). Viven dentro de su día: { sid: 'o_…', once: { name, emoji, color, start, end, jobId } }
      y no están en la lista de Turnos. Solo suman horas y paga si tienen una categoría (jobId). */
   let tfOnceGen = 0, tfOnceCache = null;
@@ -2960,7 +2961,7 @@
     const pl = tfLayers().places ? tfPlaceOf(it.s, it.e) : null;
     const label = `${it.s.emoji ? esc(it.s.emoji) + ' ' : ''}${esc(it.s.name)}${tfPlBadge(pl)}`;
     const ek = it.cont ? TF.iso(TF.addDays(TF.parseISO(k), -1)) : k, ei = (state.calDays[ek] || []).indexOf(it.e);
-    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''}${ei >= 0 && !it.cont ? tfDragAttr(ek, it.e) : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? tfEntNotes(k, it.e, it.s).map(([g]) => `<small class="tf-blk-note">${tfNoteIco(g)} ${esc(g.t)}</small>`).join('') : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
+    return `<span class="tf-blk ${it.joinT ? 'jt' : ''} ${it.joinB ? 'jb' : ''}" ${ei >= 0 ? `data-tf-ent="${ek}" data-i="${ei}"` : ''}${ei >= 0 && !it.cont ? tfDragAttr(ek, it.e) : ''} style="top:calc(var(--ph) * ${+(it.a / 60).toFixed(4)});height:max(14px, calc(var(--ph) * ${+((it.b - it.a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${c};--fg-c:${tfFg(c)}"><b>${label}</b>${it.e && it.e.note && tfLayers().notes ? `<small class="tf-blk-note">${ico('doc', 'xs')} ${esc(it.e.note)}</small>` : ''}${it.e && tfLayers().notes && !it.cont ? (l => l.length ? `<small class="tf-blk-note">${l.map(([g]) => `<span class="tf-blk-np">${tfNoteIco(g)} ${esc(g.t)}</span>`).join('<i aria-hidden="true"> - </i>')}</small>` : '')(tfEntNotes(k, it.e, it.s)) : ''}${big && pl && (pl.addr || pl.lat != null) ? `<small class="tf-blk-addr" role="link" data-tf-extmap="${esc(pl.addr || pl.name)}" data-pl="${esc(pl.id)}" title="${esc(t('tfPlMaps'))}">${esc(pl.addr || pl.lat + ', ' + pl.lon)}</small>` : ''}</span>`;
   };
   // v1.39: el trayecto (de la salida a la llegada) se dibuja como una franja fina con su icono, en el carril de su turno
   // v1.43: también el trayecto de después del turno y los enlazados (TF.dayLegs), cada uno en el carril de su turno
@@ -2973,16 +2974,44 @@
       return `<span class="tf-trip ${l.kind === 'back' ? 'bk' : ''}" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:max(12px, calc(var(--ph) * ${+((b - a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${tfColor(it.s.color)}" title="${esc(lbl)}">${ico(lwTrIco(l.mode), 'xs')}${big ? `<small>${esc(lbl)}</small>` : ''}</span>`;
     }).join('');
   };
+  /* v1.57: notas juntas. Las notas con hora que se tocan o se solapan se dibujan en UN bloque, una detrás de otra
+     («Correr - Leer - Ducha»); cada trozo se sigue pudiendo tocar para abrir su nota. Lo mismo en «Todo el día» y dentro de
+     un turno. tfNoteRuns(k) → [{ a, b, list: [[nota, índice]] }] (en minutos del día). */
+  function tfNoteRuns(k) {
+    const xs = tfGaps(k).map((g, j) => [g, j]).filter(([g]) => g.a && !tfIsEntNote(k, g))
+      .map(([g, j]) => { const a = tfMin(g.a); return { g, j, a, b: Math.max(a + 15, tfMin(g.b || g.a)) }; }).sort((x, y) => x.a - y.a || x.b - y.b);
+    const out = [];
+    for (const x of xs) { const r = out[out.length - 1]; if (r && x.a <= r.b) { r.b = Math.max(r.b, x.b); r.list.push([x.g, x.j]); } else out.push({ a: x.a, b: x.b, list: [[x.g, x.j]] }); }
+    return out;
+  }
+  const tfNotePart = (k, g, j, big, timed) => `<span class="tf-gapn-p" role="button" data-tf-gapn="${k}" data-i="${j}" style="${tfNoteStyle(g)}" title="${esc((g.a ? g.a + '–' + g.b + ' · ' : '') + g.t)}">${tfNoteIco(g)}${big && timed && g.a ? `<b>${esc(g.a)}–${esc(g.b)}</b> ` : ''}${esc(g.t)}</span>`;
+  const tfNoteJoin = (k, list, big, timed) => list.map(([g, j]) => tfNotePart(k, g, j, big, timed)).join('<i class="tf-gapn-sep" aria-hidden="true"> - </i>');
+  // Un bloque de notas: con r (horas) va en la línea de tiempo; sin r, en la casilla de «Todo el día»
+  function tfNoteGroup(k, list, r, big) {
+    const one = list.length === 1, g0 = list[0][0];
+    const pos = r ? `top:calc(var(--ph) * ${+(r.a / 60).toFixed(4)});height:calc(var(--ph) * ${+((r.b - r.a) / 60).toFixed(4)});` : '';
+    // Con una sola nota, todo el bloque abre la nota (como antes); con varias, cada trozo abre la suya
+    return `<span class="tf-gapn ${r ? '' : 'tf-gapn-all'} ${one ? '' : 'multi'}" ${one ? `role="button" data-tf-gapn="${k}" data-i="${list[0][1]}"` : ''} style="${pos}${tfNoteStyle(g0)}"><span>${tfNoteJoin(k, list, big, !!r)}</span></span>`;
+  }
+  // Fondo de una columna con los colores del día: 1 color entero, 2 o 3 en franjas verticales
+  function tfColTint(cs) {
+    if (!cs.length) return '';
+    const m = c => `color-mix(in srgb, ${c} 22%, transparent)`, n = cs.length;
+    const img = n === 1 ? `linear-gradient(${m(cs[0])}, ${m(cs[0])})` : `linear-gradient(90deg, ${cs.map((c, i) => `${m(c)} ${(i * 100 / n).toFixed(2)}% ${((i + 1) * 100 / n).toFixed(2)}%`).join(', ')})`;
+    return `--dk:${cs[0]};--dkbg:${img}`;
+  }
   function tfTimeline(keys, big) {
     const L = keys.map(tfDayItems), ph = tfPh(big), tk = todayKey(), now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const dayN = keys.map(k => tfLayers().notes ? tfGaps(k).map((g, j) => [g, j]).filter(([g]) => !g.a && !tfIsEntNote(k, g)) : []);
     const anyAll = L.some(x => x.allDay.length) || dayN.some(x => x.length);
     const first = Math.min(...L.flatMap(x => x.timed.map(it => it.a)), keys.includes(tk) ? nowM : 1440);
+    // v1.57: el color del día tiñe también su columna (huecos y rellenos) y su casilla de «Todo el día», en Día y en Semana
+    const tint = keys.map(k => tfLayers().days ? tfColTint(tfDayColors(k)) : '');
     let html = `<div class="tf-tl ${big ? 'big' : ''}" style="--cols:${keys.length};--ph:${ph}px" data-tl="${big ? 'd' : 'w'}" data-tl-first="${first < 1440 ? first : 480}">`;
-    if (anyAll) html += `<div class="tf-tl-all"><span class="tf-tl-h muted small">${esc(t('tfAllDay'))}</span>${keys.map((k, i) => `<button class="tf-tl-allc" data-tf-day="${k}" aria-label="${esc(tfLong(k))}">${L[i].allDay.map(({ s, e }) => tfDragTag(k, e, tfTag(s, '', undefined, e))).join('')}${dayN[i].map(([g, j]) => `<span class="tf-gapn tf-gapn-all" role="button" data-tf-gapn="${k}" data-i="${j}" style="${tfNoteStyle(g)}" title="${esc(g.t)}">${tfNoteIco(g)}<span>${esc(g.t)}</span></span>`).join('')}</button>`).join('')}</div>`;
+    if (anyAll) html += `<div class="tf-tl-all"><span class="tf-tl-h muted small">${esc(t('tfAllDay'))}</span>${keys.map((k, i) => `<button class="tf-tl-allc ${tint[i] ? 'dk' : ''}" ${tint[i] ? `style="${tint[i]}"` : ''} data-tf-day="${k}" aria-label="${esc(tfLong(k))}">${L[i].allDay.map(({ s, e }) => tfDragTag(k, e, tfTag(s, '', undefined, e))).join('')}${dayN[i].length ? tfNoteGroup(k, dayN[i], null, big) : ''}</button>`).join('')}</div>`;
     html += `<div class="tf-tl-body"><div class="tf-tl-hours">${hours.map(h => `<span>${pad(h)}:00</span>`).join('')}</div>`;
-    html += keys.map((k, i) => `<button class="tf-tl-col ${k === tk ? 'today' : ''}" data-tf-day="${k}" data-tf-tl="${k}" aria-label="${esc(tfLong(k) + (L[i].timed.length ? ': ' + L[i].timed.map(it => it.s.name + ' ' + it.start + '–' + it.end).join(', ') : ''))}">${L[i].timed.map(it => tfBlock(it, k, L[i].lanes, ph, big)).join('')}${tfLayers().transport && tfLayers().shifts ? tfTrips(k, L[i], big) : ''}${tfLayers().notes ? tfGaps(k).map((g, j) => { if (!g.a || tfIsEntNote(k, g)) return ''; const a = tfMin(g.a), b = Math.max(a + 15, tfMin(g.b)); return `<span class="tf-gapn" role="button" data-tf-gapn="${k}" data-i="${j}" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:calc(var(--ph) * ${+((b - a) / 60).toFixed(4)});${tfNoteStyle(g)}" title="${esc(g.a + '–' + g.b + ' · ' + g.t)}">${tfNoteIco(g)}<span>${big ? `<b>${esc(g.a)}–${esc(g.b)}</b> ` : ''}${esc(g.t)}</span></span>`; }).join('') : ''}${(c => { if (!c || TF.iso(new Date(c.at)) !== k) return ''; const d = new Date(c.at), a = d.getHours() * 60 + d.getMinutes(), b = k === tk ? Math.max(a + 10, nowM) : 1440; return `<span class="tf-blk tf-clock-blk" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:calc(var(--ph) * ${+((b - a) / 60).toFixed(4)});left:0;width:100%"><b>${esc(t('tfClockName'))}</b>${big ? `<small>${esc(tfClockHm(d))}–…</small>` : ''}</span>`; })(tfClock())}${k === tk ? `<i class="tf-now" style="top:calc(var(--ph) * ${+(nowM / 60).toFixed(4)})" aria-hidden="true"></i>` : ''}</button>`).join('');
+    html += keys.map((k, i) => `<button class="tf-tl-col ${k === tk ? 'today' : ''} ${tint[i] ? 'dk' : ''}" ${tint[i] ? `style="${tint[i]}"` : ''} data-tf-day="${k}" data-tf-tl="${k}" aria-label="${esc(tfLong(k) + (L[i].timed.length ? ': ' + L[i].timed.map(it => it.s.name + ' ' + it.start + '–' + it.end).join(', ') : ''))}">${L[i].timed.map(it => tfBlock(it, k, L[i].lanes, ph, big)).join('')}${tfLayers().transport && tfLayers().shifts ? tfTrips(k, L[i], big) : ''}${tfLayers().notes ? tfNoteRuns(k).map(r => tfNoteGroup(k, r.list, r, big)).join('') : ''}${(c => { if (!c || TF.iso(new Date(c.at)) !== k) return ''; const d = new Date(c.at), a = d.getHours() * 60 + d.getMinutes(), b = k === tk ? Math.max(a + 10, nowM) : 1440; return `<span class="tf-blk tf-clock-blk" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:calc(var(--ph) * ${+((b - a) / 60).toFixed(4)});left:0;width:100%"><b>${esc(t('tfClockName'))}</b>${big ? `<small>${esc(tfClockHm(d))}–…</small>` : ''}</span>`; })(tfClock())}${typeof sgBlocks === 'function' ? sgBlocks(k, big) : ''}${k === tk ? `<i class="tf-now" style="top:calc(var(--ph) * ${+(nowM / 60).toFixed(4)})" aria-hidden="true"></i>` : ''}</button>`).join('');
     return html + '</div></div>';
   }
   // Tras pintar: la caja de horas vuelve a donde estaba o, si es otra vista, se abre una hora antes del primer turno
@@ -3167,13 +3196,48 @@
   }, true);
   document.addEventListener('pointerup', e => { if (tfPaintS && e.pointerId === tfPaintS.id) tfPaintEnd(); }, true);
   document.addEventListener('pointercancel', e => { if (tfPaintS && e.pointerId === tfPaintS.id) tfPaintEnd(); }, true);
+  /* ---------- v1.57: cuchilla de precisión ----------
+     Con la cuchilla activa, mantener pulsado un turno enseña una línea discontinua con la hora (de 5 en 5 min) que sigue al dedo;
+     al soltar, corta ahí. Un toque corto sigue cortando como antes. Mientras se mantiene, la caja de horas no se desplaza. */
+  let tfCutH = null;
+  const tfCutHEnd = () => { if (!tfCutH) return; clearTimeout(tfCutH.timer); if (tfCutH.line) tfCutH.line.remove(); document.body.classList.remove('tf-cut-holding'); tfCutH = null; };
+  function tfCutHShow(y) {
+    const h = tfCutH; if (!h || !document.body.contains(h.ent)) return;
+    const col = h.ent.closest('.tf-tl-col'), r = h.ent.getBoundingClientRect(), cr = col.getBoundingClientRect();
+    y = clamp(y, r.top + 2, r.bottom - 2); h.y = y;
+    const { m, ph } = tfCutMin(col, y, 5);
+    if (!h.line) { h.line = document.createElement('i'); h.line.className = 'tf-cutline'; h.line.setAttribute('aria-hidden', 'true'); h.line.innerHTML = '<em></em>'; col.appendChild(h.line); }
+    h.line.style.top = (m / 60 * ph) + 'px'; h.line.style.left = (r.left - cr.left - 2) + 'px'; h.line.style.right = 'auto'; h.line.style.width = (r.width + 4) + 'px';
+    const em = h.line.firstChild, txt = tfHm(((m % 1440) + 1440) % 1440);
+    if (em.textContent !== txt) { em.textContent = txt; if (h.on) vibrate(4); }
+  }
+  document.addEventListener('pointerdown', e => {
+    if (state.ui.tab !== 'cal' || e.button || !TFS.cut || TFS.quick) return;
+    const ent = e.target.closest('.tf-zoom.cutting .tf-blk[data-tf-ent]'); if (!ent) return;
+    tfCutHEnd();
+    const h = tfCutH = { ent, id: e.pointerId, sx: e.clientX, sy: e.clientY, y: e.clientY, on: false, line: null };
+    h.timer = setTimeout(() => { if (tfCutH !== h) return; h.on = true; document.body.classList.add('tf-cut-holding'); vibrate(15); sfx('tap'); tfCutHShow(h.y); }, 280);
+  }, true);
+  document.addEventListener('pointermove', e => {
+    const h = tfCutH; if (!h || e.pointerId !== h.id) return;
+    if (!h.on) { if (Math.hypot(e.clientX - h.sx, e.clientY - h.sy) > 8) tfCutHEnd(); else h.y = e.clientY; return; }
+    tfCutHShow(e.clientY);
+  }, true);
+  document.addEventListener('pointerup', e => {
+    const h = tfCutH; if (!h || e.pointerId !== h.id) return;
+    if (h.on) { const { ent, y } = h; tfCutHEnd(); TFS.cutSkip = Date.now(); tfCutAt(ent, y, 5); } else tfCutHEnd();
+  }, true);
+  document.addEventListener('pointercancel', e => { if (tfCutH && e.pointerId === tfCutH.id && !tfCutH.on) tfCutHEnd(); }, true);
+  // Mientras se mantiene la cuchilla, el dedo mueve la línea y no la caja de horas
+  document.addEventListener('touchmove', e => { if (tfCutH && tfCutH.on) e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchend', () => { if (tfCutH && tfCutH.on) setTimeout(() => { if (tfCutH && tfCutH.on) { const { ent, y } = tfCutH; tfCutHEnd(); TFS.cutSkip = Date.now(); tfCutAt(ent, y, 5); } }, 30); }, true);
   /* ---------- v1.45.2: mantener pulsado un turno y arrastrarlo ----------
      Día y Semana: a otra hora (y en Semana a otro día), en tramos de 15 min. Mes: a otro día con la misma hora. Si se suelta
      encima de otro turno, ese se divide alrededor (TF.dropEntry); si es de trabajo, se pregunta antes (decisión de Izan). */
   let tfDrag = null, tfDragTimer = null, tfDragBlock = false;
   const tfDragEls = () => tfDrag ? [tfDrag.on, tfDrag.into].filter(Boolean) : [];
   document.addEventListener('pointerdown', e => {
-    if (state.ui.tab !== 'cal' || e.button || TFS.quick || tfDrag || tfUi().cv === 'year') return;
+    if (state.ui.tab !== 'cal' || e.button || TFS.quick || TFS.cut || tfDrag || tfUi().cv === 'year') return;
     const el = e.target.closest('.tf-zoom [data-tf-dk]'); if (!el || e.target.closest('[data-tf-extmap]')) return;
     const sx = e.clientX, sy = e.clientY, id = e.pointerId;
     clearTimeout(tfDragTimer);
@@ -3372,11 +3436,12 @@
     e.preventDefault(); tfUndo(e.key.toLowerCase() === 'y' || e.shiftKey);
   });
   // Cortar el turno tocado a la altura del dedo (de 5 en 5 minutos si las horas están ampliadas; si no, de 15 en 15)
-  function tfCutAt(ent, y) {
+  // Minuto (del día de la columna) a la altura y, en tramos de step minutos (15, o 5 con las horas ampliadas)
+  const tfCutMin = (col, y, step) => { const ph = parseFloat(getComputedStyle(col.closest('.tf-tl')).getPropertyValue('--ph')) || 40; step = step || (ph >= 60 ? 5 : 15); return { m: Math.round((y - col.getBoundingClientRect().top) / ph * 60 / step) * step, ph }; };
+  function tfCutAt(ent, y, step) {
     const col = ent.closest('.tf-tl-col'); if (!col) return;
     const k = ent.dataset.tfEnt, i = +ent.dataset.i, list = state.calDays[k] || [], en = list[i], s = en && tfShift(en.sid); if (!s) return;
-    const ph = parseFloat(getComputedStyle(col.closest('.tf-tl')).getPropertyValue('--ph')) || 40, step = ph >= 60 ? 5 : 15;
-    let m = Math.round((y - col.getBoundingClientRect().top) / ph * 60 / step) * step;
+    let { m } = tfCutMin(col, y, step);
     if (col.dataset.tfTl !== k) m += 1440; // la parte de después de medianoche de un turno del día anterior
     const out = TF.splitEntry(list, i, s, m, 'o_' + uid());
     if (!out) { toast(t('cutNo')); return; }
@@ -3622,8 +3687,9 @@
       const ops = NT.optsFor(f, v); if (!ops.length) return f.dep ? `<div class="field"><span>${esc(f.label)}</span><p class="muted small" style="margin:0">${esc(t('ndFirst', { f: (p.fields.find(x => x.id === f.dep) || {}).label || '' }))}</p></div>` : '';
       return `<div class="field"><span>${esc(f.label)}</span><div class="row wrap" style="gap:6px">${ops.map(o => `<button type="button" class="chip" data-ntpick="${esc(f.id)}" data-val="${esc(o)}" aria-pressed="${val === o}">${esc(o)}</button>`).join('')}</div></div>`;
     };
+    // v1.57: sin progreso ni metas en las notas (decisión de Izan); lo guardado en cada nota sigue igual
     const progHtml = () => {
-      if (!p.prog) return ''; const kv = v[p.prog.key]; if (!kv) return '';
+      if (true) return ''; const kv = v[p.prog.key]; if (!kv) return '';
       const pr = NT.progress(state.calGaps, p, kv, cur ? { skip: { k, i: cur } } : null), add = +v[p.prog.amt] || 0, now = { ...pr, done: pr.done + add, pct: pr.goal ? Math.min(100, Math.round((pr.done + add) / pr.goal * 100)) : null };
       const u = (p.fields.find(f => f.id === p.prog.amt) || {}).unit || '';
       return `<div class="nt-prog" style="--nc:${tfColor(p.color)}"><div class="row" style="justify-content:space-between;gap:8px"><b>${esc(kv)}</b><span class="muted small">${esc(tfProgLine(p, now))}</span></div>${now.goal ? `<div class="nt-bar"><i style="width:${now.pct}%"></i></div>` : ''}
@@ -3666,7 +3732,7 @@
         if (!st.allDay) { a = st.a; z = st.b; if (!a || !z) { toast(t('tfBothTimes')); return; } if (z < a) [a, z] = [z, a]; }
         // Meta del progreso (p. ej. páginas del libro) y si con esta nota se llega
         let fin = null;
-        if (p.prog && vals[p.prog.key]) {
+        if (false) {
           const kk = NT.keyOf(vals[p.prog.key]), gEl = $('#ntf-goal', w), gv = gEl ? +String(gEl.value).replace(',', '.') : NaN, goals = { ...p.goals };
           if (gEl) { if (Number.isFinite(gv) && gv > 0) goals[kk] = gv; else delete goals[kk]; }
           if (JSON.stringify(goals) !== JSON.stringify(p.goals)) state.calTpls = state.calTpls.map(x2 => x2.id === p.id ? NT.sanitizeTpl({ ...x2, goals }) : x2);
@@ -3840,7 +3906,7 @@
   const tfModLine = p => p.fields.map(f => (f.label ? f.label + ' ' : '') + '…').join(' → ');
   function tfTplsView(inner) {
     tfTplSeed();
-    const row = p => `<div class="tf-item"><span class="tf-rt-ic nt-ic" style="--nc:${tfColor(p.color)}">${ico(p.icon)}</span><span class="grow"><b>${esc(p.name)}</b><br><span class="muted small">${esc(p.seq ? tfModLine(p) : (p.fields.map(f => f.label).join(' · ') || t('ntNoFields')) + (p.prog ? ' · ' + t('ntHasProg') : ''))}</span></span><button class="icon-btn sm" data-tf-tp="hist" data-id="${esc(p.id)}" aria-label="${esc(t('nhTitle') + ': ' + p.name)}" title="${esc(t('nhTitle'))}">${ico('clock')}</button><button class="btn sm" data-tf-tp="edit" data-id="${esc(p.id)}">${esc(t('edit'))}</button></div>`;
+    const row = p => `<div class="tf-item"><span class="tf-rt-ic nt-ic" style="--nc:${tfColor(p.color)}">${ico(p.icon)}</span><span class="grow"><b>${esc(p.name)}</b><br><span class="muted small">${esc(p.seq ? tfModLine(p) : (p.fields.map(f => f.label).join(' · ') || t('ntNoFields')) + '')}</span></span><button class="icon-btn sm" data-tf-tp="hist" data-id="${esc(p.id)}" aria-label="${esc(t('nhTitle') + ': ' + p.name)}" title="${esc(t('nhTitle'))}">${ico('clock')}</button><button class="btn sm" data-tf-tp="edit" data-id="${esc(p.id)}">${esc(t('edit'))}</button></div>`;
     const tpls = tfTpls();
     return `${inner ? '' : tfSub(t('ntNotes'))}
       <button class="btn block" data-tf-tp="search">${ico('search')} ${esc(t('nsTitle'))}</button>
@@ -3887,7 +3953,7 @@
         if (q.type === 'text') tfLinkRead($('[data-ntl]', row), q); else { delete q.list; delete q.grow; }
         const dp = $('[data-nte="dep"]', row); if (q.type === 'pick' && dp) { if (dp.value) q.dep = dp.value; else { delete q.dep; delete q.by; } } else if (q.type !== 'pick') { delete q.dep; delete q.by; }
         const bys = $$('[data-nte-by]', row); if (q.dep && bys.length) { q.by = {}; bys.forEach(el => { const l = el.value.split(',').map(s => s.trim()).filter(Boolean); if (l.length) q.by[el.dataset.nteBy] = l; }); } });
-      const pk = $('#nte-pk', w), pa = $('#nte-pa', w); f.prog = pk && pa && pk.value && pa.value ? { key: pk.value, amt: pa.value } : null;
+      f.prog = null; f.goals = {}; // v1.57: sin progreso
     };
     const draw = () => {
       const texts = f.fields.filter(q => q.type === 'text' && q.label.trim()), nums = f.fields.filter(q => q.type === 'num' && q.label.trim());
@@ -3905,8 +3971,7 @@
             return `${pars.length ? `<div class="row" style="gap:8px"><span class="small muted" style="white-space:nowrap">${esc(t('ndDep'))}</span>${tfSel('class="input grow" data-nte="dep"', [['', t('ndNone')], ...pars.map(x => [x.id, x.label])], q.dep || '')}</div>` : ''}
             ${par ? `<p class="muted small" style="margin:0">${esc(t('ndHint'))}</p>${par.opts.map(o => `<label class="field"><span>${esc(t('ndIf', { o }))}</span><input class="input" data-nte-by="${esc(o)}" value="${esc(((q.by || {})[o] || []).join(', '))}" placeholder="${esc(t('ntOptsPh'))}"></label>`).join('')}` : `<input class="input" data-nte="opts" value="${esc((q.opts || []).join(', '))}" placeholder="${esc(t('ntOptsPh'))}" aria-label="${esc(t('ntOptsPh'))}">`}`; })() : ''}</div>`).join('')}
         ${f.fields.length < NT.LIM.fields ? `<div><button type="button" class="chip" data-nte="add">${ico('plus')} ${esc(t('ntAddField'))}</button></div>` : ''}
-        <h3 class="section-title" style="margin:4px 0 0">${esc(t('ntProg'))}</h3><p class="muted small" style="margin:0">${esc(t('ntProgHint'))}</p>
-        ${texts.length && nums.length ? `<div class="tf-form">${tfField(t('ntProgAmt'), `<select class="input" id="nte-pa"><option value="">${esc(t('ntProgNone'))}</option>${nums.map(q => `<option value="${esc(q.id)}" ${f.prog && f.prog.amt === q.id ? 'selected' : ''}>${esc(q.label)}</option>`).join('')}</select>`)}${tfField(t('ntProgKey'), `<select class="input" id="nte-pk"><option value="">${esc(t('ntProgNone'))}</option>${texts.map(q => `<option value="${esc(q.id)}" ${f.prog && f.prog.key === q.id ? 'selected' : ''}>${esc(q.label)}</option>`).join('')}</select>`)}</div>` : `<p class="muted small" style="margin:0">${esc(t('ntProgNeed'))}</p>`}</div>`;
+        </div>`;
     };
     openModal({
       title: `${ico('doc')} ${esc(t(p0 ? 'ntEdit' : 'ntNew'))}`, cls: 'tf-sheet', body: '<div id="nte"></div>',
@@ -3938,7 +4003,7 @@
     const fv = q => q.kind === 'sum' ? `${tfNum(q.value)}${q.unit ? ' ' + esc(q.unit) : ''}` : q.kind === 'avg' ? `${tfNum(q.value)}/10` : q.kind === 'count' ? String(q.value) : q.value.slice(0, 3).map(([o, n]) => `${esc(o)} ×${n}`).join(' · ');
     return `<section class="clay card stack" style="gap:10px"><h3 class="section-title" style="margin:0">${esc(t('ntRepTitle'))}</h3>${tot.map(r => `<div class="nt-rep" style="--nc:${tfColor(r.color)}"><div class="row" style="gap:8px"><span class="nt-ic">${ico(r.icon)}</span><b class="grow">${esc(r.name)}</b><span class="muted small">${esc(t('ntRepN', { n: r.n }))}</span></div>
       ${r.fields.length ? `<div class="row wrap" style="gap:6px 14px">${r.fields.map(q => `<span class="small"><span class="muted">${esc(q.label)}:</span> <b>${fv(q)}</b></span>`).join('')}</div>` : ''}
-      ${r.byKey.map(x => `<div class="nt-key"><div class="row" style="justify-content:space-between;gap:8px"><span class="small">${esc(x.label)}</span><span class="muted small">+${tfNum(x.sum)}${x.goal ? ` · ${tfNum(x.total)}/${tfNum(x.goal)} (${x.pct} %)` : ''}</span></div>${x.goal ? `<div class="nt-bar"><i style="width:${x.pct}%"></i></div>` : ''}</div>`).join('')}</div>`).join('')}</section>`;
+      ${[].map(x => `<div class="nt-key"><div class="row" style="justify-content:space-between;gap:8px"><span class="small">${esc(x.label)}</span><span class="muted small">+${tfNum(x.sum)}${x.goal ? ` · ${tfNum(x.total)}/${tfNum(x.goal)} (${x.pct} %)` : ''}</span></div>${x.goal ? `<div class="nt-bar"><i style="width:${x.pct}%"></i></div>` : ''}</div>`).join('')}</div>`).join('')}</section>`;
   }
 
   /* v1.26: fichaje. calPrefs.clock = { at: ISO } mientras estás fichado (se sincroniza: se ve en todos tus dispositivos).
@@ -4075,28 +4140,52 @@
   /* v1.52: renombrar un turno desde el calendario (decisión de Izan: las dos cosas). «Solo este día» guarda e.nm en esa entrada;
      «Todas las veces» cambia el nombre del turno (su plantilla) y quita los nombres de un día que coincidían con el antiguo.
      Un turno puntual solo existe ese día, así que se renombra directamente. */
+  /* v1.53: renombrar un turno. v1.57: también su icono (emoji) y su color, con el mismo alcance: «Solo este día» guarda
+     e.nm / e.em / e.co en la entrada; «Todas las veces» cambia la plantilla y quita lo propio de los días que coincidían. */
+  const TF_EMO = ['🌅', '🌆', '🌙', '☀️', '💼', '🏢', '🏥', '🏫', '🛒', '🍽️', '☕', '🚗', '🏋️', '⚽', '📚', '💻', '🎓', '🎉', '🏖️', '🤒', '🧹', '👶', '❤️', '⭐'];
   function tfRenameEntry(k, i, after) {
     const list = state.calDays[k] || [], cur = list[i], s = cur && tfShift(cur.sid); if (!s) return;
-    const now = tfShiftE(cur).name;
+    const now = tfShiftE(cur), own = !!(cur.nm || cur.em || cur.co);
+    let emo = now.emoji || '', col = tfColor(now.color);
+    const emoRow = () => `<button type="button" class="tf-emo ${!emo ? 'on' : ''}" data-tfrn-e="" aria-label="${esc(t('rnNoIcon'))}" title="${esc(t('rnNoIcon'))}">${ico('x', 'xs')}</button>${[...new Set([...(emo ? [emo] : []), ...TF_EMO])].map(x => `<button type="button" class="tf-emo ${x === emo ? 'on' : ''}" data-tfrn-e="${esc(x)}">${esc(x)}</button>`).join('')}`;
     openModal({
-      title: `${ico('edit')} ${esc(t('rnTitle'))}`, cls: 'tf-sheet',
-      body: `<div class="stack" style="gap:10px"><p class="muted small" style="margin:0">${esc(tfLong(k))}${cur.nm ? ' · ' + esc(t('rnOrig', { n: s.name })) : ''}</p><input class="input" id="tfrn" maxlength="40" value="${esc(now)}" autocomplete="off">
-        ${s.once ? '' : `<p class="muted small" style="margin:0">${esc(t('rnHint'))}</p>`}</div>`,
+      title: `${ico('edit')} ${esc(t('rnTitle2'))}`, cls: 'tf-sheet',
+      body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(tfLong(k))}${own ? ' · ' + esc(t('rnOrig', { n: s.name })) : ''}</p>
+        <div class="row" style="gap:8px"><span class="tf-rn-prev" id="tfrn-p"></span><input class="input grow" id="tfrn" maxlength="40" value="${esc(now.name)}" autocomplete="off" aria-label="${esc(t('tfName'))}"></div>
+        <div class="stack" style="gap:6px"><b class="small">${esc(t('rnIcon'))}</b><div class="tf-emo-row" id="tfrn-e">${emoRow()}</div><input class="input" id="tfrn-ec" maxlength="8" placeholder="${esc(t('rnIconPh'))}" autocomplete="off" aria-label="${esc(t('rnIcon'))}"></div>
+        <label class="row" style="gap:10px"><input class="tf-swatch sm" type="color" id="tfrn-c" value="${col}" aria-label="${esc(t('tfColor'))}"><b class="small grow">${esc(t('tfColor'))}</b></label>
+        ${s.once ? '' : `<p class="muted small" style="margin:0">${esc(t('rnHint2'))}</p>`}</div>`,
       foot: s.once ? `<button class="btn primary block" data-tfrn="one">${ico('check')} ${esc(t('save'))}</button>`
-        : `${cur.nm ? `<button class="btn" data-tfrn="reset">${ico('undo')} ${esc(t('rnReset'))}</button>` : ''}<button class="btn" data-tfrn="one">${esc(t('rnOne'))}</button><button class="btn primary" data-tfrn="all">${esc(t('rnAll'))}</button>`,
-      onMount: w => setTimeout(() => { const x = $('#tfrn', w); if (x) { x.focus(); x.select(); } }, 50),
+        : `${own ? `<button class="btn" data-tfrn="reset">${ico('undo')} ${esc(t('rnReset2'))}</button>` : ''}<button class="btn" data-tfrn="one">${esc(t('rnOne'))}</button><button class="btn primary" data-tfrn="all">${esc(t('rnAll'))}</button>`,
+      onMount: w => {
+        const prev = () => { const p = $('#tfrn-p', w); if (p) p.innerHTML = tfTag({ ...s, name: $('#tfrn', w).value || s.name, emoji: emo, color: col }, '', undefined, null); };
+        prev(); setTimeout(() => { const x = $('#tfrn', w); if (x) x.focus(); }, 50);
+        w.addEventListener('input', e => {
+          if (e.target.id === 'tfrn-c') col = e.target.value;
+          if (e.target.id === 'tfrn-ec') { emo = [...e.target.value.trim()].slice(0, 2).join(''); $('#tfrn-e', w).innerHTML = emoRow(); }
+          prev();
+        });
+        w.addEventListener('click', e => { const b = e.target.closest('[data-tfrn-e]'); if (!b) return; emo = b.dataset.tfrnE; $('#tfrn-ec', w).value = ''; $('#tfrn-e', w).innerHTML = emoRow(); prev(); sfx('tap'); });
+      },
       onClick: (e, close, w) => {
         const b = e.target.closest('[data-tfrn]'); if (!b) return;
         const name = $('#tfrn', w).value.trim().slice(0, 40), how = b.dataset.tfrn;
         if (!name && how !== 'reset') { toast(t('tfNeedName')); return; }
         const l = [...(state.calDays[k] || [])], en = { ...l[i] };
-        if (s.once) { en.once = { ...en.once, name }; l[i] = en; tfSetDay(k, l); }
-        else if (how === 'reset') { delete en.nm; l[i] = en; tfSetDay(k, l); }
-        else if (how === 'one') { if (name === s.name) delete en.nm; else en.nm = name; l[i] = en; tfSetDay(k, l); }
-        else {
+        const strip = x => { const { nm, em, co, ...r } = x; return r; };
+        if (s.once) { en.once = { ...en.once, name, emoji: emo, color: col }; l[i] = en; tfSetDay(k, l); }
+        else if (how === 'reset') { l[i] = strip(en); tfSetDay(k, l); }
+        else if (how === 'one') {
+          if (name === s.name) delete en.nm; else en.nm = name;
+          if (emo === (s.emoji || '')) delete en.em; else if (emo) en.em = emo; else { delete en.em; }
+          if (col.toLowerCase() === tfColor(s.color).toLowerCase()) delete en.co; else en.co = col;
+          l[i] = en; tfSetDay(k, l);
+        } else {
           const old = s.name;
-          state.calShifts = state.calShifts.map(x => x.id === s.id ? { ...x, name } : x);
-          for (const [d, dl] of Object.entries(state.calDays)) if (Array.isArray(dl) && dl.some(x => x && x.sid === s.id && (x.nm === name || x.nm === old || (d === k && x === l[i])))) tfSetDay(d, dl.map(x => x && x.sid === s.id && (x.nm === name || x.nm === old || (d === k && x === l[i])) ? (({ nm, ...r }) => r)(x) : x));
+          state.calShifts = state.calShifts.map(x => x.id === s.id ? { ...x, name, emoji: emo, color: col } : x);
+          // Los días que tenían el nombre de antes o el nuevo (y este) pierden lo propio: pasan a ser el turno tal cual
+          const hit = (d, x) => x && x.sid === s.id && (x.nm === name || x.nm === old || (d === k && x === l[i]));
+          for (const [d, dl] of Object.entries(state.calDays)) if (Array.isArray(dl) && dl.some(x => hit(d, x))) tfSetDay(d, dl.map(x => hit(d, x) ? strip(x) : x));
         }
         tfSave(false); sfx('tap'); close(); toast(t(how === 'all' ? 'rnDoneAll' : 'rnDone', { n: name || s.name })); after ? after() : render();
       }
@@ -4121,7 +4210,7 @@
     };
     openModal({
       title: `${tfTag(tfShiftE(cur), 'big')}`, cls: 'tf-sheet',
-      body: `<div class="stack" style="gap:12px"><div class="row" style="justify-content:space-between;gap:8px"><p class="muted small" style="margin:0">${esc(tfLong(k))}${s.once ? ' · ' + esc(t('tfOnce')) : ''}</p><button type="button" class="chip sm" data-tfn="rename">${ico('edit', 'xs')} ${esc(t('rnBtn'))}</button></div>
+      body: `<div class="stack" style="gap:12px"><div class="row" style="justify-content:space-between;gap:8px"><p class="muted small" style="margin:0">${esc(tfLong(k))}${s.once ? ' · ' + esc(t('tfOnce')) : ''}</p><button type="button" class="chip sm" data-tfn="rename">${ico('edit', 'xs')} ${esc(t('rnBtn2'))}</button></div>
         ${s.once ? `<button type="button" class="btn sm" data-tfn="once">${ico('edit')} ${esc(t('tfOnceEditBtn'))}</button>` : `<div class="tf-form">${tfField(t('tfStart'), `<input class="input" type="time" id="tfn-start" value="${esc(tm.start || '')}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfn-end" value="${esc(tm.end || '')}">`)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfn-pl"', cur.pl || '', t('tfPlSame', { p: (tfPlace(s.placeId) || { name: t('tfPlNone') }).name }), cur.plx && cur.plx.addr), true)}</div>`}
         ${tfTrBox({ on: !!tr0, mode: tr0 ? tr0.mode : '', dep: tr0 ? tr0.dep : '', arr: tr0 ? tr0.arr : '', hint: goHint })}
@@ -4911,7 +5000,7 @@
     if (more) { e.preventDefault(); tfSeeAll(more.dataset.tfMore); return true; }
     // v1.39: tocar un turno en Día o Semana lo abre para editarlo
     const ent = e.target.closest('[data-tf-ent]');
-    if (ent && TFS.cut && !TFS.quick) { tfCutAt(ent, e.clientY); return true; }
+    if (ent && TFS.cut && !TFS.quick) { if (Date.now() - (TFS.cutSkip || 0) < 600) return true; tfCutAt(ent, e.clientY); return true; }
     if (ent && !TFS.quick && e.detail !== 0) { tfEditEntry(ent.dataset.tfEnt, +ent.dataset.i, () => render()); return true; }
     const el = e.target.closest('[data-tf],[data-tf-qtab],[data-tf-go],[data-tf-cv],[data-tf-gapn],[data-tf-day],[data-tf-open],[data-tf-month],[data-tf-q],[data-tf-rm],[data-tf-ws],[data-tf-shift],[data-tf-job],[data-tf-place],[data-tf-map],[data-tf-rt],[data-tf-tp]');
     if (!el) { if (TFS.menu && !e.target.closest('.tf-menu')) { TFS.menu = false; render(); } return false; }
@@ -7060,7 +7149,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.57', [['1.57.0', 6]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
