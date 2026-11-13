@@ -1,13 +1,13 @@
-/* KeepGoing — textos de la v1.60 del Chat: paquetes de stickers, búsqueda, gestos y menú de los mensajes, compartir,
+/* KeepGoing — textos de la v1.61 del Chat: paquetes de stickers, búsqueda, gestos y menú de los mensajes, compartir,
    apodos y perfiles amplios con banner y enlaces (ES / EN). */
 (function () {
   const es = {
-    wn_1_60_0_1: 'Paquetes de stickers de WhatsApp|En Stickers, «Importar paquete» abre los archivos .wastickers: el paquete entra entero con su nombre y su icono, en su propia pestaña.',
-    wn_1_60_0_2: 'Busca en todos tus chats|Arriba del Chat hay una barra de búsqueda: encuentra mensajes de cualquier conversación, amigos, apodos y grupos mientras escribes. Toca un mensaje para ir a él.',
-    wn_1_60_0_3: 'Mensajes más limpios y con gestos|Desliza un mensaje a la izquierda para responder y a la derecha para ver la hora y eliminarlo. Mantén pulsado para reaccionar, copiar, reenviar a varios chats, fijar, editar (48 h) o ver la info.',
-    wn_1_60_0_4: 'Compartir renovado|El «+» del chat abre mosaicos de colores (foto, sticker, voz, hábito, proyecto, calendario e invitación) con buscador, vista previa y comentario.',
-    wn_1_60_0_5: 'Perfiles amplios y apodos|Toca el nombre de un chat para ver su perfil con banner, foto grande, enlaces y grupos en común. Pon apodos que solo ves tú. Toca una foto de la lista para verla en grande.',
-    wn_1_60_0_6: 'Banners y enlaces|Elige banner: fútbol, baloncesto, voleibol, dinero, ensueño, cinco paraísos, manos o tus emoticonos. Con Usuario KeepGoing, banner GIF y hasta 5 enlaces. Líder y Colíder cambian la foto, el banner y los enlaces del grupo.',
+    wn_1_61_0_1: 'Paquetes de stickers de WhatsApp|En Stickers, «Importar paquete» abre los archivos .wastickers: el paquete entra entero con su nombre y su icono, en su propia pestaña.',
+    wn_1_61_0_2: 'Busca en todos tus chats|Arriba del Chat hay una barra de búsqueda: encuentra mensajes de cualquier conversación, amigos, apodos y grupos mientras escribes. Toca un mensaje para ir a él.',
+    wn_1_61_0_3: 'Mensajes más limpios y con gestos|Desliza un mensaje a la izquierda para responder y a la derecha para ver la hora y eliminarlo. Mantén pulsado para reaccionar, copiar, reenviar a varios chats, fijar, editar (48 h) o ver la info.',
+    wn_1_61_0_4: 'Compartir renovado|El «+» del chat abre mosaicos de colores (foto, sticker, voz, hábito, proyecto, calendario e invitación) con buscador, vista previa y comentario.',
+    wn_1_61_0_5: 'Perfiles amplios y apodos|Toca el nombre de un chat para ver su perfil con banner, foto grande, enlaces y grupos en común. Pon apodos que solo ves tú. Toca una foto de la lista para verla en grande.',
+    wn_1_61_0_6: 'Banners y enlaces|Elige banner: fútbol, baloncesto, voleibol, dinero, ensueño, cinco paraísos, manos o tus emoticonos. Con Usuario KeepGoing, banner GIF y hasta 5 enlaces. Líder y Colíder cambian la foto, el banner y los enlaces del grupo.',
     stkPackImport: 'Importar paquete', stkMine: 'Míos', stkPackRemove: 'Quitar paquete', stkPackRemoveQ: '¿Quitar el paquete «{name}» de este dispositivo?',
     stkPackImported: '{n} stickers importados', stkPackBad: 'No se ha podido leer el paquete. Prueba con un archivo .wastickers o .zip con imágenes.',
     stkPackOld: 'Este navegador no puede abrir paquetes. Actualiza iOS/Safari o Chrome.', stkPackFull: 'Caben hasta {n} stickers en este dispositivo. Quita algún paquete antes.',
@@ -30,12 +30,12 @@
     plf_profilePro: 'Banner GIF y enlaces en tu perfil'
   };
   const en = {
-    wn_1_60_0_1: 'WhatsApp sticker packs|In Stickers, «Import pack» opens .wastickers files: the whole pack comes in with its name and icon, in its own tab.',
-    wn_1_60_0_2: 'Search all your chats|The Chat has a search bar at the top: find messages from any conversation, friends, nicknames and groups as you type. Tap a message to jump to it.',
-    wn_1_60_0_3: 'Cleaner messages with gestures|Swipe a message left to reply and right to see the time and delete it. Hold it to react, copy, forward to several chats, pin, edit (48 h) or see info.',
-    wn_1_60_0_4: 'Fresh sharing|The chat «+» opens colourful tiles (photo, sticker, voice, habit, project, calendar and invite) with search, preview and a comment.',
-    wn_1_60_0_5: 'Big profiles and nicknames|Tap a chat name to see its profile with banner, big photo, links and groups in common. Set nicknames only you see. Tap a photo in the list to see it big.',
-    wn_1_60_0_6: 'Banners and links|Pick a banner: football, basketball, volleyball, money, dreamland, five paradises, hands or your own emojis. With KeepGoing User, GIF banner and up to 5 links. Leader and Co-leader change the group photo, banner and links.',
+    wn_1_61_0_1: 'WhatsApp sticker packs|In Stickers, «Import pack» opens .wastickers files: the whole pack comes in with its name and icon, in its own tab.',
+    wn_1_61_0_2: 'Search all your chats|The Chat has a search bar at the top: find messages from any conversation, friends, nicknames and groups as you type. Tap a message to jump to it.',
+    wn_1_61_0_3: 'Cleaner messages with gestures|Swipe a message left to reply and right to see the time and delete it. Hold it to react, copy, forward to several chats, pin, edit (48 h) or see info.',
+    wn_1_61_0_4: 'Fresh sharing|The chat «+» opens colourful tiles (photo, sticker, voice, habit, project, calendar and invite) with search, preview and a comment.',
+    wn_1_61_0_5: 'Big profiles and nicknames|Tap a chat name to see its profile with banner, big photo, links and groups in common. Set nicknames only you see. Tap a photo in the list to see it big.',
+    wn_1_61_0_6: 'Banners and links|Pick a banner: football, basketball, volleyball, money, dreamland, five paradises, hands or your own emojis. With KeepGoing User, GIF banner and up to 5 links. Leader and Co-leader change the group photo, banner and links.',
     stkPackImport: 'Import pack', stkMine: 'Mine', stkPackRemove: 'Remove pack', stkPackRemoveQ: 'Remove the «{name}» pack from this device?',
     stkPackImported: '{n} stickers imported', stkPackBad: 'The pack could not be read. Try a .wastickers or .zip file with images.',
     stkPackOld: 'This browser cannot open packs. Update iOS/Safari or Chrome.', stkPackFull: 'Up to {n} stickers fit on this device. Remove a pack first.',
