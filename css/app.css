@@ -2788,6 +2788,36 @@ input[type="color"].swatch-input.on::-moz-color-swatch { border-color: var(--fg)
 .tf-zoom.cutting .tf-tl-col { cursor: default; }
 .tf-toolrow { gap: 8px; margin: 0 2px 10px; align-items: center; }
 
+/* v1.57: Organización — capas de Día y Semana: nota (arriba, la más transparente) > transporte > turno (abajo, opaco) */
+.tf-tl-col > .tf-blk { z-index: 1; }
+.tf-tl-col > .tf-trip { z-index: 2; background: color-mix(in srgb, var(--c) 42%, transparent); }
+.tf-tl-col > .tf-trip.bk { background: color-mix(in srgb, var(--c) 30%, transparent); }
+.tf-tl-col > .tf-gapn { z-index: 3; }
+.tf-gapn { background: color-mix(in srgb, var(--muted) 14%, transparent); text-shadow: 0 0 3px var(--bg), 0 0 1px var(--bg); }
+.tf-gapn[style*="--nc"] { background: color-mix(in srgb, var(--nc) 20%, transparent); }
+.tf-tl-col > .tf-now { z-index: 5; }
+/* Notas juntas: un solo bloque con sus trozos «Nota 1 - Nota 2 - Nota 3»; cada trozo abre su nota */
+.tf-gapn-p { display: inline; cursor: pointer; border-radius: 4px; }
+.tf-gapn-p svg.i { width: 11px; height: 11px; vertical-align: -1.5px; margin-right: 2px; }
+.tf-gapn-p[style*="--nc"] svg.i { color: var(--nc); }
+.tf-tl:not(.big) .tf-gapn-p svg.i { display: none; }
+.tf-gapn.multi .tf-gapn-p:hover, .tf-gapn.multi .tf-gapn-p:focus-visible { background: color-mix(in srgb, var(--fg) 12%, transparent); }
+.tf-gapn-sep { font-style: normal; opacity: .7; }
+.tf-blk-np svg.i { width: 10px; height: 10px; vertical-align: -1px; }
+.tf-blk-note { display: block !important; }
+/* Color del día en la columna (huecos y rellenos) y en «Todo el día», en Día y en Semana */
+.tf-tl-col.dk { background: repeating-linear-gradient(to bottom, var(--surface-2) 0, var(--surface-2) 1px, transparent 1px, transparent var(--ph)), var(--dkbg); }
+.tf-tl-allc.dk { background: var(--dkbg), var(--surface-2); }
+/* Renombrar: icono y color */
+.tf-emo-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tf-emo { width: 36px; height: 36px; border-radius: 10px; border: 1.5px solid transparent; background: var(--surface-2); font-size: 18px; display: grid; place-items: center; cursor: pointer; color: var(--muted); }
+.tf-emo.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface-2)); }
+.tf-rn-prev { flex: none; max-width: 45%; overflow: hidden; }
+/* Cuchilla: mantener pulsado enseña una línea discontinua con la hora exacta */
+.tf-cutline { position: absolute; left: -2px; right: -2px; height: 0; border-top: 2px dashed var(--fg); z-index: 6; pointer-events: none; }
+.tf-cutline em { position: absolute; right: 4px; top: -24px; font-style: normal; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--fg); color: var(--bg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+body.tf-cut-holding { user-select: none; -webkit-user-select: none; }
+.tf-zoom.cutting .tf-gapn, .tf-zoom.cutting .tf-trip { pointer-events: none; }
 /* ---------- v1.57: «Contrato cumplido» a pantalla completa con «Renovar» ---------- */
 .backdrop.ctd-wrap { background: radial-gradient(120% 70% at 50% 34%, color-mix(in srgb, var(--tier) 30%, #07070a), #050507 70%) !important; padding: 0 !important; overflow: hidden; }
 .backdrop.ctd-wrap .sheet.ct-done { position: fixed; inset: 0; max-width: none; width: 100%; height: 100%; margin: 0; display: flex; }
