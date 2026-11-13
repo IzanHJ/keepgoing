@@ -1,0 +1,31 @@
+/* KeepGoing v1.57 — Propuestas en Organización (bloques fantasma, hoja y bandeja). */
+.sg-blk { position: absolute; left: 3px; right: 3px; z-index: 6; display: flex; gap: 4px; align-items: flex-start; padding: 3px 5px; border-radius: 8px;
+  border: 1.5px dashed var(--c); color: var(--fg); font-size: 11px; line-height: 1.25; overflow: hidden; cursor: pointer; text-align: left;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 16%, transparent) 0 6px, color-mix(in srgb, var(--c) 6%, transparent) 6px 12px);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); animation: sg-breathe 2.8s ease-in-out infinite; }
+.sg-blk.big { left: 42%; }
+.sg-blk > svg.i { color: var(--c); flex: none; margin-top: 1px; }
+.sg-blk > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sg-blk .sg-plus { display: grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--c); color: #fff; font-style: normal; }
+.sg-blk .sg-plus svg.i { width: 12px; height: 12px; }
+.tf-tl:not(.big) .sg-blk { font-size: 9.5px; padding: 2px 3px; left: 2px; right: 2px; }
+.sg-blk:active { transform: scale(.98); }
+@keyframes sg-breathe { 0%, 100% { opacity: .78; } 50% { opacity: 1; } }
+:root[data-motion="off"] .sg-blk { animation: none; opacity: .9; }
+.sg-chip { --c: var(--accent); border: 1.5px dashed var(--accent); }
+.sg-chip svg.i { color: var(--accent); }
+.sg-chip b { margin-left: 2px; }
+.sg-head { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px; border: 1.5px dashed var(--c); background: color-mix(in srgb, var(--c) 10%, transparent); }
+.sg-head > svg.i { color: var(--c); width: 22px; height: 22px; flex: none; }
+.sg-head b, .sg-head small { display: block; }
+.sg-opt.on { background: var(--c); color: #fff; border-color: transparent; }
+.sg-opt.on[data-sg-t="o"], .sg-opt.on[data-sg-t="n"] { color: var(--accent-ink, #000); }
+.sg-opt.on[data-sg-t="o"] svg.i, .sg-opt.on[data-sg-t="n"] svg.i { color: var(--accent-ink, #000); }
+.sg-opt.on svg.i { color: #fff; }
+.sg-row { display: flex; gap: 6px; align-items: center; padding: 6px 6px 6px 10px; border-radius: 14px; background: var(--surface-2); }
+.sg-row-open { display: flex; gap: 10px; align-items: center; min-width: 0; background: none; border: 0; padding: 0; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.sg-row-open > svg.i { color: var(--accent); flex: none; }
+.sg-row-open b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-row-open small { display: block; }
+.sg-row-open > span { min-width: 0; }
+.sg-row .primary-text { color: var(--accent); }
