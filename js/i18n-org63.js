@@ -2,6 +2,8 @@
    hora, trayectos con varias paradas que se editan y se mueven, copiar y pegar, y dos arreglos (icono y lugar puntual) (ES / EN). */
 (function () {
   const es = {
+    wn_1_63_1_1: 'Notas que pasan de medianoche|Una nota de 22:30 a 0:30 ya no se da la vuelta (0:30–22:30): dura 2 h y sigue al principio del día siguiente.',
+    tfSameTimes: 'El inicio y el fin son a la misma hora.',
     wn_1_63_0_1: 'Varios trayectos en uno|Si coges dos guaguas, añade otra parada: cada tramo tiene su medio, sus horas y dónde te bajas.',
     wn_1_63_0_2: 'Edita y mueve el transporte|Toca un trayecto en Día o Semana para editarlo. Mantenlo pulsado y arrástralo a otra hora (de 5 en 5 min).',
     wn_1_63_0_3: 'Mantén pulsado para elegir la hora|En un hueco, mantén pulsado: sale una línea con la hora de 5 en 5 min. Al soltar, creas un turno o una nota desde esa hora.',
@@ -19,6 +21,8 @@
     plxChange: 'Cambiar la dirección…'
   };
   const en = {
+    wn_1_63_1_1: 'Notes past midnight|A note from 22:30 to 0:30 is no longer flipped (0:30–22:30): it lasts 2 h and carries on at the start of the next day.',
+    tfSameTimes: 'The start and the end are at the same time.',
     wn_1_63_0_1: 'Several legs in one trip|If you take two buses, add another stop: each leg has its own mode, times and where you get off.',
     wn_1_63_0_2: 'Edit and move transport|Tap a trip in Day or Week to edit it. Press and hold it and drag it to another time (in 5-minute steps).',
     wn_1_63_0_3: 'Press and hold to pick the time|In a gap, press and hold: a line shows the time in 5-minute steps. Release to create a shift or note from that time.',
