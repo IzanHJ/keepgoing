@@ -3174,3 +3174,21 @@ button.hl-row { border: 0; font: inherit; cursor: pointer; width: 100%; }
 .hc-row.done b { text-decoration: line-through; text-decoration-color: var(--h); text-decoration-thickness: 2px; opacity: .7; }
 .hc-all { display: flex; align-items: center; gap: 8px; margin: 0 4px 6px; font-weight: var(--fw-subtitle); color: var(--accent); }
 .hc-all .i { width: 18px; height: 18px; }
+/* ---------- v1.63: Organización — Bordes, mantener pulsado, trayectos editables y con varios tramos ---------- */
+/* Vista «Bordes»: cada turno con su contorno y una raya clara donde acaba uno y empieza el siguiente */
+.ly-edges .tf-blk { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--fg-c, #fff) 55%, transparent); }
+.ly-edges .tf-blk.jt { border-top: 2px solid var(--bg); }
+.ly-edges .tf-tag { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--fg-c, #fff) 55%, transparent); }
+/* Los trayectos se tocan (editar) y se arrastran (mantener pulsado); con la cuchilla o el pincel no estorban */
+.tf-tl-col > .tf-trip { pointer-events: auto; cursor: pointer; }
+.tf-zoom.painting .tf-trip { pointer-events: none; }
+.tf-trip.tf-trip-moving { z-index: 7; overflow: visible; box-shadow: 0 6px 18px rgba(0, 0, 0, .35); background: color-mix(in srgb, var(--c) 60%, var(--surface)); }
+.tf-trip-time { position: absolute; right: 4px; top: -24px; font-style: normal; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--fg); color: var(--bg); font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+body.tf-holding { user-select: none; -webkit-user-select: none; }
+body.tf-holding .tf-tl-body { touch-action: none; }
+.tf-holdline { border-top-style: solid; border-color: var(--accent); }
+.tf-holdline em { background: var(--accent); color: var(--accent-ink); }
+/* Varios tramos dentro de un trayecto */
+.tf-tr-leg.multi { padding: 10px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid var(--line); }
+.tf-tr-join { display: block; width: 2px; height: 10px; margin: -6px auto; background: var(--line); }
+.tf-tl-col, .tf-trip { -webkit-touch-callout: none; }
