@@ -58,6 +58,11 @@
   const trOk = (v) => typeof v === 'string' && TRANSPORTS.includes(v);
   const plxOk = (x) => !!x && typeof x === 'object' && typeof x.addr === 'string' && !!x.addr.trim(); // v1.26.1: lugar puntual
   const timeOr = (v) => (typeof v === 'string' && RE_TIME.test(v) ? v : '');
+  // v1.63: parada (texto corto) y tramos extra de un trayecto
+  const stopOk = (v) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 60) : '');
+  const LEGS_MAX = 6;
+  const legsOk = (L) => (Array.isArray(L) ? L : []).filter((l) => l && trOk(l.m)).slice(0, LEGS_MAX)
+    .map((l) => ({ m: l.m, ...(timeOr(l.d) ? { d: l.d } : {}), ...(timeOr(l.a) ? { a: l.a } : {}), ...(stopOk(l.s) ? { s: stopOk(l.s) } : {}) }));
   // Campos de transporte validados (day = entrada del día, que además admite '-')
   const trOf = (x, day) => {
     const o = {}; if (!x) return o;
@@ -68,6 +73,13 @@
     if (trOk(x.bk) || (day && x.bk === '-')) o.bk = x.bk;
     if (o.bk && o.bk !== '-') { if (timeOr(x.bkDep)) o.bkDep = x.bkDep; if (timeOr(x.bkArr)) o.bkArr = x.bkArr; }
     if (o.bk && o.bk !== '-' && typeof x.bkTo === 'string' && (x.bkTo === '>' || RE_ID.test(x.bkTo))) o.bkTo = x.bkTo;
+    // v1.63: varios trayectos seguidos (p. ej. dos guaguas). trS / bkS = parada donde acaba el primer tramo; trL / bkL = los
+    // tramos siguientes [{ m, d, a, s }] (medio, salida, llegada y parada donde acaba; la del último no se usa).
+    for (const [f, sf, lf] of [['tr', 'trS', 'trL'], ['bk', 'bkS', 'bkL']]) {
+      if (!o[f] || o[f] === '-') continue;
+      const L = legsOk(x[lf]);
+      if (L.length) { o[lf] = L; if (stopOk(x[sf])) o[sf] = stopOk(x[sf]); }
+    }
     return o;
   };
 
@@ -160,11 +172,14 @@
 
   /* ---- v1.39: medio de transporte de una entrada (la del día gana sobre la del turno). null si no hay o si el día dice '-'.
      Devuelve { mode, dep, arr } con dep/arr 'HH:MM' o ''. Es lo que lee la Línea de tiempo para el recorrido. */
+  /* v1.63: los tramos extra (more) y la parada del primero (stop) son los del día si el día tiene su propio medio; si no, los del
+     turno. more = [{ mode, dep, arr, stop }]. */
+  const moreOf = (src, sf, lf) => { const more = legsOk(src && src[lf]).map((l) => ({ mode: l.m, dep: l.d || '', arr: l.a || '', stop: l.s || '' })); return more.length ? { stop: stopOk(src && src[sf]), more } : {}; };
   function entryTransport(shift, e) {
     if (e && e.tr === '-') return null;
-    const mode = (e && trOk(e.tr) && e.tr) || (shift && trOk(shift.tr) && shift.tr) || '';
+    const own = e && trOk(e.tr), mode = (own && e.tr) || (shift && trOk(shift.tr) && shift.tr) || '';
     if (!mode) return null;
-    return { mode, dep: timeOr(e && e.trDep) || timeOr(shift && shift.trDep), arr: timeOr(e && e.trArr) || timeOr(shift && shift.trArr) };
+    return { mode, dep: timeOr(e && e.trDep) || timeOr(shift && shift.trDep), arr: timeOr(e && e.trArr) || timeOr(shift && shift.trArr), ...moreOf(own ? e : shift, 'trS', 'trL') };
   }
 
   /* ---- v1.43: trayecto de DESPUÉS del turno (al acabar: volver a Casa, ir a otro lugar o ir al siguiente turno). El del día gana
@@ -175,7 +190,17 @@
     const own = e && trOk(e.bk), mode = own ? e.bk : (shift && trOk(shift.bk) && shift.bk) || '';
     if (!mode) return null;
     const src = own ? e : shift;
-    return { mode, dep: timeOr(e && e.bkDep) || timeOr(shift && shift.bkDep), arr: timeOr(e && e.bkArr) || timeOr(shift && shift.bkArr), to: typeof src.bkTo === 'string' ? src.bkTo : '' };
+    return { mode, dep: timeOr(e && e.bkDep) || timeOr(shift && shift.bkDep), arr: timeOr(e && e.bkArr) || timeOr(shift && shift.bkArr), to: typeof src.bkTo === 'string' ? src.bkTo : '', ...moreOf(src, 'bkS', 'bkL') };
+  }
+  /* v1.63: un trayecto con sus tramos, en orden: [{ seg, mode, dep, arr, stop }]. La salida vacía de un tramo = la llegada del
+     anterior; la llegada vacía = 15 min después de salir (solo para dibujar, no se guarda). */
+  function tripSegs(t, dep0) {
+    if (!t) return [];
+    // seg y stop solo salen cuando hay varios tramos (un trayecto de un tramo sigue siendo { mode, dep, arr })
+    const out = [{ mode: t.mode, dep: t.dep || dep0 || '', arr: t.arr || '' }], more = t.more || [];
+    if (more.length) { out[0].seg = 0; out[0].stop = t.stop || ''; }
+    more.forEach((l, j) => { const p = out[out.length - 1]; out.push({ seg: j + 1, mode: l.mode, dep: l.dep || p.arr || '', arr: l.arr || '', stop: l.stop || '' }); });
+    return out;
   }
   /* Trayectos de un día, en orden: [{ i, kind: 'go' | 'back', mode, dep, arr, to }] (i = posición en la lista del día).
      'go' = llegar al turno i (su medio de llegada). Si el turno i no tiene llegada propia y el anterior dice «después: al siguiente
@@ -189,10 +214,11 @@
     xs.forEach((x, j) => {
       const prev = j ? xs[j - 1] : null, next = xs[j + 1] || null, go = entryTransport(x.s, x.e);
       const pr = prev && entryReturn(prev.s, prev.e);
-      if (go) out.push({ i: x.i, kind: 'go', mode: go.mode, dep: go.dep, arr: go.arr, to: 'turno' });
-      else if (pr && pr.to === '>') out.push({ i: x.i, kind: 'go', mode: pr.mode, dep: pr.dep || tm(prev).end || '', arr: pr.arr, to: 'turno', linked: prev.i });
+      // v1.63: cada tramo de un trayecto sale aparte (seg = nº de tramo; stop = parada donde acaba). El primero es el de siempre.
+      if (go) tripSegs(go).forEach((g) => out.push({ i: x.i, kind: 'go', ...g, to: 'turno' }));
+      else if (pr && pr.to === '>') tripSegs(pr, tm(prev).end).forEach((g) => out.push({ i: x.i, kind: 'go', ...g, to: 'turno', linked: prev.i }));
       const bk = entryReturn(x.s, x.e);
-      if (bk && !(bk.to === '>' && next)) out.push({ i: x.i, kind: 'back', mode: bk.mode, dep: bk.dep || tm(x).end || '', arr: bk.arr, to: bk.to === '>' ? '' : bk.to });
+      if (bk && !(bk.to === '>' && next)) tripSegs(bk, tm(x).end).forEach((g) => out.push({ i: x.i, kind: 'back', ...g, to: bk.to === '>' ? '' : bk.to }));
     });
     return out;
   }
@@ -224,7 +250,7 @@
     const a = toMin(tm.start); let b = toMin(tm.end); if (b <= a) b += 1440;
     cut = Math.round(cut); if (!(cut >= a + 5 && cut <= b - 5)) return null;
     const hm = (m) => pad(Math.floor((m % 1440) / 60)) + ':' + pad(m % 60);
-    const at = hm(cut), legBk = ['bk', 'bkDep', 'bkArr', 'bkTo'], legTr = ['tr', 'trDep', 'trArr'];
+    const at = hm(cut), legBk = ['bk', 'bkDep', 'bkArr', 'bkTo', 'bkS', 'bkL'], legTr = ['tr', 'trDep', 'trArr', 'trS', 'trL'];
     const piece = (from, to, drop, off, extra) => {
       const x = { ...e, ...extra }; drop.forEach((f) => delete x[f]); if (shift[off]) x[off] = '-';
       if (e.once) { x.once = { ...e.once, start: from, end: to }; x.start = ''; x.end = ''; }
@@ -240,7 +266,7 @@
   /* ---- v1.39: cambiar un turno también en otros días. Dos entradas «coinciden» si son el mismo turno (sid) con el mismo
      horario efectivo (hora de inicio y de fin, contando las del turno). Los turnos puntuales (o_…) nunca coinciden con otros.
      sameEntries → [{ k, i }] de las otras entradas que coinciden (sin la propia); scope 'next' = solo las de después de k. */
-  const EDIT_KEYS = ['start', 'end', 'brk', 'pl', 'plx', 'tr', 'trDep', 'trArr', 'bk', 'bkDep', 'bkArr', 'bkTo'];
+  const EDIT_KEYS = ['start', 'end', 'brk', 'pl', 'plx', 'tr', 'trDep', 'trArr', 'trS', 'trL', 'bk', 'bkDep', 'bkArr', 'bkTo', 'bkS', 'bkL'];
   function sameEntries(data, k, i, scope) {
     const shiftBy = Object.fromEntries(data.shifts.map((s) => [s.id, s]));
     const me = (data.days[k] || [])[i], s = me && shiftBy[me.sid];
@@ -466,11 +492,11 @@
       // Solo se divide si el turno soltado cae dentro (o pisa un lado) y no lo tapa entero; los que pasan de las 00:00, no
       if (xa != null && xb != null && xb > xa && nb <= 1440 && na < xb && nb > xa && !(na <= xa && nb >= xb)) {
         const pieces = [];
-        if (na > xa) { const l = withTimes(target, sx, hm(xa), hm(na)); if (nb < xb) { delete l.bk; delete l.bkDep; delete l.bkArr; delete l.bkTo; if (sx.bk) l.bk = '-'; } pieces.push(l); }
+        if (na > xa) { const l = withTimes(target, sx, hm(xa), hm(na)); if (nb < xb) { delete l.bk; delete l.bkDep; delete l.bkArr; delete l.bkTo; delete l.bkS; delete l.bkL; if (sx.bk) l.bk = '-'; } pieces.push(l); }
         if (nb < xb) {
           const r = withTimes(target, sx, hm(nb), hm(xb));
           if (na > xa) {
-            r.note = ''; delete r.brk; delete r.tr; delete r.trDep; delete r.trArr; if (sx.tr) r.tr = '-';
+            r.note = ''; delete r.brk; delete r.tr; delete r.trDep; delete r.trArr; delete r.trS; delete r.trL; if (sx.tr) r.tr = '-';
             if (target.once) r.sid = newId();
           }
           pieces.push(r);
@@ -481,6 +507,25 @@
     }
     if (dl.length > LIMITS.perDay) return null;
     return same ? { [dst.k]: dl } : { [src.k]: sl, [dst.k]: dl };
+  }
+
+  /* ---- v1.63: mover un trayecto (con todos sus tramos) delta minutos. kind 'go' = la llegada al turno, 'back' = el de después.
+     Devuelve la entrada nueva con el trayecto guardado en el día (aunque viniera del turno) o null si no tiene trayecto.
+     endHm = hora en que acaba el turno (la salida vacía del de después es esa hora). */
+  function moveTrip(shift, e, kind, delta, endHm) {
+    const t = kind === 'go' ? entryTransport(shift, e) : entryReturn(shift, e); if (!t) return null;
+    const mv = (v) => (v ? hm(toMin(v) + delta) : '');
+    const f = kind === 'go' ? ['tr', 'trDep', 'trArr', 'trS', 'trL'] : ['bk', 'bkDep', 'bkArr', 'bkS', 'bkL'];
+    const n = { ...e }; f.forEach((x) => delete n[x]);
+    n[f[0]] = t.mode;
+    const dep = mv(t.dep || (kind === 'back' ? endHm || '' : '')), arr = mv(t.arr);
+    if (dep) n[f[1]] = dep; if (arr) n[f[2]] = arr;
+    if (t.more && t.more.length) {
+      if (t.stop) n[f[3]] = t.stop;
+      n[f[4]] = t.more.map((l) => ({ m: l.mode, ...(l.dep ? { d: mv(l.dep) } : {}), ...(l.arr ? { a: mv(l.arr) } : {}), ...(l.stop ? { s: l.stop } : {}) }));
+    }
+    if (kind === 'back') { if (t.to) n.bkTo = t.to; else delete n.bkTo; }
+    return n;
   }
 
   /* ---- v1.45.2: fuera los descansos (decisión de Izan: desde hoy, sin tocar el pasado). Los días anteriores a «today» guardan en
@@ -501,7 +546,7 @@
   }
 
   const api = {
-    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, sameEntries, applyEdit, EDIT_KEYS, nextStart, splitEntry, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, tripSegs, moveTrip, LEGS_MAX, sameEntries, applyEdit, EDIT_KEYS, nextStart, splitEntry, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;

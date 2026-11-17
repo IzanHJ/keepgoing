@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.62.0';
+  const VERSION = '1.63.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -180,6 +180,7 @@
     // v1.23
     list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
     copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+    paste: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><path d="M9 13h6M9 17h4"/>',
     layers: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>',
     compare: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/><path d="M14 6l3-2 3 2" stroke-dasharray="2 2"/>',
     split: '<path d="M6 3v6a6 6 0 0 0 6 6h0a6 6 0 0 1 6 6M18 3v6a6 6 0 0 1-3 5.2M6 21v0"/><path d="M3 6l3-3 3 3M15 6l3-3 3 3"/>',
@@ -1197,6 +1198,18 @@
      (kg_cal_publish) y se da permiso por amigo (kg_cal_grant / kg_cal_revoke). Al cambiar algo se vuelve a publicar.
      ========================================================= */
   const TF = window.KGTurns, TFPDF = window.KGTurnsPdf;
+  /* v1.63: copiar y pegar en Organización. Un solo portapapeles (turno, trayecto o nota) que se recuerda en este dispositivo.
+     { type: 'shift' | 'trip' | 'note', data, label }. Se pega en un hueco (a esa hora), en el día o en la caja del transporte. */
+  const TF_CLIP_KEY = 'keepgoing.tfClip';
+  function tfClip(type) {
+    if (TFS.clip === undefined) { let c = null; try { c = JSON.parse(localStorage.getItem(TF_CLIP_KEY) || 'null'); } catch (e) { c = null; } TFS.clip = c && typeof c === 'object' && c.data ? c : null; }
+    const c = TFS.clip; return c && (!type || c.type === type) ? c : null;
+  }
+  function tfCopy(type, data, label) {
+    TFS.clip = { type, data: JSON.parse(JSON.stringify(data)), label: String(label || '').slice(0, 60) };
+    try { localStorage.setItem(TF_CLIP_KEY, JSON.stringify(TFS.clip)); } catch (e) { /* sin almacenamiento: queda en memoria */ }
+    sfx('tap'); vibrate(10); toast(t('cpCopied', { n: TFS.clip.label || t('cpThing_' + type) }));
+  }
   const TFS = { quick: null, menu: false, rep: { mode: 'month', ref: new Date(), from: '', to: '' }, rot: { key: '4x4', custom: 'AAB--', map: {}, start: '', offset: 1, days: 90, overwrite: false }, list: null, busy: false, pubTimer: 0, fired: new Set() };
   // v1.24: vistas Día, Semana, Mes y Año (pellizcar cambia de una a otra en este orden)
   const TF_CV = ['day', 'week', 'month', 'year'];
@@ -1261,7 +1274,7 @@
   const tfShift = id => state.calShifts.find(s => s.id === id) || (typeof id === 'string' && id.startsWith('o_') ? tfOnceMap()[id] : undefined);
   // v1.52: el turno de una entrada tal y como se ve ese día (e.nm = nombre solo para ese día; la plantilla no cambia)
   // v1.57: además del nombre, el icono (e.em) y el color (e.co) pueden cambiar solo ese día
-  const tfShiftE = e => { const s = e && tfShift(e.sid); if (!s) return s; const o = {}; if (typeof e.nm === 'string' && e.nm.trim()) o.name = e.nm.trim().slice(0, 40); if (typeof e.em === 'string' && e.em.trim()) o.emoji = e.em.trim(); if (/^#[0-9a-f]{6}$/i.test(e.co || '')) o.color = e.co; return Object.keys(o).length ? { ...s, ...o } : s; };
+  const tfShiftE = e => { const s = e && tfShift(e.sid); if (!s) return s; const o = {}; if (typeof e.nm === 'string' && e.nm.trim()) o.name = e.nm.trim().slice(0, 40); if (e.em === '-') o.emoji = ''; else if (typeof e.em === 'string' && e.em.trim()) o.emoji = e.em.trim(); if (/^#[0-9a-f]{6}$/i.test(e.co || '')) o.color = e.co; return Object.keys(o).length ? { ...s, ...o } : s; };
   /* v1.25: turnos puntuales (médico, quedada, taxi…). Viven dentro de su día: { sid: 'o_…', once: { name, emoji, color, start, end, jobId } }
      y no están en la lista de Turnos. Solo suman horas y paga si tienen una categoría (jobId). */
   let tfOnceGen = 0, tfOnceCache = null;
@@ -1357,7 +1370,7 @@
     let range;
     const LY = tfLayers();
     if (TFS.cut) html += `<div class="tf-cutbar" role="status">${ico('scissors', 'xs')}<span class="grow small">${esc(t('cutHint'))}</span><button class="btn sm primary" data-tf="cut">${ico('check', 'xs')} ${esc(t('tfQDone'))}</button></div>`;
-    html += `<div class="tf-zclip"><div class="tf-zoom ${TFS.cut ? 'cutting' : ''} ${TFS.quick && !year ? 'painting' : ''} ${LY.shifts ? '' : 'ly-noshift'} ${LY.text ? '' : 'ly-notext'}">`;
+    html += `<div class="tf-zclip"><div class="tf-zoom ${TFS.cut ? 'cutting' : ''} ${TFS.quick && !year ? 'painting' : ''} ${LY.shifts ? '' : 'ly-noshift'} ${LY.text ? '' : 'ly-notext'} ${LY.edges ? 'ly-edges' : ''}">`;
     if (year) { html += tfYearGrid(y); range = [y + '-01-01', y + '-12-31']; }
     else if (cv === 'month') { html += `<div class="tf-cal"><div class="tf-dow">${tfDow().map(n => `<span>${esc(n)}</span>`).join('')}</div>${tfMonthGrid(y, mo)}</div>`; range = [TF.iso(new Date(y, mo, 1)), TF.iso(new Date(y, mo + 1, 0))]; }
     else if (cv === 'week') { const ks = tfWeekKeys(u.d); html += tfWeekView(ks); range = [ks[0], ks[6]]; }
@@ -3312,11 +3325,19 @@
   // v1.43: también el trayecto de después del turno y los enlazados (TF.dayLegs), cada uno en el carril de su turno
   const tfTrips = (k, Lk, big) => {
     const list = state.calDays[k] || [], legs = TF.dayLegs(list, Object.fromEntries(tfData().shifts.map(x => [x.id, x]))), w = 100 / Lk.lanes;
-    return legs.map(l => {
-      const it = Lk.timed.find(x => !x.cont && x.e === list[l.i]); if (!it || !l.dep) return '';
-      const a = tfMin(l.dep), b = l.arr ? tfMin(l.arr) : a + 15; if (b <= a) return '';
-      const lbl = `${tfTrName(l.mode)} ${l.dep}–${l.arr || '…'}${l.kind === 'back' ? ' → ' + tfBkToName(l.to) : ''}`;
-      return `<span class="tf-trip ${l.kind === 'back' ? 'bk' : ''}" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:max(12px, calc(var(--ph) * ${+((b - a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${tfColor(it.s.color)}" title="${esc(lbl)}">${ico(lwTrIco(l.mode), 'xs')}${big ? `<small>${esc(lbl)}</small>` : ''}</span>`;
+    // v1.63: cada tramo es su franja; un tramo sin salida empieza donde acaba el anterior. Se tocan para editarlos y se arrastran
+    // (mantener pulsado) para moverlos. data-tf-trip lleva el día; data-i y data-kind dicen de qué turno es el trayecto (uno
+    // enlazado «al siguiente turno» se edita en el turno de antes, como su trayecto de después).
+    let prevEnd = {};
+    return legs.map((l, n) => {
+      const it = Lk.timed.find(x => !x.cont && x.e === list[l.i]); if (!it) return '';
+      const ck = l.i + l.kind, dep = l.dep || (l.seg ? prevEnd[ck] : ''); if (!dep) return '';
+      const a = tfMin(dep), b = l.arr ? tfMin(l.arr) : a + 15; prevEnd[ck] = tfHm(b % 1440); if (b <= a) return '';
+      const last = !legs[n + 1] || legs[n + 1].i !== l.i || legs[n + 1].kind !== l.kind;
+      const dest = l.stop && !last ? l.stop : l.kind === 'back' && last ? tfBkToName(l.to) : '';
+      const lbl = `${tfTrName(l.mode)} ${dep}–${l.arr || '…'}${dest ? ' → ' + dest : ''}`;
+      const oi = l.linked != null ? l.linked : l.i, ok = l.linked != null ? 'back' : l.kind;
+      return `<span class="tf-trip ${l.kind === 'back' ? 'bk' : ''}" role="button" data-tf-trip="${k}" data-i="${oi}" data-kind="${ok}" data-seg="${l.seg || 0}" data-a="${a}" style="top:calc(var(--ph) * ${+(a / 60).toFixed(4)});height:max(12px, calc(var(--ph) * ${+((b - a) / 60).toFixed(4)}));left:${it.lane * w}%;width:${w}%;--c:${tfColor(it.s.color)}" title="${esc(lbl)}">${ico(lwTrIco(l.mode), 'xs')}${big ? `<small>${esc(lbl)}</small>` : ''}</span>`;
     }).join('');
   };
   /* v1.57: notas juntas. Las notas con hora que se tocan o se solapan se dibujan en UN bloque, una detrás de otra
@@ -3681,6 +3702,69 @@
   }
   window.addEventListener('click', e => { if (tfDragBlock) { e.preventDefault(); e.stopPropagation(); tfDragBlock = false; } }, true);
   document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.tf-zoom [data-tf-dk]')) e.preventDefault(); });
+  /* ---------- v1.63: mantener pulsado en Día y Semana (sin cuchilla) ----------
+     · En un sitio vacío: sale una línea con la hora (de 5 en 5 min) que sigue al dedo; al soltar se abre el menú del hueco con esa
+       hora como inicio (turno puntual, turno creado, nota o pegar).
+     · En un trayecto: se arrastra arriba o abajo (de 5 en 5 min) con todos sus tramos; al soltar se guarda en ese día. */
+  let tfHold = null;
+  const tfHoldEnd = () => { const h = tfHold; if (!h) return; clearTimeout(h.timer); if (h.line) h.line.remove(); (h.els || []).forEach(x => { x.style.transform = ''; x.classList.remove('tf-trip-moving'); }); if (h.lbl) h.lbl.remove(); document.body.classList.remove('tf-holding'); tfHold = null; };
+  const tfPhOf = col => parseFloat(getComputedStyle(col.closest('.tf-tl')).getPropertyValue('--ph')) || 40;
+  function tfHoldShow(y) {
+    const h = tfHold; if (!h || !document.body.contains(h.col)) return;
+    const ph = tfPhOf(h.col), top = h.col.getBoundingClientRect().top;
+    if (h.mode === 'new') {
+      const m = clamp(Math.round((y - top) / ph * 12) * 5, 0, 1435); h.m = m;
+      if (!h.line) { h.line = document.createElement('i'); h.line.className = 'tf-cutline tf-holdline'; h.line.setAttribute('aria-hidden', 'true'); h.line.innerHTML = '<em></em>'; h.col.appendChild(h.line); }
+      h.line.style.top = (m / 60 * ph) + 'px';
+      const em = h.line.firstChild, txt = tfHm(m); if (em.textContent !== txt) { em.textContent = txt; vibrate(4); }
+      return;
+    }
+    const d = clamp(Math.round((y - h.sy) / ph * 12) * 5, -h.a0, 1435 - h.a0); h.d = d;
+    h.els.forEach(x => { x.style.transform = `translateY(${d / 60 * ph}px)`; });
+    if (!h.lbl) { h.lbl = document.createElement('em'); h.lbl.className = 'tf-trip-time'; h.els[0].appendChild(h.lbl); }
+    const txt = `${tfHm(h.a0 + d)}${d ? ` (${d > 0 ? '+' : '−'}${Math.abs(d)} min)` : ''}`; if (h.lbl.textContent !== txt) { h.lbl.textContent = txt; vibrate(4); }
+  }
+  document.addEventListener('pointerdown', e => {
+    if (state.ui.tab !== 'cal' || e.button || TFS.quick || TFS.cut || tfDrag || tfPinch || !['day', 'week'].includes(tfUi().cv)) return;
+    const col = e.target.closest('.tf-zoom .tf-tl-col[data-tf-tl]'); if (!col) return;
+    const trip = e.target.closest('.tf-trip[data-tf-trip]');
+    if (!trip && e.target.closest('.tf-blk, .tf-gapn, .sg-blk, [data-tf-dk], [data-tf-extmap]')) return;
+    tfHoldEnd();
+    const h = tfHold = { col, mode: trip ? 'trip' : 'new', id: e.pointerId, sx: e.clientX, sy: e.clientY, y: e.clientY, on: false };
+    if (trip) { h.trip = trip; h.els = $$(`.tf-trip[data-tf-trip="${trip.dataset.tfTrip}"][data-i="${trip.dataset.i}"][data-kind="${trip.dataset.kind}"]`, col); h.a0 = +trip.dataset.a || 0; }
+    h.timer = setTimeout(() => {
+      if (tfHold !== h || tfDrag || tfPinch) return;
+      h.on = true; mSw = null; document.body.classList.add('tf-holding'); vibrate(15); sfx('tap');
+      if (h.els) h.els.forEach(x => x.classList.add('tf-trip-moving'));
+      tfHoldShow(h.y);
+    }, 420);
+  }, true);
+  document.addEventListener('pointermove', e => {
+    const h = tfHold; if (!h || e.pointerId !== h.id) return;
+    if (!h.on) { if (Math.hypot(e.clientX - h.sx, e.clientY - h.sy) > 8) tfHoldEnd(); else h.y = e.clientY; return; }
+    e.preventDefault(); tfHoldShow(e.clientY);
+  }, true);
+  document.addEventListener('touchmove', e => { if (tfHold && tfHold.on && e.cancelable) e.preventDefault(); }, { passive: false });
+  function tfHoldDrop() {
+    const h = tfHold; if (!h) return; const on = h.on; tfHoldEnd(); if (!on) return;
+    tfDragBlock = true; setTimeout(() => { tfDragBlock = false; }, 350);
+    const k = h.col.dataset.tfTl;
+    if (h.mode === 'new') { if (h.m == null) return; const r = tfFreeFrom(k, h.m); tfGapMenu(k, r); return; }
+    if (!h.d) return;
+    const tr = h.trip, ek = tr.dataset.tfTrip, i = +tr.dataset.i, kind = tr.dataset.kind === 'back' ? 'back' : 'go';
+    const l = [...(state.calDays[ek] || [])], e0 = l[i], s = e0 && tfShift(e0.sid); if (!s) return;
+    const ne = TF.moveTrip(s, e0, kind, h.d, TF.entryTimes(s, e0).end); if (!ne) return;
+    l[i] = ne; tfSetDay(ek, l); tfSave(); sfx('complete'); vibrate([10, 30, 10]);
+    toast(t('mtMoved', { d: (h.d > 0 ? '+' : '−') + Math.abs(h.d) }));
+  }
+  document.addEventListener('pointerup', e => { if (tfHold && e.pointerId === tfHold.id) tfHoldDrop(); }, true);
+  document.addEventListener('pointercancel', e => { if (tfHold && e.pointerId === tfHold.id) { if (tfHold.on) tfHoldDrop(); else tfHoldEnd(); } }, true);
+  document.addEventListener('contextmenu', e => { if (tfHold || (e.target.closest && e.target.closest('.tf-zoom .tf-tl-col'))) e.preventDefault(); });
+  // Franja libre desde el minuto m (sin redondear): hasta una hora después, sin pasar del siguiente turno ni de las 23:59
+  function tfFreeFrom(k, m) {
+    const next = tfDayItems(k).timed.filter(it => it.a > m).reduce((x, it) => Math.min(x, it.a), 1439);
+    return { a: m, b: Math.min(1439, Math.max(m + 15, Math.min(m + 60, next))) };
+  }
   function tfDow() {
     const ws = tfWs(), base = new Date(2024, 0, 7); // domingo
     return Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(state.lang, { weekday: 'short' }).format(TF.addDays(base, (ws + i) % 7)));
@@ -3917,13 +4001,15 @@
   const tfSetDay = (k, list) => { tfOnceGen++; if (list.length) state.calDays[k] = tfSorted(list); else delete state.calDays[k]; };
   /* v1.25: capas de vista del Calendario. v1.26: botón «Vista» en el menú, para todos, y se guarda en calPrefs.view (igual en todos
      tus dispositivos). Turnos y Rutinas (con «Nombres»), Colores de celdas, Notas, Lugares y Valoraciones. */
-  const TF_LAYERS = ['shifts', 'text', 'days', 'notes', 'places', 'transport', 'rates', 'sug']; // v1.57: sug = Propuestas
+  // v1.63: edges = «Bordes» (línea entre turnos seguidos); es la única capa que empieza apagada
+  const TF_LAYERS = ['shifts', 'text', 'edges', 'days', 'notes', 'places', 'transport', 'rates', 'sug']; // v1.57: sug = Propuestas
+  const TF_LAYERS_OFF = ['edges'];
   function tfLayers() {
     const u = state.calPrefs.view && typeof state.calPrefs.view === 'object' ? state.calPrefs.view : {};
-    return Object.fromEntries(TF_LAYERS.map(k => [k, u[k] !== false]));
+    return Object.fromEntries(TF_LAYERS.map(k => [k, TF_LAYERS_OFF.includes(k) ? u[k] === true : u[k] !== false]));
   }
   function tfOpenLayers() {
-    const draw = w => { const L = tfLayers(); $('#tfl', w).innerHTML = `<div class="stack" style="gap:12px">${TF_LAYERS.map(k => `<label class="row ${k === 'text' ? 'tf-ly-sub' : ''}" style="gap:12px"><span class="switch"><input type="checkbox" data-tfl="${k}" ${L[k] ? 'checked' : ''} ${k === 'text' && !L.shifts ? 'disabled' : ''}><span></span></span><span class="grow"><b>${esc(t('tfLy26_' + k))}</b></span></label>`).join('')}<p class="muted small" style="margin:0">${esc(t('tfViewHint'))}</p></div>`; };
+    const draw = w => { const L = tfLayers(); $('#tfl', w).innerHTML = `<div class="stack" style="gap:12px">${TF_LAYERS.map(k => `<label class="row ${k === 'text' || k === 'edges' ? 'tf-ly-sub' : ''}" style="gap:12px"><span class="switch"><input type="checkbox" data-tfl="${k}" ${L[k] ? 'checked' : ''} ${(k === 'text' || k === 'edges') && !L.shifts ? 'disabled' : ''}><span></span></span><span class="grow"><b>${esc(t('tfLy26_' + k))}</b></span></label>`).join('')}<p class="muted small" style="margin:0">${esc(t('tfViewHint'))}</p></div>`; };
     openModal({
       title: `${ico('eye')} ${esc(t('tfView'))}`, cls: 'tf-sheet', body: '<div id="tfl"></div>',
       onMount: w => { draw(w); w.addEventListener('change', e => { const k = e.target.dataset.tfl; if (!k) return; state.calPrefs.view = { ...tfLayers(), [k]: e.target.checked }; save(); render(); draw(w); }); }
@@ -3952,10 +4038,11 @@
       title: `${ico('doc')} ${esc(t(cur ? 'tfGapEdit' : 'tfGapNew'))}`, cls: 'tf-sheet',
       body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(tfLong(k))}</p><div class="tf-form">${tfField(t('tfStart'), `<input class="input" type="time" id="tfg-a" value="${esc(g.a)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfg-b" value="${esc(g.b)}">`)}</div>
         <textarea class="input" id="tfg-t" rows="3" maxlength="${TF.LIMITS.note}" placeholder="${esc(t('tfGapPh'))}">${esc(g.t)}</textarea></div>`,
-      foot: `${cur ? `<button class="btn danger" data-tfg="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-tfg="save">${ico('check')} ${esc(t('save'))}</button>`,
+      foot: `${cur ? `<button class="btn danger" data-tfg="del">${ico('trash')} ${esc(t('delete'))}</button><button class="btn" data-tfg="copy">${ico('copy')} ${esc(t('cpCopy'))}</button>` : ''}<button class="btn primary" data-tfg="save">${ico('check')} ${esc(t('save'))}</button>`,
       onMount: w => setTimeout(() => $('#tfg-t', w)?.focus(), 50),
       onClick: (e, close, w) => {
         const b = e.target.closest('[data-tfg]'); if (!b) return;
+        if (b.dataset.tfg === 'copy') { tfCopy('note', { g: cur }, String(cur.t).slice(0, 40)); return; }
         const l = [...tfGaps(k)];
         if (b.dataset.tfg === 'del') l.splice(i, 1);
         else {
@@ -4055,7 +4142,7 @@
     };
     openModal({
       title: `${ico(p.icon)} ${esc(p.name)}`, cls: 'tf-sheet', body: '<div id="ntb"></div>',
-      foot: `${cur ? `<button class="btn danger" data-ntg="del">${ico('trash')} ${esc(t('delete'))}</button>` : ''}<button class="btn primary" data-ntg="save">${ico('check')} ${esc(t('save'))}</button>`,
+      foot: `${cur ? `<button class="btn danger" data-ntg="del">${ico('trash')} ${esc(t('delete'))}</button><button class="btn" data-ntg="copy">${ico('copy')} ${esc(t('cpCopy'))}</button>` : ''}<button class="btn primary" data-ntg="save">${ico('check')} ${esc(t('save'))}</button>`,
       onMount: w => {
         wref = w; draw();
         w.addEventListener('change', e => { if (e.target.id === 'nt-all') { read(); st.allDay = !e.target.checked; if (!st.allDay && !st.a) { const s = tfFreeSlot(k, new Date().getHours() * 60 + 60); st.a = s.a; st.b = s.b; } draw(); } });
@@ -4069,6 +4156,7 @@
         const rt = e.target.closest('[data-ntrate]'); if (rt) { read(); const n = +rt.dataset.n; if (v[rt.dataset.ntrate] === n) delete v[rt.dataset.ntrate]; else v[rt.dataset.ntrate] = n; draw(); return; }
         const pk = e.target.closest('[data-ntpick]'); if (pk) { read(); if (v[pk.dataset.ntpick] === pk.dataset.val) delete v[pk.dataset.ntpick]; else v[pk.dataset.ntpick] = pk.dataset.val; p.fields.forEach(q => { if (q.dep === pk.dataset.ntpick && v[q.id] !== undefined && !NT.optsFor(q, v).includes(v[q.id])) delete v[q.id]; }); draw(); return; }
         const b = e.target.closest('[data-ntg]'); if (!b) return;
+        if (b.dataset.ntg === 'copy') { tfCopy('note', { g: cur }, String(cur.t || p.name).slice(0, 40)); return; }
         const l = [...tfGaps(k)], at = cur ? l.indexOf(cur) : -1;
         if (b.dataset.ntg === 'del') { if (at >= 0) l.splice(at, 1); tfSetGaps(k, l); tfSave(); sfx('tap'); close(); after && after(); return; }
         read();
@@ -4423,19 +4511,62 @@
     const r = { a: m, b: Math.max(m + 15, Math.min(m + 60, next, 1439)) };
     return mins ? r : { a: tfHm(r.a), b: tfHm(r.b) };
   }
+  // v1.63: también los turnos creados (empiezan a esa hora con su duración) y «Pegar» lo copiado
   function tfGapMenu(k, gap) {
-    const a = tfHm(gap.a), b = gap.b >= 1439 ? '23:59' : tfHm(gap.b);
+    const a = tfHm(gap.a), b = gap.b >= 1439 ? '23:59' : tfHm(gap.b), clip = tfClip(), pasteOk = clip && clip.type !== 'trip';
     openModal({
       title: esc(`${a}–${b}`), cls: 'tf-sheet',
-      body: `<div class="stack" style="gap:10px"><button class="btn block" data-tfgm="once">${ico('plus')} ${esc(t('tfOnceNew'))}</button><button class="btn block" data-tfgm="note">${ico('doc')} ${esc(t('tfGapNew'))}</button>${tfTpls().length ? `<div class="row wrap" style="gap:6px">${tfTplsQuick().map(p => tfTplChip(p, `data-tfgm-tp="${esc(p.id)}"`)).join('')}</div>` : ''}</div>`,
+      body: `<div class="stack" style="gap:10px">${pasteOk ? `<button class="btn block primary" data-tfgm="paste">${ico('paste')} ${esc(t('cpPasteN', { n: clip.label || t('cpThing_' + clip.type) }))}</button>` : ''}
+        <button class="btn block" data-tfgm="once">${ico('plus')} ${esc(t('tfOnceNew'))}</button><button class="btn block" data-tfgm="note">${ico('doc')} ${esc(t('tfGapNew'))}</button>${tfTpls().length ? `<div class="row wrap" style="gap:6px">${tfTplsQuick().map(p => tfTplChip(p, `data-tfgm-tp="${esc(p.id)}"`)).join('')}</div>` : ''}
+        ${state.calShifts.length ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('gmShifts'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(x => `<button type="button" class="tf-pal" data-tfgm-sh="${esc(x.id)}">${tfTag(x, 'big')}${x.start && x.end ? `<span class="muted small">${esc(tfShiftLen(x))}</span>` : ''}</button>`).join('')}</div><p class="muted small" style="margin:0">${esc(t('gmShiftsHint', { h: a }))}</p>` : ''}</div>`,
       onClick: (e, close) => {
         const tp = e.target.closest('[data-tfgm-tp]'); if (tp) { close(); tfTplNote(k, -1, tp.dataset.tfgmTp, { a, b }); return; }
+        const sh = e.target.closest('[data-tfgm-sh]'); if (sh) { close(); tfAddShiftAt(k, sh.dataset.tfgmSh, gap.a); return; }
         const m = e.target.closest('[data-tfgm]'); if (!m) return;
         close();
-        if (m.dataset.tfgm === 'once') tfOnceEditor(k, -1, () => tfSave(), { start: a, end: b });
+        if (m.dataset.tfgm === 'paste') tfPaste(k, gap.a);
+        else if (m.dataset.tfgm === 'once') tfOnceEditor(k, -1, () => tfSave(), { start: a, end: b });
         else tfGapNote(k, -1, { a, b });
       }
     });
+  }
+  // Duración de un turno creado («8 h», «7 h 30 min»)
+  const tfShiftLen = x => { let d = tfMin(x.end) - tfMin(x.start); if (d <= 0) d += 1440; return d % 60 ? `${Math.floor(d / 60)} h ${d % 60} min` : `${d / 60} h`; };
+  // Nueva entrada con horas a partir del minuto m (misma duración); sin horas = de todo el día. e0 = entrada de base (al pegar).
+  function tfEntryAt(s, e0, m) {
+    const tm = TF.entryTimes(s, e0 || {}), n = { note: '', start: '', end: '', ...(e0 || {}) };
+    delete n.rt; delete n.src;
+    if (m == null || !tm.start || !tm.end) return n;
+    let d = tfMin(tm.end) - tfMin(tm.start); if (d <= 0) d += 1440;
+    const st = tfHm(m), en = tfHm((m + d) % 1440), dm = m - tfMin(tm.start);
+    // Sus trayectos con hora se mueven lo mismo que el turno (y quedan guardados en ese día)
+    if (dm) for (const [kind, get] of [['go', TF.entryTransport], ['back', TF.entryReturn]]) { const x = get(s.once ? null : s, n); if (x && (x.dep || x.arr || (x.more || []).length)) { const mv = TF.moveTrip(s.once ? null : s, n, kind, dm, tm.end); if (mv) { Object.keys(n).forEach(f => delete n[f]); Object.assign(n, mv); } } }
+    if (n.once) { n.once = { ...n.once, start: st, end: en }; n.start = ''; n.end = ''; }
+    else { n.start = st === s.start ? '' : st; n.end = en === s.end ? '' : en; if (!n.start && !n.end) { n.start = ''; n.end = ''; } }
+    return n;
+  }
+  function tfPushEntry(k, n) {
+    const list = [...(state.calDays[k] || [])]; if (list.length >= TF.LIMITS.perDay) { toast(t('tfRtFull')); return false; }
+    list.push(n); tfSetDay(k, list); tfSave(); sfx('tap'); requestAnimationFrame(() => tfRipple(k)); return true;
+  }
+  function tfAddShiftAt(k, sid, m) {
+    const s = tfShift(sid); if (!s) return;
+    const n = tfEntryAt(s, { sid, note: '', start: '', end: '' }, m);
+    if (tfPushEntry(k, n)) { const tm = TF.entryTimes(s, n); toast(t('gmAdded', { n: s.name, h: tm.start ? tm.start + '–' + tm.end : t('tfAllDay') })); }
+  }
+  /* Pegar lo copiado en el día k. m = minuto de inicio (null = a la misma hora que tenía). Un turno puntual se pega como otro
+     turno puntual (id nuevo). Una nota que iba dentro de un turno se pega suelta. Una nota sin hora se queda sin hora. */
+  function tfPaste(k, m, after) {
+    const c = tfClip(); if (!c || c.type === 'trip') return;
+    if (c.type === 'shift') {
+      const e0 = { ...c.data.e }; if (e0.once) e0.sid = 'o_' + uid();
+      const s = e0.once ? tfOnceShift(e0) : tfShift(e0.sid); if (!s) { toast(t('cpGone')); return; }
+      if (tfPushEntry(k, tfEntryAt(s, e0, m))) { toast(t('cpPasted')); after && after(); }
+      return;
+    }
+    const g = { ...c.data.g }; delete g.sid; delete g.src;
+    if (g.a && m != null) { const d = Math.max(5, tfMin(g.b || g.a) - tfMin(g.a)); g.a = tfHm(m); g.b = tfHm(Math.min(1439, m + d)); }
+    tfSetGaps(k, [...tfGaps(k), g]); tfSave(); sfx('tap'); toast(t('cpPasted')); requestAnimationFrame(() => tfRipple(k)); after && after();
   }
   // Turno puntual: nuevo (i = -1) o editar el de la posición i del día
   function tfOnceEditor(k, i, after, pre) {
@@ -4453,8 +4584,8 @@
         ${tfField(t('tfSumH'), tfSel('id="tfo-job"', [[state.calJobs[0].id, t('tfSumYes')], ['', t('tfSumNo')]], o.jobId ? state.calJobs[0].id : ''), true)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfo-place"', o.placeId || '', '', o.plx && o.plx.addr), true)}</div>
         <div class="field"><span>${esc(t('tfColor'))}</span><div class="swatches">${cols.map(c => `<button type="button" class="sw ${o.color === c ? 'on' : ''}" data-tfo-c="${c}" style="--c:${c}" aria-label="${c}"></button>`).join('')}<input type="color" class="swatch-input" id="tfo-color" value="${tfColor(o.color)}" aria-label="${esc(t('themeCustom'))}"></div></div>
-        ${tfTrBox({ on: !!tr0, mode: tr0 ? tr0.mode : '', dep: tr0 ? tr0.dep : '', arr: tr0 ? tr0.arr : '', hint: t('trHint') })}
-        ${tfTrBox({ k: 'bk', on: !!bk0, mode: bk0 ? bk0.mode : '', dep: bk0 ? bk0.dep : '', arr: bk0 ? bk0.arr : '', to: bk0 ? bk0.to : '', depPh: o.end || '', hint: t('bkHint') })}</div>`,
+        ${tfTrBox(tfTrStOf(tr0, { hint: t('trHint') }))}
+        ${tfTrBox(tfTrStOf(bk0, { k: 'bk', depPh: o.end || '', hint: t('bkHint') }))}</div>`,
       foot: `<button class="btn primary block" data-tfo="save">${ico('check')} ${esc(t('save'))}</button>`,
       onMount: w => { tfPlSelWire(w); tfTrWire(w); },
       onClick: (e, close, w) => {
@@ -4467,8 +4598,8 @@
         const picked = v('tfo-color'); if (/^#[0-9a-fA-F]{6}$/.test(picked) && picked.toLowerCase() !== tfColor(o.color).toLowerCase()) o.color = picked;
         const once = { name: name.slice(0, 40), emoji: v('tfo-emoji').trim().slice(0, 8), color: tfColor(o.color), start: v('tfo-start'), end: v('tfo-end'), jobId: v('tfo-job'), ...(r => r.plx ? { plx: r.plx } : tfPlace(r.pl) ? { placeId: r.pl } : {})(tfPlRead($('#tfo-place', w))) };
         const tr = tfTrRead(w), bk = tfTrRead(w, 'bk'); if (!tfTrOk(tr) || !tfTrOk(bk)) return;
-        const legs = { ...(tr && tr.on ? { tr: tr.mode, ...(tr.dep ? { trDep: tr.dep } : {}), ...(tr.arr ? { trArr: tr.arr } : {}) } : {}), ...(bk && bk.on ? { bk: bk.mode, ...(bk.dep ? { bkDep: bk.dep } : {}), ...(bk.arr ? { bkArr: bk.arr } : {}), ...(bk.to ? { bkTo: bk.to } : {}) } : {}) };
-        const strip = e => { const x = { ...e }; ['tr', 'trDep', 'trArr', 'bk', 'bkDep', 'bkArr', 'bkTo'].forEach(f => delete x[f]); return x; };
+        const legs = { ...tfTrFields(tr, 'go'), ...tfTrFields(bk, 'bk') };
+        const strip = e => tfTrStrip(e);
         const next = [...(state.calDays[k] || [])];
         if (cur) next[i] = { ...strip(cur), once, start: '', end: '', ...legs };
         else { if (next.length >= TF.LIMITS.perDay) { toast(t('tfRtFull')); return; } next.push({ sid: 'o_' + uid(), once, note: '', start: '', end: '', ...legs }); }
@@ -4525,7 +4656,8 @@
         else if (how === 'reset') { l[i] = strip(en); tfSetDay(k, l); }
         else if (how === 'one') {
           if (name === s.name) delete en.nm; else en.nm = name;
-          if (emo === (s.emoji || '')) delete en.em; else if (emo) en.em = emo; else { delete en.em; }
+          // v1.63: sin icono en un turno que sí lo tiene = '-' (antes se borraba y volvía el icono del turno)
+          if (emo === (s.emoji || '')) delete en.em; else en.em = emo || '-';
           if (col.toLowerCase() === tfColor(s.color).toLowerCase()) delete en.co; else en.co = col;
           l[i] = en; tfSetDay(k, l);
         } else {
@@ -4561,11 +4693,11 @@
       body: `<div class="stack" style="gap:12px"><div class="row" style="justify-content:space-between;gap:8px"><p class="muted small" style="margin:0">${esc(tfLong(k))}${s.once ? ' · ' + esc(t('tfOnce')) : ''}</p><button type="button" class="chip sm" data-tfn="rename">${ico('edit', 'xs')} ${esc(t('rnBtn2'))}</button></div>
         ${s.once ? `<button type="button" class="btn sm" data-tfn="once">${ico('edit')} ${esc(t('tfOnceEditBtn'))}</button>` : `<div class="tf-form">${tfField(t('tfStart'), `<input class="input" type="time" id="tfn-start" value="${esc(tm.start || '')}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfn-end" value="${esc(tm.end || '')}">`)}
         ${tfField(t('tfPlace'), tfPlSelHtml('id="tfn-pl"', cur.pl || '', t('tfPlSame', { p: (tfPlace(s.placeId) || { name: t('tfPlNone') }).name }), cur.plx && cur.plx.addr), true)}</div>`}
-        ${tfTrBox({ on: !!tr0, mode: tr0 ? tr0.mode : '', dep: tr0 ? tr0.dep : '', arr: tr0 ? tr0.arr : '', hint: goHint })}
-        ${tfTrBox({ k: 'bk', on: !!bk0, mode: bk0 ? bk0.mode : '', dep: bk0 ? bk0.dep : '', arr: bk0 ? bk0.arr : '', to: bk0 ? bk0.to : nx ? '>' : '', depPh: tm.end || '', hint: bkHint })}
+        ${tfTrBox(tfTrStOf(tr0, { hint: goHint }))}
+        ${tfTrBox(tfTrStOf(bk0, { k: 'bk', to: bk0 ? bk0.to : nx ? '>' : '', depPh: tm.end || '', hint: bkHint }))}
         <div id="tfn-notes"></div>
         ${tfField(t('tfNote'), `<textarea class="input" id="tfn-note" rows="2" maxlength="${TF.LIMITS.note}" placeholder="${esc(t('tfNotePh'))}">${esc(cur.note || '')}</textarea>`, true)}</div>`,
-      foot: `<button class="btn danger" data-tfn="del">${ico('trash')} ${esc(t('tfRemoveShift'))}</button><button class="btn primary" data-tfn="save">${ico('check')} ${esc(t('save'))}</button>`,
+      foot: `<button class="btn danger" data-tfn="del" aria-label="${esc(t('tfRemoveShift'))}" title="${esc(t('tfRemoveShift'))}">${ico('trash')}</button><button class="btn" data-tfn="copy">${ico('copy')} ${esc(t('cpCopy'))}</button><button class="btn primary" data-tfn="save">${ico('check')} ${esc(t('save'))}</button>`,
       onMount: w => { tfPlSelWire(w); tfTrWire(w); drawNotes(w); },
       onClick: (e, close, w) => {
         const gb = e.target.closest('[data-tfn-gap]'); if (gb) { tfTplNote(k, +gb.dataset.tfnGap, null, null, () => drawNotes(w)); return; }
@@ -4573,6 +4705,7 @@
         const b = e.target.closest('[data-tfn]'); if (!b) return;
         if (b.dataset.tfn === 'once') { close(); tfOnceEditor(k, i, after); return; }
         if (b.dataset.tfn === 'rename') { close(); tfRenameEntry(k, i, after); return; }
+        if (b.dataset.tfn === 'copy') { const c = (state.calDays[k] || [])[i] || cur; tfCopy('shift', { e: c }, tfShiftE(c).name); return; }
         if (b.dataset.tfn === 'del') { const l = [...(state.calDays[k] || [])]; l.splice(i, 1); tfSetDay(k, l); tfSave(false); close(); after ? after() : render(); return; }
         const tr = tfTrRead(w), bk = tfTrRead(w, 'bk'); if (!tfTrOk(tr) || !tfTrOk(bk)) return;
         const next = { ...cur, note: $('#tfn-note', w).value.slice(0, TF.LIMITS.note) };
@@ -4585,12 +4718,13 @@
           else if (cur.pl) next.pl = cur.pl; else if (cur.plx) next.plx = cur.plx;
         }
         // Transporte: igual que el del turno = no se guarda nada en el día; apagado con el turno que lo tiene = '-'
-        delete next.tr; delete next.trDep; delete next.trArr;
-        if (tr.on) { if (!(s.tr === tr.mode && (s.trDep || '') === tr.dep && (s.trArr || '') === tr.arr)) { next.tr = tr.mode; if (tr.dep) next.trDep = tr.dep; if (tr.arr) next.trArr = tr.arr; } }
+        // v1.63: con todos sus tramos (tfTrSame compara el trayecto entero con el del turno)
+        TF_TR_KEYS.go.forEach(f => delete next[f]);
+        if (tr.on) { if (!tfTrSame(tr, s, 'go')) Object.assign(next, tfTrFields(tr, 'go')); }
         else if (s.tr) next.tr = '-';
         // v1.43: después del turno, igual: lo del turno no se repite en el día; apagado con el turno que lo tiene = '-'
-        delete next.bk; delete next.bkDep; delete next.bkArr; delete next.bkTo;
-        if (bk.on) { if (!(s.bk === bk.mode && (s.bkDep || '') === bk.dep && (s.bkArr || '') === bk.arr && (s.bkTo || '') === bk.to)) { next.bk = bk.mode; if (bk.dep) next.bkDep = bk.dep; if (bk.arr) next.bkArr = bk.arr; if (bk.to) next.bkTo = bk.to; } }
+        TF_TR_KEYS.bk.forEach(f => delete next[f]);
+        if (bk.on) { if (!tfTrSame(bk, s, 'bk')) Object.assign(next, tfTrFields(bk, 'bk')); }
         else if (s.bk) next.bk = '-';
         const commit = scope => {
           const data = { shifts: tfData().shifts, days: state.calDays };
@@ -4604,6 +4738,31 @@
         const all = changed ? TF.sameEntries({ shifts: tfData().shifts, days: state.calDays }, k, i, 'all') : [];
         if (!all.length) { commit('one'); return; }
         tfAskScope(s, tm, all.length, all.filter(x => x.k > k).length, commit);
+      }
+    });
+  }
+  /* v1.63: editar un trayecto desde la línea de tiempo (tocar su franja). kind 'go' = cómo llegas al turno i, 'back' = después
+     del turno i. Se guarda solo en ese día; lo que sea igual que el del turno no se repite en el día y apagarlo deja '-'. */
+  function tfEditTrip(k, i, kind, after) {
+    const list = state.calDays[k] || [], cur = list[i], s = cur && tfShift(cur.sid); if (!s) return;
+    const bk = kind === 'back', kk = bk ? 'bk' : 'go', tm = TF.entryTimes(s, cur), x = bk ? TF.entryReturn(s, cur) : TF.entryTransport(s, cur);
+    const sE = tfShiftE(cur);
+    openModal({
+      title: `${ico('route')} ${esc(t(bk ? 'bkTitle' : 'trTitle'))}`, cls: 'tf-sheet',
+      body: `<div class="stack" style="gap:12px"><p class="muted small" style="margin:0">${esc(tfLong(k))} · ${esc(sE.name)}${tm.start ? ' ' + esc(tm.start + '–' + tm.end) : ''}</p>
+        ${tfTrBox(tfTrStOf(x, { k: kk, depPh: bk ? tm.end || '' : '', hint: t(bk ? 'mtHintBk' : 'mtHintGo') }))}
+        <p class="muted small" style="margin:0">${esc(t('mtDragHint'))}</p></div>`,
+      foot: `<button class="btn" data-tfx="copy">${ico('copy')} ${esc(t('cpCopy'))}</button><button class="btn primary" data-tfx="save">${ico('check')} ${esc(t('save'))}</button>`,
+      onMount: w => tfTrWire(w),
+      onClick: (e, close, w) => {
+        const b = e.target.closest('[data-tfx]'); if (!b) return;
+        const st = tfTrRead(w, kk); if (!tfTrOk(st)) return;
+        if (b.dataset.tfx === 'copy') { if (!st.on) return; tfCopy('trip', { mode: st.mode, dep: st.dep, arr: st.arr, stop: st.stop, more: st.more }, tfTrName(st.mode)); return; }
+        const l = [...(state.calDays[k] || [])], en = l[i]; if (!en || en.sid !== cur.sid) { close(); return; }
+        const next = tfTrStrip(en, kk), sh = s.once ? null : s, has = sh && (bk ? sh.bk : sh.tr);
+        if (st.on) { if (!(sh && tfTrSame(st, sh, kk))) Object.assign(next, tfTrFields(st, kk)); }
+        else if (has) next[bk ? 'bk' : 'tr'] = '-';
+        l[i] = next; tfSetDay(k, l); tfSave(false); sfx('tap'); close(); after ? after() : render();
       }
     });
   }
@@ -4632,8 +4791,8 @@
           <div class="tf-rt-comp">${list.filter(e => e.rt === r.id).map(e => { const s = tfShift(e.sid); if (!s) return ''; const tm = TF.entryTimes(s, e); return `<span class="tf-rt-row">${tfTag(s)}<span class="muted small">${tm.start ? esc(tm.start + '–' + tm.end) : esc(t('tfAllDay'))}</span></span>`; }).join('')}</div></div>`).join('')}
         ${list.map((e, i) => { const s = tfShiftE(e); if (!s) return ''; return tfEntryRow(s, e, i, list); }).join('')}
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfDkTitle'))}</h3><div class="row wrap" style="gap:6px">${tfDayKinds().map(d => `<button class="tf-pal" data-tfd-dk="${esc(d.id)}" aria-pressed="${tfDkIds(k).includes(d.id)}">${tfDkTag(d, 'big')}</button>`).join('')}</div>
-        <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button class="tf-pal" data-tfd-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}<button class="chip" data-tfd="once-new">${ico('plus')} ${esc(t('tfOnceNew'))}</button></div>
-        <h3 class="section-title" style="margin:4px 0 0">${ico('doc', 'xs')} ${esc(t('tfNotes27'))}</h3><div class="stack" style="gap:6px">${tfGaps(k).map((g, j) => `<button type="button" class="tf-all-note tf-note-row" data-tfd-gap="${j}" style="${tfNoteStyle(g)}">${tfNoteIco(g)} <span class="grow"><b>${g.a ? `${esc(g.a)}–${esc(g.b)}` : esc(t('tfAllDay'))}</b> ${esc(g.t)}</span>${ico('edit', 'xs')}</button>`).join('')}<div class="row wrap" style="gap:6px"><button class="chip" data-tfd="gap-new">${ico('plus')} ${esc(t('tfGapNew'))}</button>${tfTplsQuick().map(p => tfTplChip(p, `data-tfd-tp="${esc(p.id)}"`)).join('')}</div></div>
+        <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button class="tf-pal" data-tfd-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}<button class="chip" data-tfd="once-new">${ico('plus')} ${esc(t('tfOnceNew'))}</button>${tfClip('shift') ? `<button class="chip" data-tfd="paste">${ico('paste')} ${esc(t('cpPasteN', { n: tfClip('shift').label }))}</button>` : ''}</div>
+        <h3 class="section-title" style="margin:4px 0 0">${ico('doc', 'xs')} ${esc(t('tfNotes27'))}</h3><div class="stack" style="gap:6px">${tfGaps(k).map((g, j) => `<button type="button" class="tf-all-note tf-note-row" data-tfd-gap="${j}" style="${tfNoteStyle(g)}">${tfNoteIco(g)} <span class="grow"><b>${g.a ? `${esc(g.a)}–${esc(g.b)}` : esc(t('tfAllDay'))}</b> ${esc(g.t)}</span>${ico('edit', 'xs')}</button>`).join('')}<div class="row wrap" style="gap:6px"><button class="chip" data-tfd="gap-new">${ico('plus')} ${esc(t('tfGapNew'))}</button>${tfClip('note') ? `<button class="chip" data-tfd="paste">${ico('paste')} ${esc(t('cpPasteN', { n: tfClip('note').label }))}</button>` : ''}${tfTplsQuick().map(p => tfTplChip(p, `data-tfd-tp="${esc(p.id)}"`)).join('')}</div></div>
         <h3 class="section-title" style="margin:4px 0 0">${ico('sparkle', 'xs')} ${esc(t('rateTitle'))}</h3>${rateRowHtml(k)}
         ${list.some(e => tfShift(e.sid) && !tfShift(e.sid).once) ? `<div><button class="chip" data-tfd="save-rt">${ico('layers')} ${esc(t('rtrSaveDay'))}</button></div>` : ''}
         ${state.calRoutines.some(r => r.kind === 'day') ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('tfRtQuick'))}</h3><div class="tf-rt-quick">${state.calRoutines.filter(r => r.kind === 'day').map(r => `<button class="chip" data-tfd-rt="${esc(r.id)}">${ico('layers')} ${esc(r.name)}</button>`).join('')}</div>` : ''}
@@ -4664,6 +4823,7 @@
         const rb = e.target.closest('[data-drate]');
         if (rb) { setDayRate(k, +rb.dataset.drate); sfx('tap'); draw(); return; }
         if (e.target.closest('[data-tfd="once-new"]')) { tfOnceEditor(k, -1, draw); return; }
+        if (e.target.closest('[data-tfd="paste"]')) { tfPaste(k, null, draw); return; }
         if (e.target.closest('[data-tfd="gap-new"]')) { tfGapNote(k, -1, tfFreeSlot(k, new Date().getHours() * 60 + 60), draw); return; }
         const tpb = e.target.closest('[data-tfd-tp]');
         if (tpb) { tfTplNote(k, -1, tpb.dataset.tfdTp, null, draw); return; }
@@ -4674,7 +4834,7 @@
         const oe = e.target.closest('[data-tfd="once-edit"]');
         if (oe) { tfOnceEditor(k, +oe.closest('[data-i]').dataset.i, draw); return; }
         if (e.target.closest('[data-tfd="save-rt"]')) {
-          const K = ['start', 'end', 'tr', 'trDep', 'trArr', 'bk', 'bkDep', 'bkArr', 'bkTo'];
+          const K = ['start', 'end', 'tr', 'trDep', 'trArr', 'trS', 'trL', 'bk', 'bkDep', 'bkArr', 'bkTo', 'bkS', 'bkL'];
           const day = tfSorted([...(state.calDays[k] || [])]).filter(x => state.calShifts.some(s => s.id === x.sid)).map(x => { const o = { sid: x.sid }; K.forEach(f => { if (x[f]) o[f] = x[f]; }); return o; });
           tfEditRoutine(null, { kind: 'day', day }); return;
         }
@@ -4850,9 +5010,9 @@
   const TF_PL_MAX = 60;
   const tfPlUses = id => state.calShifts.filter(s => s.placeId === id).length;
   // noOnce: sin «Lugar puntual» (en la plantilla del turno no tiene sentido). plx: la dirección puntual elegida (valor '*')
-  const tfPlSelHtml = (attr, val, same, plx, noOnce) => tfSel(`${attr} data-tf-plsel ${noOnce ? 'data-noonce="1"' : ''} data-plx="${esc(plx || '')}" data-prev="${esc(plx && !noOnce ? '*' : val || '')}"`, [...(same ? [['', same]] : []), [same ? '-' : '', t('tfPlNone')], ...state.calPlaces.map(p => [p.id, (p.icon ? p.icon + ' ' : '') + p.name]), ...(noOnce ? [] : [['*', plx ? t('tfPlOnceT') + ': ' + plx : t('tfPlOnce')]]), ['+', t('tfPlNew')]], plx && !noOnce ? '*' : val);
+  const tfPlSelHtml = (attr, val, same, plx, noOnce) => tfSel(`${attr} data-tf-plsel ${noOnce ? 'data-noonce="1"' : ''} data-plx="${esc(plx || '')}" data-prev="${esc(plx && !noOnce ? '*' : val || '')}"`, [...(same ? [['', same]] : []), [same ? '-' : '', t('tfPlNone')], ...state.calPlaces.map(p => [p.id, (p.icon ? p.icon + ' ' : '') + p.name]), ...(noOnce ? [] : [['*', plx ? t('tfPlOnceT') + ': ' + plx : t('tfPlOnce')], ...(plx ? [['~', t('plxChange')]] : [])]), ['+', t('tfPlNew')]], plx && !noOnce ? '*' : val);
   // Lo elegido en uno de esos desplegables: { pl } (id, '-' o '') o { plx: { addr } }
-  const tfPlRead = sel => sel.value === '*' && sel.dataset.plx ? { plx: { addr: sel.dataset.plx.slice(0, 300) } } : { pl: sel.value === '+' || sel.value === '*' ? '' : sel.value };
+  const tfPlRead = sel => sel.value === '*' && sel.dataset.plx ? { plx: { addr: sel.dataset.plx.slice(0, 300) } } : { pl: ['+', '*', '~'].includes(sel.value) ? '' : sel.value };
   function tfPlOnceAsk(cur, done) {
     let sc = cur ? tfPlxScene(cur) : '';
     openModal({
@@ -4891,13 +5051,15 @@
   // En un editor: «+ Nuevo lugar» abre el editor de lugares y «Lugar puntual…» pide una dirección solo para esa vez
   const tfPlSelWire = w => w.addEventListener('change', e => {
     const sel = e.target.closest('select[data-tf-plsel]'); if (!sel || e.detail === 'tfpl') return;
-    if (sel.value !== '+' && sel.value !== '*') { sel.dataset.prev = sel.value; return; }
+    if (sel.value !== '+' && sel.value !== '*' && sel.value !== '~') { sel.dataset.prev = sel.value; return; }
+    if (sel.value === '*' && sel.dataset.plx) { sel.dataset.prev = '*'; return; } // volver a la dirección que ya tenía
     const pick = sel.value;
     sel.value = sel.dataset.prev !== undefined ? sel.dataset.prev : (sel.dataset.plx ? '*' : (sel.options[0] && sel.options[0].value) || '');
     const same = sel.querySelector('option[value="-"]') ? sel.options[0].textContent : '';
     const rebuild = (val, plx) => { const tmp = document.createElement('div'); tmp.innerHTML = tfPlSelHtml('', val, same, plx, sel.dataset.noonce === '1'); const n = tmp.firstElementChild; sel.innerHTML = n.innerHTML; sel.dataset.plx = plx || ''; sel.value = plx ? '*' : val; sel.dataset.prev = sel.value; sel.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: 'tfpl' })); };
-    if (pick === '+') tfEditPlace(null, id => rebuild(id, ''));
-    else tfPlOnceAsk(sel.dataset.plx, v => { if (v) rebuild('', v); });
+    if (pick === '+') setTimeout(() => tfEditPlace(null, id => rebuild(id, '')), 220);
+    // v1.63: se abre un poco después para que el toque que cierra el desplegable (iPhone) no caiga en el fondo de la hoja nueva
+    else setTimeout(() => tfPlOnceAsk(sel.dataset.plx, v => { if (v) rebuild('', v); }), 220);
   });
   const tfOpenMaps = p => { const u = KGPlaces.mapUrl(p, tfIsApple()); if (u) window.open(u, '_blank', 'noopener'); };
   // v1.26: un evento de un calendario importado, con su hora y su lugar (si lo tiene)
@@ -5190,24 +5352,84 @@
   const tfHome = () => state.calPlaces.find(p => p.scene === 'home') || state.calPlaces.find(p => /^(casa|home|mi casa)$/i.test(String(p.name || '').trim()));
   const tfBkToName = to => to === '>' ? t('bkToNext') : to && tfPlace(to) ? tfPlace(to).name : (tfHome() || { name: t('bkHome') }).name;
   const tfBkToSel = to => { const h = tfHome(); return tfSel('data-tftr-to', [['', h && NT.keyOf(h.name) !== NT.keyOf(t('bkHome')) ? `${t('bkHome')} (${h.name})` : t('bkHome')], ['>', t('bkToNextOpt')], ...state.calPlaces.filter(p => p !== h).map(p => [p.id, (p.icon ? p.icon + ' ' : '') + p.name])], to || ''); };
-  const tfTrInner = st => `<label class="row" style="gap:12px"><span class="switch"><input type="checkbox" data-tftr-on ${st.on ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t(st.k === 'bk' ? 'bkTitle' : 'trTitle'))}</b><br><span class="muted small">${esc(st.hint || t(st.k === 'bk' ? 'bkHint' : 'trHint'))}</span></span></label>
-    ${st.on && st.k === 'bk' ? tfField(t('bkTo'), tfBkToSel(st.to), true) : ''}
-    ${st.on ? `<div class="tf-tr-modes" role="group" aria-label="${esc(t(st.k === 'bk' ? 'bkTitle' : 'trTitle'))}">${TF_TR.map(m => `<button type="button" class="tf-tr-m" data-tftr-m="${m}" aria-pressed="${st.mode === m}">${ico(lwTrIco(m))}<span>${esc(tfTrName(m))}</span></button>`).join('')}</div>
-    <div class="tf-form">${tfField(t('trDep'), `<input class="input" type="time" data-tftr-dep value="${esc(st.dep || '')}" ${st.depPh ? `placeholder="${esc(st.depPh)}"` : ''}>`)}${tfField(t('trArr'), `<input class="input" type="time" data-tftr-arr value="${esc(st.arr || '')}">`)}</div>${st.depPh && !st.dep ? `<p class="muted small" style="margin:0">${esc(t('bkDepDef', { h: st.depPh }))}</p>` : ''}` : ''}`;
-  const tfTrBox = st => `<div class="tf-tr stack" data-tftr="${st.k || 'go'}" data-mode="${esc(st.mode || '')}" data-dep="${esc(st.dep || '')}" data-arr="${esc(st.arr || '')}" data-to="${esc(st.to || '')}" data-dep-ph="${esc(st.depPh || '')}" data-hint="${esc(st.hint || '')}" style="gap:10px">${tfTrInner(st)}</div>`;
-  const tfTrRead = (w, k = 'go') => { const b = $(`[data-tftr="${k}"]`, w); if (!b) return null; const on = !!($('[data-tftr-on]', b) || {}).checked, to = $('[data-tftr-to]', b); return { on, mode: b.dataset.mode || '', dep: on ? ($('[data-tftr-dep]', b) || {}).value || '' : '', arr: on ? ($('[data-tftr-arr]', b) || {}).value || '' : '', to: on && to ? to.value : '' }; };
+  /* v1.63: varios tramos en un trayecto (p. ej. dos guaguas). st = { k, on, mode, dep, arr, to, stop, more: [{ mode, dep, arr, stop }] }.
+     El estado vive en data-st (JSON) de la caja; tfTrSync copia lo escrito antes de volver a pintarla. Cada tramo menos el último
+     tiene «Hasta» (la parada donde bajas); el último llega al turno (ida) o al destino elegido (después del turno). */
+  const tfTrSt = b => { try { return JSON.parse(b.dataset.st || '{}'); } catch (e) { return {}; } };
+  function tfTrSync(b) {
+    const st = tfTrSt(b), legs = $$('[data-leg]', b);
+    st.more = st.more || [];
+    legs.forEach(L => {
+      const j = +L.dataset.leg, o = j ? st.more[j - 1] : st; if (!o) return;
+      const v = sel => { const x = $(sel, L); return x ? x.value : undefined; };
+      const d = v('[data-tftr-dep]'), a = v('[data-tftr-arr]'), sp = v('[data-tftr-stop]');
+      if (d !== undefined) o.dep = d; if (a !== undefined) o.arr = a; if (sp !== undefined) o.stop = sp.trim().slice(0, 60);
+    });
+    const to = $('[data-tftr-to]', b); if (to) st.to = to.value;
+    b.dataset.st = JSON.stringify(st); return st;
+  }
+  const tfTrStops = () => [...new Set(state.calPlaces.map(p => p.name).filter(Boolean))];
+  function tfTrLeg(st, j, n) {
+    const o = j ? st.more[j - 1] : st, last = j === n - 1, bk = st.k === 'bk';
+    const end = last ? (bk ? tfField(t('bkTo'), tfBkToSel(st.to), true) : `<p class="muted small" style="margin:0">${ico('flag', 'xs')} ${esc(t('mtToShift'))}</p>`)
+      : tfField(t('mtStop'), `<input class="input" data-tftr-stop maxlength="60" list="tfstops-${st.k || 'go'}" value="${esc(o.stop || '')}" placeholder="${esc(t('mtStopPh'))}" autocomplete="off">`, true);
+    const ph = !j && st.depPh ? st.depPh : '';
+    return `<div class="tf-tr-leg stack ${n > 1 ? 'multi' : ''}" data-leg="${j}" style="gap:8px">${n > 1 ? `<div class="row" style="justify-content:space-between;gap:8px"><b class="small">${esc(t('mtLegN', { n: j + 1 }))}</b>${j ? `<button type="button" class="icon-btn sm danger-text" data-tftr-rm="${j}" aria-label="${esc(t('mtLegRm'))}">${ico('x')}</button>` : ''}</div>` : ''}
+      <div class="tf-tr-modes" role="group" aria-label="${esc(t(bk ? 'bkTitle' : 'trTitle'))}">${TF_TR.map(m => `<button type="button" class="tf-tr-m" data-tftr-m="${m}" data-leg-m="${j}" aria-pressed="${o.mode === m}">${ico(lwTrIco(m))}<span>${esc(tfTrName(m))}</span></button>`).join('')}</div>
+      <div class="tf-form">${tfField(t('trDep'), `<input class="input" type="time" data-tftr-dep value="${esc(o.dep || '')}" ${ph ? `placeholder="${esc(ph)}"` : ''}>`)}${tfField(t('trArr'), `<input class="input" type="time" data-tftr-arr value="${esc(o.arr || '')}">`)}</div>
+      ${ph && !o.dep ? `<p class="muted small" style="margin:0">${esc(t('bkDepDef', { h: ph }))}</p>` : ''}${end}</div>`;
+  }
+  const tfTrInner = st => {
+    const n = 1 + (st.more || []).length, paste = tfClip('trip') ? `<button type="button" class="chip sm" data-tftr-paste>${ico('paste', 'xs')} ${esc(t('cpPasteTrip'))}</button>` : '';
+    return `<label class="row" style="gap:12px"><span class="switch"><input type="checkbox" data-tftr-on ${st.on ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t(st.k === 'bk' ? 'bkTitle' : 'trTitle'))}</b><br><span class="muted small">${esc(st.hint || t(st.k === 'bk' ? 'bkHint' : 'trHint'))}</span></span></label>
+    ${st.on ? `${Array.from({ length: n }, (_, j) => tfTrLeg(st, j, n)).join('<i class="tf-tr-join" aria-hidden="true"></i>')}
+    <datalist id="tfstops-${st.k || 'go'}">${tfTrStops().map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
+    <div class="row wrap" style="gap:6px">${n < TF.LEGS_MAX + 1 ? `<button type="button" class="chip sm" data-tftr-add>${ico('plus', 'xs')} ${esc(t('mtAdd'))}</button>` : ''}<button type="button" class="chip sm" data-tftr-copy>${ico('copy', 'xs')} ${esc(t('cpCopy'))}</button>${paste}</div>` : (paste ? `<div>${paste}</div>` : '')}`;
+  };
+  const tfTrBox = st => { const x = { ...st, k: st.k || 'go', more: st.more || [] }; return `<div class="tf-tr stack" data-tftr="${x.k}" data-st="${esc(JSON.stringify(x))}" style="gap:10px">${tfTrInner(x)}</div>`; };
+  // Lo que hay en la caja (con todos sus tramos). Vacío si está apagada.
+  const tfTrRead = (w, k = 'go') => { const b = $(`[data-tftr="${k}"]`, w); if (!b) return null; const st = tfTrSync(b), on = !!($('[data-tftr-on]', b) || {}).checked; return { on, mode: st.mode || '', dep: on ? st.dep || '' : '', arr: on ? st.arr || '' : '', to: on ? st.to || '' : '', stop: on ? st.stop || '' : '', more: on ? (st.more || []) : [] }; };
+  const tfTrDraw = (b, st) => { b.dataset.st = JSON.stringify(st); b.innerHTML = tfTrInner(st); };
+  // st desde lo guardado (x = TF.entryTransport / TF.entryReturn, o null)
+  const tfTrStOf = (x, extra) => ({ on: !!x, mode: x ? x.mode : '', dep: x ? x.dep : '', arr: x ? x.arr : '', to: (x && x.to) || '', stop: (x && x.stop) || '', more: x && x.more ? x.more.map(l => ({ ...l })) : [], ...(extra || {}) });
+  // Campos que se guardan (en la entrada del día, en el turno o en un turno puntual)
+  const TF_TR_KEYS = { go: ['tr', 'trDep', 'trArr', 'trS', 'trL'], bk: ['bk', 'bkDep', 'bkArr', 'bkTo', 'bkS', 'bkL'] };
+  function tfTrFields(st, k) {
+    if (!st || !st.on) return {};
+    const bk = k === 'bk', o = { [bk ? 'bk' : 'tr']: st.mode };
+    if (st.dep) o[bk ? 'bkDep' : 'trDep'] = st.dep; if (st.arr) o[bk ? 'bkArr' : 'trArr'] = st.arr;
+    if (bk && st.to) o.bkTo = st.to;
+    const L = (st.more || []).filter(l => TF_TR.includes(l.mode)).map(l => ({ m: l.mode, ...(l.dep ? { d: l.dep } : {}), ...(l.arr ? { a: l.arr } : {}), ...(l.stop ? { s: l.stop } : {}) }));
+    if (L.length) { o[bk ? 'bkL' : 'trL'] = L; if (st.stop) o[bk ? 'bkS' : 'trS'] = st.stop; }
+    return o;
+  }
+  const tfTrStrip = (x, k) => { const o = { ...x }; (k ? TF_TR_KEYS[k] : [...TF_TR_KEYS.go, ...TF_TR_KEYS.bk]).forEach(f => delete o[f]); return o; };
+  // ¿Lo de la caja es igual que lo que trae el turno? (entonces no se guarda nada en el día)
+  const tfTrSame = (st, s, k) => JSON.stringify(tfTrFields(st, k)) === JSON.stringify(tfTrFields(tfTrStOf(k === 'bk' ? TF.entryReturn(null, s) : TF.entryTransport(null, s)), k));
   function tfTrWire(w) {
     w.addEventListener('change', e => {
-      if (e.target.matches('[data-tftr-to]')) { e.target.closest('[data-tftr]').dataset.to = e.target.value; return; }
+      if (e.target.matches('[data-tftr-to]')) { tfTrSync(e.target.closest('[data-tftr]')); return; }
       if (!e.target.matches('[data-tftr-on]')) return;
-      const b = e.target.closest('[data-tftr]'), dep = $('[data-tftr-dep]', b), arr = $('[data-tftr-arr]', b);
-      if (dep) b.dataset.dep = dep.value; if (arr) b.dataset.arr = arr.value;
-      b.innerHTML = tfTrInner({ k: b.dataset.tftr, on: e.target.checked, mode: b.dataset.mode, dep: b.dataset.dep, arr: b.dataset.arr, to: b.dataset.to, depPh: b.dataset.depPh, hint: b.dataset.hint });
+      const b = e.target.closest('[data-tftr]'), st = tfTrSync(b); st.on = e.target.checked; tfTrDraw(b, st);
     });
-    w.addEventListener('click', e => { const m = e.target.closest('[data-tftr-m]'); if (!m) return; const b = m.closest('[data-tftr]'); b.dataset.mode = m.dataset.tftrM; $$('[data-tftr-m]', b).forEach(x => x.setAttribute('aria-pressed', String(x === m))); sfx('tap'); });
+    w.addEventListener('click', e => {
+      const b = e.target.closest('[data-tftr]'); if (!b) return;
+      const m = e.target.closest('[data-tftr-m]');
+      if (m) { const st = tfTrSync(b), j = +m.dataset.legM || 0, o = j ? st.more[j - 1] : st; if (!o) return; o.mode = m.dataset.tftrM; b.dataset.st = JSON.stringify(st); $$(`[data-leg-m="${j}"]`, b).forEach(x => x.setAttribute('aria-pressed', String(x === m))); sfx('tap'); return; }
+      if (e.target.closest('[data-tftr-add]')) {
+        const st = tfTrSync(b), last = st.more.length ? st.more[st.more.length - 1] : st;
+        st.more.push({ mode: last.mode || '', dep: last.arr || '', arr: '', stop: '' }); tfTrDraw(b, st); sfx('tap');
+        const L = $$('[data-leg]', b), x = L[L.length - 2] && $('[data-tftr-stop]', L[L.length - 2]); if (x && !x.value) x.focus();
+        return;
+      }
+      const rm = e.target.closest('[data-tftr-rm]');
+      if (rm) { const st = tfTrSync(b); st.more.splice(+rm.dataset.tftrRm - 1, 1); if (!st.more.length) st.stop = ''; tfTrDraw(b, st); sfx('tap'); return; }
+      if (e.target.closest('[data-tftr-copy]')) { const st = tfTrSync(b); if (!tfTrOk({ ...st, on: true })) return; tfCopy('trip', { mode: st.mode, dep: st.dep, arr: st.arr, stop: st.stop, more: st.more }, tfTrName(st.mode)); tfTrDraw(b, st); return; }
+      if (e.target.closest('[data-tftr-paste]')) { const c = tfClip('trip'); if (!c) return; const st = tfTrSync(b); tfTrDraw(b, { ...st, on: true, mode: c.data.mode, dep: c.data.dep || '', arr: c.data.arr || '', stop: c.data.stop || '', more: (c.data.more || []).map(l => ({ ...l })) }); sfx('tap'); toast(t('cpPasted')); }
+    });
   }
-  // Con el interruptor encendido hace falta elegir un medio
-  const tfTrOk = st => { if (st && st.on && !TF_TR.includes(st.mode)) { toast(t('trNeedMode')); return false; } return true; };
+  // Con el interruptor encendido hace falta elegir un medio (en cada tramo)
+  const tfTrOk = st => { if (st && st.on && (!TF_TR.includes(st.mode) || (st.more || []).some(l => !TF_TR.includes(l.mode)))) { toast(t('trNeedMode')); return false; } return true; };
   function tfEditShift(s) {
     const isNew = !s, d = s ? { ...s } : { id: TF.uid(), jobId: state.calJobs[0].id, name: '', emoji: '', color: '#4f6bed', kind: 'work', start: '09:00', end: '17:00', breakMin: 0, alarmMin: 0 };
     openModal({
@@ -5219,8 +5441,8 @@
         <label class="row full" style="gap:12px;grid-column:1/-1"><span class="switch"><input type="checkbox" id="tfe-ask" ${d.ask ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('askOn'))}</b><br><span class="muted small">${esc(t('askOnHint'))}</span></span></label>
         ${tfField(t('tfStart'), `<input class="input" type="time" id="tfe-start" value="${esc(d.start)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="tfe-end" value="${esc(d.end)}">`)}
         ${tfField(t('tfAlarm'), `<input class="input" type="number" id="tfe-alarm" min="0" max="1440" value="${d.alarmMin}">`)}</div>
-        <div style="margin-top:14px">${tfTrBox({ on: !!d.tr, mode: d.tr || '', dep: d.trDep || '', arr: d.trArr || '', hint: t('trHintShift') })}</div>
-        <div style="margin-top:14px">${tfTrBox({ k: 'bk', on: !!d.bk, mode: d.bk || '', dep: d.bkDep || '', arr: d.bkArr || '', to: d.bkTo || '', depPh: d.end || '', hint: t('bkHintShift') })}</div>`,
+        <div style="margin-top:14px">${tfTrBox(tfTrStOf(TF.entryTransport(null, d), { hint: t('trHintShift') }))}</div>
+        <div style="margin-top:14px">${tfTrBox(tfTrStOf(TF.entryReturn(null, d), { k: 'bk', depPh: d.end || '', hint: t('bkHintShift') }))}</div>`,
       foot: `${isNew ? '' : `<button class="btn danger" data-tfe="del">${ico('trash')} ${esc(t('delete'))}</button>`}<button class="btn primary" data-tfe="save">${esc(t('save'))}</button>`,
       onMount: w => { tfPlSelWire(w); tfTrWire(w); },
       onClick: async (e, close, w) => {
@@ -5238,10 +5460,9 @@
         const tr = tfTrRead(w), bk = tfTrRead(w, 'bk'); if (!tfTrOk(tr) || !tfTrOk(bk)) return;
         Object.assign(d, { name: name.slice(0, 100), emoji: v('tfe-emoji').trim().slice(0, 8), color: tfColor(v('tfe-color')), jobId: state.calJobs[0].id, start: v('tfe-start'), end: v('tfe-end'),
           breakMin: 0, alarmMin: clamp(+v('tfe-alarm') || 0, 0, 1440) });
-        delete d.diffPct; delete d.rateMode; delete d.rateV; delete d.tr; delete d.trDep; delete d.trArr;
-        if (tr && tr.on) { d.tr = tr.mode; if (tr.dep) d.trDep = tr.dep; if (tr.arr) d.trArr = tr.arr; }
-        delete d.bk; delete d.bkDep; delete d.bkArr; delete d.bkTo;
-        if (bk && bk.on) { d.bk = bk.mode; if (bk.dep) d.bkDep = bk.dep; if (bk.arr) d.bkArr = bk.arr; if (bk.to) d.bkTo = bk.to; }
+        delete d.diffPct; delete d.rateMode; delete d.rateV;
+        TF_TR_KEYS.go.concat(TF_TR_KEYS.bk).forEach(f => delete d[f]);
+        Object.assign(d, tfTrFields(tr, 'go'), tfTrFields(bk, 'bk'));
         const pl = v('tfe-place'); if (tfPlace(pl)) d.placeId = pl; else delete d.placeId;
         const np = v('tfe-ntp'); if (tfTpl(np)) d.ntp = np; else delete d.ntp;
         if ($('#tfe-ask', w).checked) d.ask = true; else delete d.ask;
@@ -5347,6 +5568,9 @@
     if (xm) { tfOpenMaps(tfPlace(xm.dataset.pl) || { addr: xm.dataset.tfExtmap }); return true; }
     const more = e.target.closest('[data-tf-more]');
     if (more) { e.preventDefault(); tfSeeAll(more.dataset.tfMore); return true; }
+    // v1.63: tocar un trayecto lo abre para editarlo
+    const trp = e.target.closest('[data-tf-trip]');
+    if (trp && !TFS.quick && !TFS.cut && e.detail !== 0) { tfEditTrip(trp.dataset.tfTrip, +trp.dataset.i, trp.dataset.kind, () => render()); return true; }
     // v1.39: tocar un turno en Día o Semana lo abre para editarlo
     const ent = e.target.closest('[data-tf-ent]');
     if (ent && TFS.cut && !TFS.quick) { if (Date.now() - (TFS.cutSkip || 0) < 600) return true; tfCutAt(ent, e.clientY); return true; }
@@ -7680,7 +7904,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.63', [['1.63.0', 7]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -15387,8 +15611,10 @@
       if (dur && wrap.isConnected) { wrap.classList.add('out'); setTimeout(finish, dur); } else finish();
     };
     document.addEventListener('keydown', onKey);
+    // v1.63: un toque que llega justo al abrir (p. ej. el que cierra un desplegable en iPhone) no cierra la hoja por el fondo
+    const born = Date.now();
     wrap.addEventListener('click', e => {
-      if (e.target === wrap && dismissable) return tryClose();
+      if (e.target === wrap && dismissable) return Date.now() - born < 400 ? undefined : tryClose();
       if (e.target.closest('[data-m="x"]')) return tryClose();
       onClick && onClick(e, close, wrap);
     });

@@ -265,3 +265,31 @@ test('v1.57: nombre, icono y color propios de un día', () => {
   assert.strictEqual(a.nm, 'Partido'); assert.strictEqual(a.em, '⚽'); assert.strictEqual(a.co, '#112233');
   assert.ok(!('em' in b) && !('co' in b));
 });
+
+test('v1.63: trayectos con varios tramos (dos guaguas) y mover un trayecto', () => {
+  const s = { id: 'a', start: '07:00', end: '15:00', tr: 'bus', trDep: '06:00', trArr: '06:30' };
+  // El día tiene su propio trayecto con dos tramos: el primero acaba en una parada
+  const e = { sid: 'a', tr: 'bus', trDep: '06:00', trArr: '06:20', trS: 'Intercambiador', trL: [{ m: 'bus', d: '06:30', a: '06:50' }] };
+  const go = T.dayLegs([e], { a: s }).filter((l) => l.kind === 'go');
+  assert.strictEqual(go.length, 2);
+  assert.deepStrictEqual(go.map((l) => [l.seg, l.mode, l.dep, l.arr, l.stop]), [[0, 'bus', '06:00', '06:20', 'Intercambiador'], [1, 'bus', '06:30', '06:50', '']]);
+  // Un tramo sin salida empieza cuando llega el anterior
+  const g2 = T.dayLegs([{ sid: 'a', tr: 'bus', trArr: '06:20', trL: [{ m: 'walk', a: '06:40' }] }], { a: s }).filter((l) => l.kind === 'go');
+  assert.strictEqual(g2[1].dep, '06:20');
+  // Sin tramos propios en el día se usan los del turno
+  const s2 = { ...s, trS: 'Parada', trL: [{ m: 'train', d: '06:35', a: '06:55' }] };
+  assert.strictEqual(T.entryTransport(s2, { sid: 'a' }).more.length, 1);
+  // …pero si el día pone su propio medio, sus tramos (aunque no tenga) mandan
+  assert.strictEqual(T.entryTransport(s2, { sid: 'a', tr: 'car' }).more, undefined);
+  // sanitize guarda tramos válidos y quita los que no tienen medio
+  const san = T.sanitize({ jobs: [{ id: 'j', name: 'T' }], shifts: [{ id: 'a', jobId: 'j', name: 'A', start: '07:00', end: '15:00' }], days: { '2026-11-17': [{ sid: 'a', tr: 'bus', trS: 'X', trL: [{ m: 'nave' }, { m: 'bus', d: '06:30', a: 'mal' }] }] } });
+  assert.deepStrictEqual(san.days['2026-11-17'][0].trL, [{ m: 'bus', d: '06:30' }]);
+  assert.strictEqual(san.days['2026-11-17'][0].trS, 'X');
+  // Mover el trayecto: todos los tramos a la vez y queda guardado en el día
+  const mv = T.moveTrip(s, e, 'go', -10);
+  assert.deepStrictEqual([mv.trDep, mv.trArr, mv.trL[0].d, mv.trL[0].a, mv.trS], ['05:50', '06:10', '06:20', '06:40', 'Intercambiador']);
+  // El de después sin salida sale al acabar el turno; al moverlo se guarda la salida
+  const bk = T.moveTrip({ ...s, bk: 'walk' }, { sid: 'a' }, 'back', 30, '15:00');
+  assert.deepStrictEqual([bk.bk, bk.bkDep], ['walk', '15:30']);
+  assert.strictEqual(T.moveTrip(s, { sid: 'a', tr: '-' }, 'go', 5), null);
+});
