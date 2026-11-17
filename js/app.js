@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.63.0';
+  const VERSION = '1.63.1';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -2693,7 +2693,7 @@
   function gyMoveNotes(w) {
     const a = w.start ? gyHM(w.start) : '', b = w.end ? gyHM(w.end) : '';
     for (const [k, g] of gyNotes(w.id)) {
-      const n = { ...g, ...(g.a && a && b ? { a, b: b < a ? '23:59' : b } : {}) };
+      const n = { ...g, ...(g.a && a && b ? { a, b } : {}) };
       tfSetGaps(k, tfGaps(k).filter(x => x !== g));
       tfSetGaps(w.date, [...tfGaps(w.date), n]);
     }
@@ -3104,7 +3104,7 @@
       $$('[data-gyc-r]', w2).forEach(el => { const v = String(el.value).replace(',', '.').trim(); if (v === '') delete f.res[el.dataset.gycR]; else f.res[el.dataset.gycR] = +v; });
     };
     const refreshNotes = () => { const n = wref && $('#gyc-notes', wref); if (n) n.innerHTML = notesHtml(); };
-    const pre = () => ({ a: f.a, b: f.b < f.a ? '23:59' : f.b, wid: w.id });
+    const pre = () => ({ a: f.a, b: f.b, wid: w.id });
     openModal({
       title: esc(t(mode === 'edit' ? 'spEditT' : 'spCloseT')), cls: 'tf-sheet gyc-sheet', body: '<div id="gyc" class="stack" style="gap:12px"></div>',
       foot: `<button class="btn primary" data-gyc="save">${ico('check')} ${esc(t(mode === 'finish' ? 'gyFinish' : 'save'))}</button>`,
@@ -3344,20 +3344,25 @@
      («Correr - Leer - Ducha»); cada trozo se sigue pudiendo tocar para abrir su nota. Lo mismo en «Todo el día» y dentro de
      un turno. tfNoteRuns(k) → [{ a, b, list: [[nota, índice]] }] (en minutos del día). */
   function tfNoteRuns(k) {
+    // v1.63.1: una nota que acaba antes de empezar (22:30–0:30) pasa de medianoche: aquí llega hasta las 24:00 y el resto sale
+    // al principio del día siguiente (tocarlo abre la nota del día en que empezó)
     const xs = tfGaps(k).map((g, j) => [g, j]).filter(([g]) => g.a && !tfIsEntNote(k, g))
-      .map(([g, j]) => { const a = tfMin(g.a); return { g, j, a, b: Math.max(a + 15, tfMin(g.b || g.a)) }; }).sort((x, y) => x.a - y.a || x.b - y.b);
+      .map(([g, j]) => { const a = tfMin(g.a), b0 = tfMin(g.b || g.a); return { g, j, a, b: b0 < a ? 1440 : Math.max(a + 15, b0) }; });
+    const pk = TF.iso(TF.addDays(TF.parseISO(k), -1));
+    tfGaps(pk).forEach((g, j) => { if (!g.a || !g.b || tfIsEntNote(pk, g)) return; const b = tfMin(g.b); if (b < tfMin(g.a) && b > 0) xs.push({ g, j, a: 0, b: Math.max(15, b), k: pk }); });
+    xs.sort((x, y) => x.a - y.a || x.b - y.b);
     const out = [];
-    for (const x of xs) { const r = out[out.length - 1]; if (r && x.a <= r.b) { r.b = Math.max(r.b, x.b); r.list.push([x.g, x.j]); } else out.push({ a: x.a, b: x.b, list: [[x.g, x.j]] }); }
+    for (const x of xs) { const it = [x.g, x.j, x.k]; const r = out[out.length - 1]; if (r && x.a <= r.b) { r.b = Math.max(r.b, x.b); r.list.push(it); } else out.push({ a: x.a, b: x.b, list: [it] }); }
     return out;
   }
   const tfNotePart = (k, g, j, big, timed) => `<span class="tf-gapn-p" role="button" data-tf-gapn="${k}" data-i="${j}" style="${tfNoteStyle(g)}" title="${esc((g.a ? g.a + '–' + g.b + ' · ' : '') + g.t)}">${tfNoteIco(g)}${big && timed && g.a ? `<b>${esc(g.a)}–${esc(g.b)}</b> ` : ''}${esc(g.t)}</span>`;
-  const tfNoteJoin = (k, list, big, timed) => list.map(([g, j]) => tfNotePart(k, g, j, big, timed)).join('<i class="tf-gapn-sep" aria-hidden="true"> - </i>');
+  const tfNoteJoin = (k, list, big, timed) => list.map(([g, j, gk]) => tfNotePart(gk || k, g, j, big, timed)).join('<i class="tf-gapn-sep" aria-hidden="true"> - </i>');
   // Un bloque de notas: con r (horas) va en la línea de tiempo; sin r, en la casilla de «Todo el día»
   function tfNoteGroup(k, list, r, big) {
     const one = list.length === 1, g0 = list[0][0];
     const pos = r ? `top:calc(var(--ph) * ${+(r.a / 60).toFixed(4)});height:calc(var(--ph) * ${+((r.b - r.a) / 60).toFixed(4)});` : '';
     // Con una sola nota, todo el bloque abre la nota (como antes); con varias, cada trozo abre la suya
-    return `<span class="tf-gapn ${r ? '' : 'tf-gapn-all'} ${one ? '' : 'multi'}" ${one ? `role="button" data-tf-gapn="${k}" data-i="${list[0][1]}"` : ''} style="${pos}${tfNoteStyle(g0)}"><span>${tfNoteJoin(k, list, big, !!r)}</span></span>`;
+    return `<span class="tf-gapn ${r ? '' : 'tf-gapn-all'} ${one ? '' : 'multi'}" ${one ? `role="button" data-tf-gapn="${list[0][2] || k}" data-i="${list[0][1]}"` : ''} style="${pos}${tfNoteStyle(g0)}"><span>${tfNoteJoin(k, list, big, !!r)}</span></span>`;
   }
   // Fondo de una columna con los colores del día: 1 color entero, 2 o 3 en franjas verticales
   function tfColTint(cs) {
@@ -4049,7 +4054,7 @@
           let a = $('#tfg-a', w).value, z = $('#tfg-b', w).value; const txt = $('#tfg-t', w).value.trim().slice(0, TF.LIMITS.note);
           if (!a || !z) { toast(t('tfBothTimes')); return; }
           if (!txt) { toast(t('tfGapNeed')); return; }
-          if (z < a) [a, z] = [z, a];
+          if (z === a) { toast(t('tfSameTimes')); return; } // v1.63.1: si acaba antes de empezar, pasa de medianoche
           const n = { a, b: z, t: txt, ...(cur && cur.src ? { src: cur.src } : {}) }; if (i >= 0) l[i] = n; else l.push(n);
         }
         tfSetGaps(k, l); tfSave(); sfx('tap'); close(); after && after();
@@ -4163,7 +4168,7 @@
         const vals = NT.sanitizeVals(p, v), x = String(st.x || '').trim().slice(0, NT.LIM.extra);
         if (!Object.keys(vals).length && !x) { toast(t('ntNeed')); return; }
         let a = '', z = '';
-        if (!st.allDay) { a = st.a; z = st.b; if (!a || !z) { toast(t('tfBothTimes')); return; } if (z < a) [a, z] = [z, a]; }
+        if (!st.allDay) { a = st.a; z = st.b; if (!a || !z) { toast(t('tfBothTimes')); return; } if (z === a) { toast(t('tfSameTimes')); return; } }
         // Meta del progreso (p. ej. páginas del libro) y si con esta nota se llega
         let fin = null;
         if (false) {
@@ -4565,7 +4570,7 @@
       return;
     }
     const g = { ...c.data.g }; delete g.sid; delete g.src;
-    if (g.a && m != null) { const d = Math.max(5, tfMin(g.b || g.a) - tfMin(g.a)); g.a = tfHm(m); g.b = tfHm(Math.min(1439, m + d)); }
+    if (g.a && m != null) { let d = tfMin(g.b || g.a) - tfMin(g.a); if (d < 0) d += 1440; d = Math.max(5, d); g.a = tfHm(m); g.b = tfHm((m + d) % 1440); }
     tfSetGaps(k, [...tfGaps(k), g]); tfSave(); sfx('tap'); toast(t('cpPasted')); requestAnimationFrame(() => tfRipple(k)); after && after();
   }
   // Turno puntual: nuevo (i = -1) o editar el de la posición i del día
@@ -7904,7 +7909,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.63', [['1.63.0', 7]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.63', [['1.63.0', 7], ['1.63.1', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
