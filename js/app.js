@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.63.2';
+  const VERSION = '1.64.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -3829,7 +3829,8 @@
       if (box.scrollHeight > box.clientHeight + 2) { c.classList.add('over'); c.insertAdjacentHTML('beforeend', `<span class="tf-more" role="button" tabindex="0" data-tf-more="${esc(c.dataset.tfDay)}">${esc(t('tfSeeMore'))}</span>`); }
     });
   }
-  function tfSeeAll(k) {
+  // v1.64: lo que hay en un día de Organización (turnos, rutinas, compañeros, eventos, notas, tipo de día), también para la valoración
+  function tfDaySumHtml(k, withRate = true) {
     const list = tfSorted(state.calDays[k] || []), shown = tfShown(), ext = tfData().ext.filter(e => e.date === k), dks = tfDksOf(k), evs = tfEvDays('org')[k] || [];
     const row = (tag, sub) => `<div class="tf-all-row">${tag}${sub ? `<span class="muted small">${esc(sub)}</span>` : ''}</div>`;
     const times = (s, e) => { const tm = TF.entryTimes(s, e); return tm.start ? `${tm.start}${tm.end ? '–' + tm.end : ''}` : ''; };
@@ -3844,10 +3845,13 @@
     for (const e of ext) rows.push(row(`<span class="tf-tag" style="--c:#888">${ico('calendar', 'xs')} <span class="tn">${esc(e.title)}</span>${(p => p && p.id ? tfPlBadge(p) : '')(tfExtPl(e))}</span>`, [tfExtTime(e), (tfExtPl(e) || {}).addr].filter(Boolean).join(' · ')));
     for (const g of tfGaps(k)) rows.push(`<div class="tf-all-note" style="${tfNoteStyle(g)}">${tfNoteIco(g)} <span>${g.a ? `<b>${esc(g.a)}–${esc(g.b)}</b> ` : ''}${esc(g.t)}</span></div>`);
     const rv = dayRateOf(k);
-    if (rv != null) rows.push(`<div class="row" style="gap:8px"><span class="muted small">${esc(t('rateTitle'))}</span><b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b></div>`);
+    if (withRate && rv != null) rows.push(`<div class="row" style="gap:8px"><span class="muted small">${esc(t('rateTitle'))}</span><b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b></div>`);
+    return { empty: !rows.length && !dks.length && !evs.length, html: `${dks.length || evs.length ? `<div class="row wrap" style="gap:6px;margin-bottom:10px">${dks.map(dk => `<span class="chip sm"><i class="dk-dot" style="background:${tfColor(dk.color)}"></i> ${esc(tfDkName(dk))}</span>`).join('')}${evs.map(v => `<span class="chip sm"><i class="dk-dot" style="background:${tfColor(v.paint.color)}"></i> ${esc(v.name)}</span>`).join('')}</div>` : ''}<div class="stack tf-all" style="gap:8px">${rows.join('') || `<p class="muted">${esc(t('tfNoDayShifts'))}</p>`}</div>` };
+  }
+  function tfSeeAll(k) {
     openModal({
       title: esc(tfLong(k)),
-      body: `${dks.length || evs.length ? `<div class="row wrap" style="gap:6px;margin-bottom:10px">${dks.map(dk => `<span class="chip sm"><i class="dk-dot" style="background:${tfColor(dk.color)}"></i> ${esc(tfDkName(dk))}</span>`).join('')}${evs.map(v => `<span class="chip sm"><i class="dk-dot" style="background:${tfColor(v.paint.color)}"></i> ${esc(v.name)}</span>`).join('')}</div>` : ''}<div class="stack tf-all" style="gap:8px">${rows.join('') || `<p class="muted">${esc(t('tfNoDayShifts'))}</p>`}</div>`,
+      body: tfDaySumHtml(k).html,
       foot: `<button class="btn primary block" data-tfa="edit">${ico('edit')} ${esc(t('tfEditDay'))}</button>`,
       onClick: (e, close) => { if (e.target.closest('[data-tfa="edit"]')) { close(); tfOpenDay(k); } }
     });
@@ -4820,7 +4824,7 @@
         ${comp.length ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('tfMates'))}</h3><div class="stack" style="gap:8px">${comp.map(({ f, ids }) => `<div class="tf-item"><b>${esc(f.name)}</b><div class="row wrap grow" style="gap:6px">${ids.map(id => { const s = f.shifts.find(x => x.id === id); return s ? tfTag(s) : ''; }).join('')}</div></div>`).join('')}</div>` : ''}
         ${ext.length ? `<h3 class="section-title" style="margin:4px 0 0">${esc(t('tfExtEvents'))}</h3><div class="stack" style="gap:8px">${ext.map(e => `<div class="tf-item">${ico('calendar', 'xs')} ${tfExtHtml(e)}</div>`).join('')}</div>` : ''}</div>`;
     };
-    openModal({
+    return openModal({
       title: esc(tfLong(k)), body: '<div id="tfd"></div>', cls: 'tf-sheet',
       onMount: w => {
         wref = w; draw(); tfPlSelWire(w);
@@ -7925,7 +7929,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -12628,6 +12632,25 @@
     g.addColorStop(0, hsla(col, .1 + q * .28)); g.addColorStop(1, hsla(col, 0));
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 2.3, 0, Math.PI * 2); ctx.fill();
   }
+  /* v1.64: «Qué hice». Desde la valoración (del día o de la semana) se ve lo apuntado en Organización ese día y se puede
+     editar con el editor completo del día, sin límites; al cerrarlo, el resumen se rehace. */
+  const rdCount = k => (state.calDays[k] || []).length + tfGaps(k).length + tfData().ext.filter(e => e.date === k).length;
+  function rdFill(box, cnt, k) {
+    const r = tfDaySumHtml(k, false), n = rdCount(k);
+    if (box) box.innerHTML = r.empty ? `<p class="muted" style="margin:0">${esc(t('rdNothing'))}</p>` : r.html;
+    if (cnt) cnt.textContent = n ? t(n === 1 ? 'rdDidN1' : 'rdDidN', { n }) : '';
+  }
+  function rdToggle(sum, open) {
+    if (!sum) return;
+    if (open) { sum.hidden = false; if (!reducedMotion() && sum.animate) $('.ri-sum-in', sum).animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.2, .9, .3, 1)' }); return; }
+    if (reducedMotion() || !sum.animate) { sum.hidden = true; return; }
+    $('.ri-sum-in', sum).animate([{ transform: 'none' }, { transform: 'translateY(100%)' }], { duration: 240, easing: 'ease-in' }).onfinish = () => { sum.hidden = true; };
+  }
+  function rdEditDay(k, after) {
+    const h = tfOpenDay(k); if (!h || !h.el) return;
+    const root = $('#modal-root'), mo = new MutationObserver(() => { if (!h.el.isConnected) { mo.disconnect(); after && after(); } });
+    mo.observe(root, { childList: true });
+  }
   function openRateDay(k) {
     const cur = dayRateOf(k);
     let v = cur == null ? 5 : cur, shown = v, raf = 0;
@@ -12639,7 +12662,10 @@
         <div class="ri-mid"><span class="ri-q">${esc(t(k === todayKey() ? 'crownQ' : 'crownQy'))}</span><b class="ri-n" id="ri-n">${v}</b><span class="ri-w" id="ri-w">${esc(t(RATE_WORDS[v]))}</span></div>
         <div class="ri-bot"><input type="range" class="ri-range" id="ri-range" min="0" max="10" step="1" value="${v}" aria-label="${esc(t('rateTitle'))}" aria-valuetext="${v} · ${esc(t(RATE_WORDS[v]))}">
           <div class="ri-ends"><span>${esc(t('rw0'))}</span><span>${esc(t('rw10'))}</span></div>
-          <div class="row" style="gap:10px">${cur != null ? `<button class="btn grow" data-ri="clear">${ico('trash')} ${esc(t('riClear'))}</button>` : ''}<button class="btn primary grow" data-ri="save">${ico('crown')} ${esc(t('crownSave'))}</button></div></div></div>`,
+          <button type="button" class="ri-did" data-ri="did" aria-expanded="false">${ico('checklist')}<span class="grow">${esc(t('rdDid'))}</span><small class="ri-did-n"></small>${ico('right')}</button>
+          <div class="row" style="gap:10px">${cur != null ? `<button class="btn grow" data-ri="clear">${ico('trash')} ${esc(t('riClear'))}</button>` : ''}<button class="btn primary grow" data-ri="save">${ico('crown')} ${esc(t('crownSave'))}</button></div></div>
+        <div class="ri-sum" hidden><div class="ri-sum-in"><div class="ri-sum-h"><b>${esc(t('rdDidT'))}</b><button class="icon-btn sm" data-ri="did-x" aria-label="${esc(t('close'))}">${ico('x')}</button></div><div class="ri-sum-b"></div>
+          <button class="btn block" data-ri="edit">${ico('edit')} ${esc(t('rdEdit'))}</button></div></div></div>`,
       onMount: (w, close) => {
         immersiveIn(w);
         const box = $('.ri', w), cv = $('.ri-cv', w), crown = $('.ri-crown', w), ctx = cv.getContext('2d'), rng = $('#ri-range', w), rm = reducedMotion();
@@ -12669,14 +12695,22 @@
           raf = requestAnimationFrame(frame);
         };
         raf = requestAnimationFrame(frame);
+        w._rdSync = () => { // v1.64: al volver de editar el día, «Qué hice» se rehace y, si cambiaste la nota allí, el deslizador la toma
+          rdFill($('.ri-sum-b', w), $('.ri-did-n', w), k);
+          const r = dayRateOf(k); if (r != null && r !== v) { v = r; rng.value = r; $('#ri-n', w).textContent = r; $('#ri-w', w).textContent = t(RATE_WORDS[r]); }
+        };
+        rdFill($('.ri-sum-b', w), $('.ri-did-n', w), k);
         rng.addEventListener('input', () => {
           const n = +rng.value; if (n === v) return; const up = n > v; v = n; vibrate(n >= 8 && up ? [6, 20, 6] : 6); sfx(n === 10 && up ? 'perfect' : 'rateTick', n); audioMood('rate', { v: n });
           $('#ri-n', w).textContent = n; $('#ri-w', w).textContent = t(RATE_WORDS[n]); rng.setAttribute('aria-valuetext', n + ' · ' + t(RATE_WORDS[n]));
           const nb = $('#ri-n', w); nb.classList.remove('bump'); void nb.offsetWidth; nb.classList.add('bump');
         });
       },
-      onClick: (e, close) => {
+      onClick: (e, close, w) => {
         const b = e.target.closest('[data-ri]'); if (!b) return;
+        const sum = $('.ri-sum', w), did = $('.ri-did', w);
+        if (b.dataset.ri === 'did' || b.dataset.ri === 'did-x') { const open = b.dataset.ri === 'did' && sum.hidden; rdToggle(sum, open); did.setAttribute('aria-expanded', open); sfx('tap'); return; }
+        if (b.dataset.ri === 'edit') { rdEditDay(k, () => w._rdSync && w._rdSync()); return; }
         if (b.dataset.ri === 'clear') delete state.dayRate[k]; else { state.dayRate[k] = { r: v }; firstTime('rate', Object.keys(state.dayRate).length === 1); }
         save(); sfx(b.dataset.ri === 'clear' ? 'undo' : 'rateSave', v); vibrate(v >= 8 ? [15, 50, 15, 50, 30] : 12); close(); render();
       },
@@ -13304,30 +13338,169 @@
     const rates = state.habits.filter(h => !h.archived).map(h => rate(h, 7, last)).filter(r => r != null);
     return { perfect, pts, rate: rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length * 100) : null };
   }
+  /* v1.64: valoración de la SEMANA con 7 coronas (una por día), del color de su nota; gris si aún no está valorado. Tocar
+     una corona la elige: debajo se valora con el deslizador y «Qué hice» enseña (y deja editar) lo de Organización de ese día.
+     Al coronar la semana, las 7 coronas se colocan en círculo y giran como una órbita cada vez más rápida y más cerrada hasta
+     fundirse en una sola corona del color de la media, con un anillo de los 7 colores (idea de las bolas de recuerdos). */
+  const crownLitN = v => v == null ? 0 : CROWN_LIT.filter(n => v >= n).length;
+  const rwAvg = ks => { const r = ks.map(dayRateOf).filter(v => v != null); return r.length ? r.reduce((a, b) => a + b, 0) / r.length : null; };
+  const rwCol = v => v == null ? '#6b6b78' : rateColor(v);
   function openReview(week, auto = false) {
-    const prev = state.reviews[week] || {}, s = weekSummary(week);
+    const prev = state.reviews[week] || {}, tk = todayKey();
+    const ks = Array.from({ length: 7 }, (_, i) => addDays(week, i)), past = ks.filter(k => k <= tk);
+    let sel = past.find(k => dayRateOf(k) == null) || (ks.includes(tk) ? tk : past[past.length - 1] || ks[0]);
+    let done = false, raf = 0, timers = [];
+    const fmtAvg = v => fmtNum(Math.round(v * 10) / 10);
+    const crownHtml = k => {
+      const v = dayRateOf(k), fut = k > tk, wd = fmtDate(k, { weekday: 'short' });
+      return `<button type="button" class="rw-c ${v == null ? 'nil' : ''} ${fut ? 'fut' : ''} ${k === sel ? 'on' : ''}" data-rwd="${k}" ${fut ? 'disabled' : ''} aria-pressed="${k === sel}" style="--cc:${rwCol(v)}" data-lit="${crownLitN(v)}" aria-label="${esc(fmtDate(k, { weekday: 'long', day: 'numeric' }))}: ${esc(v == null ? t(fut ? 'rwFuture' : 'rwNone') : v + '/10')}"><span class="rw-logo">${KG_LOGO()}</span><small>${esc(wd.replace('.', ''))} ${esc(fmtDate(k, { day: 'numeric' }))}</small><b>${v == null ? '·' : v}</b></button>`;
+    };
+    const dayHtml = () => {
+      const v = dayRateOf(sel), d = v == null ? 5 : v;
+      return `<div class="rw-dh"><b class="rw-dn">${esc(tfLong(sel))}</b><span class="rw-dw" style="color:${rwCol(v)}">${esc(v == null ? t('rwSlide') : v + ' · ' + t(RATE_WORDS[v]))}</span></div>
+        <input type="range" class="ri-range rw-range ${v == null ? 'unset' : ''}" min="0" max="10" step="1" value="${d}" style="--rc:${v == null ? '#9a9aa6' : rateColor(v)}" aria-label="${esc(t('rateTitle'))}" aria-valuetext="${v == null ? esc(t('rwNone')) : v + ' · ' + esc(t(RATE_WORDS[v]))}">
+        <div class="ri-ends"><span>${esc(t('rw0'))}</span><span>${esc(t('rw10'))}</span></div>
+        <div class="row" style="gap:8px">${v != null ? `<button class="btn sm" data-rw="clear">${ico('trash')} ${esc(t('riClear'))}</button>` : ''}<button type="button" class="ri-did grow" data-rw="did" aria-expanded="false">${ico('checklist')}<span class="grow">${esc(t('rdDid'))}</span><small class="ri-did-n"></small>${ico('right')}</button></div>
+        <div class="ri-sum" hidden><div class="ri-sum-in"><div class="ri-sum-h"><b>${esc(t('rdDidT'))} · ${esc(fmtDate(sel, { weekday: 'long', day: 'numeric' }))}</b><button class="icon-btn sm" data-rw="did-x" aria-label="${esc(t('close'))}">${ico('x')}</button></div><div class="ri-sum-b"></div>
+          <button class="btn block" data-rw="edit">${ico('edit')} ${esc(t('rdEdit'))}</button></div></div>`;
+    };
+    const botHtml = () => {
+      const a = rwAvg(ks), n = ks.filter(k => dayRateOf(k) != null).length;
+      return `<div class="rw-avg"><span class="muted small">${esc(t('rwRated', { n }))}</span>${a != null ? `<b style="color:${rateColor(a)}">${esc(t('rwAvg'))} ${esc(fmtAvg(a))}</b>` : ''}</div>
+        <button class="btn primary block" data-rw="fuse" ${a == null ? 'disabled' : ''} style="--rc:${a == null ? '#888' : rateColor(a)}">${ico('crown')} ${esc(t('rwFuse'))}</button>${a == null ? `<p class="muted small" style="margin:0;text-align:center">${esc(t('rwNeedOne'))}</p>` : ''}`;
+    };
+    let W;
+    const paint = (what = 'all') => {
+      if (!W) return;
+      const a = rwAvg(ks); $('.rw', W).style.setProperty('--rc', a == null ? '#6b6b78' : rateColor(a));
+      if (what === 'all' || what === 'crowns') $('.rw-row', W).innerHTML = ks.map(crownHtml).join('');
+      if (what === 'all') { $('.rw-day', W).innerHTML = dayHtml(); rdFill($('.rw-day .ri-sum-b', W), $('.rw-day .ri-did-n', W), sel); }
+      $('.rw-bot', W).innerHTML = botHtml() + (auto ? dontRemindHtml() : '');
+    };
+    const live = n => { // el deslizador cambia la corona del día al momento; se guarda al soltar
+      const v = n, c = $(`[data-rwd="${sel}"]`, W);
+      if (c) { c.style.setProperty('--cc', rateColor(v)); c.dataset.lit = crownLitN(v); c.classList.remove('nil'); $('b', c).textContent = v; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
+      const r = $('.rw-range', W); r.classList.remove('unset'); r.style.setProperty('--rc', rateColor(v)); r.setAttribute('aria-valuetext', v + ' · ' + t(RATE_WORDS[v]));
+      const dw = $('.rw-dw', W); dw.textContent = v + ' · ' + t(RATE_WORDS[v]); dw.style.color = rateColor(v);
+    };
+    const fuse = () => {
+      const a = rwAvg(ks); if (a == null || done) return; done = true;
+      state.reviews[week] = { good: ($('#rv-good', W) || {}).value?.trim() || '', adjust: ($('#rv-adj', W) || {}).value?.trim() || '', score: Math.round(a * 10) / 10, date: tk };
+      if (auto) readDontRemind(W, 'weeklyReview');
+      save(); rwFuseFx(W, ks, a, () => { sfx('perfectWeek'); });
+    };
     openModal({
-      title: `${ico('doc')} ${esc(t('reviewTitle'))}`,
-      body: `<p class="muted" style="margin-top:0">${esc(t('reviewWeek', { a: fmtDate(week, { day: 'numeric', month: 'short' }), b: fmtDate(addDays(week, 6), { day: 'numeric', month: 'short' }) }))}</p>
-        <div class="kpis" style="margin-bottom:14px"><div class="kpi clay"><b>${s.rate == null ? '—' : s.rate + '%'}</b><span>${esc(t('kpiRate'))}</span></div><div class="kpi clay"><b>${s.perfect}</b><span>${esc(t('perfectDays'))}</span></div></div>
-        <div class="stack">
-          <label class="field"><span>${esc(t('reviewGood'))}</span><textarea class="input" id="rv-good" maxlength="500">${esc(prev.good || '')}</textarea></label>
-          <label class="field"><span>${esc(t('reviewAdjust'))}</span><textarea class="input" id="rv-adj" maxlength="500">${esc(prev.adjust || '')}</textarea></label>
-          <label class="field"><span>${esc(t('reviewScore'))}: <b id="rv-sv">${prev.score || 7}</b>/10</span><input type="range" id="rv-score" min="1" max="10" value="${prev.score || 7}"></label>
-        </div>${auto ? dontRemindHtml() : ''}`,
-      foot: `<button class="btn" data-rv="skip">${esc(t(auto ? 'skip' : 'cancel'))}</button><button class="btn primary" data-rv="save">${esc(t('save'))}</button>`,
-      onMount: w => w.addEventListener('input', e => { if (e.target.id === 'rv-score') $('#rv-sv', w).textContent = e.target.value; }),
+      cls: 'imm rate-imm crown rw-imm', title: '',
+      body: `<div class="rw"><div class="ri-top"><button class="icon-btn sm" data-m="x" aria-label="${esc(t('close'))}">${ico('x')}</button><span class="ri-day">${esc(t('rwTitle'))}<small>${esc(fmtDate(week, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(week, 6), { day: 'numeric', month: 'short' }))}</small></span><span style="width:36px"></span></div>
+        <div class="rw-row" role="group" aria-label="${esc(t('rwTitle'))}"></div>
+        <div class="rw-day"></div>
+        <details class="rw-notes" ${prev.good || prev.adjust ? 'open' : ''}><summary>${ico('doc', 'xs')} ${esc(t('rwNotes'))}</summary>
+          <label class="field"><span>${esc(t('reviewGood'))}</span><textarea class="input" id="rv-good">${esc(prev.good || '')}</textarea></label>
+          <label class="field"><span>${esc(t('reviewAdjust'))}</span><textarea class="input" id="rv-adj">${esc(prev.adjust || '')}</textarea></label></details>
+        <div class="rw-bot"></div></div>`,
+      onMount: w => {
+        W = w; immersiveIn(w); paint(); sfx('rateOpen'); audioMood('rate', { v: rwAvg(ks) ?? 5 });
+        w.addEventListener('input', e => {
+          if (!e.target.matches('.rw-range')) return;
+          const n = +e.target.value; live(n); vibrate(6); sfx('rateTick', n);
+        });
+        w.addEventListener('change', e => {
+          if (!e.target.matches('.rw-range')) return;
+          const n = +e.target.value; state.dayRate[sel] = { r: n }; firstTime('rate', Object.keys(state.dayRate).length === 1); save(); sfx('rateSave', n);
+          paint('crowns'); paint('bot');
+          // al valorar un día, pasa solo al siguiente que falte (si lo hay)
+          const nx = ks.find(k => k > sel && k <= tk && dayRateOf(k) == null);
+          if (nx) timers.push(setTimeout(() => { if (!done && W.isConnected) { sel = nx; paint(); } }, 650));
+        });
+      },
       onClick: (e, close, w) => {
-        const b = e.target.closest('[data-rv]'); if (!b) return;
-        if (auto) readDontRemind(w, 'weeklyReview');
-        if (b.dataset.rv === 'skip') { if (auto) { state.ui.reviewSkip = week; save(); } close(); return; }
-        state.reviews[week] = { good: $('#rv-good', w).value.trim(), adjust: $('#rv-adj', w).value.trim(), score: +$('#rv-score', w).value, date: todayKey() };
-        save(); close(); toast(t('saved')); if (state.ui.tab === 'habits' && habitsView() === 'today') render();
-        if (auto && promptOn('obsidianWeekly')) setTimeout(obsWeeklyAsk, 450); // v1.27
+        const c = e.target.closest('[data-rwd]');
+        if (c && !done) { if (c.dataset.rwd !== sel) { sel = c.dataset.rwd; sfx('tap'); vibrate(5); paint(); } return; }
+        const b = e.target.closest('[data-rw]'); if (!b) return;
+        const act = b.dataset.rw, sum = $('.rw-day .ri-sum', w);
+        if (act === 'did' || act === 'did-x') { const open = act === 'did' && sum.hidden; rdToggle(sum, open); $('.rw-day .ri-did', w).setAttribute('aria-expanded', open); sfx('tap'); return; }
+        if (act === 'edit') { rdEditDay(sel, () => { if (W.isConnected && !done) { const was = !$('.rw-day .ri-sum', W).hidden; paint(); if (was) $('.rw-day .ri-sum', W).hidden = false; } }); return; }
+        if (act === 'clear') { delete state.dayRate[sel]; save(); sfx('undo'); paint(); return; }
+        if (act === 'fuse') { fuse(); return; }
+        if (act === 'ok') { close(); }
+      },
+      beforeClose: async () => {
+        if (!done) { // cerrar sin coronar: las notas escritas no se pierden
+          const g = ($('#rv-good', W) || {}).value?.trim() || '', d = ($('#rv-adj', W) || {}).value?.trim() || '';
+          if ((g || d) && (g !== (prev.good || '') || d !== (prev.adjust || ''))) { state.reviews[week] = { ...prev, good: g, adjust: d, score: prev.score ?? (rwAvg(ks) != null ? Math.round(rwAvg(ks) * 10) / 10 : 0), date: prev.date || tk }; save(); }
+          if (auto) { readDontRemind(W, 'weeklyReview'); if (!state.reviews[week]) { state.ui.reviewSkip = week; save(); } }
+        }
+        return true;
+      },
+      onClose: () => {
+        cancelAnimationFrame(raf); timers.forEach(clearTimeout); if (W && W._rwStop) W._rwStop(); audioMood(state.ui.tab);
+        if (state.ui.tab === 'habits' && habitsView() === 'today') render();
+        if (done && auto && promptOn('obsidianWeekly')) setTimeout(obsWeeklyAsk, 450); // v1.27
       }
     });
   }
-
+  /* La fusión. Fase 1 (0,7 s): cada corona va de su sitio a un círculo. Fase 2 (~3,2 s): la órbita gira cada vez más
+     deprisa y se cierra, dejando estelas de su color. Fase 3: destello y aparece la corona de la semana. Con Animaciones
+     suaves solo se juntan con un fundido; con Animaciones desactivadas se ve directamente el final. */
+  function rwFuseFx(w, ks, avg, onFuse) {
+    const sheet = $('.sheet', w), box = $('.rw', w), mode = motionMode(), col = rateColor(avg);
+    const cols = ks.map(k => rwCol(dayRateOf(k)));
+    box.classList.add('fusing');
+    const fx = document.createElement('div'); fx.className = 'rw-fx'; fx.innerHTML = '<canvas class="rw-trail" aria-hidden="true"></canvas>';
+    sheet.appendChild(fx);
+    const sr = sheet.getBoundingClientRect(), Wd = sr.width, Hd = sr.height, cx = Wd / 2, cy = Hd * .4, R0 = Math.min(Wd, Hd) * .3, S = 58;
+    const orbs = $$('.rw-c', box).map((c, i) => {
+      const lr = $('.rw-logo', c).getBoundingClientRect(), o = document.createElement('div');
+      o.className = 'rw-orb'; o.style.setProperty('--cc', cols[i]); o.dataset.lit = c.dataset.lit; o.innerHTML = KG_LOGO();
+      fx.appendChild(o); c.style.visibility = 'hidden';
+      return { el: o, x0: lr.left - sr.left + lr.width / 2, y0: lr.top - sr.top + lr.height / 2, s0: lr.width / S, a0: -Math.PI / 2 + i / 7 * Math.PI * 2, col: cols[i], px: null, py: null };
+    });
+    const cv = $('.rw-trail', fx), ctx = cv.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1);
+    cv.width = Wd * dpr; cv.height = Hd * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const place = (o, x, y, sc, op = 1) => { o.el.style.transform = `translate(${(x - S / 2).toFixed(1)}px, ${(y - S / 2).toFixed(1)}px) scale(${sc.toFixed(3)})`; o.el.style.opacity = op; };
+    orbs.forEach(o => place(o, o.x0, o.y0, o.s0));
+    const finish = () => {
+      if (!fx.isConnected) return;
+      orbs.forEach(o => o.el.remove());
+      onFuse && onFuse(); vibrate([20, 40, 30, 40, 60]);
+      const fl = document.createElement('div'); fl.className = 'rw-flash'; fl.style.setProperty('--cc', col); fx.appendChild(fl);
+      setTimeout(() => fl.remove(), 1200);
+      const fin = document.createElement('div'); fin.className = 'rw-final'; fin.style.setProperty('--cc', col);
+      fin.style.setProperty('--ring', `conic-gradient(from 0deg, ${cols.map((c, i) => `${c} ${(i / 7 * 100).toFixed(1)}% ${((i + 1) / 7 * 100).toFixed(1)}%`).join(', ')})`);
+      fin.innerHTML = `<div class="rw-big" style="top:${cy}px"><i class="rw-ring" aria-hidden="true"></i><span class="rw-big-l" data-lit="${crownLitN(Math.round(avg))}">${KG_LOGO()}</span></div>
+        <div class="rw-fin-txt" style="top:${cy + Math.min(Wd, Hd) * .27}px" role="status"><span class="ri-q">${esc(t('rwDone'))}</span><b class="ri-n">${esc(fmtNum(Math.round(avg * 10) / 10))}</b><span class="ri-w">${esc(t(RATE_WORDS[Math.round(avg)]))}</span>
+        <button class="btn primary" data-rw="ok" style="--rc:${col}">${ico('check')} ${esc(t('rwOk'))}</button></div>`;
+      fx.appendChild(fin); box.style.setProperty('--rc', col);
+    };
+    if (mode === 'off') { cv.remove(); finish(); return; }
+    const soft = mode === 'soft', TA = soft ? 600 : 700, TB = soft ? 0 : 3200, t0 = performance.now();
+    let lastTurn = 0, raf = 0;
+    const ease = u => u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    sfx('tlReplay');
+    const frame = now => {
+      if (!fx.isConnected) return;
+      const el = now - t0;
+      if (el < TA) {
+        const p = ease(el / TA);
+        orbs.forEach(o => { const tx = soft ? cx : cx + R0 * Math.cos(o.a0), ty = soft ? cy : cy + R0 * Math.sin(o.a0); place(o, o.x0 + (tx - o.x0) * p, o.y0 + (ty - o.y0) * p, o.s0 + ((soft ? .4 : 1.1) - o.s0) * p, soft ? 1 - p * .8 : 1); });
+      } else if (el < TA + TB) {
+        const u = (el - TA) / TB, th = Math.PI * 2 * (.3 * u + 3.4 * u * u * u), R = R0 * (1 - Math.pow(u, 2.1)), sc = 1.1 * (1 - .62 * u);
+        ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.fillRect(0, 0, Wd, Hd);
+        ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+        orbs.forEach(o => {
+          const x = cx + R * Math.cos(o.a0 + th), y = cy + R * Math.sin(o.a0 + th);
+          if (o.px != null) { ctx.strokeStyle = o.col; ctx.globalAlpha = .55; ctx.lineWidth = 4 + 10 * sc; ctx.beginPath(); ctx.moveTo(o.px, o.py); ctx.lineTo(x, y); ctx.stroke(); }
+          o.px = x; o.py = y; place(o, x, y, sc);
+          o.el.style.filter = `drop-shadow(0 0 ${(6 + u * 22).toFixed(0)}px ${o.col})`;
+        });
+        ctx.globalAlpha = 1;
+        const turn = Math.floor(th / (Math.PI * 2)); if (turn > lastTurn) { lastTurn = turn; vibrate(8 + turn * 4); }
+      } else { cancelAnimationFrame(raf); ctx.clearRect(0, 0, Wd, Hd); finish(); return; }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    w._rwStop = () => cancelAnimationFrame(raf);
+  }
   /* ---------- informe mensual en PDF (imprimir → Guardar como PDF) ---------- */
   function openReport() {
     const m0 = monthKey(todayKey()), m1 = monthKey(addMonths(todayKey(), -1));
