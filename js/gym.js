@@ -333,6 +333,7 @@
     if (+w.start > 0) o.start = +w.start; if (+w.end > 0) o.end = +w.end; if (+w.min > 0) o.min = Math.min(+w.min, 1440);
     if (typeof w.rid === 'string') o.rid = w.rid.slice(0, 40);
     if (typeof w.hab === 'string') o.hab = w.hab.slice(0, 40);
+    if (w.back && o.status === 'live') o.back = 1; // v1.64: se está apuntando un entrenamiento de otro día
     if (+w.prs > 0) o.prs = Math.min(99, Math.floor(+w.prs));
     if (w.mt) o.mt = w.mt;
     if (SP()) Object.assign(o, SP().cleanSport(w)); else if (typeof w.sp === 'string') { o.sp = w.sp.slice(0, 20); ['st', 'ev'].forEach(k => { if (Array.isArray(w[k])) o[k] = w[k].slice(0, 20).map(x => String(x).slice(0, 20)); }); if (w.res && typeof w.res === 'object') o.res = w.res; }
