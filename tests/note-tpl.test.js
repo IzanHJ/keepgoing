@@ -146,7 +146,7 @@ test('v1.52: Listas con selección múltiple (marcar, guardar, añadir a la list
   assert.equal(N.sanitizeTpl({ id: 'c1', name: 'X', color: '#123abc', fields: [{ id: 'a', label: 'A', type: 'text' }] }).color, '#123abc');
 });
 
-test('v1.64: sub-listas encadenadas (Matemáticas → Álgebra…) y notas sin límite práctico', () => {
+test('v1.67: sub-listas encadenadas (Matemáticas → Álgebra…) y notas sin límite práctico', () => {
   const l = N.sanitizeList({ id: 'ls', name: 'Asignaturas', items: ['Matemáticas', 'Lengua'], sub: { 'Matemáticas': ['Álgebra', 'Estadística', 'álgebra'], lengua: ['Sintaxis'], vacía: [] } });
   assert.deepEqual(l.sub, { 'matemáticas': ['Álgebra', 'Estadística'], lengua: ['Sintaxis'] });
   assert.deepEqual(N.subOpts(l, 'Matemáticas'), ['Álgebra', 'Estadística']);

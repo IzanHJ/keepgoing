@@ -63,6 +63,27 @@
     }
     return out;
   }
+  /* v1.63.2: qué recorre el Replay en cada escala. Siempre termina HOY y empieza en la ventana de la escala:
+     Día = hoy; Semana = los últimos 7 días; Mes = los últimos 30; Año = los últimos 12 meses; Todo = desde el primer registro.
+     Nunca antes del primer registro. Devuelve { from, to, sub, keys }: sub es la escala de cada paso y keys la fecha de cada paso
+     (Semana y Mes, día a día; Año, mes a mes; Todo, año a año, mes a mes si dura menos de 2 años o día a día si cabe en un mes). */
+  function replayPlan(scale, today, first) {
+    scale = okScale(scale);
+    if (!isKey(today)) return { from: today, to: today, sub: 'day', keys: [] };
+    const f0 = isKey(first) ? minK(first, today) : today;
+    let from = today;
+    if (scale === 'week') from = addDays(today, -6);
+    else if (scale === 'month') from = addDays(today, -29);
+    else if (scale === 'year') { const [y, m] = today.split('-').map(Number), d = new Date(y, m - 1 - 11, 1); from = keyOf(d); }
+    else if (scale === 'all') from = f0;
+    from = maxK(from, f0);
+    const span = dayNo(today) - dayNo(from);
+    const sub = scale === 'day' || scale === 'week' || scale === 'month' || span < 31 ? 'day' : scale === 'year' || (+today.slice(0, 4) - +from.slice(0, 4)) < 2 ? 'month' : 'year';
+    let keys;
+    if (sub === 'day') { keys = []; for (let k = from, i = 0; k <= today && i < 400; k = addDays(k, 1), i++) keys.push(k); }
+    else keys = units(sub === 'month' ? 'year' : 'all', from, today).map(x => x.from);
+    return { from, to: today, sub, keys };
+  }
   // Etiqueta corta de un periodo para elegir otro periodo con el que comparar
   const sameScaleBefore = (scale, at, n = 1) => shift(scale, at, -n);
   // El mismo periodo del año anterior
@@ -151,5 +172,5 @@
     return null;
   }
 
-  return { SCALES, okScale, weekStart, range, shift, units, sameScaleBefore, lastYear, INDICATORS, IND, GROUPS, DEFAULT_VIEWS, normView, views, aggregate, compare, posOf, keyAt, nextMark, addDays, isKey };
+  return { SCALES, okScale, weekStart, range, shift, units, sameScaleBefore, lastYear, INDICATORS, IND, GROUPS, DEFAULT_VIEWS, normView, views, aggregate, compare, posOf, keyAt, nextMark, replayPlan, addDays, isKey };
 });

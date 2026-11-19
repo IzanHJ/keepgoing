@@ -3192,18 +3192,20 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 .tf-tr-leg.multi { padding: 10px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid var(--line); }
 .tf-tr-join { display: block; width: 2px; height: 10px; margin: -6px auto; background: var(--line); }
 .tf-tl-col, .tf-trip { -webkit-touch-callout: none; }
+/* v1.63.2: la barra de botones de arriba (calculadora, candado, +…) ya no se pega a la primera tarjeta (Patrimonio actual, perfil de Maestrías) */
+.main > .top-bar + .clay { margin-top: 16px; }
 
-/* v1.64: sub-listas de las Listas propias (Matemáticas → Álgebra…) */
+/* v1.67: sub-listas de las Listas propias (Matemáticas → Álgebra…) */
 .nl-item.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface-2)); }
 .nl-subn { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 28%, transparent); font-size: 10px; font-weight: 700; margin-left: 2px; }
 .nl-subbox { padding: 10px; border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .nl-subbox .chip.xs.on { border-color: var(--accent); }
 
-/* v1.64: dos turnos seguidos siempre se distinguen con una línea entre ellos (con o sin «Bordes»); igual las notas, que ya van
+/* v1.67: dos turnos seguidos siempre se distinguen con una línea entre ellos (con o sin «Bordes»); igual las notas, que ya van
    cada una en su bloque */
 .tf-blk.jt { border-top: 2px solid var(--bg); }
 
-/* v1.64: vista Día a toda pantalla: arriba más compacto y la caja de horas sin el tope del 68 % (la altura la pone tfFitDay) */
+/* v1.67: vista Día a toda pantalla: arriba más compacto y la caja de horas sin el tope del 68 % (la altura la pone tfFitDay) */
 .tf-day .tf-tl.big .tf-tl-body { max-height: none; }
 .tf-day { margin-bottom: 12px; }
 .tf-count { margin-bottom: 6px; }
