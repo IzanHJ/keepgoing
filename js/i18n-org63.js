@@ -2,6 +2,7 @@
    hora, trayectos con varias paradas que se editan y se mueven, copiar y pegar, y dos arreglos (icono y lugar puntual) (ES / EN). */
 (function () {
   const es = {
+    wn_1_63_2_1: 'Libreta sin solapes|Los botones de arriba (calculadora, candado y +) ya no se montan sobre Patrimonio actual: queda un espacio entre ellos. También en Maestrías.',
     wn_1_63_1_1: 'Notas que pasan de medianoche|Una nota de 22:30 a 0:30 ya no se da la vuelta (0:30–22:30): dura 2 h y sigue al principio del día siguiente.',
     tfSameTimes: 'El inicio y el fin son a la misma hora.',
     wn_1_63_0_1: 'Varios trayectos en uno|Si coges dos guaguas, añade otra parada: cada tramo tiene su medio, sus horas y dónde te bajas.',
@@ -21,6 +22,7 @@
     plxChange: 'Cambiar la dirección…'
   };
   const en = {
+    wn_1_63_2_1: 'Notebook without overlaps|The buttons at the top (calculator, lock and +) no longer sit on top of Current net worth: there is now a gap between them. Also in Masteries.',
     wn_1_63_1_1: 'Notes past midnight|A note from 22:30 to 0:30 is no longer flipped (0:30–22:30): it lasts 2 h and carries on at the start of the next day.',
     tfSameTimes: 'The start and the end are at the same time.',
     wn_1_63_0_1: 'Several legs in one trip|If you take two buses, add another stop: each leg has its own mode, times and where you get off.',
