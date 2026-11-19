@@ -3214,3 +3214,7 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 .tf-dhead b { font-size: 14px; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tf-dhead small { font-size: 11px; }
 .tf-dhead .rate-big { font-size: 13px; }
+/* v1.67: una nota muy corta (menos de 20 min) cabe en una línea fina con su texto, por encima de la de al lado */
+.tf-gapn.tiny { padding: 0 5px; align-items: center; z-index: 4; border-width: 1px; }
+.tf-gapn.tiny > span { -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; display: block; font-size: 9.5px; line-height: 11px; }
+.tf-gapn.tiny .tf-gapn-p svg.i { width: 9px; height: 9px; }

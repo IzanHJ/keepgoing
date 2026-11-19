@@ -3369,6 +3369,9 @@
     const pk = TF.iso(TF.addDays(TF.parseISO(k), -1));
     tfGaps(pk).forEach((g, j) => { if (!g.a || !g.b || tfIsEntNote(pk, g)) return; const b = tfMin(g.b); if (b < tfMin(g.a) && b > 0) xs.push({ g, j, a: 0, b: Math.max(15, b), k: pk }); });
     xs.sort((x, y) => x.a - y.a || x.b - y.b);
+    /* v1.67: una nota corta se dibuja con 15 min como mínimo para que se lea, pero si la siguiente empieza antes de esos 15 min
+       sin pisarla de verdad (21:11–21:19 y 21:22), se corta donde empieza la siguiente: así van una debajo de otra y no juntas. */
+    xs.forEach(x => { const rb = x.g.b ? (tfMin(x.g.b) < x.a && x.a ? 1440 : tfMin(x.g.b)) : x.a; const nx = xs.find(y => y.a > x.a); if (nx && nx.a >= rb && nx.a < x.b) x.b = Math.max(x.a + 5, nx.a); });
     /* v1.67: solo van juntas («A - B») las notas con el MISMO horario. Las de horarios distintos son bloques separados, cada uno
        con su color y su borde: seguidas (16–17 y 17–18:30) una debajo de otra; si se pisan, en columnas una al lado de otra. */
     const out = [];
@@ -3384,9 +3387,9 @@
   // Un bloque de notas: con r (horas) va en la línea de tiempo; sin r, en la casilla de «Todo el día»
   function tfNoteGroup(k, list, r, big) {
     const one = list.length === 1, g0 = list[0][0];
-    const pos = r ? `top:calc(var(--ph) * ${+(r.a / 60).toFixed(4)} + 1px);height:calc(var(--ph) * ${+((r.b - r.a) / 60).toFixed(4)} - 2px);${r.lanes > 1 ? `left:calc(3px + (100% - 6px) * ${r.lane} / ${r.lanes});right:auto;width:calc((100% - 6px) / ${r.lanes} - 2px);` : ''}` : '';
+    const pos = r ? `top:calc(var(--ph) * ${+(r.a / 60).toFixed(4)} + 1px);height:max(13px, calc(var(--ph) * ${+((r.b - r.a) / 60).toFixed(4)} - 2px));${r.lanes > 1 ? `left:calc(3px + (100% - 6px) * ${r.lane} / ${r.lanes});right:auto;width:calc((100% - 6px) / ${r.lanes} - 2px);` : ''}` : '';
     // Con una sola nota, todo el bloque abre la nota (como antes); con varias, cada trozo abre la suya
-    return `<span class="tf-gapn ${r ? '' : 'tf-gapn-all'} ${one ? '' : 'multi'}" ${one ? `role="button" data-tf-gapn="${list[0][2] || k}" data-i="${list[0][1]}"` : ''} style="${pos}${tfNoteStyle(g0)}"><span>${tfNoteJoin(k, list, big, !!r)}</span></span>`;
+    return `<span class="tf-gapn ${r ? '' : 'tf-gapn-all'} ${one ? '' : 'multi'} ${r && r.b - r.a < 20 ? 'tiny' : ''}" ${one ? `role="button" data-tf-gapn="${list[0][2] || k}" data-i="${list[0][1]}"` : ''} style="${pos}${tfNoteStyle(g0)}"><span>${tfNoteJoin(k, list, big, !!r)}</span></span>`;
   }
   // Fondo de una columna con los colores del día: 1 color entero, 2 o 3 en franjas verticales
   function tfColTint(cs) {
