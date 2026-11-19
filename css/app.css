@@ -3204,7 +3204,32 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 [hidden].gb-only { display: none !important; }
 /* v1.63.2: la barra de botones de arriba (calculadora, candado, +…) ya no se pega a la primera tarjeta (Patrimonio actual, perfil de Maestrías) */
 .main > .top-bar + .clay { margin-top: 16px; }
-/* v1.66: fotos de progreso de hábitos (serie y comparar) y compartir resultados */
+
+/* v1.67: sub-listas de las Listas propias (Matemáticas → Álgebra…) */
+.nl-item.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface-2)); }
+.nl-subn { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 28%, transparent); font-size: 10px; font-weight: 700; margin-left: 2px; }
+.nl-subbox { padding: 10px; border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.nl-subbox .chip.xs.on { border-color: var(--accent); }
+
+/* v1.67: dos turnos seguidos siempre se distinguen con una línea entre ellos (con o sin «Bordes»); igual las notas, que ya van
+   cada una en su bloque */
+.tf-blk.jt { border-top: 2px solid var(--bg); }
+
+/* v1.67: vista Día a toda pantalla: arriba más compacto y la caja de horas sin el tope del 68 % (la altura la pone tfFitDay) */
+.tf-day .tf-tl.big .tf-tl-body { max-height: none; }
+.tf-day { margin-bottom: 12px; }
+.tf-count { margin-bottom: 6px; }
+.tf-tl.big .tf-wk-head, .tf-tl.big .tf-tl-all, .tf-tl.big .tf-tl-body { grid-template-columns: 34px repeat(var(--cols), minmax(0, 1fr)); }
+.tf-dhead { display: flex; flex-direction: column; align-items: center; line-height: 1.15; min-width: 0; text-align: center; }
+.tf-dhead b { font-size: 14px; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tf-dhead small { font-size: 11px; }
+.tf-dhead .rate-big { font-size: 13px; }
+/* v1.67: una nota muy corta (menos de 20 min) cabe en una línea fina con su texto, por encima de la de al lado */
+.tf-gapn.tiny { padding: 0 5px; align-items: center; z-index: 4; border-width: 1px; }
+.tf-gapn.tiny > span { -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; display: block; font-size: 9.5px; line-height: 11px; }
+.tf-gapn.tiny .tf-gapn-p svg.i { width: 9px; height: 9px; }
+
+/* v1.68: fotos de progreso de hábitos (serie y comparar) y compartir resultados */
 .hp-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
 .hp-mini { position: relative; flex: 0 0 96px; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: var(--surface-2); border: 0; padding: 0; cursor: pointer; }
 .hp-mini img, .hp-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
