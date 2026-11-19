@@ -3194,7 +3194,7 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 .tf-tl-col, .tf-trip { -webkit-touch-callout: none; }
 /* v1.63.2: la barra de botones de arriba (calculadora, candado, +…) ya no se pega a la primera tarjeta (Patrimonio actual, perfil de Maestrías) */
 .main > .top-bar + .clay { margin-top: 16px; }
-/* v1.65: fotos de progreso de hábitos (serie y comparar) y compartir resultados */
+/* v1.66: fotos de progreso de hábitos (serie y comparar) y compartir resultados */
 .hp-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
 .hp-mini { position: relative; flex: 0 0 96px; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: var(--surface-2); border: 0; padding: 0; cursor: pointer; }
 .hp-mini img, .hp-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
