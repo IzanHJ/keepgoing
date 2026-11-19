@@ -2732,7 +2732,7 @@
     const dow = tfDow(), spWeek = state.gymWorkouts.some(w => w.sp && w.status === 'done' && w.date >= ks[0] && w.date <= ks[6]);
     let html = `<div class="gy">`;
     html += `<div class="gy-top gy-top-end"><button class="icon-btn" data-gy="hist" aria-label="${esc(t('gyHistory'))}" title="${esc(t('gyHistory'))}">${ico('clock')}</button><button class="icon-btn" data-gy="log" aria-label="${esc(t('gyLog'))}" title="${esc(t('gyLog'))}">${ico('list')}</button><button class="icon-btn" data-gy="lib" aria-label="${esc(t('gyLibrary'))}" title="${esc(t('gyLibrary'))}">${ico('search')}</button></div>`;
-    if (live) html += `<button class="gy-livebar clay" data-gy="resume"><span class="gy-pulse"></span>${live.sp ? spFig(live.sp, null, 'mini') : ''}<span class="grow"><b>${esc(gyTitle(live))}</b><span class="muted small" data-gy-clock="${live.start || 0}">${gyClock(Date.now() - (live.start || Date.now()))}</span></span>${ico('right')}</button>`;
+    if (live) html += `<button class="gy-livebar clay" data-gy="resume"><span class="gy-pulse"></span>${live.sp ? spFig(live.sp, null, 'mini') : ''}<span class="grow"><b>${esc(gyTitle(live))}</b>${live.back ? `<span class="muted small">${esc(gyBackLabel(live))}</span>` : `<span class="muted small" data-gy-clock="${live.start || 0}">${gyClock(Date.now() - (live.start || Date.now()))}</span>`}</span>${ico('right')}</button>`;
     // Semana: anillo de días entrenados, tira de 7 días y cifras
     html += `<section class="gy-hero clay"><div class="gy-ring" style="--p:${pct}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="gy-ring-bg" cx="60" cy="60" r="52"/><circle class="gy-ring-fg" cx="60" cy="60" r="52" pathLength="100"/></svg><div class="gy-ring-in"><b class="gy-count" data-gy-cnt="${n}">${n}</b><span>/ ${goal} ${esc(t('gyDaysShort'))}</span></div></div>
       <div class="gy-hero-r"><div class="gy-wk">${ks.map((k, i) => `<i class="${S.days.includes(k) ? 'on' : ''} ${k === tk ? 'today' : ''} ${k > tk ? 'fut' : ''}" style="--d:${i}"><span>${esc(dow[i].slice(0, 1))}</span></i>`).join('')}</div>
@@ -2742,6 +2742,8 @@
     html += h ? `<button class="gy-link clay" data-gy="link"><span class="habit-ico" style="--hc:${esc(hColor(h))}">${esc(h.icon || '#')}</span><span class="grow"><span class="muted small">${esc(t('gyCountsFor'))}</span><b>${esc(h.name)}${p ? ` · ${esc(p.name)}` : ''}</b></span>${ico('link')}</button>`
       : `<button class="gy-link clay gy-link-empty" data-gy="link">${ico('link')}<span class="grow">${esc(t('gyLinkHint'))}</span>${ico('right')}</button>`;
     html += `<button class="btn accent block gy-start" data-gy="start-pick">${ico('play')} ${esc(t('gyStartFree'))}</button>`;
+    // v1.64: apuntar un entrenamiento de otro día (gimnasio, una rutina o un deporte)
+    html += `<button class="btn ghost block gy-past" data-gy="log-past">${ico('calendar')} ${esc(t('gbLogPast'))}</button>`;
     // v1.57: tus deportes de siempre y el gimnasio, para empezar con un toque
     const rec = SPT ? SPT.recent(state.gymWorkouts, 4) : [];
     html += `<div class="sp-quick chip-scroll"><button class="sp-q clay" data-gy="start-free"><span class="sp-q-ico">${ico('dumbbell')}</span><span>${esc(t('spGym'))}</span></button>${rec.map(id => `<button class="sp-q clay" data-gy="sp-start" data-id="${esc(id)}">${spFig(id, null, 'mini')}<span>${esc(spName(id))}</span></button>`).join('')}<button class="sp-q clay" data-gy="start-pick"><span class="sp-q-ico">${ico('grid')}</span><span>${esc(t('spAllSports'))}</span></button></div>`;
@@ -2770,7 +2772,7 @@
   }
   function gyHistView() {
     const list = gyDone().sort((a, b) => (b.date + (b.end || 0)) > (a.date + (a.end || 0)) ? 1 : -1);
-    let html = `<div class="gy"><div class="gy-top"><button class="icon-btn" data-gy="home" aria-label="${esc(t('back'))}">${ico('left')}</button><h1 class="page-title grow" style="margin:0">${esc(t('gyHistory'))}</h1></div>`;
+    let html = `<div class="gy"><div class="gy-top"><button class="icon-btn" data-gy="home" aria-label="${esc(t('back'))}">${ico('left')}</button><h1 class="page-title grow" style="margin:0">${esc(t('gyHistory'))}</h1><button class="chip" data-gy="log-past">${ico('plus', 'xs')} ${esc(t('gbLogPastShort'))}</button></div>`;
     if (!list.length) return html + emptyState('clock', t('gyHistEmptyT'), t('gyHistEmptyS')) + '</div>';
     let month = '';
     list.forEach((w, i) => { const m = w.date.slice(0, 7); if (m !== month) { month = m; html += `<h3 class="gy-month">${esc(fmtDate(m + '-01', { month: 'long', year: 'numeric' }))}</h3>`; } html += gyCard(w, Math.min(i, 8)); });
@@ -2846,8 +2848,8 @@
   /* Entrenamiento en directo */
   function gyLiveView(w) {
     let html = `<div class="gy gy-live"><div class="gy-top"><button class="icon-btn" data-gy="minimize" aria-label="${esc(t('gyMinimize'))}" title="${esc(t('gyMinimize'))}">${ico('down')}</button>
-      <div class="grow gy-live-h"><input class="gy-title-in" data-gy-name value="${esc(w.name)}" placeholder="${esc(t('gyFree'))}" maxlength="60" aria-label="${esc(t('gyName'))}"><span class="gy-live-clock" data-gy-clock="${w.start || 0}">${gyClock(Date.now() - (w.start || Date.now()))}</span></div>
-      <button class="btn accent gy-finish" data-gy="finish">${ico('check')} ${esc(t('gyFinish'))}</button></div>`;
+      <div class="grow gy-live-h"><input class="gy-title-in" data-gy-name value="${esc(w.name)}" placeholder="${esc(t('gyFree'))}" maxlength="60" aria-label="${esc(t('gyName'))}">${w.back ? `<span class="gy-live-clock gy-back-d">${ico('calendar', 'xs')} ${esc(gyBackLabel(w))}</span>` : `<span class="gy-live-clock" data-gy-clock="${w.start || 0}">${gyClock(Date.now() - (w.start || Date.now()))}</span>`}</div>
+      <button class="btn accent gy-finish" data-gy="finish">${ico('check')} ${esc(t(w.back ? 'save' : 'gyFinish'))}</button></div>${w.back ? `<p class="muted small gy-back-hint">${esc(t('gbHint'))}</p>` : ''}`;
     const s = GYM.workoutStats(w, state.gymEx);
     html += `<div class="gy-live-bar"><span>${esc(t('gyNSets', { n: s.sets }))}</span><span>${esc(gyVol(s.volume))}</span><span class="grow"></span>${gyBody(s.muscles)}</div>`;
     html += w.ex.map((x, xi) => gyExBlock(w, x, xi)).join('');
@@ -2931,7 +2933,7 @@
   function gyAddExercise(w, eid) {
     const e = gyEx(eid), kind = e ? e.kind : 'w', last = GYM.lastSets(state.gymWorkouts, eid, w.id) || [];
     const n = Math.max(3, Math.min(last.length, 6));
-    w.ex.push({ eid, sets: Array.from({ length: n }, (_, i) => { const l = last[i] || last[last.length - 1] || {}; return kind === 'h' ? { s: l.s || 30 } : kind === 'c' ? { s: l.s || 1200, d: l.d } : { w: l.w, r: l.r || 10 }; }) });
+    w.ex.push({ eid, sets: Array.from({ length: n }, (_, i) => { const l = last[i] || last[last.length - 1] || {}; const st = kind === 'h' ? { s: l.s || 30 } : kind === 'c' ? { s: l.s || 1200, d: l.d } : { w: l.w, r: l.r || 10 }; if (w.back) st.done = true; return st; }) });
     save(); render(); requestAnimationFrame(() => { const b = $$('.gy-ex').pop(); if (b) b.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); });
   }
 
@@ -2948,7 +2950,7 @@
     // Las series sin marcar se quitan; los ejercicios vacíos también
     w.ex = (w.ex || []).map(x => ({ ...x, sets: x.sets.filter(s => s.done) })).filter(x => x.sets.length);
     if (!w.end) w.end = Date.now();
-    w.status = 'done';
+    w.status = 'done'; delete w.back;
     const prs = GYM.newRecords(state.gymWorkouts, w, state.gymEx); if (prs.length) w.prs = prs.length; else delete w.prs;
     GY.rest = null; state.ui.gyOpen = true; state.ui.gyView = '';
     const firstToday = !state.gymWorkouts.some(x => x.id !== w.id && x.status === 'done' && x.date === w.date);
@@ -3042,27 +3044,57 @@
   }
   /* v1.57: elegir qué entrenar: el Gimnasio (pesas, rutinas y series) o uno de los deportes. «Registrar uno hecho» abre
      directamente el cierre con las horas para apuntar un deporte que ya hiciste. */
-  function gyStartPicker() {
-    let mode = 'now';
-    const list = SPT ? SPT.sorted(state.lang) : [];
+  /* v1.64: opts.log abre directamente «Registrar uno hecho» con el día (por defecto, ayer). En ese modo el Gimnasio también vale:
+     libre o una de tus rutinas, y se apunta serie a serie como en directo pero sin reloj ni descansos. */
+  function gyStartPicker(opts = {}) {
+    let mode = opts.log ? 'log' : 'now';
+    const list = SPT ? SPT.sorted(state.lang) : [], tk = todayKey(), yest = TF.iso(TF.addDays(TF.parseISO(tk), -1));
+    let day = opts.date && opts.date <= tk ? opts.date : yest;
+    const rts = state.gymRoutines || [];
+    const segBtn = (m, icon, label) => `<button type="button" data-spm="${m}" class="${mode === m ? 'on' : ''}" aria-pressed="${mode === m}">${ico(icon, 'xs')} ${esc(t(label))}</button>`;
+    const sync = wr => {
+      $$('[data-spm]', wr).forEach(b => { const on = b.dataset.spm === mode; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+      $$('.gb-only', wr).forEach(el => { el.hidden = mode !== 'log'; });
+      $('.sp-head-t', wr) && ($('.sp-head-t', wr).textContent = t(mode === 'log' ? 'gbPickT' : 'spPickT'));
+    };
     openModal({
-      title: esc(t('spPickT')), cls: 'sp-sheet',
-      body: `<div class="seg" role="group" id="sp-mode"><button type="button" data-spm="now" class="on" aria-pressed="true">${ico('play', 'xs')} ${esc(t('spModeNow'))}</button><button type="button" data-spm="log" aria-pressed="false">${ico('clock', 'xs')} ${esc(t('spModeLog'))}</button></div>
+      title: `<span class="sp-head-t">${esc(t(mode === 'log' ? 'gbPickT' : 'spPickT'))}</span>`, cls: 'sp-sheet',
+      body: `<div class="seg" role="group" id="sp-mode">${segBtn('now', 'play', 'spModeNow')}${segBtn('log', 'clock', 'spModeLog')}</div>
+        <div class="gb-only gb-day" ${mode === 'log' ? '' : 'hidden'}><label class="field"><span>${esc(t('gbDay'))}</span><input class="input" type="date" id="gb-d" value="${esc(day)}" max="${esc(tk)}"></label>
+          <div class="chip-scroll gb-quick"><button type="button" class="chip sm" data-gb-q="1">${esc(t('gbYesterday'))}</button><button type="button" class="chip sm" data-gb-q="2">${esc(t('gbDaysAgo', { n: 2 }))}</button><button type="button" class="chip sm" data-gb-q="3">${esc(t('gbDaysAgo', { n: 3 }))}</button><button type="button" class="chip sm" data-gb-q="0">${esc(t('gbToday'))}</button></div></div>
         <button type="button" class="sp-gymcard clay" data-sp-pick="gym"><span class="sp-q-ico">${ico('dumbbell')}</span><span class="grow"><b>${esc(t('spGym'))}</b><span class="muted small">${esc(t('spGymSub'))}</span></span>${ico('right')}</button>
+        ${rts.length ? `<div class="gb-only gb-rts" ${mode === 'log' ? '' : 'hidden'}><span class="muted small">${esc(t('gbOrRoutine'))}</span><div class="chip-scroll">${rts.map(r => `<button type="button" class="chip sm" data-gb-r="${esc(r.id)}">${ico('repeat', 'xs')} ${esc(r.name)}</button>`).join('')}</div></div>` : ''}
         <h3 class="section-title" style="margin:14px 0 8px">${esc(t('spSports'))}</h3>
         <div class="sp-grid">${list.map((x, i) => `<button type="button" class="sp-cell" data-sp-pick="${esc(x.id)}" style="--d:${i}">${spFig(x.id)}<span>${esc(spName(x.id))}</span></button>`).join('')}</div>
         <p class="muted small center" style="margin:12px 0 0">${esc(t('spMoreSoon'))}</p>`,
+      onMount: wr => { const d = $('#gb-d', wr); if (d) d.addEventListener('change', () => { if (/^\d{4}-\d{2}-\d{2}$/.test(d.value) && d.value <= tk) day = d.value; else d.value = day; }); },
       onClick: (e, close, wr) => {
-        const m = e.target.closest('[data-spm]'); if (m) { mode = m.dataset.spm; $$('[data-spm]', wr).forEach(b => { b.classList.toggle('on', b === m); b.setAttribute('aria-pressed', b === m); }); $('.sp-gymcard', wr).classList.toggle('dim', mode === 'log'); return; }
+        const m = e.target.closest('[data-spm]'); if (m) { mode = m.dataset.spm; sync(wr); return; }
+        const q = e.target.closest('[data-gb-q]'); if (q) { day = TF.iso(TF.addDays(TF.parseISO(tk), -(+q.dataset.gbQ))); $('#gb-d', wr).value = day; sfx('tap'); return; }
+        const r = e.target.closest('[data-gb-r]'); if (r) { const rt = rts.find(x => x.id === r.dataset.gbR); if (!rt) return; if (gyLive()) { toast(t('gyAlreadyLive')); return; } close(); gyBackStart(day, rt); return; }
         const p = e.target.closest('[data-sp-pick]'); if (!p) return;
         const id = p.dataset.spPick;
-        if (id === 'gym') { if (mode === 'log') { toast(t('spGymNoLog')); return; } close(); gyStart(gyNewFree()); return; }
-        close(); if (mode === 'log') setTimeout(() => gySportLog(id), 250); else gySportStart(id);
+        if (id === 'gym') { if (mode === 'log') { if (gyLive()) { toast(t('gyAlreadyLive')); return; } close(); gyBackStart(day); return; } close(); gyStart(gyNewFree()); return; }
+        close(); if (mode === 'log') setTimeout(() => gySportLog(id, day), 250); else gySportStart(id);
       }
     });
   }
+  // v1.64: gimnasio de otro día. Empieza a la misma hora de ahora (menos 1 h) ese día y dura 1 h: al guardar se ajusta.
+  // Las series ya salen hechas (lo normal es que las hicieras): se quita la marca a las que no.
+  function gyBackSpan(date) {
+    const now = Date.now(); let a = gyAt(date, gyHM(now - 3600000)); if (a > now - 3600000) a = Math.min(a, now - 3600000);
+    if (TF.iso(new Date(a)) !== date) a = gyAt(date, '00:00');
+    return [a, Math.min(a + 3600000, now)];
+  }
+  function gyBackStart(date, r) {
+    const [a, b] = gyBackSpan(date);
+    const w = r ? GYM.fromRoutine(r, state.gymWorkouts, state.gymEx, uid(), date, a) : { id: uid(), date, name: '', status: 'live', start: a, note: '', ex: [] };
+    w.back = 1; w.end = b; w.ex.forEach(x => x.sets.forEach(st => { st.done = true; }));
+    gyStart(w);
+  }
+  const gyBackLabel = w => t('gbOn', { d: fmtDate(w.date, { weekday: 'short', day: 'numeric', month: 'short' }) });
   const gySportStart = id => gyStart({ id: uid(), date: todayKey(), name: '', sp: id, status: 'live', start: Date.now(), note: '', ex: [] });
-  function gySportLog(id) { const now = Date.now(); gyCloseSheet({ id: uid(), date: todayKey(), name: '', sp: id, status: 'live', start: now - 3600000, end: now, note: '', ex: [] }, 'log'); }
+  function gySportLog(id, date) { const d = date || todayKey(), [a, b] = gyBackSpan(d); gyCloseSheet({ id: uid(), date: d, name: '', sp: id, status: 'live', start: a, end: b, note: '', ex: [] }, 'log'); }
   // Deporte en marcha: la figura en su postura, el reloj y Terminar
   function gySportLive(w) {
     const sp = SPT && SPT.get(w.sp);
@@ -3080,7 +3112,7 @@
   function gyCloseSheet(w, mode) {
     if (typeof tfTplSeed === 'function') tfTplSeed();
     const now = Date.now(), sp = w.sp && SPT ? SPT.get(w.sp) : null;
-    const f = { date: w.date, a: gyHM(w.start || now), b: gyHM(mode === 'finish' ? now : (w.end || now)), st: [...(w.st || [])], ev: [...(w.ev || [])], res: { ...(w.res || {}) }, note: w.note || '' };
+    const f = { date: w.date, a: gyHM(w.start || now), b: gyHM(mode === 'finish' && !w.back ? now : (w.end || now)), st: [...(w.st || [])], ev: [...(w.ev || [])], res: { ...(w.res || {}) }, note: w.note || '' };
     if (sp && mode !== 'edit' && !f.st.length) f.st = ['free'];
     let wref, saved = false;
     const span = () => { let a = gyAt(f.date, f.a), b = gyAt(f.date, f.b); if (b < a) b += 864e5; return [a, b]; };
@@ -3246,6 +3278,7 @@
       case 'r-start': { const r = state.gymRoutines.find(x => x.id === id); if (r) gyStartRoutine(r); break; }
       case 'start-free': gyStart(gyNewFree()); break;
       case 'start-pick': gyStartPicker(); break;
+      case 'log-past': gyStartPicker({ log: true }); break;
       case 'sp-start': gySportStart(id); break;
       case 'resume': state.ui.gyOpen = true; save(); render(); window.scrollTo(0, 0); break;
       case 'minimize': state.ui.gyOpen = false; save(); render(); break;
@@ -3257,7 +3290,7 @@
       case 'discard': if (w) gyDiscard(w); break;
       case 'rest-add': if (GY.rest) { GY.rest.until += 15000; GY.rest.total += 15000; gyTick(); } break;
       case 'rest-skip': GY.rest = null; sfx('setStart'); { const r = $('#gy-rest'); if (r) r.remove(); } break;
-      case 'set-add': if (w) { const x = w.ex[+b.dataset.x]; const l = x.sets[x.sets.length - 1] || {}; x.sets.push({ w: l.w, r: l.r, s: l.s, d: l.d }); save(); render(); } break;
+      case 'set-add': if (w) { const x = w.ex[+b.dataset.x]; const l = x.sets[x.sets.length - 1] || {}; x.sets.push({ w: l.w, r: l.r, s: l.s, d: l.d, ...(w.back ? { done: true } : {}) }); save(); render(); } break;
       case 'set-del': if (w) { const x = w.ex[+b.dataset.x]; if (x.sets.length > 1) x.sets.pop(); save(); render(); } break;
       case 'warm': if (w) { const st = w.ex[+b.dataset.x].sets[+b.dataset.s]; st.warm = !st.warm; if (!st.warm) delete st.warm; save(); render(); } break;
       case 'tick': if (w) {
@@ -3266,8 +3299,10 @@
         if (st.done) {
           vibrate(10); sfx('setDone');
           if (!reducedMotion()) { row.classList.remove('pop'); void row.offsetWidth; row.classList.add('pop'); }
-          const sec = (x.rest || gyPrefs().rest) * 1000; GY.rest = { until: Date.now() + sec, total: sec };
-          const old = $('#gy-rest'); if (old) old.remove(); const live = $('.gy-live'); if (live) live.insertAdjacentHTML('beforeend', gyRestBar());
+          if (!w.back) { // v1.64: en un entrenamiento de otro día no hay descanso que contar
+            const sec = (x.rest || gyPrefs().rest) * 1000; GY.rest = { until: Date.now() + sec, total: sec };
+            const old = $('#gy-rest'); if (old) old.remove(); const live = $('.gy-live'); if (live) live.insertAdjacentHTML('beforeend', gyRestBar());
+          }
         }
         // Barra de arriba: series, volumen y músculos al momento
         const s = GYM.workoutStats(w, state.gymEx), bar = $('.gy-live-bar'); if (bar) bar.innerHTML = `<span>${esc(t('gyNSets', { n: s.sets }))}</span><span>${esc(gyVol(s.volume))}</span><span class="grow"></span>${gyBody(s.muscles)}`;
@@ -8044,7 +8079,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.67', [['1.67.0', 6]]], ['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.67', [['1.67.0', 6]]], ['1.65', [['1.65.0', 3]]], ['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
