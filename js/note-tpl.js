@@ -23,7 +23,9 @@
     'pen', 'checklist', 'star', 'trophy', 'medal', 'flag', 'bolt', 'bulb', 'music', 'headphones', 'mic', 'camera', 'film', 'tv', 'game', 'palette', 'brush',
     'code', 'chat', 'mail', 'bell', 'gift', 'party', 'cup', 'fork', 'cart', 'bag', 'wallet', 'coins', 'briefcase', 'house', 'bed', 'pill', 'leaf', 'plant', 'tree',
     'paw', 'sun', 'moon', 'beach', 'mountain', 'pool', 'walk', 'bike', 'car', 'plane', 'compass', 'globe', 'puzzle', 'key', 'timer', 'chart'];
-  const LIM = { lists: 30, items: 300, tpls: 30, fields: 12, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 80, multi: 300, extra: 300, sum: 700 };
+  /* v1.67: sin límite práctico de caracteres en las notas (Izan: «es inútil cuando puedo crear la misma nota otra vez»). Los topes
+     que quedan son solo de seguridad, para que nada pegado por error rompa la sincronización. subs/subItems = sub-listas. */
+  const LIM = { lists: 30, items: 300, tpls: 30, fields: 12, steps: 12, opts: 12, goals: 300, name: 30, label: 30, unit: 10, opt: 24, text: 2000, multi: 8000, extra: 8000, sum: 20000, subs: 600, subItems: 100 };
   const str = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
   const keyOf = v => str(v, LIM.text).toLowerCase();
   /* v1.52: un campo unido a una Lista propia admite varios elementos a la vez (selección múltiple), guardados como
@@ -44,8 +46,30 @@
     if (!l || typeof l !== 'object' || !idOk(l.id)) return null;
     const name = str(l.name, LIM.name); if (!name) return null;
     const seen = new Set(), items = (Array.isArray(l.items) ? l.items : []).map(x => str(x, LIM.text)).filter(x => x && !seen.has(keyOf(x)) && seen.add(keyOf(x))).slice(0, LIM.items);
-    const o = { id: l.id, name, items }; if (Number.isFinite(l.mt)) o.mt = l.mt; return o;
+    const o = { id: l.id, name, items }; if (Number.isFinite(l.mt)) o.mt = l.mt;
+    // v1.67: sub-listas. sub = { clave de un elemento (en minúsculas): [sus elementos] }. Vale a cualquier profundidad: una clave
+    // puede ser un elemento de la lista o de una sub-lista («matemáticas» → [Álgebra, Estadística], «álgebra» → [Ecuaciones]).
+    if (l.sub && typeof l.sub === 'object') {
+      const sub = {};
+      for (const [k, v] of Object.entries(l.sub).slice(0, LIM.subs)) {
+        const kk = keyOf(k), sn = new Set(), xs = (Array.isArray(v) ? v : []).map(x => str(x, LIM.text)).filter(x => x && !sn.has(keyOf(x)) && sn.add(keyOf(x))).slice(0, LIM.subItems);
+        if (kk && xs.length) sub[kk] = xs;
+      }
+      if (Object.keys(sub).length) o.sub = sub;
+    }
+    return o;
   }
+  // v1.67: los elementos de la sub-lista de un elemento (o [] si no tiene)
+  const subOf = (list, item) => (list && list.sub && list.sub[keyOf(item)]) || [];
+  /* Opciones de un paso unido a la sub-lista de otro paso: juntas las sub-listas de lo elegido en ese paso (sin repetir).
+     Con «Matemáticas» → Álgebra, Estadística, Problemas. */
+  function subOpts(list, parentVal) {
+    const seen = new Set(), out = [];
+    for (const x of items(parentVal)) for (const y of subOf(list, x)) if (!seen.has(keyOf(y))) { seen.add(keyOf(y)); out.push(y); }
+    return out;
+  }
+  // Todo lo que sale en alguna sub-lista (para saber qué quitar al cambiar de respuesta en el paso de arriba)
+  const subAll = list => { const s = new Set(); for (const v of Object.values((list && list.sub) || {})) for (const y of v) s.add(keyOf(y)); return s; };
   // Opciones de un campo de lista según lo ya respondido (si depende de otro y ese tiene respuesta con opciones propias)
   function optsFor(f, v) {
     if (!f || f.type !== 'pick') return [];
@@ -59,6 +83,16 @@
     for (const f of tpl.fields) {
       if (!f.list || !f.grow) continue;
       const i = out.findIndex(l => l.id === f.list); if (i < 0) continue;
+      if (f.sub) {
+        // v1.67: en un paso de sub-lista, lo nuevo entra en la sub-lista de lo elegido arriba (solo si arriba hay uno elegido)
+        const par = items(v[f.sub]); if (par.length !== 1) continue;
+        const pk = keyOf(par[0]), cur = subOf(out[i], par[0]);
+        const add = items(v[f.id]).filter(x => !cur.some(y => keyOf(y) === keyOf(x))).slice(0, Math.max(0, LIM.subItems - cur.length));
+        if (!add.length) continue;
+        out[i] = { ...out[i], sub: { ...(out[i].sub || {}), [pk]: [...cur, ...add] }, ...(now ? { mt: now } : {}) };
+        add.forEach(x => added.push({ list: f.list, item: x, parent: par[0] }));
+        continue;
+      }
       for (const x of items(v[f.id])) {
         if (out[i].items.some(y => keyOf(y) === keyOf(x)) || out[i].items.length >= LIM.items) continue;
         out[i] = { ...out[i], items: [...out[i].items, x], ...(now ? { mt: now } : {}) }; added.push({ list: f.list, item: x });
@@ -72,7 +106,7 @@
     const label = str(f.label, LIM.label); if (!label && !(seq && type === 'text')) return null; // en una frase, un hueco puede ir sin texto delante
     const out = { id: idOk(f.id) ? f.id : 'f' + i, label, type };
     if (type === 'num') out.unit = str(f.unit, LIM.unit);
-    if (type === 'text') linkOf(f, out);
+    if (type === 'text') { linkOf(f, out); if (idOk(f.sub)) { out.sub = f.sub; if (f.grow === true) out.grow = true; } } // v1.67: sub = id del paso de arriba
     if (type === 'pick') {
       out.opts = optList(f.opts);
       // v1.43: opciones que dependen de la respuesta de otra lista anterior (dep = id de ese campo; by = { opción: [opciones] })
@@ -93,6 +127,8 @@
     const fields = (Array.isArray(t.fields) ? t.fields : []).map((f, i) => sanitizeField(f && t.kind === 'mod' ? { ...f, type: 'text' } : f, i, seq)).filter(f => f && !ids.has(f.id) && ids.add(f.id)).slice(0, LIM.fields);
     if (t.kind === 'mod' && !fields.length) return null;
     fields.forEach((f, j) => { if (!f.dep) return; const par = fields.slice(0, j).find(x => x.id === f.dep && x.type === 'pick' && !x.dep); if (par) { for (const k of Object.keys(f.by)) if (!par.opts.includes(k)) delete f.by[k]; } if (!par || !Object.keys(f.by).length) { delete f.dep; delete f.by; } });
+    // v1.67: un paso de sub-lista va unido a un paso anterior con lista; usa la misma lista (la del paso de arriba)
+    fields.forEach((f, j) => { if (!f.sub) return; const par = fields.slice(0, j).find(x => x.id === f.sub && x.type === 'text' && x.list); if (par) f.list = par.list; else delete f.sub; });
     for (let j = fields.length - 1; j >= 0; j--) if (fields[j].type === 'pick' && !fields[j].opts.length && !fields[j].dep) fields.splice(j, 1);
     const out = { id: t.id, name, icon: ICONS.includes(t.icon) ? t.icon : seq ? 'list' : 'doc', color: isHex(t.color) ? t.color : '#7c8cff', fields, prog: null, goals: {} };
     if (seq) out.seq = true;
@@ -245,5 +281,5 @@
       { id: 'tp_date', name: L.date, icon: 'users', color: '#b06ad9', fields: [{ id: 'who', label: L.who, type: 'text' }, { id: 'where', label: L.where, type: 'text' }, { id: 'done', label: L.done, type: 'bool' }], prog: null, goals: {} }
     ].map(sanitizeTpl);
   }
-  return { TYPES, ICONS, LIM, keyOf, items, joinItems, toggleItem, sanitizeList, optsFor, grow, mentions, search, fold, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
+  return { TYPES, ICONS, LIM, keyOf, items, joinItems, toggleItem, sanitizeList, subOf, subOpts, subAll, optsFor, grow, mentions, search, fold, sanitizeTpl, sanitizeVals, summary, notesOf, lastVals, recent, progress, totals, history, seeds };
 });
