@@ -145,3 +145,26 @@ test('v1.52: Listas con selección múltiple (marcar, guardar, añadir a la list
   assert.ok(N.ICONS.length > 60 && N.ICONS.includes('paw'));
   assert.equal(N.sanitizeTpl({ id: 'c1', name: 'X', color: '#123abc', fields: [{ id: 'a', label: 'A', type: 'text' }] }).color, '#123abc');
 });
+
+test('v1.64: sub-listas encadenadas (Matemáticas → Álgebra…) y notas sin límite práctico', () => {
+  const l = N.sanitizeList({ id: 'ls', name: 'Asignaturas', items: ['Matemáticas', 'Lengua'], sub: { 'Matemáticas': ['Álgebra', 'Estadística', 'álgebra'], lengua: ['Sintaxis'], vacía: [] } });
+  assert.deepEqual(l.sub, { 'matemáticas': ['Álgebra', 'Estadística'], lengua: ['Sintaxis'] });
+  assert.deepEqual(N.subOpts(l, 'Matemáticas'), ['Álgebra', 'Estadística']);
+  assert.deepEqual(N.subOpts(l, 'Matemáticas, Lengua'), ['Álgebra', 'Estadística', 'Sintaxis']);
+  assert.deepEqual(N.subOpts(l, ''), []);
+  assert.ok(N.subAll(l).has('sintaxis'));
+  // Paso 2 unido a la sub-lista del paso 1: hereda su lista. Un paso de sub-lista sin padre válido la pierde
+  const tpl = N.sanitizeTpl({ id: 'm1', kind: 'mod', name: 'Estudio', fields: [{ id: 'a', label: 'Estudié', type: 'text', list: 'ls', grow: true }, { id: 'b', label: 'Avances', type: 'text', sub: 'a', grow: true }, { id: 'c', label: 'x', type: 'text', sub: 'zz' }] });
+  assert.equal(tpl.fields[1].sub, 'a'); assert.equal(tpl.fields[1].list, 'ls');
+  assert.equal(tpl.fields[2].sub, undefined);
+  // Lo nuevo de un paso de sub-lista entra en la sub-lista de lo elegido arriba (solo si arriba hay uno)
+  const g = N.grow([l], tpl, { a: 'Matemáticas', b: 'Álgebra, Problemas' }, 5);
+  assert.deepEqual(g.lists[0].sub['matemáticas'], ['Álgebra', 'Estadística', 'Problemas']);
+  assert.deepEqual(g.added, [{ list: 'ls', item: 'Problemas', parent: 'Matemáticas' }]);
+  assert.deepEqual(g.lists[0].items, ['Matemáticas', 'Lengua']);
+  assert.equal(N.grow([l], tpl, { a: 'Matemáticas, Lengua', b: 'Nuevo' }).added.length, 0);
+  // Textos largos: ya no se cortan a 80/300 caracteres
+  const long = 'palabra '.repeat(200).trim();
+  assert.equal(N.sanitizeVals(tpl, { c: long }).c, long);
+  assert.ok(N.summary(tpl, { c: long }, long).length > 3000);
+});
