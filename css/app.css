@@ -3192,3 +3192,13 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 .tf-tr-leg.multi { padding: 10px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid var(--line); }
 .tf-tr-join { display: block; width: 2px; height: 10px; margin: -6px auto; background: var(--line); }
 .tf-tl-col, .tf-trip { -webkit-touch-callout: none; }
+
+/* v1.64: registrar un entrenamiento de otro día */
+.gy-past { margin-top: -4px; }
+.gb-day { margin: 12px 0 4px; }
+.gb-day .field { margin-bottom: 6px; }
+.gb-quick, .gb-rts .chip-scroll { gap: 6px; }
+.gb-rts { margin: 8px 0 0; display: grid; gap: 6px; }
+.gy-back-d { display: inline-flex; align-items: center; gap: 4px; }
+.gy-back-hint { margin: -2px 0 10px; }
+[hidden].gb-only { display: none !important; }
