@@ -83,3 +83,22 @@ test('cada indicador del catálogo está completo', () => {
   }
   for (const v of T.DEFAULT_VIEWS) for (const id of v.ids) assert.ok(T.IND[id], v.id + ':' + id);
 });
+
+test('Replay: cada escala recorre su ventana hasta hoy, nunca desde el primer registro (salvo en Todo)', () => {
+  const tk = '2026-11-19', first = '2024-03-10';
+  const d = T.replayPlan('day', tk, first);
+  assert.deepEqual(d, { from: tk, to: tk, sub: 'day', keys: [tk] });
+  const w = T.replayPlan('week', tk, first);
+  assert.equal(w.from, '2026-11-13'); assert.equal(w.sub, 'day'); assert.equal(w.keys.length, 7); assert.equal(w.keys[6], tk);
+  const m = T.replayPlan('month', tk, first);
+  assert.equal(m.from, '2026-10-21'); assert.equal(m.keys.length, 30); assert.equal(m.keys.at(-1), tk);
+  const y = T.replayPlan('year', tk, first);
+  assert.equal(y.from, '2025-12-01'); assert.equal(y.sub, 'month'); assert.equal(y.keys.length, 12); assert.equal(y.keys.at(-1), '2026-11-01');
+  const a = T.replayPlan('all', tk, first);
+  assert.equal(a.from, first); assert.equal(a.sub, 'year'); assert.deepEqual(a.keys, ['2024-03-10', '2025-01-01', '2026-01-01']);
+  // con poco historial: no empieza antes del primer registro
+  assert.deepEqual(T.replayPlan('week', tk, '2026-11-17').keys, ['2026-11-17', '2026-11-18', tk]);
+  assert.equal(T.replayPlan('all', tk, '2026-11-01').sub, 'day');
+  assert.equal(T.replayPlan('all', tk, '2026-02-01').sub, 'month');
+  for (const k of T.replayPlan('all', tk, '2026-02-01').keys) assert.ok(k <= tk);
+});

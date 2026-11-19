@@ -1877,9 +1877,15 @@
     box.classList.toggle('on', !r.hidden);
   }
 
-  /* ---- v1.38: Replay. v1.52: en orden cronológico, desde el PRIMER registro hasta hoy (la vista, las estadísticas, Progreso y Mundo a la vez), en modo cine ---- */
-  const RP = { on: false, sp: 1, tm: 0, n: 0, held: '', from: '', lbl: '' }, RP_SPEEDS = [1, 5, 20], RP_MS = 1600;
-  const rpHalt = () => { clearTimeout(RP.tm); RP.tm = 0; RP.on = false; if (LW.r && LW.r.cinema) LW.r.cinema(false); };
+  /* ---- v1.38: Replay. v1.52: en orden cronológico hasta hoy. v1.63.2: desde el inicio de la ventana de la escala (Semana, los últimos 7 días…) (la vista, las estadísticas, Progreso y Mundo a la vez), en modo cine ---- */
+  // v1.63.2: el Replay recorre la ventana de la escala hasta hoy (KGT.replayPlan). Mientras dura (y en pausa), la vista pasa a la escala
+  // de cada paso (sc0 guarda la elegida, que sigue marcada arriba); a = primer día de la ventana; us/ui = fechas de los pasos y el actual
+  const RP = { on: false, sp: 1, tm: 0, n: 0, held: '', from: '', lbl: '', sc0: '', a: '', us: [], ui: 0 }, RP_SPEEDS = [1, 5, 20], RP_MS = 1600;
+  // keep: solo pausa (la vista se queda en el paso); sin keep (al salir de la pestaña), vuelve a la escala elegida
+  const rpHalt = keep => {
+    clearTimeout(RP.tm); RP.tm = 0; RP.on = false; if (LW.r && LW.r.cinema) LW.r.cinema(false);
+    if (!keep && RP.sc0) { if (state.ui.tl) state.ui.tl.sc = RP.sc0; RP.sc0 = ''; RP.held = ''; }
+  };
 
   /* ---- la pestaña ---- */
   function makeTimeline() {
@@ -2360,14 +2366,16 @@
         <span class="tl-win" style="--a:${p0 * 100}%;--b:${p1 * 100}%"></span><span class="tl-knob" style="--x:${(p0 + p1) / 2 * 100}%"></span></div>`;
     };
     // Replay: la fila de controles (el resto, más abajo)
-    const rpBar = () => u.sc === 'all' ? '' : `<div class="tl-rp" role="group" aria-label="${esc(t('rpAria'))}">
+    const rpBar = () => `<div class="tl-rp" role="group" aria-label="${esc(t('rpAria'))}">
       <button class="icon-btn sm" data-rp="today" ${u.at >= todayKey() ? 'disabled' : ''} aria-label="${esc(t('rpToday'))}" title="${esc(t('rpToday'))}">${ico('toEnd')}</button>
       <button class="tl-rp-play ${RP.on ? 'on' : ''}" data-rp="play" aria-pressed="${RP.on}">${ico(RP.on ? 'pause' : 'play')}<span>${esc(t(RP.on ? 'rpPause' : 'rpPlay'))}</span></button>
       <div class="seg seg-sm tl-rp-sp" role="group" aria-label="${esc(t('rpSpeed'))}">${RP_SPEEDS.map(s => `<button data-rp-sp="${s}" class="${RP.sp === s ? 'on' : ''}" aria-pressed="${RP.sp === s}">${s}×</button>`).join('')}</div>
-      <span class="tl-rp-l small">${esc(t('rpFwdBy', { by: t(u.sc === 'day' && u.ws !== 'sc' ? 'rpByMoment' : 'rpBy_' + u.sc) }))}</span></div>`;
+      <span class="tl-rp-l small">${esc(rpWinLbl())}</span></div>`;
+    // Qué va a recorrer: «Últimos 7 días, día a día»…
+    const rpWinLbl = () => { const sc = RP.sc0 || u.sc, sub = RP.sc0 ? u.sc : KGT.replayPlan(sc, todayKey(), tlFirstKey()).sub; return t('rpWin_' + sc, { by: t(sc === 'day' ? 'rpByMoment' : 'rpBy_' + sub) }); };
     const head = () => {
       const { from, to } = R(), tk = todayKey(), cur = from <= tk && tk <= to, mk = tlMarks(), prevM = KGT.nextMark(mk, from, to, -1), nextM = KGT.nextMark(mk, from, to, 1);
-      return `<div class="tl-top"><div class="seg seg-sm tl-sc" role="group" aria-label="${esc(t('tlScaleAria'))}">${KGT.SCALES.map(s => `<button data-tl-sc="${s}" class="${u.sc === s ? 'on' : ''}" aria-pressed="${u.sc === s}">${esc(t('tlSc_' + s))}</button>`).join('')}</div>
+      return `<div class="tl-top"><div class="seg seg-sm tl-sc" role="group" aria-label="${esc(t('tlScaleAria'))}">${KGT.SCALES.map(s => `<button data-tl-sc="${s}" class="${(RP.sc0 || u.sc) === s ? 'on' : ''}" aria-pressed="${(RP.sc0 || u.sc) === s}">${esc(t('tlSc_' + s))}</button>`).join('')}</div>
 </div>
         <div class="tl-nav"><button class="icon-btn sm" data-tl-step="-1" ${u.sc === 'all' || from <= tlFirstKey() ? 'disabled' : ''} aria-label="${esc(t('tlPrev'))}" title="${esc(t('tlPrev'))}">${ico('left')}</button>
           <label class="tl-lbl"><span>${esc(tlLabel(u.sc, from, to))}</span>${u.sc === 'week' ? `<small>${esc(t('jrWeekN', { n: tfWeekNo(from) }))}</small>` : ''}<input type="date" id="tl-date" value="${u.at}" min="${tlFirstKey()}" max="${tk}" aria-label="${esc(t('tlPickDate'))}"></label>
@@ -2458,17 +2466,19 @@
     };
     let rT = 0, tlTickAt = 0;
     const setAt = (k, opt = {}) => {
-      rpStop(); const tk = todayKey(); k = k > tk ? tk : k < tlFirstKey() && u.sc !== 'day' ? tlFirstKey() : k;
-      if (k === u.at && !opt.force) return;
+      rpStop(); const back = rpRestore(), tk = todayKey(); k = k > tk ? tk : k < tlFirstKey() && u.sc !== 'day' ? tlFirstKey() : k;
+      if (k === u.at && !opt.force && !back) return;
       flush(); u.at = k; f = weekIdx(k); save();
+      if (back) { redraw({ full: true }); return; }
       if (opt.lazy && Date.now() - tlTickAt > 70) { tlTickAt = Date.now(); sfx('tlFrame'); } // v1.39: «clic» al arrastrar por la pista
       if (opt.lazy) { cancelAnimationFrame(rT); rT = requestAnimationFrame(() => redraw()); } else redraw();
     };
     const go = n => { const nf = clamp(n, 0, weeks.length - 1); if (nf === f) return; vibrate(5); sfx('tlStep', nf > f ? 1 : -1); setAt(nf === 0 ? todayKey() : weeks[nf]); };
-    /* -- Replay (v1.52): del primer registro hasta HOY, un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
+    /* -- Replay (v1.52; v1.63.2: desde el inicio de la ventana de la escala) hasta HOY, un periodo (o un momento, en Día con Mundo) cada 1,6 s a 1×. No guarda nada hasta parar -- */
     const rpPaint = () => { const el = wref && $('#tl-rp', wref); if (el) el.innerHTML = rpBar(); const e2 = TLS.sheetEl && $('#tl-rp2', TLS.sheetEl); if (e2) e2.innerHTML = rpBar(); };
     // sin ningún momento registrado, el Día va día a día como las demás escalas
-    const rpWorldDay = () => u.sc === 'day' && u.ws !== 'sc' && RP.hasM !== false;
+    // v1.63.2: momento a momento solo en la escala Día (Semana y Mes van día a día)
+    const rpWorldDay = () => u.sc === 'day' && (RP.sc0 || u.sc) === 'day' && u.ws !== 'sc' && RP.hasM !== false;
     // Modo cine: rótulo con la fecha que rueda como un cuentakilómetros, barra de lo recorrido y destello de rebobinado en cada paso
     const cinePaint = tick => {
       const el = wref && $('#tl-cine', wref), w = wref && $('#tl-hero-w', wref); if (!el || !w) return;
@@ -2476,14 +2486,16 @@
       if (!RP.on) { el.innerHTML = ''; RP.lbl = ''; return; }
       const { from, to } = R(), lbl = u.sc === 'day' ? fmtDate(u.at, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : tlLabel(u.sc, from, to);
       const prev = [...(RP.lbl || '')], cs = [...lbl]; RP.lbl = lbl;
-      const tk = todayKey(), first = tlFirstKey(), pos = first >= tk ? 1 : KGT.posOf(u.at > tk ? tk : u.at < first ? first : u.at, first, tk);
+      const tk = todayKey(), first = RP.a || tlFirstKey(), pos = first >= tk ? 1 : KGT.posOf(u.at > tk ? tk : u.at < first ? first : u.at, first, tk);
       el.innerHTML = `<span class="tl-cine-k">${ico('play', 'xs')} ${esc(t('rpCineK2'))} · ${RP.sp}×</span><b class="tl-odo">${cs.map((c, i) => `<span class="${tick && c !== prev[i] ? 'roll' : ''}" style="--i:${i}">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')}</b><span class="tl-cine-bar"><i style="width:${(pos * 100).toFixed(1)}%"></i></span>`;
       if (tick && !reducedMotion()) { w.classList.remove('flash'); void w.offsetWidth; w.classList.add('flash'); }
     };
     const rpFx = () => { RP.n++; cinePaint(true); if (LW.r && LW.r.pulse) LW.r.pulse(); if (RP.on) sfx('tlFrame'); };
-    const rpStop = () => { if (!RP.on) return; rpHalt(); RP.held = u.sc + u.ws + u.at; save(); rpPaint(); cinePaint(false); heroPaint(); };
+    const rpStop = () => { if (!RP.on) return; rpHalt(true); RP.held = u.sc + u.ws + u.at; save(); rpPaint(); cinePaint(false); heroPaint(); };
     const rpNext = () => { clearTimeout(RP.tm); RP.tm = setTimeout(rpStep, RP_MS / RP.sp); };
     const rpGo = k => { u.at = k; f = weekIdx(k); redraw(); if (RP.on) rpFx(); };
+    // Deja la escala de los pasos y vuelve a la elegida (al terminar, al navegar o al cambiar de escala). true si la cambió
+    const rpRestore = () => { if (!RP.sc0) return false; const ch = RP.sc0 !== u.sc; u.sc = RP.sc0; RP.sc0 = ''; RP.held = ''; return ch; };
     const dayCount = k => (u.ws === 'tr' ? KGWorld.legs(lwItems(k, k)) : lwItems(k, k)).length;
     // Un paso hacia delante: en Día con Mundo, el momento siguiente (o el primero del siguiente día que tenga alguno); si no, el periodo siguiente
     function rpStep() {
@@ -2496,16 +2508,18 @@
         if (!k) { rpEnd(); return; }
         LW.rk = 'day' + k + k + u.ws; LW.pick = { t: 'm', i: 0 }; rpGo(k); rpNext(); return;
       }
-      if (R().to >= tk) { rpEnd(); return; }
-      const nk = KGT.shift(u.sc, u.at, 1); rpGo(nk > tk ? tk : nk); rpNext();
+      const i = RP.us.indexOf(u.at), nx = RP.us[(i < 0 ? RP.ui : i) + 1];
+      if (!nx || u.at >= tk) { rpEnd(); return; }
+      RP.ui = RP.us.indexOf(nx); rpGo(nx > tk ? tk : nx); rpNext();
     }
     // El siguiente día (después de k, hasta hoy) con algún momento; '' si no queda ninguno
     const rpNextDay = k => { const tk = todayKey(); let n = 0; do { k = addDays(k, 1); n++; } while (k <= tk && n < 3700 && !dayCount(k)); return k <= tk && n < 3700 ? k : ''; };
     // Llegó a hoy: tarjeta final con lo recorrido
     function rpEnd() {
-      rpHalt(); RP.held = ''; save(); rpPaint(); cinePaint(false); heroPaint(); sfx('tlMark'); vibrate([8, 40, 8]);
+      const a = RP.a || tlFirstKey();
+      rpHalt(true); rpRestore(); RP.held = ''; LW.pick = null; LW.rk = ''; u.at = todayKey(); f = weekIdx(u.at); save(); cinePaint(false); redraw({ full: true }); sfx('tlMark'); vibrate([8, 40, 8]);
       const el = wref && $('#tl-rpend', wref); if (!el) return;
-      const a = tlFirstKey(), b = RP.from && RP.from > a ? RP.from : todayKey(), days = tlDaysBetween(a, b) + 1;
+      const b = RP.from && RP.from > a ? RP.from : todayKey(), days = tlDaysBetween(a, b) + 1;
       let pf = 0; for (let k = a, n = 0; k <= b && n < 2400; k = addDays(k, 1), n++) { const d = tlDay(k); if (d && d.perfect) pf++; }
       const pl = KGWorld.summary(lwItems(a, b)).places.length, gy = (state.gymWorkouts || []).filter(w => w.status === 'done' && w.date >= a && w.date <= b).length, sh = Object.keys(state.calDays || {}).filter(k => k >= a && k <= b && (state.calDays[k] || []).length).length;
       const cell = (ic, v, l) => `<span class="tl-rpend-c" style="--d:${cellN++}">${ico(ic, 'xs')}<b>${v}</b><small>${esc(l)}</small></span>`; let cellN = 0;
@@ -2521,8 +2535,10 @@
       const resume = !fresh && RP.held && RP.held === u.sc + u.ws + u.at; RP.held = '';
       RP.on = true; RP.n = 0;
       if (LW.r && LW.r.cinema) LW.r.cinema(true);
-      if (!resume) { // siempre desde el primer registro
-        RP.from = todayKey(); RP.lbl = ''; RP.hasM = true; const fk = tlFirstKey();
+      if (!resume) { // desde el inicio de la ventana de la escala (Semana: hace 6 días; Todo: el primer registro), con la escala de cada paso
+        rpRestore(); const P = KGT.replayPlan(u.sc, todayKey(), tlFirstKey());
+        RP.sc0 = u.sc; u.sc = P.sub; RP.a = P.from; RP.us = P.keys; RP.ui = 0;
+        RP.from = todayKey(); RP.lbl = ''; RP.hasM = true; const fk = P.from;
         const k0 = rpWorldDay() ? (dayCount(fk) ? fk : rpNextDay(fk)) : ''; RP.hasM = !!k0;
         if (k0) { LW.rk = ''; LW.pick = { t: 'm', i: 0 }; rpGo(k0); }
         else { LW.pick = null; LW.rk = ''; rpGo(fk); }
@@ -2530,7 +2546,7 @@
       else cinePaint(false);
       rpPaint(); rpNext();
     };
-    const setScale = sc => { if (sc === u.sc) return; rpStop(); const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx(dir === 'out' ? 'tlZoomOut' : 'tlZoomIn'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
+    const setScale = sc => { rpStop(); if (rpRestore() && sc === u.sc) { save(); redraw({ full: true }); return; } if (sc === u.sc) return; const dir = KGT.SCALES.indexOf(sc) > KGT.SCALES.indexOf(u.sc) ? 'out' : 'in'; flush(); u.sc = sc; TLS.edit = false; save(); vibrate(6); sfx(dir === 'out' ? 'tlZoomOut' : 'tlZoomIn'); redraw({ full: true }); const m = $('#tl-main', wref); if (m && !reducedMotion()) { m.classList.remove('zoom-in', 'zoom-out'); void m.offsetWidth; m.classList.add(dir === 'out' ? 'zoom-out' : 'zoom-in'); } };
     const flush = () => { if (!saveT) return; clearTimeout(saveT); saveT = 0; const ta = pRoot() && $('#jr-note', pRoot()); if (ta) commit(ta.value); };
     const commit = v => {
       const w = tfWeekKeys(weeks[f])[0], had = Object.keys(state.jrNotes || {}).length; jrSetNote(w, v); save(); if (v.trim()) firstTime('journal', !had);
@@ -2613,7 +2629,7 @@
         const sh = e.target.closest('[data-tl-sheet]'); if (sh) { if (sh.closest('.tl-set')) { u.ws = 'sc'; save(); } openSheet(sh.dataset.tlSheet); return; }
         if (e.target.closest('#tl-hero')) { openSheet('world'); return; }
         const sc = e.target.closest('[data-tl-sc]'); if (sc) { setScale(sc.dataset.tlSc); return; }
-        const rp = e.target.closest('[data-rp]'); if (rp) { vibrate(5); sfx(rp.dataset.rp === 'play' && !RP.on ? 'tlReplay' : 'tlPanel'); if (rp.dataset.rp === 'play') rpPlay(); else { rpStop(); rpEndClose(); LW.pick = null; rpGo(todayKey()); save(); } return; }
+        const rp = e.target.closest('[data-rp]'); if (rp) { vibrate(5); sfx(rp.dataset.rp === 'play' && !RP.on ? 'tlReplay' : 'tlPanel'); if (rp.dataset.rp === 'play') rpPlay(); else { rpStop(); rpEndClose(); const back = rpRestore(); LW.pick = null; if (back) { u.at = todayKey(); f = weekIdx(u.at); redraw({ full: true }); } else rpGo(todayKey()); save(); } return; }
         const rs = e.target.closest('[data-rp-sp]'); if (rs) { RP.sp = +rs.dataset.rpSp; sfx('tlPanel'); rpPaint(); if (RP.on) rpNext(); return; }
         const st = e.target.closest('[data-tl-step]'); if (st) { vibrate(5); sfx('tlStep', +st.dataset.tlStep); setAt(KGT.shift(u.sc, u.at, +st.dataset.tlStep)); return; }
         if (e.target.closest('[data-tl-today]')) { setAt(todayKey()); return; }
