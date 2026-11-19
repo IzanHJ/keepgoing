@@ -3202,3 +3202,5 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 .gy-back-d { display: inline-flex; align-items: center; gap: 4px; }
 .gy-back-hint { margin: -2px 0 10px; }
 [hidden].gb-only { display: none !important; }
+/* v1.63.2: la barra de botones de arriba (calculadora, candado, +…) ya no se pega a la primera tarjeta (Patrimonio actual, perfil de Maestrías) */
+.main > .top-bar + .clay { margin-top: 16px; }
