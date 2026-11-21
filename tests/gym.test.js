@@ -123,7 +123,7 @@ test('Entrenamiento v1.69: gimnasio y deporte en el mismo registro', () => {
   assert.strictEqual(G.cleanWorkout({ ...mix, spAt: 123 }).spAt, undefined);
 });
 
-test('Entrenamiento v1.70: varios deportes en el mismo registro', () => {
+test('Entrenamiento v1.71: varios deportes en el mismo registro', () => {
   const ex = [{ eid: 'bench', sets: [{ w: 60, r: 10, done: true }] }];
   const w = W('v', '2026-11-21', [], { sp: 'running', st: ['free'], spm: 20, xsp: [{ sp: 'basketball', st: ['match'], res: { us: 3, them: 1 }, m: 40 }] });
   assert.ok(G.isMixed(w));

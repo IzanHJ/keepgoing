@@ -3237,9 +3237,32 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 .mx-min { margin-top: 8px; display: inline-flex; flex-direction: column; }
 .sp-box.mx .sp-fig { max-width: min(36vw, 140px); margin: 0 auto; }
 .mx-line { margin: 4px 0 8px; display: flex; align-items: center; gap: 6px; }
-/* v1.70: varios deportes en el mismo entrenamiento */
+/* v1.71: varios deportes en el mismo entrenamiento */
 .mx-block { display: flex; flex-direction: column; gap: 10px; }
 .mx-block.is-multi { padding: 12px; border-radius: 18px; background: color-mix(in srgb, var(--accent) 6%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); }
 .mx-dblock + .mx-dblock { margin-top: 12px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
 .mx-dblock .mx-row { margin: 6px 0; }
 .gyc-head .sp-box.mini + .sp-box.mini { margin-left: -14px; }
+
+/* v1.70: fotos de progreso de hábitos (serie y comparar) y compartir resultados */
+.hp-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.hp-mini { position: relative; flex: 0 0 96px; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: var(--surface-2); border: 0; padding: 0; cursor: pointer; }
+.hp-mini img, .hp-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hp-mini span { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 11px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.7)); text-align: left; }
+.hp-add { align-items: flex-end; gap: 10px; }
+.hp-add .btn { cursor: pointer; }
+.hp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.hp-cell { position: relative; aspect-ratio: 3 / 4; border-radius: var(--r-md, 16px); overflow: hidden; padding: 0; }
+.hp-cap { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 3px 8px; border-radius: 10px; }
+.hp-del { position: absolute; right: 6px; top: 6px; background: rgba(0,0,0,.55); color: #fff; }
+.hp-cmp { position: relative; aspect-ratio: 3 / 4; max-height: 62vh; margin: 0 auto 10px; border-radius: var(--r-lg, 20px); overflow: hidden; background: var(--surface-2); user-select: none; }
+.hp-cmp > img, .hp-cmp-a img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hp-cmp-a { position: absolute; inset: 0; clip-path: inset(0 calc(100% - var(--cut)) 0 0); }
+.hp-cmp-bar { position: absolute; top: 0; bottom: 0; left: var(--cut); width: 3px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 8px rgba(0,0,0,.5); pointer-events: none; }
+.hp-tag { position: absolute; top: 10px; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 10px; }
+.hp-tag.l { left: 10px; } .hp-tag.r { right: 10px; }
+.sr-seg { flex-wrap: wrap; }
+.sr-prev-wrap { display: grid; place-items: center; background: var(--surface-2); border-radius: var(--r-lg, 20px); padding: 12px; min-height: 200px; }
+#sr-prev { width: 100%; max-width: 420px; border-radius: 18px; box-shadow: var(--sh-out); transition: opacity .2s; }
+#sr-prev.busy { opacity: .45; }
+#sr-prev:not([src]) { visibility: hidden; }

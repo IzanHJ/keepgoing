@@ -159,7 +159,7 @@
   const minutesOf = w => w.end && w.start ? Math.max(0, Math.round((w.end - w.start) / 60000)) : (+w.min || 0);
   /* v1.69: un mismo entrenamiento puede llevar ejercicios de gimnasio y un deporte (p. ej. pesas y luego Baloncesto).
      w.spm = minutos del deporte dentro de la sesión; sin ejercicios, el deporte dura toda la sesión. */
-  /* v1.70: y varios deportes. El primero sigue en w.sp/st/ev/res/spm (así lo leen las versiones anteriores) y los demás
+  /* v1.71: y varios deportes. El primero sigue en w.sp/st/ev/res/spm (así lo leen las versiones anteriores) y los demás
      en w.xsp = [{ sp, st, ev, res, m, at }]. sportsOf(w) los da todos juntos como [{ sp, st, ev, res, m }]. */
   const rawSports = w => !isSport(w) ? [] : [{ sp: w.sp, st: w.st || [], ev: w.ev || [], res: w.res || null, m: +w.spm || 0, at: +w.spAt || 0 },
     ...(Array.isArray(w.xsp) ? w.xsp : []).filter(x => x && SP().get(x.sp)).map(x => ({ sp: x.sp, st: x.st || [], ev: x.ev || [], res: x.res || null, m: +x.m || 0, at: +x.at || 0 }))];
@@ -355,7 +355,7 @@
     if (+w.prs > 0) o.prs = Math.min(99, Math.floor(+w.prs));
     if (w.mt) o.mt = w.mt;
     if (SP()) Object.assign(o, SP().cleanSport(w)); else if (typeof w.sp === 'string') { o.sp = w.sp.slice(0, 20); ['st', 'ev'].forEach(k => { if (Array.isArray(w[k])) o[k] = w[k].slice(0, 20).map(x => String(x).slice(0, 20)); }); if (w.res && typeof w.res === 'object') o.res = w.res; }
-    // v1.70: más deportes en la misma sesión
+    // v1.71: más deportes en la misma sesión
     if (o.sp && Array.isArray(w.xsp)) {
       const xs = w.xsp.slice(0, 8).map(x => {
         if (!x || typeof x !== 'object') return null;
