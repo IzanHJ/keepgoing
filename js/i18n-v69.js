@@ -7,7 +7,7 @@
     mxPickSp: '¿Qué deporte añades?', mxSport: 'Deporte', mxSportMin: 'Minutos de {s}',
     mxSportHint: 'Va en esta misma sesión. Al terminar pones sus minutos, el tipo, los eventos y el resultado.',
     mxAddSportHint: '¿Hiciste también un deporte en esta sesión? Añádelo aquí.',
-    mxSportTooLong: 'Los minutos del deporte no pueden pasar de la duración de la sesión', mxDoneT: '¡Entrenamiento completado!'
+    mxSportTooLong: 'Los minutos de los deportes no pueden pasar de la duración de la sesión', mxDoneT: '¡Entrenamiento completado!'
   };
   const en = {
     wn_1_69_0_1: 'Gym and sport together|In a gym session, tap “Add sport” (e.g. Basketball after weights). Everything stays in one training.',
@@ -16,7 +16,7 @@
     mxPickSp: 'Which sport are you adding?', mxSport: 'Sport', mxSportMin: '{s} minutes',
     mxSportHint: 'Part of this same session. When you finish you set its minutes, type, events and result.',
     mxAddSportHint: 'Did you also play a sport in this session? Add it here.',
-    mxSportTooLong: 'Sport minutes cannot be longer than the session', mxDoneT: 'Training done!'
+    mxSportTooLong: 'Sport minutes cannot add up to more than the session', mxDoneT: 'Training done!'
   };
   Object.assign(window.I18N.es, es);
   Object.assign(window.I18N.en, en);

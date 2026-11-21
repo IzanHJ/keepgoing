@@ -3237,6 +3237,12 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 .mx-min { margin-top: 8px; display: inline-flex; flex-direction: column; }
 .sp-box.mx .sp-fig { max-width: min(36vw, 140px); margin: 0 auto; }
 .mx-line { margin: 4px 0 8px; display: flex; align-items: center; gap: 6px; }
+/* v1.71: varios deportes en el mismo entrenamiento */
+.mx-block { display: flex; flex-direction: column; gap: 10px; }
+.mx-block.is-multi { padding: 12px; border-radius: 18px; background: color-mix(in srgb, var(--accent) 6%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); }
+.mx-dblock + .mx-dblock { margin-top: 12px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+.mx-dblock .mx-row { margin: 6px 0; }
+.gyc-head .sp-box.mini + .sp-box.mini { margin-left: -14px; }
 
 /* v1.70: fotos de progreso de hábitos (serie y comparar) y compartir resultados */
 .hp-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
