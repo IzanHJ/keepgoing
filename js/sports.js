@@ -120,7 +120,7 @@
   // Deportes más usados (para empezar con un toque)
   function recent(workouts, n = 4) {
     const c = new Map();
-    (workouts || []).filter(w => w && w.sp && get(w.sp)).forEach(w => { const e = c.get(w.sp) || { id: w.sp, n: 0, last: '' }; e.n++; if ((w.date || '') > e.last) e.last = w.date; c.set(w.sp, e); });
+    (workouts || []).filter(w => w && w.sp && get(w.sp)).forEach(w => [w.sp, ...(Array.isArray(w.xsp) ? w.xsp.map(x => x && x.sp) : [])].filter(id => get(id)).forEach(id => { const e = c.get(id) || { id, n: 0, last: '' }; e.n++; if ((w.date || '') > e.last) e.last = w.date; c.set(id, e); }));
     return [...c.values()].sort((a, b) => a.last < b.last ? 1 : a.last > b.last ? -1 : b.n - a.n).slice(0, n).map(e => e.id);
   }
 

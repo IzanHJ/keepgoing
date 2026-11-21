@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.69.0';
+  const VERSION = '1.70.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1802,7 +1802,7 @@
         });
       }
       for (const x of (state.calExt && state.calExt.list) || []) if (x.date >= from && x.date <= end) out.push({ date: x.date, min: x.start ? tfMin(x.start) : null, time: x.start || '', kind: 'event', name: x.title, place: idOf(tfPlace(x.pl) || tfPlOnce(x.location ? { addr: x.location } : null)), tr: '', color: '#8e8e93' });
-      for (const w of state.gymWorkouts || []) if (w.status === 'done' && w.date >= from && w.date <= end) { const hm = w.start ? new Date(w.start) : null; out.push({ date: w.date, min: hm ? hm.getHours() * 60 + hm.getMinutes() : null, time: hm ? pad(hm.getHours()) + ':' + pad(hm.getMinutes()) : '', kind: 'gym', name: w.name || (w.sp && window.KGSport ? ((w.ex || []).length ? t('gyFree') + ' + ' : '') + KGSport.name(w.sp, state.lang) : t('gyTab')), place: null, tr: '', color: lwAccent() }); }
+      for (const w of state.gymWorkouts || []) if (w.status === 'done' && w.date >= from && w.date <= end) { const hm = w.start ? new Date(w.start) : null; out.push({ date: w.date, min: hm ? hm.getHours() * 60 + hm.getMinutes() : null, time: hm ? pad(hm.getHours()) + ':' + pad(hm.getMinutes()) : '', kind: 'gym', name: w.sp ? gyTitle(w) : (w.name || t('gyTab')), place: null, tr: '', color: lwAccent() }); }
       return KGWorld.moments(out, lwGeo);
     });
   }
@@ -1950,7 +1950,7 @@
       const rows = [];
       for (const x of it.timed.filter(x => !x.cont)) { const pl = tfPlaceOf(x.s, x.e); rows.push({ m: x.a, h: `<span class="tl-ev-t">${esc(x.start)}–${esc(x.end)}</span><span class="tl-ev-dot" style="--c:${tfColor(x.s.color)}"></span><span class="grow"><b>${esc(x.s.emoji || '')} ${esc(x.s.name)}</b>${pl ? `<small class="muted"> · ${ico('pin', 'xs')} ${esc(pl.name)}</small>` : ''}${x.e.note ? `<small class="muted"> · ${esc(x.e.note)}</small>` : ''}</span>` }); }
       for (const x of it.allDay) rows.push({ m: -1, h: `<span class="tl-ev-t">${esc(t('tlAllDay'))}</span><span class="tl-ev-dot" style="--c:${tfColor(x.s.color)}"></span><span class="grow"><b>${esc(x.s.emoji || '')} ${esc(x.s.name)}</b></span>` });
-      for (const w of G) { const s = KGGym.workoutStats(w, state.gymEx), hm = w.start ? new Date(w.start) : null; rows.push({ m: hm ? hm.getHours() * 60 + hm.getMinutes() : 1441, h: `<span class="tl-ev-t">${hm ? pad(hm.getHours()) + ':' + pad(hm.getMinutes()) : '—'}</span><span class="tl-ev-dot" style="--c:var(--accent)"></span><span class="grow"><b>${ico('dumbbell', 'xs')} ${esc(w.name || (w.sp && window.KGSport ? ((w.ex || []).length ? t('gyFree') + ' + ' : '') + KGSport.name(w.sp, state.lang) : t('gyTab')))}</b><small class="muted"> · ${w.sp && !(w.ex || []).length ? esc(s.minutes ? s.minutes + ' min' : '') : esc(t('gyJrLine', { s: 1, sets: s.sets })) + (s.volume ? ' · ' + fmtNum(s.volume) + ' kg' : '')}</small></span>` }); }
+      for (const w of G) { const s = KGGym.workoutStats(w, state.gymEx), hm = w.start ? new Date(w.start) : null; rows.push({ m: hm ? hm.getHours() * 60 + hm.getMinutes() : 1441, h: `<span class="tl-ev-t">${hm ? pad(hm.getHours()) + ':' + pad(hm.getMinutes()) : '—'}</span><span class="tl-ev-dot" style="--c:var(--accent)"></span><span class="grow"><b>${ico('dumbbell', 'xs')} ${esc(w.sp ? gyTitle(w) : (w.name || t('gyTab')))}</b><small class="muted"> · ${w.sp && !(w.ex || []).length ? esc(s.minutes ? s.minutes + ' min' : '') : esc(t('gyJrLine', { s: 1, sets: s.sets })) + (s.volume ? ' · ' + fmtNum(s.volume) + ' kg' : '')}</small></span>` }); }
       for (const g of tfGaps(k)) rows.push({ m: tfMin(g.a || '00:00'), h: `<span class="tl-ev-t">${esc(g.a || '')}</span><span class="tl-ev-dot note"></span><span class="grow">${ico('edit', 'xs')} ${esc(String(g.t || ''))}</span>` });
       rows.sort((a, b) => a.m - b.m);
       const marks = tlMarks().filter(m => m.date === k);
@@ -2700,9 +2700,13 @@
      de cada deporte con sus músculos encendidos, tipo de sesión (entrenamiento libre y/o partido), eventos importantes y resultado. */
   const SPT = window.KGSport;
   const spName = id => SPT ? SPT.name(id, state.lang) : id;
-  const gyTitle = w => (w && w.name) || (w && w.sp ? ((w.ex || []).length ? t('gyFree') + ' + ' + spName(w.sp) : spName(w.sp)) : t('gyFree'));
-  // v1.69: sesión mixta = ejercicios de gimnasio y un deporte en el mismo registro
-  const gyMixed = w => !!(w && w.sp && (w.ex || []).length);
+  // v1.69-1.70: un entrenamiento puede juntar gimnasio y varios deportes. gySpIds = deportes del registro, en orden
+  const gySpIds = w => w && w.sp ? [w.sp, ...(Array.isArray(w.xsp) ? w.xsp.map(x => x && x.sp).filter(Boolean) : [])] : [];
+  const gyTitle = w => { if (w && w.name) return w.name; const ids = gySpIds(w); return ids.length ? [...((w.ex || []).length ? [t('gyFree')] : []), ...ids.map(spName)].join(' + ') : t('gyFree'); };
+  // Sesión mixta: más de una parte (gimnasio + deporte, o varios deportes)
+  const gyMixed = w => !!(w && GYM && GYM.isMixed(w));
+  // Una línea por deporte: «Baloncesto · 45 min · Partido · 60–52»
+  const gySpLines = w => (GYM.sportsOf(w) || []).map(x => [spName(x.sp), gyMixed(w) && x.m ? gyDur(x.m) : '', SPT ? SPT.line(x, state.lang) : ''].filter(Boolean).join(' · '));
   const spFig = (id, mus, cls = '') => SPT && SPT.get(id) ? `<div class="sp-box ${cls}">${SPT.svg(id, mus || null, { sex: gySex(), label: spName(id) })}</div>` : '';
   const gyHM = ms => { const d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
   const gyAt = (k, hm) => { const [h, m] = String(hm || '0:0').split(':').map(Number); const d = new Date(k + 'T00:00:00'); d.setHours(h || 0, m || 0, 0, 0); return d.getTime(); };
@@ -2768,9 +2772,9 @@
   }
   function gyCard(w, i = 0) {
     const s = GYM.workoutStats(w, state.gymEx), top = Object.entries(s.muscles).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([m]) => gyMus(m));
-    const sub = gyMixed(w) ? [s.minutes ? gyDur(s.minutes) : '', t('gyNSets', { n: s.sets }), SPT ? SPT.line(w, state.lang) : ''].filter(Boolean).join(' · ') : w.sp ? [s.minutes ? gyDur(s.minutes) : '', SPT ? SPT.line(w, state.lang) : ''].filter(Boolean).join(' · ') : `${s.minutes ? gyDur(s.minutes) + ' · ' : ''}${t('gyNSets', { n: s.sets })}${s.volume ? ' · ' + gyVol(s.volume) : ''}`;
-    const out = w.sp && SPT ? SPT.outcome(w.res) : '';
-    return `<button class="gy-w clay ${w.sp ? 'is-sp' : ''}" data-gy="w-open" data-id="${esc(w.id)}" style="--d:${i}"><span class="gy-w-d"><b>${esc(fmtDate(w.date, { day: 'numeric' }))}</b><span>${esc(fmtDate(w.date, { month: 'short' }))}</span></span>${w.sp ? spFig(w.sp, null, 'mini') : ''}<span class="grow"><b>${esc(gyTitle(w))}</b><span class="muted small">${esc(sub)}</span>${top.length && !w.sp ? `<span class="muted small">${esc(top.join(' · '))}</span>` : ''}</span>${out ? `<span class="sp-out ${out}">${esc(t('spOut_' + out))}</span>` : ''}${w.prs ? `<span class="gy-pr">${ico('trophy')}${w.prs}</span>` : ''}</button>`;
+    const sub = gyMixed(w) ? [s.minutes ? gyDur(s.minutes) : '', w.ex.length ? t('gyNSets', { n: s.sets }) : '', ...GYM.sportsOf(w).map(x => SPT ? SPT.line(x, state.lang) : '')].filter(Boolean).join(' · ') : w.sp ? [s.minutes ? gyDur(s.minutes) : '', SPT ? SPT.line(w, state.lang) : ''].filter(Boolean).join(' · ') : `${s.minutes ? gyDur(s.minutes) + ' · ' : ''}${t('gyNSets', { n: s.sets })}${s.volume ? ' · ' + gyVol(s.volume) : ''}`;
+    const out = w.sp && SPT && !w.xsp ? SPT.outcome(w.res) : '';
+    return `<button class="gy-w clay ${w.sp ? 'is-sp' : ''}" data-gy="w-open" data-id="${esc(w.id)}" style="--d:${i}"><span class="gy-w-d"><b>${esc(fmtDate(w.date, { day: 'numeric' }))}</b><span>${esc(fmtDate(w.date, { month: 'short' }))}</span></span>${gySpIds(w).slice(0, 2).map(id => spFig(id, null, 'mini')).join('')}<span class="grow"><b>${esc(gyTitle(w))}</b><span class="muted small">${esc(sub)}</span>${top.length && !w.sp ? `<span class="muted small">${esc(top.join(' · '))}</span>` : ''}</span>${out ? `<span class="sp-out ${out}">${esc(t('spOut_' + out))}</span>` : ''}${w.prs ? `<span class="gy-pr">${ico('trophy')}${w.prs}</span>` : ''}</button>`;
   }
   function gyHistView() {
     const list = gyDone().sort((a, b) => (b.date + (b.end || 0)) > (a.date + (a.end || 0)) ? 1 : -1);
@@ -2787,7 +2791,7 @@
   const gyUnit = u => u === 'reps' ? t('gyReps') : u === 's' ? t('gySec') : u;
   const gyDelta = (d, u) => d ? `<span class="gy-lg-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${fmtNum(Math.abs(d))} ${esc(gyUnit(u))}</span>` : '';
   function gyLogItem(x) {
-    if (x.kind === 'sp') { const w = state.gymWorkouts.find(z => z.id === x.wid), ln = w && SPT ? SPT.line(w, state.lang) : ''; return `<li class="gy-lg-i"><button class="gy-lg-n" data-gy="w-open" data-id="${esc(x.wid)}"><b>${esc(spName(x.sp))}</b><span class="muted small">${esc([x.min ? gyDur(x.min) : '', ln].filter(Boolean).join(' · '))}</span></button><span class="gy-lg-r">${spFig(x.sp, null, 'mini')}</span></li>`; }
+    if (x.kind === 'sp') { const ln = SPT ? SPT.line(x, state.lang) : ''; return `<li class="gy-lg-i"><button class="gy-lg-n" data-gy="w-open" data-id="${esc(x.wid)}"><b>${esc(spName(x.sp))}</b><span class="muted small">${esc([x.min ? gyDur(x.min) : '', ln].filter(Boolean).join(' · '))}</span></button><span class="gy-lg-r">${spFig(x.sp, null, 'mini')}</span></li>`; }
     const reps = x.rMax ? (x.rMin === x.rMax ? x.rMax : `${x.rMin}–${x.rMax}`) + ' ' + t('gyReps') : '';
     const what = x.kind === 'h' ? `${fmtNum(x.sec)} ${t('gySec')}` : x.kind === 'c' ? [x.min ? x.min + ' min' : '', x.km ? fmtNum(x.km) + ' km' : ''].filter(Boolean).join(' · ') : reps;
     const line = x.kind === 'c' ? what : `${what} × ${t('gyNSets', { n: x.sets })}`;
@@ -2856,18 +2860,19 @@
     html += `<div class="gy-live-bar"><span>${esc(t('gyNSets', { n: s.sets }))}</span><span>${esc(gyVol(s.volume))}</span><span class="grow"></span>${gyBody(s.muscles)}</div>`;
     html += w.ex.map((x, xi) => gyExBlock(w, x, xi)).join('');
     html += `<button class="btn block gy-addex" data-gy="add-ex">${ico('plus')} ${esc(t('gyAddEx'))}</button>`;
-    // v1.69: el deporte de la misma sesión (o el botón para añadirlo)
-    html += w.sp ? gyMixSportCard(w) : `<button class="btn ghost block gy-addsp" data-gy="add-sp">${ico('plus')} ${esc(t('mxAddSport'))}</button>`;
+    // v1.69-1.70: los deportes de la misma sesión y el botón para añadir otro
+    html += GYM.rawSports(w).map((x, i) => gyMixSportCard(x, i)).join('') + gyAddSpBtn(w);
     html += `<button class="btn ghost block danger-text" data-gy="discard">${ico('trash')} ${esc(t('gyDiscard'))}</button>`;
     html += GY.rest ? gyRestBar() : '';
     return html + '</div>';
   }
-  function gyMixSportCard(w) {
-    const sp = SPT && SPT.get(w.sp);
-    return `<section class="gy-ex clay mx-sp"><div class="gy-ex-h">${spFig(w.sp, null, 'mini')}<div class="grow"><b>${esc(spName(w.sp))}</b><span class="muted small">${sp ? esc(sp.p.filter(m => m !== 'cardio').map(gyMus).join(', ')) : ''}</span></div>
-      <button class="chip sm" data-gy="add-sp">${esc(t('mxChange'))}</button><button class="icon-btn sm" data-gy="rm-sp" aria-label="${esc(t('mxRemoveSp'))}" title="${esc(t('mxRemoveSp'))}">${ico('x')}</button></div>
+  function gyMixSportCard(x, i) {
+    const sp = SPT && SPT.get(x.sp);
+    return `<section class="gy-ex clay mx-sp"><div class="gy-ex-h">${spFig(x.sp, null, 'mini')}<div class="grow"><b>${esc(spName(x.sp))}</b><span class="muted small">${sp ? esc(sp.p.filter(m => m !== 'cardio').map(gyMus).join(', ')) : ''}</span></div>
+      <button class="chip sm" data-gy="add-sp" data-i="${i}">${esc(t('mxChange'))}</button><button class="icon-btn sm" data-gy="rm-sp" data-i="${i}" aria-label="${esc(t('mxRemoveSp'))}" title="${esc(t('mxRemoveSp'))}">${ico('x')}</button></div>
       <p class="muted small" style="margin:6px 0 0">${esc(t('mxSportHint'))}</p></section>`;
   }
+  const gyAddSpBtn = w => `<button class="btn ghost block gy-addsp" data-gy="add-sp">${ico('plus')} ${esc(t(w.sp ? 'mxAddOther' : 'mxAddSport'))}</button>`;
   // v1.69: elegir el deporte que se suma a la sesión de gimnasio. onPick(id)
   function gySportPick(onPick, cur) {
     const list = SPT ? SPT.sorted(state.lang) : [];
@@ -2877,13 +2882,26 @@
       onClick: (e, close) => { const p = e.target.closest('[data-mx-pick]'); if (!p) return; close(); sfx('tap'); onPick(p.dataset.mxPick); }
     });
   }
-  // Pone o cambia el deporte de un entrenamiento (sus datos de tipo, eventos y resultado se reinician si cambia)
-  function gySetSport(w, id) {
-    if (w.sp === id) return;
-    w.sp = id; delete w.ev; delete w.res; delete w.spm; w.st = ['free'];
-    if (w.status === 'live' && !w.back && (w.ex || []).length) w.spAt = Date.now();
+  /* Guarda la lista de deportes [{ sp, st, ev, res, m, at }] en el entrenamiento: el primero en w.sp/st/ev/res/spm/spAt
+     (como antes) y el resto en w.xsp. Sin deportes, se quita todo lo de deporte. */
+  function gyWriteSports(w, L) {
+    ['sp', 'st', 'ev', 'res', 'spm', 'spAt', 'xsp'].forEach(k => delete w[k]);
+    const one = x => { const o = { sp: x.sp }; if (x.st && x.st.length) o.st = [...x.st]; if (x.ev && x.ev.length) o.ev = [...x.ev]; if (x.res && Object.keys(x.res).length) o.res = x.res; return o; };
+    (L || []).filter(x => x && SPT && SPT.get(x.sp)).forEach((x, i) => {
+      const o = one(x);
+      if (!i) { Object.assign(w, o); if (x.m > 0) w.spm = x.m; if (x.at) w.spAt = x.at; return; }
+      if (x.m > 0) o.m = x.m; if (x.at) o.at = x.at; (w.xsp = w.xsp || []).push(o);
+    });
   }
-  function gyDropSport(w) { ['sp', 'st', 'ev', 'res', 'spm', 'spAt', 'gyAt'].forEach(k => delete w[k]); }
+  // Añade (i vacío) o cambia (i) un deporte de la sesión en marcha
+  function gyPickSport(w, i) {
+    const L = GYM.rawSports(w), has = i !== undefined && L[+i];
+    gySportPick(id => {
+      const nx = { sp: id, st: ['free'], ev: [], res: null, m: 0, at: w.status === 'live' && !w.back ? Date.now() : 0 };
+      if (has) { if (L[+i].sp === id) return; nx.at = L[+i].at; L[+i] = nx; } else L.push(nx);
+      gyWriteSports(w, L); save(); render();
+    }, has ? L[+i].sp : '');
+  }
   function gyExBlock(w, x, xi) {
     const e = gyEx(x.eid), kind = e ? e.kind : 'w', last = GYM.lastSets(state.gymWorkouts, x.eid, w.id);
     const cols = kind === 'w' ? ['kg', t('gyReps')] : kind === 'bw' ? [t('gyExtraKg'), t('gyReps')] : kind === 'h' ? [t('gySec')] : [t('gyMin'), 'km'];
@@ -2976,7 +2994,7 @@
     // Las series sin marcar se quitan; los ejercicios vacíos también
     w.ex = (w.ex || []).map(x => ({ ...x, sets: x.sets.filter(s => s.done) })).filter(x => x.sets.length);
     if (!w.end) w.end = Date.now();
-    w.status = 'done'; delete w.back; delete w.spAt; delete w.gyAt; if (!w.ex.length) delete w.spm;
+    w.status = 'done'; delete w.back; delete w.spAt; delete w.gyAt; (w.xsp || []).forEach(x => delete x.at); if (!GYM.isMixed(w)) { delete w.spm; (w.xsp || []).forEach(x => delete x.m); }
     const prs = GYM.newRecords(state.gymWorkouts, w, state.gymEx); if (prs.length) w.prs = prs.length; else delete w.prs;
     GY.rest = null; state.ui.gyOpen = true; state.ui.gyView = '';
     const firstToday = !state.gymWorkouts.some(x => x.id !== w.id && x.status === 'done' && x.date === w.date);
@@ -3019,7 +3037,7 @@
     el.style.setProperty('--ox', o.x + 'px'); el.style.setProperty('--oy', o.y + 'px');
     el.innerHTML = `<div class="pfx-bg"></div><div class="pfx-ring"></div><div class="pfx-in gfx-in">${w.sp ? spFig(w.sp, null, 'big gfx-sp') : gyBody(s.muscles, { big: true })}<h2 class="pfx-t">${esc(gyMixed(w) ? t('mxDoneT') : w.sp ? t('spDoneT', { s: spName(w.sp) }) : t('gyDoneT'))}</h2>
       <div class="pfx-stats"><div><b data-cnt="${wk.days.length}">0</b><span>${esc(t('gyDaysWeek'))}</span></div>${gyMixed(w) ? `<div><b data-cnt="${s.sets}">0</b><span>${esc(t('gySets'))}</span></div><div><b data-cnt="${s.minutes}">0</b><span>${esc(t('spMinutes'))}</span></div>` : w.sp ? `<div><b data-cnt="${s.minutes}">0</b><span>${esc(t('spMinutes'))}</span></div><div><b data-cnt="${wk.sessions}">0</b><span>${esc(t('gySessions'))}</span></div>` : `<div><b data-cnt="${s.sets}">0</b><span>${esc(t('gySets'))}</span></div><div><b data-cnt="${Math.round(s.volume)}" data-vol="1">0</b><span>${esc(t('gyVolume'))}</span></div>`}</div>
-      ${w.sp && SPT && SPT.line(w, state.lang) ? `<p class="gfx-line">${esc(SPT.line(w, state.lang))}</p>` : ''}
+      ${gyMixed(w) ? gySpLines(w).map(l => `<p class="gfx-line">${esc(l)}</p>`).join('') : w.sp && SPT && SPT.line(w, state.lang) ? `<p class="gfx-line">${esc(SPT.line(w, state.lang))}</p>` : ''}
       ${prs.length ? `<ul class="gfx-prs">${prs.slice(0, 4).map((p, i) => `<li style="--d:${i}">${ico('trophy')} <b>${esc(gyName(p.eid))}</b> <span>${fmtNum(p.v)}${p.type === 'w' || p.type === 'e1' ? ' kg' : p.type === 's' ? ' s' : p.type === 'd' ? ' km' : ''}</span></li>`).join('')}</ul>` : ''}
       <p class="pfx-hint">${esc(t('pfxTap'))}</p></div>`;
     document.body.appendChild(el); vibrate([15, 50, 15, 50, 30]); sfx('gymFinish'); if (prs.length) setTimeout(() => sfx('levelup'), 1300);
@@ -3036,25 +3054,29 @@
 
   // Detalle de un entrenamiento hecho (v1.57: también deportes, horas, notas modulares y comentarios)
   function gyOpenWorkout(w) {
-    const s = GYM.workoutStats(w, state.gymEx), notes = gyNotes(w.id), out = w.sp && SPT ? SPT.outcome(w.res) : '';
-    const r = w.res || {}, sp = w.sp && SPT ? SPT.get(w.sp) : null;
-    const resRows = sp ? [
-      Number.isFinite(r.us) && Number.isFinite(r.them) ? [t('spScore'), `${r.us} – ${r.them}`] : null,
-      Number.isFinite(r.mine) ? [SPT.mineWord(sp.id, state.lang), fmtNum(r.mine)] : null,
-      r.km ? [t('spKm'), fmtNum(r.km) + ' km'] : null, r.elev ? [t('spElev'), fmtNum(r.elev) + ' m'] : null,
-      r.pos ? [t('spPos'), r.pos + 'º'] : null, r.waves ? [t('spWaves'), fmtNum(r.waves)] : null, r.pts ? [t('spPts'), fmtNum(r.pts)] : null,
-      r.jumps ? [t('spJumps'), fmtNum(r.jumps)] : null, r.alt ? [t('spAlt'), fmtNum(r.alt) + ' m'] : null
-    ].filter(Boolean) : [];
+    const s = GYM.workoutStats(w, state.gymEx), notes = gyNotes(w.id), L = GYM.sportsOf(w), multi = gyMixed(w);
+    // v1.70: un bloque por deporte (figura, minutos si hay más partes, tipo, eventos y resultado)
+    const spBlock = x => {
+      const sp = SPT.get(x.sp), r = x.res || {}, out = SPT.outcome(x.res);
+      const rows = [
+        Number.isFinite(r.us) && Number.isFinite(r.them) ? [t('spScore'), `${r.us} – ${r.them}`] : null,
+        Number.isFinite(r.mine) ? [SPT.mineWord(sp.id, state.lang), fmtNum(r.mine)] : null,
+        r.km ? [t('spKm'), fmtNum(r.km) + ' km'] : null, r.elev ? [t('spElev'), fmtNum(r.elev) + ' m'] : null,
+        r.pos ? [t('spPos'), r.pos + 'º'] : null, r.waves ? [t('spWaves'), fmtNum(r.waves)] : null, r.pts ? [t('spPts'), fmtNum(r.pts)] : null,
+        r.jumps ? [t('spJumps'), fmtNum(r.jumps)] : null, r.alt ? [t('spAlt'), fmtNum(r.alt) + ' m'] : null
+      ].filter(Boolean);
+      const tags = [...(x.st || []).map(k => k === 'free' ? t('spFree') : SPT.matchWord(sp.id, state.lang)), ...(x.ev || []).map(k => SPT.eventName(k, state.lang))];
+      return `<div class="mx-dblock">${multi ? `<div class="row mx-row">${spFig(sp.id, null, 'mini')}<b class="grow">${esc(spName(sp.id))}</b><span class="muted small">${esc(gyDur(x.m))}</span></div>` : spFig(sp.id, null, 'big')}
+        ${tags.length || out ? `<div class="row wrap sp-tags">${out ? `<span class="sp-out ${out}">${esc(t('spOut_' + out))}</span>` : ''}${tags.map(z => `<span class="chip sm on">${esc(z)}</span>`).join('')}</div>` : ''}
+        ${rows.length ? `<div class="gy-nums sp-res">${rows.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>` : ''}</div>`;
+    };
     const when = `${fmtDate(w.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}${w.start && w.end ? ' · ' + gyHM(w.start) + '–' + gyHM(w.end) : ''}${s.minutes ? ' · ' + gyDur(s.minutes) : ''}`;
-    const tags = sp ? [...(w.st || []).map(k => k === 'free' ? t('spFree') : SPT.matchWord(sp.id, state.lang)), ...(w.ev || []).map(k => SPT.eventName(k, state.lang))] : [];
     openModal({
       title: esc(gyTitle(w)), cls: 'gy-wsheet',
       body: `<p class="muted small" style="margin:-4px 0 10px">${esc(when)}</p>
-        ${sp ? spFig(sp.id, null, w.ex.length ? 'mx' : 'big') : ''}${!sp || w.ex.length ? gyBody(s.muscles) : ''}
-        ${tags.length || out ? `<div class="row wrap sp-tags">${out ? `<span class="sp-out ${out}">${esc(t('spOut_' + out))}</span>` : ''}${tags.map(x => `<span class="chip sm on">${esc(x)}</span>`).join('')}</div>` : ''}
-        ${sp && w.ex.length ? `<p class="muted small mx-line">${ico('timer', 'xs')} ${esc(spName(sp.id))} · ${esc(gyDur(GYM.sportMin(w)))}</p>` : ''}
-        ${sp && resRows.length ? `<div class="gy-nums sp-res">${resRows.map(([l, v]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>` : ''}
-        ${sp && !w.ex.length ? '' : `<div class="gy-nums" style="margin:10px 0"><div><b>${s.sets}</b><span>${esc(t('gySets'))}</span></div><div><b>${gyVol(s.volume)}</b><span>${esc(t('gyVolume'))}</span></div>${s.km ? `<div><b>${fmtNum(s.km)} km</b><span>${esc(t('gyDistance'))}</span></div>` : ''}</div>
+        ${multi || !L.length ? gyBody(s.muscles) : ''}
+        ${L.filter(x => SPT && SPT.get(x.sp)).map(spBlock).join('')}
+        ${L.length && !w.ex.length ? '' : `<div class="gy-nums" style="margin:10px 0"><div><b>${s.sets}</b><span>${esc(t('gySets'))}</span></div><div><b>${gyVol(s.volume)}</b><span>${esc(t('gyVolume'))}</span></div>${s.km ? `<div><b>${fmtNum(s.km)} km</b><span>${esc(t('gyDistance'))}</span></div>` : ''}</div>
         ${w.ex.map(x => { const e = gyEx(x.eid), kind = e ? e.kind : 'w'; return `<div class="gy-wx"><b>${esc(gyName(x.eid))}</b><span class="muted small">${x.sets.map(st => kind === 'w' ? `${fmtNum(st.w || 0)}×${st.r || 0}` : kind === 'bw' ? `${st.w ? '+' + fmtNum(st.w) + 'kg×' : ''}${st.r || 0}` : kind === 'h' ? `${st.s || 0}s` : `${Math.round((st.s || 0) / 60)}′${st.d ? ' ' + fmtNum(st.d) + 'km' : ''}`).join(' · ')}</span></div>`; }).join('')}`}
         ${notes.length ? `<h3 class="section-title" style="margin:14px 0 6px">${esc(t('spNotes'))}</h3><div class="gy-notes">${notes.map(([k, g]) => `<button type="button" class="gy-note" data-wn="${esc(k)}|${tfGaps(k).indexOf(g)}" style="${tfNoteStyle(g)}">${tfNoteIco(g)}<span class="grow">${esc(g.t)}</span>${g.a ? `<span class="muted small">${esc(g.a)}–${esc(g.b)}</span>` : ''}</button>`).join('')}</div>` : ''}
         ${w.note ? `<h3 class="section-title" style="margin:14px 0 6px">${esc(t('spComments'))}</h3><p class="gy-comment">${esc(w.note)}</p>` : ''}
@@ -3065,7 +3087,7 @@
         const b = e.target.closest('[data-w]'); if (!b) return;
         if (b.dataset.w === 'del') { close(); if (await confirmDialog(t(gyNotes(w.id).length ? 'spDeleteQNotes' : 'gyDeleteQ'))) { gyUnapplyHabit(w); gyDropNotes(w.id); state.gymWorkouts = state.gymWorkouts.filter(x => x.id !== w.id); save(); render(); } }
         if (b.dataset.w === 'edit') { close(); setTimeout(() => gyCloseSheet(w, 'edit'), 250); }
-        if (b.dataset.w === 'again') { close(); if (w.sp && !w.ex.length) { gySportStart(w.sp); return; } const r = { id: w.rid || '', name: w.name, ex: w.ex.map(x => ({ eid: x.eid, sets: x.sets.length, reps: x.sets[0].r || x.sets[0].s || 10, w: x.sets[0].w })) }; const nw = GYM.fromRoutine(r, state.gymWorkouts, state.gymEx, uid(), todayKey(), Date.now()); if (!w.rid) delete nw.rid; if (w.sp) { nw.sp = w.sp; nw.st = ['free']; } gyStart(nw); }
+        if (b.dataset.w === 'again') { close(); if (w.sp && !w.ex.length) { const nw = { id: uid(), date: todayKey(), name: '', status: 'live', start: Date.now(), note: '', ex: [] }; gyWriteSports(nw, GYM.rawSports(w).map(x => ({ sp: x.sp, st: ['free'] }))); gyStart(nw); return; } const r = { id: w.rid || '', name: w.name, ex: w.ex.map(x => ({ eid: x.eid, sets: x.sets.length, reps: x.sets[0].r || x.sets[0].s || 10, w: x.sets[0].w })) }; const nw = GYM.fromRoutine(r, state.gymWorkouts, state.gymEx, uid(), todayKey(), Date.now()); if (!w.rid) delete nw.rid; if (w.sp) gyWriteSports(nw, GYM.rawSports(w).map(x => ({ sp: x.sp, st: ['free'] }))); gyStart(nw); }
       }
     });
   }
@@ -3126,11 +3148,12 @@
   function gySportLive(w) {
     const sp = SPT && SPT.get(w.sp);
     return `<div class="gy gy-live sp-live"><div class="gy-top"><button class="icon-btn" data-gy="minimize" aria-label="${esc(t('gyMinimize'))}" title="${esc(t('gyMinimize'))}">${ico('down')}</button>
-      <div class="grow gy-live-h"><input class="gy-title-in" data-gy-name value="${esc(w.name)}" placeholder="${esc(spName(w.sp))}" maxlength="60" aria-label="${esc(t('gyName'))}"></div>
+      <div class="grow gy-live-h"><input class="gy-title-in" data-gy-name value="${esc(w.name)}" placeholder="${esc(gyTitle({ ...w, name: '' }))}" maxlength="60" aria-label="${esc(t('gyName'))}"></div>
       <button class="btn accent gy-finish" data-gy="finish">${ico('check')} ${esc(t('gyFinish'))}</button></div>
       <section class="clay card sp-live-card">${spFig(w.sp, null, 'big')}<b class="sp-live-clock" data-gy-clock="${w.start || 0}">${gyClock(Date.now() - (w.start || Date.now()))}</b>
       ${sp ? `<div class="gy-mchips">${sp.p.filter(m => m !== 'cardio').map(m => `<span class="gy-mchip on">${esc(gyMus(m))}</span>`).join('')}${sp.s.filter(m => m !== 'cardio').map(m => `<span class="gy-mchip">${esc(gyMus(m))}</span>`).join('')}</div>` : ''}</section>
       <p class="muted small center">${esc(t('spLiveHint'))}</p>
+      ${GYM.rawSports(w).slice(1).map((x, i) => gyMixSportCard(x, i + 1)).join('')}${gyAddSpBtn(w)}
       <button class="btn block gy-addex" data-gy="add-ex">${ico('dumbbell')} ${esc(t('mxAddGym'))}</button>
       <button class="btn ghost block danger-text" data-gy="discard">${ico('trash')} ${esc(t('gyDiscard'))}</button></div>`;
   }
@@ -3140,37 +3163,48 @@
   function gyCloseSheet(w, mode) {
     if (typeof tfTplSeed === 'function') tfTplSeed();
     const now = Date.now();
-    let sp = w.sp && SPT ? SPT.get(w.sp) : null;
-    const f = { date: w.date, a: gyHM(w.start || now), b: gyHM(mode === 'finish' && !w.back ? now : (w.end || now)), st: [...(w.st || [])], ev: [...(w.ev || [])], res: { ...(w.res || {}) }, note: w.note || '', sp: sp ? sp.id : '', spm: +w.spm || 0 };
-    if (sp && mode !== 'edit' && !f.st.length) f.st = ['free'];
+    /* v1.69-1.70: ejercicios de gimnasio (series hechas) y uno o varios deportes en el mismo registro. Cada deporte tiene sus
+       minutos (se proponen según cuándo se añadió cada parte), su tipo, sus eventos y su resultado. */
+    const sps = (GYM.rawSports ? GYM.rawSports(w) : []).map(x => ({ sp: x.sp, st: [...(x.st || [])], ev: [...(x.ev || [])], res: { ...(x.res || {}) }, m: x.m || 0, at: x.at || 0 }));
+    const f = { date: w.date, a: gyHM(w.start || now), b: gyHM(mode === 'finish' && !w.back ? now : (w.end || now)), note: w.note || '' };
+    if (mode !== 'edit') sps.forEach(x => { if (!x.st.length) x.st = ['free']; });
     let wref, saved = false;
     const span = () => { let a = gyAt(f.date, f.a), b = gyAt(f.date, f.b); if (b < a) b += 864e5; return [a, b]; };
     const mins = () => { const [a, b] = span(); return Math.round((b - a) / 60000); };
-    /* v1.69: ejercicios de gimnasio (series hechas) y deporte en el mismo registro. Los minutos del deporte se proponen
-       según cuándo se añadió (o cuándo empezaron las pesas) y se pueden cambiar. */
     const hasGym = (w.ex || []).some(x => (x.sets || []).some(st => st.done));
-    const mixed = () => !!(sp && hasGym);
-    const spmGuess = () => {
-      const all = Math.max(0, mins()), endAt = span()[1];
-      let m = w.spAt ? (endAt - w.spAt) / 60000 : w.gyAt ? (w.gyAt - (w.start || w.gyAt)) / 60000 : all / 2;
-      return Math.max(1, Math.min(all || 1, Math.round(m)));
+    const multi = () => sps.length + (hasGym ? 1 : 0) > 1;
+    // Propuesta de minutos: cada parte dura desde que se añadió hasta que empezó la siguiente (o a partes iguales)
+    const guess = () => {
+      const all = Math.max(0, mins()), [s0, e0] = span(), base = w.start || s0;
+      const parts = [...(hasGym ? [{ g: 1, at: w.gyAt || base }] : []), ...sps.map((x, i) => ({ i, at: x.at || base }))].sort((p, q) => p.at - q.at);
+      const even = all ? Math.max(1, Math.round(all / Math.max(1, parts.length))) : 0;
+      parts.forEach((p, k) => { if (p.g) return; const x = sps[p.i]; if (x.m > 0) return; const end = k < parts.length - 1 ? parts[k + 1].at : (w.end && mode !== 'finish' ? w.end : e0); const m = Math.round((end - p.at) / 60000); x.m = m >= 1 && m <= all ? m : even; });
     };
-    if (sp && hasGym && !f.spm) f.spm = spmGuess();
-    const num = (k, label, unit, dec) => `<label class="gyc-n"><small>${esc(label)}</small><span class="row" style="gap:4px"><input class="input gy-num" inputmode="${dec ? 'decimal' : 'numeric'}" data-gyc-r="${k}" value="${f.res[k] ?? ''}" aria-label="${esc(label)}">${unit ? `<span class="muted small">${esc(unit)}</span>` : ''}</span></label>`;
-    const resField = k => {
-      if (k === 'score') return `<div class="gyc-score">${num('us', t('spUs'))}<span class="gyc-dash">–</span>${num('them', t('spThem'))}</div>`;
-      if (k === 'mine') return num('mine', SPT.mineWord(sp.id, state.lang));
-      if (k === 'out') return `<div class="gyc-n gyc-out"><small>${esc(t('spOutcome'))}</small><div class="seg" role="group">${['w', 'd', 'l'].map(o => `<button type="button" data-gyc-out="${o}" class="${f.res.out === o ? 'on' : ''}" aria-pressed="${f.res.out === o}">${esc(t('spOut_' + o))}</button>`).join('')}</div></div>`;
-      if (k === 'pos') return num('pos', t('spPos'), 'º');
-      if (k === 'km') return num('km', t('spKm'), 'km', true);
-      if (k === 'elev') return num('elev', t('spElev'), 'm');
-      if (k === 'waves') return num('waves', t('spWaves'));
-      if (k === 'pts') return num('pts', t('spPts'), '', true);
-      if (k === 'jumps') return num('jumps', t('spJumps'));
-      if (k === 'alt') return num('alt', t('spAlt'), 'm');
-      return '';
-    };
+    if (multi()) guess();
     const chip = (attr, on, label) => `<button type="button" class="chip ${on ? 'on' : ''}" ${attr} aria-pressed="${on}">${on ? ico('check', 'xs') + ' ' : ''}${esc(label)}</button>`;
+    const sportHtml = (x, i) => {
+      const sp = SPT.get(x.sp); if (!sp) return '';
+      const num = (k, label, unit, dec) => `<label class="gyc-n"><small>${esc(label)}</small><span class="row" style="gap:4px"><input class="input gy-num" inputmode="${dec ? 'decimal' : 'numeric'}" data-gyc-r="${i}:${k}" value="${x.res[k] ?? ''}" aria-label="${esc(label)}">${unit ? `<span class="muted small">${esc(unit)}</span>` : ''}</span></label>`;
+      const resField = k => {
+        if (k === 'score') return `<div class="gyc-score">${num('us', t('spUs'))}<span class="gyc-dash">–</span>${num('them', t('spThem'))}</div>`;
+        if (k === 'mine') return num('mine', SPT.mineWord(sp.id, state.lang));
+        if (k === 'out') return `<div class="gyc-n gyc-out"><small>${esc(t('spOutcome'))}</small><div class="seg" role="group">${['w', 'd', 'l'].map(o => `<button type="button" data-gyc-out="${i}:${o}" class="${x.res.out === o ? 'on' : ''}" aria-pressed="${x.res.out === o}">${esc(t('spOut_' + o))}</button>`).join('')}</div></div>`;
+        if (k === 'pos') return num('pos', t('spPos'), 'º');
+        if (k === 'km') return num('km', t('spKm'), 'km', true);
+        if (k === 'elev') return num('elev', t('spElev'), 'm');
+        if (k === 'waves') return num('waves', t('spWaves'));
+        if (k === 'pts') return num('pts', t('spPts'), '', true);
+        if (k === 'jumps') return num('jumps', t('spJumps'));
+        if (k === 'alt') return num('alt', t('spAlt'), 'm');
+        return '';
+      };
+      return `<section class="mx-block ${multi() ? 'is-multi' : ''}">
+        <div class="row mx-row">${spFig(sp.id, null, 'mini')}<b class="grow">${esc(spName(sp.id))}</b><button type="button" class="chip sm" data-gyc-sp="${i}">${esc(t('mxChange'))}</button>${multi() ? `<button type="button" class="icon-btn sm" data-gyc-sprm="${i}" aria-label="${esc(t('mxRemoveSp'))}" title="${esc(t('mxRemoveSp'))}">${ico('x')}</button>` : ''}</div>
+        ${multi() ? `<label class="gyc-n mx-min"><small>${esc(t('mxSportMin', { s: spName(sp.id) }))}</small><span class="row" style="gap:4px"><input class="input gy-num" inputmode="numeric" data-gyc-m="${i}" value="${x.m || ''}" aria-label="${esc(t('mxSportMin', { s: spName(sp.id) }))}"><span class="muted small">min</span></span></label>` : ''}
+        <div class="field"><span>${esc(t('spType'))}</span><div class="row wrap" style="gap:6px">${chip(`data-gyc-st="${i}:free"`, x.st.includes('free'), t('spFree'))}${chip(`data-gyc-st="${i}:match"`, x.st.includes('match'), SPT.matchWord(sp.id, state.lang))}</div></div>
+        <div class="field"><span>${esc(t('spEvents'))}</span><div class="row wrap" style="gap:6px">${sp.ev.map(k => chip(`data-gyc-ev="${i}:${k}"`, x.ev.includes(k), SPT.eventName(k, state.lang))).join('')}</div></div>
+        <div class="field"><span>${esc(t('spResult'))}</span><div class="gyc-res">${sp.met.map(resField).join('')}</div></div></section>`;
+    };
     const notesHtml = () => {
       const l = gyNotes(w.id);
       return `${l.length ? `<div class="gy-notes">${l.map(([k, g]) => `<button type="button" class="gy-note" data-gyn-open="${esc(k)}|${tfGaps(k).indexOf(g)}" style="${tfNoteStyle(g)}">${tfNoteIco(g)}<span class="grow">${esc(g.t)}</span>${g.a ? `<span class="muted small">${esc(g.a)}–${esc(g.b)}</span>` : ''}</button>`).join('')}</div>` : ''}
@@ -3178,15 +3212,11 @@
         <p class="muted small" style="margin:6px 0 0">${esc(t('spNotesHint'))}</p>`;
     };
     const draw = () => {
-      const tw = { name: w.name, sp: sp ? sp.id : '', ex: hasGym ? w.ex : [] };
-      $('#gyc', wref).innerHTML = `<div class="gyc-head">${hasGym || !sp ? `<span class="sp-q-ico">${ico('dumbbell')}</span>` : ''}${sp ? spFig(sp.id, null, 'mini') : ''}<div class="grow"><b>${esc(gyTitle(tw))}</b><span class="muted small" id="gyc-dur">${esc(gyDur(mins()))}</span></div></div>
+      const tw = { name: w.name, sp: sps.length ? sps[0].sp : '', xsp: sps.slice(1), ex: hasGym ? w.ex : [] };
+      $('#gyc', wref).innerHTML = `<div class="gyc-head">${hasGym || !sps.length ? `<span class="sp-q-ico">${ico('dumbbell')}</span>` : ''}${sps.slice(0, 3).map(x => spFig(x.sp, null, 'mini')).join('')}<div class="grow"><b>${esc(gyTitle(tw))}</b><span class="muted small" id="gyc-dur">${esc(gyDur(mins()))}</span></div></div>
         <div class="tf-form gyc-times">${tfField(t('spDate'), `<input class="input" type="date" id="gyc-d" value="${esc(f.date)}" max="${esc(todayKey())}">`)}${tfField(t('tfStart'), `<input class="input" type="time" id="gyc-a" value="${esc(f.a)}">`)}${tfField(t('tfEnd'), `<input class="input" type="time" id="gyc-b" value="${esc(f.b)}">`)}</div>
-        ${hasGym ? `<div class="field mx-field"><span>${esc(t('mxSport'))}</span>${sp ? `<div class="row mx-row">${spFig(sp.id, null, 'mini')}<b class="grow">${esc(spName(sp.id))}</b><button type="button" class="chip sm" data-gyc-sp>${esc(t('mxChange'))}</button><button type="button" class="icon-btn sm" data-gyc-sprm aria-label="${esc(t('mxRemoveSp'))}" title="${esc(t('mxRemoveSp'))}">${ico('x')}</button></div>
-          <label class="gyc-n mx-min"><small>${esc(t('mxSportMin', { s: spName(sp.id) }))}</small><span class="row" style="gap:4px"><input class="input gy-num" inputmode="numeric" id="gyc-spm" value="${f.spm || ''}" aria-label="${esc(t('mxSportMin', { s: spName(sp.id) }))}"><span class="muted small">min</span></span></label>`
-          : `<button type="button" class="chip" data-gyc-sp>${ico('plus', 'xs')} ${esc(t('mxAddSport'))}</button><p class="muted small" style="margin:6px 0 0">${esc(t('mxAddSportHint'))}</p>`}</div>` : ''}
-        ${sp ? `<div class="field"><span>${esc(t('spType'))}</span><div class="row wrap" style="gap:6px">${chip('data-gyc-st="free"', f.st.includes('free'), t('spFree'))}${chip('data-gyc-st="match"', f.st.includes('match'), SPT.matchWord(sp.id, state.lang))}</div></div>
-        <div class="field"><span>${esc(t('spEvents'))}</span><div class="row wrap" style="gap:6px">${sp.ev.map(k => chip(`data-gyc-ev="${k}"`, f.ev.includes(k), SPT.eventName(k, state.lang))).join('')}</div></div>
-        <div class="field"><span>${esc(t('spResult'))}</span><div class="gyc-res">${sp.met.map(resField).join('')}</div></div>` : ''}
+        ${sps.map(sportHtml).join('')}
+        <div class="field mx-field"><button type="button" class="chip" data-gyc-sp="new">${ico('plus', 'xs')} ${esc(t(sps.length ? 'mxAddOther' : 'mxAddSport'))}</button>${sps.length ? '' : `<p class="muted small" style="margin:6px 0 0">${esc(t('mxAddSportHint'))}</p>`}</div>
         <div class="field"><span>${esc(t('spNotes'))}</span><div id="gyc-notes">${notesHtml()}</div></div>
         <label class="field"><span>${esc(t('spComments'))}</span><textarea class="input" id="gyc-x" rows="3" maxlength="400" placeholder="${esc(t('spCommentsPh'))}">${esc(f.note)}</textarea></label>`;
     };
@@ -3194,22 +3224,31 @@
       const w2 = wref, d = $('#gyc-d', w2), a = $('#gyc-a', w2), b = $('#gyc-b', w2);
       if (d && /^\d{4}-\d{2}-\d{2}$/.test(d.value)) f.date = d.value; if (a && a.value) f.a = a.value; if (b && b.value) f.b = b.value;
       f.note = ($('#gyc-x', w2) || {}).value ?? f.note;
-      const sm = $('#gyc-spm', w2); if (sm) { const v = Math.round(+String(sm.value).replace(',', '.')); f.spm = v > 0 ? v : 0; }
-      $$('[data-gyc-r]', w2).forEach(el => { const v = String(el.value).replace(',', '.').trim(); if (v === '') delete f.res[el.dataset.gycR]; else f.res[el.dataset.gycR] = +v; });
+      $$('[data-gyc-m]', w2).forEach(el => { const x = sps[+el.dataset.gycM]; if (!x) return; const v = Math.round(+String(el.value).replace(',', '.')); x.m = v > 0 ? v : 0; });
+      $$('[data-gyc-r]', w2).forEach(el => { const [i, k] = el.dataset.gycR.split(':'), x = sps[+i]; if (!x) return; const v = String(el.value).replace(',', '.').trim(); if (v === '') delete x.res[k]; else x.res[k] = +v; });
     };
     const refreshNotes = () => { const n = wref && $('#gyc-notes', wref); if (n) n.innerHTML = notesHtml(); };
     const pre = () => ({ a: f.a, b: f.b, wid: w.id });
+    const toggle = (arr, k) => { const i = arr.indexOf(k); if (i >= 0) arr.splice(i, 1); else arr.push(k); };
     openModal({
       title: esc(t(mode === 'edit' ? 'spEditT' : 'spCloseT')), cls: 'tf-sheet gyc-sheet', body: '<div id="gyc" class="stack" style="gap:12px"></div>',
       foot: `<button class="btn primary" data-gyc="save">${ico('check')} ${esc(t(mode === 'finish' ? 'gyFinish' : 'save'))}</button>`,
       onMount: w2 => { wref = w2; draw(); w2.addEventListener('input', e => { if (e.target.matches('#gyc-a, #gyc-b, #gyc-d')) { read(); const el = $('#gyc-dur', w2); if (el) el.textContent = gyDur(mins()); } }); },
       onClose: () => { if (!saved && mode === 'log') { gyDropNotes(w.id); save(); } },
       onClick: (e, close) => {
-        if (e.target.closest('[data-gyc-sp]')) { read(); gySportPick(id => { if (!sp || sp.id !== id) { sp = SPT.get(id); f.sp = id; f.st = ['free']; f.ev = []; f.res = {}; f.spm = f.spm || spmGuess(); } draw(); }, f.sp); return; }
-        if (e.target.closest('[data-gyc-sprm]')) { read(); sp = null; f.sp = ''; f.st = []; f.ev = []; f.res = {}; f.spm = 0; draw(); return; }
-        const st = e.target.closest('[data-gyc-st]'); if (st) { read(); const k = st.dataset.gycSt, i = f.st.indexOf(k); if (i >= 0) f.st.splice(i, 1); else f.st.push(k); sfx('tap'); draw(); return; }
-        const ev = e.target.closest('[data-gyc-ev]'); if (ev) { read(); const k = ev.dataset.gycEv, i = f.ev.indexOf(k); if (i >= 0) f.ev.splice(i, 1); else f.ev.push(k); sfx('tap'); vibrate(4); draw(); return; }
-        const o = e.target.closest('[data-gyc-out]'); if (o) { read(); f.res.out = f.res.out === o.dataset.gycOut ? undefined : o.dataset.gycOut; if (!f.res.out) delete f.res.out; draw(); return; }
+        const ps = e.target.closest('[data-gyc-sp]'); if (ps) {
+          read(); const k = ps.dataset.gycSp, cur = k === 'new' ? '' : (sps[+k] || {}).sp;
+          gySportPick(id => {
+            const nx = { sp: id, st: ['free'], ev: [], res: {}, m: 0, at: 0 };
+            if (k === 'new') sps.push(nx); else if (sps[+k] && sps[+k].sp !== id) sps[+k] = nx;
+            sps.forEach(x => { x.m = 0; }); if (multi()) guess(); draw();
+          }, cur);
+          return;
+        }
+        const rm = e.target.closest('[data-gyc-sprm]'); if (rm) { read(); sps.splice(+rm.dataset.gycSprm, 1); sps.forEach(x => { x.m = 0; }); if (multi()) guess(); draw(); return; }
+        const st = e.target.closest('[data-gyc-st]'); if (st) { read(); const [i, k] = st.dataset.gycSt.split(':'); if (sps[+i]) toggle(sps[+i].st, k); sfx('tap'); draw(); return; }
+        const ev = e.target.closest('[data-gyc-ev]'); if (ev) { read(); const [i, k] = ev.dataset.gycEv.split(':'); if (sps[+i]) toggle(sps[+i].ev, k); sfx('tap'); vibrate(4); draw(); return; }
+        const o = e.target.closest('[data-gyc-out]'); if (o) { read(); const [i, k] = o.dataset.gycOut.split(':'), x = sps[+i]; if (x) { if (x.res.out === k) delete x.res.out; else x.res.out = k; } draw(); return; }
         const tp = e.target.closest('[data-gyn-tp]'); if (tp) { read(); tfTplNote(f.date, -1, tp.dataset.gynTp, pre(), refreshNotes); return; }
         if (e.target.closest('[data-gyn-new]')) { read(); tfEditTpl(null, p => { refreshNotes(); if (p) setTimeout(() => tfTplNote(f.date, -1, p.id, pre(), refreshNotes), 260); }); return; }
         const on = e.target.closest('[data-gyn-open]'); if (on) { read(); const [k, i] = on.dataset.gynOpen.split('|'); tfTplNote(k, +i, null, null, refreshNotes); return; }
@@ -3218,11 +3257,11 @@
         const [a, b] = span(), m = Math.round((b - a) / 60000);
         if (m < 0 || m > 1440) { toast(t('spBadTime')); return; }
         if (gyAt(f.date, f.a) > Date.now() + 60000) { toast(t('spFuture')); return; }
+        if (!sps.length && !hasGym && (mode !== 'finish' || !w.ex.length)) { toast(t('mxNeedOne')); return; }
+        if (multi() && m > 0 && sps.reduce((n, x) => n + (x.m || 0), 0) > m) { toast(t('mxSportTooLong')); return; }
         const oldDate = w.date;
         w.date = f.date; w.start = a; w.end = b; w.note = String(f.note || '').trim().slice(0, 400);
-        if (mixed() && f.spm > m) { toast(t('mxSportTooLong')); return; }
-        if (sp) { w.sp = sp.id; if (f.st.length) w.st = [...f.st]; else delete w.st; if (f.ev.length) w.ev = [...f.ev]; else delete w.ev; const r = SPT.cleanRes(f.res); if (r) w.res = r; else delete w.res; if (mixed() && f.spm > 0) w.spm = f.spm; else delete w.spm; }
-        else if (w.sp) gyDropSport(w);
+        gyWriteSports(w, sps.map(x => ({ ...x, res: SPT.cleanRes(x.res), m: multi() ? x.m : 0 })));
         saved = true; close();
         gyMoveNotes(w);
         if (mode === 'finish') { gyDoFinish(w); return; }
@@ -3333,8 +3372,8 @@
       case 'w-open': { const x = state.gymWorkouts.find(z => z.id === id); if (x) gyOpenWorkout(x); break; }
       case 'ex': state.ui.gyOpen = false; state.ui.gyView = 'ex:' + id; save(); render(); window.scrollTo(0, 0); break;
       case 'add-ex': if (w) { GY.q = ''; gyPicker(eid => { if (w.sp && !w.ex.length && !w.back && !w.gyAt) w.gyAt = Date.now(); gyAddExercise(w, eid); }); } break;
-      case 'add-sp': if (w) gySportPick(sid => { gySetSport(w, sid); save(); render(); }, w.sp); break;
-      case 'rm-sp': if (w) { gyDropSport(w); save(); render(); } break;
+      case 'add-sp': if (w) gyPickSport(w, b.dataset.i); break;
+      case 'rm-sp': if (w) { const L = GYM.rawSports(w); L.splice(+b.dataset.i || 0, 1); gyWriteSports(w, L); if (!L.length) delete w.gyAt; save(); render(); } break;
       case 'ex-menu': if (w) gyExMenu(w, +b.dataset.i); break;
       case 'finish': if (w) gyFinish(w); break;
       case 'discard': if (w) gyDiscard(w); break;
@@ -8129,7 +8168,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.69', [['1.69.0', 2]]], ['1.67', [['1.67.0', 6]]], ['1.65', [['1.65.0', 3]]], ['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.70', [['1.70.0', 2]]], ['1.69', [['1.69.0', 2]]], ['1.67', [['1.67.0', 6]]], ['1.65', [['1.65.0', 3]]], ['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
