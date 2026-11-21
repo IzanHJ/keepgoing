@@ -102,3 +102,23 @@ test('Gimnasio v1.55: rangos del log y comparar con una fecha', () => {
   assert.strictEqual(C.newEx, 1);
   assert.deepStrictEqual([C.then.days, C.now.days], [1, 1]);
 });
+
+test('Entrenamiento v1.69: gimnasio y deporte en el mismo registro', () => {
+  const ex = [{ eid: 'bench', sets: [{ w: 60, r: 10, done: true }] }];
+  const mix = W('m', '2026-11-20', ex, { sp: 'basketball', st: ['match'], spm: 40 });
+  assert.ok(G.isMixed(mix));
+  assert.strictEqual(G.sportMin(mix), 40); // los minutos del deporte, no la sesión entera
+  assert.strictEqual(G.sportMin({ ...mix, spm: 500 }), 60); // nunca más que la sesión
+  assert.strictEqual(G.sportMin(W('s', '2026-11-20', [], { sp: 'basketball' })), 60);
+  const s = G.workoutStats(mix);
+  assert.strictEqual(s.sets, 1);
+  assert.ok(s.muscles.chest >= 1 && Object.keys(s.muscles).length > 3); // pesas + músculos del baloncesto
+  const day = G.logDays([mix])[0];
+  assert.deepStrictEqual(day.items.map(x => x.kind), ['w', 'sp']);
+  assert.strictEqual(day.items[1].min, 40);
+  const c = G.cleanWorkout(mix);
+  assert.strictEqual(c.spm, 40); assert.strictEqual(c.sp, 'basketball'); assert.strictEqual(c.ex.length, 1);
+  const live = G.cleanWorkout({ ...mix, status: 'live', spAt: 123 });
+  assert.strictEqual(live.spAt, 123);
+  assert.strictEqual(G.cleanWorkout({ ...mix, spAt: 123 }).spAt, undefined);
+});
