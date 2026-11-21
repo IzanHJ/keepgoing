@@ -545,8 +545,44 @@
     return out;
   }
 
+  /* ---- v1.70: un día entero (mantener pulsado el número del día) ----
+     dayRoutine pasa los turnos de un día a las entradas de una rutina de un día: cada turno con sus horas y su transporte, sin
+     notas. Los turnos puntuales (o_…) no caben en una rutina y se cuentan aparte (once). pasteDay pega un día copiado
+     { e: turnos, g: notas, dk: tipos del día } encima de otro: mode 'replace' lo cambia entero y 'add' lo junta con lo que ya
+     tenía. Cada turno puntual pegado lleva un id nuevo (mkSid) y sus notas lo siguen. */
+  function dayRoutine(entries, isShift) {
+    const day = [], ok = typeof isShift === 'function' ? isShift : () => true; let once = 0;
+    for (const e of entries || []) {
+      if (!e || typeof e.sid !== 'string') continue;
+      if (e.sid.startsWith('o_') || e.once) { once++; continue; }
+      if (!ok(e.sid) || day.length >= LIMITS.perDay) continue;
+      day.push({ sid: e.sid, start: timeOr(e.start), end: timeOr(e.end), ...trOf(e, true) });
+    }
+    return { day, once };
+  }
+  function pasteDay(clip, cur, mode, mkSid, dkMax) {
+    const c = clip || {}, now = cur || {}, add = mode === 'add', map = {};
+    const ents = (Array.isArray(c.e) ? c.e : []).filter((e) => e && typeof e.sid === 'string').map((e) => {
+      const n = JSON.parse(JSON.stringify(e)); delete n.src;
+      if (n.once || n.sid.startsWith('o_')) { const id = mkSid(); map[n.sid] = id; n.sid = id; }
+      return n;
+    });
+    const gaps = (Array.isArray(c.g) ? c.g : []).filter((g) => g && typeof g === 'object').map((g) => {
+      const n = JSON.parse(JSON.stringify(g)); delete n.src;
+      if (n.sid && map[n.sid]) n.sid = map[n.sid];
+      return n;
+    });
+    const dk = (Array.isArray(c.dk) ? c.dk : []).filter((x) => typeof x === 'string');
+    const max = dkMax || 3;
+    return {
+      e: (add ? [...(now.e || []), ...ents] : ents).slice(0, LIMITS.perDay),
+      g: add ? [...(now.g || []), ...gaps] : gaps,
+      dk: [...new Set(add ? [...(now.dk || []), ...dk] : dk)].slice(0, max),
+    };
+  }
+
   const api = {
-    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, tripSegs, moveTrip, LEGS_MAX, sameEntries, applyEdit, EDIT_KEYS, nextStart, splitEntry, dropEntry, freezeBreaks, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
+    LIMITS, KINDS, KIND_LABEL, TRANSPORTS, defaultKinds, kindOk, applyRoutine, entryTransport, entryReturn, dayLegs, tripSegs, moveTrip, LEGS_MAX, sameEntries, applyEdit, EDIT_KEYS, nextStart, splitEntry, dropEntry, freezeBreaks, dayRoutine, pasteDay, PATTERNS, pad, iso, parseISO, addDays, toMin, uid, startOfWeek,
     defaults, sanitize, buildSharePayload, sanitizeShare, entryTimes, entryBreak, entryHours, report, parsePattern, patternSlots, applyRotation, toICS, parseICS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KGTurns = api;
