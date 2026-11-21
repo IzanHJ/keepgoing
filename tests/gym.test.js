@@ -122,3 +122,22 @@ test('Entrenamiento v1.69: gimnasio y deporte en el mismo registro', () => {
   assert.strictEqual(live.spAt, 123);
   assert.strictEqual(G.cleanWorkout({ ...mix, spAt: 123 }).spAt, undefined);
 });
+
+test('Entrenamiento v1.71: varios deportes en el mismo registro', () => {
+  const ex = [{ eid: 'bench', sets: [{ w: 60, r: 10, done: true }] }];
+  const w = W('v', '2026-11-21', [], { sp: 'running', st: ['free'], spm: 20, xsp: [{ sp: 'basketball', st: ['match'], res: { us: 3, them: 1 }, m: 40 }] });
+  assert.ok(G.isMixed(w));
+  assert.deepStrictEqual(G.sportsOf(w).map(x => [x.sp, x.m]), [['running', 20], ['basketball', 40]]);
+  const d = G.logDays([w])[0];
+  assert.deepStrictEqual(d.items.map(x => [x.sp, x.min]), [['running', 20], ['basketball', 40]]);
+  assert.strictEqual(d.sessions, 1);
+  // sin minutos apuntados: reparto a partes iguales con el gimnasio (60 min entre 3 partes)
+  const w2 = W('v2', '2026-11-21', ex, { sp: 'running', xsp: [{ sp: 'basketball' }] });
+  assert.deepStrictEqual(G.sportsOf(w2).map(x => x.m), [20, 20]);
+  const c = G.cleanWorkout({ ...w, xsp: [...w.xsp, { sp: 'nope' }, null] });
+  assert.deepStrictEqual(c.xsp, [{ sp: 'basketball', st: ['match'], res: { us: 3, them: 1 }, m: 40 }]);
+  assert.strictEqual(G.cleanWorkout({ ...w, sp: undefined }).xsp, undefined); // sin deporte principal no hay extras
+  const mus = G.musclesOf(w); assert.ok(mus.quads > 0 && mus.shoulders > 0);
+  const S = require('../js/sports.js');
+  assert.deepStrictEqual(S.recent([w]).sort(), ['basketball', 'running']);
+});
