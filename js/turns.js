@@ -337,7 +337,7 @@
      Devuelve el nº de días cambiados. */
   function applyRoutine(data, routine, opts) {
     const from = parseISO(opts.from), to = parseISO(opts.to), wds = Array.isArray(opts.weekdays) ? opts.weekdays : [];
-    const ok = (e) => e && data.shifts.some((s) => s.id === e.sid);
+    const ok = (e) => e && ((e.once && typeof e.once === 'object') || data.shifts.some((s) => s.id === e.sid));
     let n = 0;
     for (let d = from, i = 0; d <= to && i < 731; d = addDays(d, 1), i++) {
       const wd = (d.getDay() + 6) % 7, k = iso(d);
@@ -345,7 +345,7 @@
       if (!list.length) continue;
       // v1.24: cada turno recuerda de qué rutina viene (rt) para verla junta en el calendario
       // v1.43: la ruta tipo: cada turno de la rutina puede llevar su llegada y su trayecto de después
-      const add = list.map((e) => ({ sid: e.sid, note: '', start: timeOr(e.start), end: timeOr(e.end), ...(typeof routine.id === 'string' && RE_ID.test(routine.id) ? { rt: routine.id } : {}), ...trOf(e, true) }));
+      const add = list.map((e) => ({ sid: e.once ? 'o_' + uid() : e.sid, note: '', start: e.once ? '' : timeOr(e.start), end: e.once ? '' : timeOr(e.end), ...(e.once ? { once: JSON.parse(JSON.stringify(e.once)) } : {}), ...(typeof routine.id === 'string' && RE_ID.test(routine.id) ? { rt: routine.id } : {}), ...trOf(e, true) }));
       const next = (opts.overwrite ? add : [...(data.days[k] || []), ...add]).slice(0, LIMITS.perDay);
       data.days[k] = next; n++;
     }
@@ -547,14 +547,19 @@
 
   /* ---- v1.70: un día entero (mantener pulsado el número del día) ----
      dayRoutine pasa los turnos de un día a las entradas de una rutina de un día: cada turno con sus horas y su transporte, sin
-     notas. Los turnos puntuales (o_…) no caben en una rutina y se cuentan aparte (once). pasteDay pega un día copiado
+     notas. Los turnos puntuales (o_…) se cuentan aparte (once) y solo entran con withOnce (v1.72, tras preguntar). pasteDay pega un día copiado
      { e: turnos, g: notas, dk: tipos del día } encima de otro: mode 'replace' lo cambia entero y 'add' lo junta con lo que ya
      tenía. Cada turno puntual pegado lleva un id nuevo (mkSid) y sus notas lo siguen. */
-  function dayRoutine(entries, isShift) {
+  function dayRoutine(entries, isShift, withOnce) {
     const day = [], ok = typeof isShift === 'function' ? isShift : () => true; let once = 0;
     for (const e of entries || []) {
       if (!e || typeof e.sid !== 'string') continue;
-      if (e.sid.startsWith('o_') || e.once) { once++; continue; }
+      if (e.sid.startsWith('o_') || e.once) {
+        once++;
+        // v1.72: si se acepta, el turno puntual va en la rutina tal cual (con su nombre, color y horas); al aplicarla se crea otro igual
+        if (withOnce && e.once && typeof e.once === 'object' && day.length < LIMITS.perDay) day.push({ sid: 'o_rtpl', once: JSON.parse(JSON.stringify(e.once)), start: '', end: '', ...trOf(e, true) });
+        continue;
+      }
       if (!ok(e.sid) || day.length >= LIMITS.perDay) continue;
       day.push({ sid: e.sid, start: timeOr(e.start), end: timeOr(e.end), ...trOf(e, true) });
     }

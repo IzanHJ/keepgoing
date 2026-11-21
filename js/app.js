@@ -3985,12 +3985,35 @@
     setTimeout(() => window.addEventListener('scroll', tfDayMenuClose, true), 0);
     requestAnimationFrame(() => { const f = $('button:not([disabled])', m); if (f && !matchMedia('(pointer: coarse)').matches) f.focus(); });
   }
+  // v1.72: un turno puntual pasa a ser un turno normal (con su nombre, icono, color, horas y lugar). Si ya hay uno con ese nombre, se usa.
+  function tfOnceToShift(e) {
+    const o = tfOnceShift(e), low = String(o.name).trim().toLowerCase();
+    const have = state.calShifts.find(x => String(x.name).trim().toLowerCase() === low && (x.start || '') === (o.start || '') && (x.end || '') === (o.end || ''));
+    if (have) return have.id;
+    if (state.calShifts.length >= TF.LIMITS.shifts) { toast(t('tfRtFull')); return null; }
+    const kind = 'work'; // como el turno puntual
+    const s = { id: TF.uid(), jobId: (state.calJobs[0] || {}).id || '', name: o.name, emoji: o.emoji || '', color: tfColor(o.color), kind, start: o.start || '', end: o.end || '', breakMin: 0, alarmMin: 0, ...(o.placeId ? { placeId: o.placeId } : {}) };
+    state.calShifts.push(s); return s.id;
+  }
   function tfDayAct(a, k) {
     if (a === 'rt') {
-      const { day, once } = TF.dayRoutine(state.calDays[k] || [], sid => state.calShifts.some(s => s.id === sid));
-      if (!day.length) { toast(t(once ? 'dmRtOnce' : 'dmRtEmpty')); return; }
-      if (once) toast(t(once === 1 ? 'dmRtSkip1' : 'dmRtSkipN', { n: once }));
-      tfEditRoutine(null, { name: t('dmRtName', { d: fmtDate(k, { weekday: 'long', day: 'numeric', month: 'short' }).replace(',', '') }).slice(0, 60), kind: 'day', day });
+      const isS = sid => state.calShifts.some(s => s.id === sid), name = t('dmRtName', { d: fmtDate(k, { weekday: 'long', day: 'numeric', month: 'short' }).replace(',', '') }).slice(0, 60);
+      const open = withOnce => {
+        let src = state.calDays[k] || [];
+        // «Convertir en turnos»: cada turno puntual pasa a ser un turno de tu lista (o usa uno que ya se llame igual) y la rutina lo usa
+        if (withOnce === 'convert') { src = src.map(e => { if (!e || !e.once) return e; const sid = tfOnceToShift(e); if (!sid) return e; const { once, sid: _o, ...rest } = e; return { ...rest, sid, start: '', end: '' }; }); tfSave(false); }
+        const { day } = TF.dayRoutine(src, isS, withOnce === 'yes'); if (!day.length) { toast(t('dmRtEmpty')); return; } tfEditRoutine(null, { name, kind: 'day', day });
+      };
+      const once = (state.calDays[k] || []).filter(e => e && e.once);
+      if (!once.length) { open(false); return; }
+      // v1.72: los turnos puntuales pueden ir en la rutina, pero antes se pregunta (decisión de Izan)
+      const names = once.map(e => tfOnceShift(e).name).join(', ');
+      openModal({
+        title: `${ico('layers')} ${esc(t(once.length === 1 ? 'dmRtOnceQ1' : 'dmRtOnceQN', { n: once.length }))}`, cls: 'tf-sheet',
+        body: `<p class="muted" style="margin:0">${esc(t('dmRtOnceHint', { x: names }))}</p>`,
+        foot: `<div class="stack" style="gap:8px;width:100%"><button class="btn block primary" data-tfro="yes">${ico('layers')} ${esc(t('dmRtOnceYes'))}</button><button class="btn block" data-tfro="convert">${ico('plus')} ${esc(t('dmRtOnceConv'))}</button><button class="btn block" data-tfro="no">${esc(t('dmRtOnceNo'))}</button></div>`,
+        onClick: (e, close) => { const b = e.target.closest('[data-tfro]'); if (!b) return; close(); open(b.dataset.tfro); }
+      });
       return;
     }
     if (a === 'copy') {
@@ -4073,7 +4096,7 @@
     const rows = [];
     for (const e of list) {
       const r = e.rt && state.calRoutines.find(x => x.id === e.rt && x.kind === 'day');
-      if (r) { if (!rts.has(r.id)) { rts.add(r.id); rows.push(row(tfRtTag(r), (r.day || []).map(x => tfShift(x.sid)).filter(Boolean).map(x => x.name).join(' · '))); } continue; }
+      if (r) { if (!rts.has(r.id)) { rts.add(r.id); rows.push(row(tfRtTag(r), (r.day || []).map(tfRtS).filter(Boolean).map(x => x.name).join(' · '))); } continue; }
       const s = tfShiftE(e); if (s) rows.push(row(tfTag(s, '', undefined, e), [times(s, e), (p => p ? p.name + (p.addr ? ' (' + p.addr + ')' : '') : '')(tfPlaceOf(s, e)), (r => r ? tfTrName(r.mode) + (r.dep || r.arr ? ' ' + (r.dep || '…') + '–' + (r.arr || '…') : '') : '')(TF.entryTransport(s, e)), (r => r ? t('bkToShort', { p: tfBkToName(r.to) }) + ' · ' + tfTrName(r.mode) : '')(TF.dayLegs(list, Object.fromEntries(tfData().shifts.map(x => [x.id, x]))).find(l => l.kind === 'back' && list[l.i] === e)), e.note].filter(Boolean).join(' · ')));
     }
     for (const f of shown) for (const id of f.days[k] || []) { const s = f.shifts.find(x => x.id === id); if (s) rows.push(row(tfGhost(s, f.name), f.name)); }
@@ -4238,8 +4261,10 @@
     });
   }
   // Una rutina se ve como una sola etiqueta con los colores de sus turnos, unidos, cada uno con el suyo
+  // v1.72: en una rutina, un turno puntual va guardado dentro (e.once) y no en la lista de Turnos
+  const tfRtS = e => e && e.once ? tfOnceShift(e) : tfShift(e && e.sid);
   function tfRtTag(r, cls = '') {
-    const cs = (r.day || []).map(e => tfShift(e.sid)).filter(Boolean).map(s => tfColor(s.color));
+    const cs = (r.day || []).map(tfRtS).filter(Boolean).map(s => tfColor(s.color));
     const bg = cs.length > 1 ? `linear-gradient(90deg, ${cs.map((c, i) => `${c} ${i * 100 / cs.length}% ${(i + 1) * 100 / cs.length}%`).join(', ')})` : (cs[0] || '#888');
     return `<span class="tf-tag tf-rt ${cls}" style="--c:${cs[0] || '#888'};background:${bg};--fg-c:${tfFg(cs[0] || '#888888')}"><span class="tn">${esc(r.name)}</span></span>`;
   }
@@ -4256,7 +4281,7 @@
     sfx('tap'); tfSave();
   }
   // v1.23: los turnos de un día van de más pronto a más tarde (los que no tienen hora, al final, en su orden)
-  const tfStartMin = e => { const s = tfShift(e.sid), st = s ? TF.entryTimes(s, e).start : ''; if (!st) return 1e4; const [h, m] = st.split(':').map(Number); return h * 60 + m; };
+  const tfStartMin = e => { const s = e.once ? tfOnceShift(e) : tfShift(e.sid), st = s ? TF.entryTimes(s, e).start : ''; if (!st) return 1e4; const [h, m] = st.split(':').map(Number); return h * 60 + m; };
   const tfSorted = list => list.map((e, i) => [e, i]).sort((a, b) => tfStartMin(a[0]) - tfStartMin(b[0]) || a[1] - b[1]).map(x => x[0]);
   const tfSetDay = (k, list) => { tfOnceGen++; if (list.length) state.calDays[k] = tfSorted(list); else delete state.calDays[k]; };
   /* v1.25: capas de vista del Calendario. v1.26: botón «Vista» en el menú, para todos, y se guarda en calPrefs.view (igual en todos
@@ -5611,7 +5636,7 @@
         <p class="muted small" style="margin:0">${esc(t(d.kind === 'week' ? 'tfRtWeekHint' : 'tfRtDayHint'))}</p>
         ${d.kind === 'week' ? `<div class="seg seg-sm tf-rt-wd" role="group">${W.map((n, i) => `<button type="button" data-tfr-wd="${i}" class="${wd === i ? 'on' : ''}">${esc(n)}${d.week[i].length ? ` <span class="badge-n">${d.week[i].length}</span>` : ''}</button>`).join('')}</div>` : ''}
         ${list.length ? '' : `<p class="muted" style="margin:0">${esc(t('tfNoShifts'))}</p>`}
-        ${list.map((e, i) => { const s = tfShift(e.sid); if (!s) return ''; return `<div class="tf-entry" data-i="${i}"><div class="row" style="justify-content:space-between">${tfTag(s, 'big')}<button type="button" class="icon-btn sm danger-text" data-tfr="del" aria-label="${esc(t('tfRemoveShift'))}">${ico('x')}</button></div>
+        ${list.map((e, i) => { const s = tfRtS(e); if (!s) return ''; return `<div class="tf-entry" data-i="${i}"><div class="row" style="justify-content:space-between">${tfTag(s, 'big')}<button type="button" class="icon-btn sm danger-text" data-tfr="del" aria-label="${esc(t('tfRemoveShift'))}">${ico('x')}</button></div>
           <div class="row" style="gap:8px"><input class="input grow" type="time" data-tfr-t="start" value="${esc(e.start || s.start || '')}" aria-label="${esc(t('tfStart'))}"><input class="input grow" type="time" data-tfr-t="end" value="${esc(e.end || s.end || '')}" aria-label="${esc(t('tfEnd'))}"></div>${tfRtTrHtml(e, s)}</div>`; }).join('')}
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button type="button" class="tf-pal" data-tfr-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}</div>
         ${d.kind === 'week' && list.length ? `<div class="row wrap" style="gap:6px"><button type="button" class="chip sm" data-tfr="copy-wk">${ico('copy')} ${esc(t('tfRtCopyWk'))}</button><button type="button" class="chip sm" data-tfr="copy-all">${ico('copy')} ${esc(t('tfRtCopyAll'))}</button></div>` : ''}</div>`;
@@ -5639,8 +5664,9 @@
             if (f === 'bkTo') { if (v) en.bkTo = v; else delete en.bkTo; } else { if (v) en[f] = v; else delete en[f]; delete en[f + 'Dep']; delete en[f + 'Arr']; if (f === 'bk' && (!v || v === '-')) delete en.bkTo; }
             d.name = $('#tfr-name', wref).value; draw(); return; }
           const row = e.target.closest('[data-i]'); if (!row || !e.target.matches('[data-tfr-t]')) return;
-          const en = cur()[+row.dataset.i], s = en && tfShift(en.sid); if (!s) return;
-          const which = e.target.dataset.tfrT; en[which] = e.target.value === s[which] ? '' : e.target.value;
+          const en = cur()[+row.dataset.i], s = en && tfRtS(en); if (!s) return;
+          const which = e.target.dataset.tfrT;
+          if (en.once) en.once = { ...en.once, [which]: e.target.value }; else en[which] = e.target.value === s[which] ? '' : e.target.value;
           if (which === 'start') { sortCur(); draw(); }
         });
         w.addEventListener('input', e => { if (e.target.id === 'tfr-name') d.name = e.target.value; });

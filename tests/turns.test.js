@@ -303,6 +303,18 @@ test('v1.70: crear rutina desde un día y copiar/pegar el día', () => {
   const r = T.dayRoutine(day, (id) => id !== 'zz');
   assert.strictEqual(r.once, 1);
   assert.deepStrictEqual(r.day, [{ sid: 'a', start: '08:00', end: '', tr: 'bus', trDep: '07:30', trArr: '07:55' }]);
+  // v1.72: con withOnce el turno puntual entra en la rutina y al aplicarla se crea uno nuevo con id propio
+  const r2 = T.dayRoutine(day, (id) => id !== 'zz', true);
+  assert.strictEqual(r2.day.length, 2);
+  assert.strictEqual(r2.day[1].once.name, 'Médico');
+  const data = { shifts: [{ id: 'a', start: '06:00', end: '14:00' }], days: {} };
+  T.applyRoutine(data, { id: 'rt1', kind: 'day', day: r2.day }, { from: '2026-11-23', to: '2026-11-24', weekdays: [] });
+  const d1 = data.days['2026-11-23'], d2 = data.days['2026-11-24'];
+  assert.strictEqual(d1.length, 2);
+  assert.ok(/^o_/.test(d1[1].sid) && d1[1].sid !== 'o_rtpl' && d1[1].sid !== d2[1].sid);
+  assert.deepStrictEqual([d1[1].once.start, d1[1].once.end, d1[1].rt], ['17:00', '18:00', 'rt1']);
+  const san = T.sanitize({ shifts: data.shifts, days: data.days });
+  assert.strictEqual(san.days['2026-11-23'].length, 2);
 
   const clip = { e: day.slice(0, 2), g: [{ a: '17:00', b: '18:00', t: 'nota', sid: 'o_abcd1' }, { a: '', b: '', t: 'día', src: 's' }], dk: ['vac'] };
   let n = 0; const mk = () => 'o_new' + (++n);
