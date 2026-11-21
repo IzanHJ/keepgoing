@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.69.0';
+  const VERSION = '1.70.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -6637,6 +6637,8 @@
         ${!isNew && !quit ? `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="hf-cont" ${f.cont ? 'checked' : ''}><span></span></span><span class="grow"><b>${ico('branch', 'xs')} ${esc(t('contTitle'))}</b><br><span class="muted small">${esc(t('contHint'))}</span></span></label>` : ''}
         <label class="field"><span>${esc(t('habitDesc'))}</span><textarea class="input" id="hf-note" maxlength="300" placeholder="${esc(t('habitDescPh'))}">${esc(f.note || '')}</textarea></label>
         ${!isNew ? `<div class="row wrap">
+          <button type="button" class="chip" data-hm="photos">${ico('camera')} ${esc(t('photosTitle'))}${hPhotos(h).length ? ` · ${hPhotos(h).length}` : ''}</button>
+          <button type="button" class="chip" data-hm="shareres">${ico('share')} ${esc(t('srShare'))}</button>
           <button type="button" class="chip" data-hm="up">${ico('up')} ${esc(t('moveUp'))}</button>
           <button type="button" class="chip" data-hm="down">${ico('down')} ${esc(t('moveDown'))}</button>
           <button type="button" class="chip" data-hm="archive">${ico('archive')} ${esc(h.archived ? t('unarchive') : t('archive'))}</button>
@@ -6704,6 +6706,8 @@
           if (act === 'down' && i < state.habits.length - 1) { [state.habits[i + 1], state.habits[i]] = [state.habits[i], state.habits[i + 1]]; save(); render(); }
           if (act === 'archive') { if (h.archived && !gateAdd('habits', activeHabitCount())) return; h.archived = !h.archived; delete h.planArch; save(); close(); render(); }
           if (act === 'group') { close(); openGroup(h.groupId); return; }
+          if (act === 'photos') { openHabitPhotos(h); return; } // v1.64
+          if (act === 'shareres') { openShareResults('habit', h.id); return; }
           if (act === 'link') {
             const url = `${APP_URL}?check=${h.id}`;
             openModal({
@@ -7183,7 +7187,7 @@
       title: `${esc(p.icon || '🎯')} ${esc(p.name)}`,
       cls: 'wide',
       body: '<div id="pd"></div>',
-      foot: `<button class="btn" data-pd="delete">${ico('trash')} ${esc(t('delete'))}</button>${p.groupId ? `<button class="btn" data-pd="group">${ico('users')} ${esc(t('groupOpen'))}</button>` : ''}<button class="btn" data-pd="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
+      foot: `<button class="btn" data-pd="delete">${ico('trash')} ${esc(t('delete'))}</button>${p.groupId ? `<button class="btn" data-pd="group">${ico('users')} ${esc(t('groupOpen'))}</button>` : ''}<button class="btn" data-pd="share">${ico('share')} ${esc(t('srShare'))}</button><button class="btn" data-pd="edit">${ico('edit')} ${esc(t('edit'))}</button>`,
       onMount: w => {
         wref = w; draw();
         w.addEventListener('input', e => {
@@ -7214,6 +7218,7 @@
           }
           case 'del-entry': g.entries = g.entries.filter(x => x.d !== el.dataset.d); break;
           case 'achieve': g.achieved = !g.achieved; break;
+          case 'share': openShareResults('project', p.id); return;
           case 'edit': close(); openProjectEditor(p); return;
           case 'group': openGroup(p.groupId); return;
           case 'reto': close(); openProjectEditor(p); return;
@@ -7425,12 +7430,18 @@
     if (!h && !p) return;
     let range = 30;
     const H = h ? [h] : p.habitIds.map(getHabit).filter(x => x && !x.archived);
-    const draw = w => { $('#more', w).innerHTML = chartsFor(H, range, { project: p, color: p && (p.color || 'var(--accent)') }); hsumPlay($('#more', w)); };
+    const draw = w => { $('#more', w).innerHTML = chartsFor(H, range, { project: p, color: p && (p.color || 'var(--accent)') }) + (h ? habitPhotoStrip(h) : ''); hsumPlay($('#more', w)); if (h) loadPhotos(w); };
     openModal({
       title: `${esc((h || p).icon || '')} ${esc((h || p).name)}`, cls: 'wide more-modal',
       body: '<div id="more"></div>',
+      foot: `${h ? `<button class="btn" data-hp-open>${ico('camera')} ${esc(t('hpShort'))}</button>` : ''}<button class="btn primary" data-sr-open>${ico('share')} ${esc(t('srShare'))}</button>`, // v1.64
       onMount: draw,
-      onClick: (e, close, w) => { const b = e.target.closest('[data-more-range]'); if (!b) return; range = b.dataset.moreRange === 'all' ? 'all' : +b.dataset.moreRange; draw(w); }
+      onClick: (e, close, w) => {
+        if (e.target.closest('[data-hp-open]')) { openHabitPhotos(h); return; }
+        if (e.target.closest('[data-sr-open]')) { openShareResults(kind, id); return; }
+        const b = e.target.closest('[data-more-range]'); if (!b) return; range = b.dataset.moreRange === 'all' ? 'all' : +b.dataset.moreRange; draw(w);
+      },
+      onClose: () => { if (h && state.ui.tab === 'habits') render(); }
     });
   }
 
@@ -8129,7 +8140,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.69', [['1.69.0', 2]]], ['1.67', [['1.67.0', 6]]], ['1.65', [['1.65.0', 3]]], ['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.70', [['1.70.0', 2]]], ['1.69', [['1.69.0', 2]]], ['1.67', [['1.67.0', 6]]], ['1.65', [['1.65.0', 3]]], ['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
@@ -13380,6 +13391,7 @@
     const card = { id: h.id + '_' + c.start, hid: h.id, name: h.name, icon: h.icon, days: c.days, start: c.start, end: todayKey(), serial: ++state.serial };
     state.challengeCards.push(card); save();
     if (!silent) setTimeout(() => whenFree(() => sfx('levelup') || openTrophy(challengeCardHtml(card), t('challengeDone'), t('challengeDoneMsg', { name: h.name }), () => trophyCanvas('challenge', card))), 400);
+    if (!silent && hPhotos(h).length) setTimeout(() => whenFree(() => askHabitAfterPhoto(h)), 900); // v1.70: foto del «después»
   }
 
   /* ---------- cartas secretas ---------- */
@@ -13814,6 +13826,291 @@
         try { toast(t('photoUploading')); await uploadPhoto(p, 'after', e.target.files[0]); toast(t('avatarSaved')); close(); render(); } catch (err) { toast(t('photoError', { e: err.message })); }
       }),
       onClick: (e, close, w) => { if (e.target.closest('[data-m="later"]')) { readDontRemind(w, 'afterPhoto'); close(); } }
+    });
+  }
+
+  /* ---------- v1.70: fotos de progreso en hábitos y retos (serie en la nube privada, comparar con deslizador) ---------- */
+  const hPhotos = h => (Array.isArray(h.photos) ? h.photos : []).filter(x => x && x.path).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.at || 0) - (b.at || 0));
+  const hPhotoStart = h => (h.challenge && h.challenge.start) || firstKey(h);
+  const hPhotoDay = (h, d) => { const n = diffDays(hPhotoStart(h), d) + 1; return n >= 1 ? n : null; };
+  const hPhotoCap = (h, ph) => { const n = hPhotoDay(h, ph.date); return fmtShort(ph.date) + (n ? ' · ' + t('hpDayN', { n }) : ''); };
+  async function uploadHabitPhoto(h, file, date) {
+    if (!auth) { toast(t('photoNeedLogin')); return false; }
+    await ensureToken();
+    const blob = await compressImage(file);
+    const id = uid(), path = `${auth.uid}/${h.id}/p-${id}.jpg`;
+    const res = await fetch(`${SB_URL}/storage/v1/object/${PHOTO_BUCKET}/${path}`, { method: 'POST', headers: { apikey: SB_KEY, Authorization: 'Bearer ' + auth.access_token, 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: blob });
+    if (!res.ok) throw new Error((await res.text()).slice(0, 120));
+    const d = KGT.isKey(date) && date <= todayKey() ? date : todayKey();
+    h.photos = [...hPhotos(h), { id, path, date: d, at: Date.now() }]; save();
+    return true;
+  }
+  async function deleteHabitPhoto(h, id) {
+    const ph = hPhotos(h).find(x => x.id === id); if (!ph) return;
+    h.photos = hPhotos(h).filter(x => x.id !== id); save();
+    if (auth) { try { await ensureToken(); fetch(`${SB_URL}/storage/v1/object/${PHOTO_BUCKET}/${ph.path}`, { method: 'DELETE', headers: { apikey: SB_KEY, Authorization: 'Bearer ' + auth.access_token } }).catch(() => {}); } catch (e) { /* se queda en la nube */ } }
+  }
+  // Tira de fotos dentro de «Ver más» de un hábito
+  function habitPhotoStrip(h) {
+    const L = hPhotos(h);
+    return `<section class="chart-card clay hp-strip" style="margin-top:18px"><h3>${ico('camera')}<span class="grow">${esc(t('photosTitle'))}</span><button class="chip" data-hp-open>${esc(t(L.length ? 'hpSeeAll' : 'photoUpload'))} ${ico('right')}</button></h3>
+      ${L.length ? `<div class="hp-row">${L.slice(-6).map(ph => `<button class="hp-mini" data-hp-open><img data-photo="${esc(ph.path)}" alt=""><span>${esc(hPhotoCap(h, ph))}</span></button>`).join('')}</div>` : `<p class="muted small" style="margin:0">${esc(t(auth ? 'hpEmpty' : 'photoNeedLogin'))}</p>`}</section>`;
+  }
+  function openHabitPhotos(h) {
+    let A = null, B = null, cut = 50;
+    const draw = w => {
+      const L = hPhotos(h);
+      if (!L.find(x => x.id === A)) A = L[0] ? L[0].id : null;
+      if (!L.find(x => x.id === B) || B === A) B = L.length > 1 ? L[L.length - 1].id : null;
+      const pa = L.find(x => x.id === A), pb = L.find(x => x.id === B);
+      const opt = sel => L.map(ph => `<option value="${ph.id}" ${ph.id === sel ? 'selected' : ''}>${esc(hPhotoCap(h, ph))}</option>`).join('');
+      $('#hp', w).innerHTML = `<div class="stack" style="gap:16px">
+        <p class="muted small" style="margin:0">${esc(t(auth ? 'hpHint' : 'photoNeedLogin'))}</p>
+        ${auth ? `<div class="row wrap hp-add"><label class="field" style="margin:0"><span>${esc(t('hpDate'))}</span><input class="input" type="date" id="hp-date" value="${todayKey()}" max="${todayKey()}"></label>
+          <label class="btn primary">${ico('upload')} ${esc(t('hpAdd'))}<input type="file" accept="image/*" data-hp-up class="hidden"></label></div>` : ''}
+        ${pa && pb ? `<section class="clay card"><h3 class="section-title">${ico('image')} ${esc(t('hpCompare'))}</h3>
+          <div class="hp-cmp" style="--cut:${cut}%"><img data-photo="${esc(pb.path)}" alt=""><div class="hp-cmp-a"><img data-photo="${esc(pa.path)}" alt=""></div><i class="hp-cmp-bar"></i>
+            <span class="hp-tag l">${esc(t('photo_before'))}</span><span class="hp-tag r">${esc(t('photo_after'))}</span></div>
+          <input type="range" id="hp-cut" min="0" max="100" value="${cut}" aria-label="${esc(t('hpCompare'))}">
+          <div class="row" style="gap:8px"><select class="input" id="hp-a">${opt(A)}</select><select class="input" id="hp-b">${opt(B)}</select></div>
+          ${hPhotoDay(h, pa.date) && hPhotoDay(h, pb.date) ? `<p class="muted small center" style="margin:8px 0 0">${esc(t('hpBetween', { n: Math.abs(diffDays(pa.date, pb.date)) }))}</p>` : ''}</section>` : ''}
+        ${L.length ? `<div class="hp-grid">${[...L].reverse().map(ph => `<div class="hp-cell clay"><img data-photo="${esc(ph.path)}" alt=""><span class="hp-cap">${esc(hPhotoCap(h, ph))}</span><button class="icon-btn sm hp-del" data-hp-del="${ph.id}" aria-label="${esc(t('delete'))}">${ico('trash')}</button></div>`).join('')}</div>`
+          : `<div class="photo-empty" style="padding:30px 0">${ico('image')}</div>`}
+      </div>`;
+      loadPhotos(w);
+    };
+    openModal({
+      title: `${ico('camera')} ${esc(h.name)}`, cls: 'wide',
+      body: '<div id="hp"></div>',
+      foot: `<button class="btn" data-m="x">${esc(t('close'))}</button><button class="btn primary" data-hp-share>${ico('share')} ${esc(t('srShare'))}</button>`,
+      onMount: w => {
+        draw(w);
+        w.addEventListener('input', e => { if (e.target.id !== 'hp-cut') return; cut = +e.target.value; const c = $('.hp-cmp', w); if (c) c.style.setProperty('--cut', cut + '%'); });
+        w.addEventListener('change', async e => {
+          if (e.target.id === 'hp-a') { A = e.target.value; draw(w); return; }
+          if (e.target.id === 'hp-b') { B = e.target.value; draw(w); return; }
+          if (!e.target.matches('[data-hp-up]') || !e.target.files[0]) return;
+          const d = ($('#hp-date', w) || {}).value;
+          try { toast(t('photoUploading')); await uploadHabitPhoto(h, e.target.files[0], d); toast(t('photoSaved')); A = null; B = null; draw(w); }
+          catch (err) { toast(t('photoError', { e: err.message })); }
+        });
+      },
+      onClick: async (e, close, w) => {
+        const del = e.target.closest('[data-hp-del]');
+        if (del) { if (await confirmDialog(t('hpDeleteQ'))) { await deleteHabitPhoto(h, del.dataset.hpDel); draw(w); } return; }
+        if (e.target.closest('[data-hp-share]')) openShareResults('habit', h.id);
+      }
+    });
+  }
+  // Al terminar un reto con fotos, se recuerda hacer la del «después»
+  function askHabitAfterPhoto(h) {
+    if (!auth || !hPhotos(h).length || !promptOn('afterPhoto')) return;
+    openModal({
+      body: `<div class="center"><div class="big-ico">${ico('camera')}</div><h2 style="margin:6px 0">${esc(t('afterTitle'))}</h2><p class="muted">${esc(t('afterMsg', { name: h.name }))}</p>
+        <label class="btn primary" style="margin-top:8px">${ico('upload')} ${esc(t('photoUpload'))}<input type="file" accept="image/*" id="hafter-up" class="hidden"></label>${dontRemindHtml()}</div>`,
+      foot: `<button class="btn block" data-m="later">${esc(t('later'))}</button>`,
+      onMount: (w, close) => w.addEventListener('change', async e => {
+        if (e.target.id !== 'hafter-up' || !e.target.files[0]) return;
+        readDontRemind(w, 'afterPhoto');
+        try { toast(t('photoUploading')); await uploadHabitPhoto(h, e.target.files[0]); toast(t('photoSaved')); close(); openHabitPhotos(h); } catch (err) { toast(t('photoError', { e: err.message })); }
+      }),
+      onClick: (e, close, w) => { if (e.target.closest('[data-m="later"]')) { readDontRemind(w, 'afterPhoto'); close(); } }
+    });
+  }
+
+  /* ---------- v1.70: compartir un hábito o proyecto con sus resultados de un margen de tiempo ---------- */
+  const SR_RANGES = [['day', 'srDay'], ['week', 'srWeek'], ['month', 'srMonth'], ['year', 'srYear'], ['max', 'srMax'], ['custom', 'srCustom']];
+  function srBounds(H, rng, cf, ct) {
+    const today = todayKey();
+    const first = H.reduce((m, h) => { const f = firstKey(h); return f < m ? f : m; }, today);
+    if (rng === 'day') return { from: today, to: today };
+    if (rng === 'week') return { from: addDays(today, -6), to: today };
+    if (rng === 'month') return { from: addDays(today, -29), to: today };
+    if (rng === 'year') return { from: addDays(today, -364), to: today };
+    if (rng === 'max') return { from: first, to: today };
+    let a = KGT.isKey(cf) ? cf : addDays(today, -6), b = KGT.isKey(ct) ? ct : today;
+    if (b > today) b = today; if (a > b) [a, b] = [b, a];
+    return { from: a, to: b };
+  }
+  // Resultados de un hábito entre dos fechas (los periodos sin cerrar que aún no se han cumplido no cuentan)
+  function srHabitStats(h, from, to, open = false) {
+    const fk = firstKey(h), a = from < fk ? fk : from, cur = periodStart(h, todayKey());
+    let done = 0, total = 0, run = 0, best = 0;
+    if (a <= to) for (const p of periodsBetween(h, a, to)) {
+      const s = periodState(h, p);
+      if (!open && p === cur && (s !== 'done' || (isQuit(h) && p === todayKey()))) continue; // en «Hoy» cuenta lo que falta
+      if (s === 'off') continue;
+      total++;
+      if (s === 'done') { done++; run++; if (run > best) best = run; } else run = 0;
+    }
+    return { done, total, rate: total ? done / total : null, best, entries: totalEntries(h, from, to) };
+  }
+  function srSummary(kind, id, from, to) {
+    const h = kind === 'habit' ? getHabit(id) : null, p = kind === 'project' ? state.projects.find(x => x.id === id) : null;
+    const H = h ? [h] : p ? p.habitIds.map(getHabit).filter(x => x && !x.archived) : [];
+    const per = H.map(x => ({ h: x, ...srHabitStats(x, from, to, from === to) }));
+    const rs = per.filter(x => x.rate != null);
+    const days = []; for (let k = from; k <= to && days.length < 4000; k = addDays(k, 1)) days.push(k);
+    const heat = days.map(k => { const v = H.map(x => dayScore(x, k)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; });
+    return {
+      h, p, H, per, days, heat,
+      rate: rs.length ? rs.reduce((a, x) => a + x.rate, 0) / rs.length : null,
+      done: per.reduce((a, x) => a + x.done, 0), total: per.reduce((a, x) => a + x.total, 0),
+      best: Math.max(0, ...per.map(x => x.best)), entries: per.reduce((a, x) => a + x.entries, 0),
+      activeDays: days.filter((k, i) => heat[i] != null && heat[i] > 0).length
+    };
+  }
+  // Fotos de antes/después del margen: la última antes de empezar (o la primera dentro) y la última dentro
+  function srPhotos(S, from, to) {
+    if (S.p) { const b = S.p.photos.before, a = S.p.photos.after; return [b, a].filter(Boolean); }
+    const L = hPhotos(S.h).filter(x => x.date <= to); if (!L.length) return [];
+    const inR = L.filter(x => x.date >= from), prev = L.filter(x => x.date < from);
+    const first = prev.length ? prev[prev.length - 1] : inR[0], last = L[L.length - 1];
+    return first && last && first.id !== last.id ? [first, last] : [last];
+  }
+  async function srCanvas(kind, id, rng, from, to, withPhotos) {
+    const S = srSummary(kind, id, from, to), obj = S.h || S.p;
+    const fam = fontFamily(state.theme.font), th = state.theme;
+    try { await Promise.all([document.fonts.load(`700 40px "${fam}"`), document.fonts.load(`500 40px "${fam}"`)]); } catch (e) { /* fuente del sistema */ }
+    const W = 1080, cv = document.createElement('canvas'); cv.width = W; cv.height = 3200;
+    const ctx = cv.getContext('2d'), fg = th.fg, mut = mix(th.fg, th.bg, .4);
+    const hx = c => /^#[0-9a-f]{6}$/i.test(String(c || '')) ? c : th.accent, col = hx(S.h ? hColor(S.h) : S.p.color);
+    const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
+    const font = (w, s) => { ctx.font = `${w} ${s}px "${fam}", sans-serif`; };
+    const txt = (s, x, y, size, color, weight = 700, align = 'center') => { font(weight, size); ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(s, x, y); };
+    ctx.textBaseline = 'middle';
+    let y = 120;
+    txt('KEEPGOING', W / 2, y, 30, mut); y += 90;
+    txt(obj.icon || (S.p ? '📁' : '#'), W / 2, y + 20, 96, fg, 400); y += 140;
+    let ns = 66; font(700, ns); while (ns > 34 && ctx.measureText(obj.name).width > W - 180) { ns -= 2; font(700, ns); }
+    txt(obj.name, W / 2, y, ns, fg); y += 62;
+    const rngTxt = rng === 'day' ? fmtDate(to) : `${fmtDate(from, { day: 'numeric', month: 'short', year: from.slice(0, 4) === to.slice(0, 4) ? undefined : 'numeric' })} – ${fmtDate(to, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    txt(`${t(SR_RANGES.find(r => r[0] === rng)[1])} · ${rngTxt}`, W / 2, y, 30, col, 700); y += 70;
+    // Anillo con el % de cumplimiento
+    const R = 150, cx = W / 2, cy = y + R + 10;
+    ctx.lineWidth = 34; ctx.lineCap = 'round';
+    ctx.strokeStyle = rgba(fg, .1); ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    if (S.rate) { ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, S.rate)); ctx.stroke(); }
+    txt(S.rate == null ? '—' : Math.round(S.rate * 100) + '%', cx, cy - 8, 92, fg);
+    txt(t('kpiRate'), cx, cy + 58, 26, mut, 600);
+    y = cy + R + 70;
+    // Cifras
+    const k4 = [[`${S.done}/${S.total}`, t('srDone')], [S.best, t('srBestRun')], [fmtNum(S.entries), t('kpiTotal')], [S.activeDays, t('kpiActiveDays')]];
+    k4.forEach(([v, l], j) => {
+      const x = 70 + j * 240; ctx.fillStyle = rgba(fg, .08); rr(x, y, 220, 160, 34); ctx.fill();
+      txt(String(v), x + 110, y + 62, String(v).length > 6 ? 40 : 54, fg);
+      font(600, 22); ctx.fillStyle = mut; wrapLines(ctx, String(l), 196, 2).forEach((ln, i) => ctx.fillText(ln, x + 110, y + 116 + i * 26));
+    });
+    y += 210;
+    // Reto o meta del proyecto
+    const bar = (label, right, frac) => {
+      txt(label, 90, y, 28, fg, 700, 'left'); txt(right, W - 90, y, 28, mut, 700, 'right'); y += 36;
+      ctx.fillStyle = rgba(fg, .1); rr(90, y, W - 180, 22, 11); ctx.fill();
+      if (frac > 0) { ctx.fillStyle = col; rr(90, y, Math.max(22, (W - 180) * Math.min(1, frac)), 22, 11); ctx.fill(); }
+      y += 70;
+    };
+    if (S.h && S.h.challenge) { const c = S.h.challenge, n = c.done ? c.days : challengeProgress(S.h); bar(t('srChallenge', { n: c.days }), c.done ? t('achieved') : t('hpDayN', { n: Math.min(c.days, n) }), n / c.days); }
+    if (S.p) { const ps = projectStats(S.p); if (['numeric', 'checklist'].includes(S.p.goal.type) || ps.achieved) bar(t('goal'), ps.achieved ? t('achieved') : Math.round((ps.G || 0) * 100) + '%', ps.achieved ? 1 : ps.G || 0); }
+    // Mapa de días
+    if (rng !== 'day') {
+      const n = S.days.length, X0 = 90, AW = W - 180;
+      if (n <= 31) {
+        const cols = n <= 7 ? n : 7, rows = Math.ceil(n / cols), gap = 12, sz = Math.min(110, (AW - gap * (cols - 1)) / cols), x0 = (W - (cols * sz + (cols - 1) * gap)) / 2;
+        S.days.forEach((k, i) => {
+          const x = x0 + (i % cols) * (sz + gap), yy = y + Math.floor(i / cols) * (sz + gap), v = S.heat[i];
+          ctx.fillStyle = v == null ? rgba(fg, .06) : v <= 0 ? rgba(fg, .12) : rgba(col, .25 + .75 * v); rr(x, yy, sz, sz, sz * .22); ctx.fill();
+          txt(String(parseKey(k).getDate()), x + sz / 2, yy + sz / 2, Math.round(sz * .32), v != null && v > .5 ? '#fff' : mut, 700);
+        });
+        y += rows * (sz + gap) + 40;
+      } else {
+        const pad = (wdOf(S.days[0])), cols = Math.ceil((n + pad) / 7), gap = cols > 60 ? 2 : 4, sz = Math.max(2, Math.min(40, (AW - gap * (cols - 1)) / cols)), x0 = (W - (cols * sz + (cols - 1) * gap)) / 2;
+        S.days.forEach((k, i) => {
+          const j = i + pad, x = x0 + Math.floor(j / 7) * (sz + gap), yy = y + (j % 7) * (sz + gap), v = S.heat[i];
+          ctx.fillStyle = v == null ? rgba(fg, .06) : v <= 0 ? rgba(fg, .12) : rgba(col, .25 + .75 * v); rr(x, yy, sz, sz, Math.min(6, sz * .25)); ctx.fill();
+        });
+        y += 7 * (sz + gap) + 40;
+      }
+    }
+    // Hábitos del proyecto (o el estado de hoy)
+    if (S.p || rng === 'day') {
+      const rows = S.per.slice(0, 8);
+      rows.forEach(r => {
+        const label = `${r.h.icon || ''} ${r.h.name}`.trim(), right = rng === 'day' ? (todayStatus(r.h).done ? '✓' : isQuit(r.h) ? (cnt(r.h, to) ? '✗' : '✓') : `${periodSum(r.h, to)}/${tgtAt(r.h, to)}`) : r.rate == null ? '—' : Math.round(r.rate * 100) + '%';
+        font(600, 28); let s = label; while (s.length > 4 && ctx.measureText(s).width > W - 360) s = s.slice(0, -2);
+        txt(s === label ? s : s + '…', 90, y, 28, fg, 600, 'left'); txt(right, W - 90, y, 28, mut, 700, 'right'); y += 34;
+        const fr = rng === 'day' ? (todayStatus(r.h).done ? 1 : 0) : r.rate || 0, hc = hx(hColor(r.h));
+        ctx.fillStyle = rgba(fg, .1); rr(90, y, W - 180, 14, 7); ctx.fill();
+        if (fr > 0) { ctx.fillStyle = hc; rr(90, y, Math.max(14, (W - 180) * fr), 14, 7); ctx.fill(); }
+        y += 52;
+      });
+      if (S.per.length > rows.length) { txt(t('srMoreHabits', { n: S.per.length - rows.length }), W / 2, y, 24, mut, 600); y += 50; }
+      y += 10;
+    }
+    // Fotos de antes y después
+    if (withPhotos) {
+      const ps = srPhotos(S, from, to), imgs = [];
+      for (const ph of ps) { try { const u = await photoURL(ph.path); if (!u) continue; const im = new Image(); im.src = u; await im.decode(); imgs.push([ph, im]); } catch (e) { /* sin esa foto */ } }
+      if (imgs.length) {
+        const gap = 24, pw = imgs.length > 1 ? (W - 180 - gap) / 2 : 560, ph = Math.round(pw * 4 / 3), x0 = imgs.length > 1 ? 90 : (W - pw) / 2;
+        imgs.forEach(([meta, im], j) => {
+          const x = x0 + j * (pw + gap), s = Math.max(pw / im.width, ph / im.height), dw = im.width * s, dh = im.height * s;
+          ctx.save(); rr(x, y, pw, ph, 30); ctx.clip(); ctx.drawImage(im, x + (pw - dw) / 2, y + (ph - dh) / 2, dw, dh); ctx.restore();
+          const lab = imgs.length > 1 ? t(j ? 'photo_after' : 'photo_before') : t('srPhoto'), sub = S.h ? hPhotoCap(S.h, meta) : fmtShort(meta.date);
+          ctx.fillStyle = 'rgba(0,0,0,.55)'; rr(x + 16, y + 16, Math.min(pw - 32, 300), 76, 18); ctx.fill();
+          txt(lab, x + 32, y + 40, 26, '#fff', 700, 'left'); txt(sub, x + 32, y + 72, 20, '#ddd', 600, 'left');
+        });
+        y += ph + 50;
+      }
+    }
+    txt(`keepgoing · ${fmtShort(todayKey())}`, W / 2, y + 10, 24, mut, 600);
+    const H = Math.round(y + 80), out = document.createElement('canvas'); out.width = W; out.height = H;
+    const o = out.getContext('2d'), bgB = th.bgMode === 'gradient' ? th.bg2 : mix(th.bg, col, .22);
+    const g = o.createLinearGradient(0, 0, W, H); g.addColorStop(0, th.bg); g.addColorStop(1, bgB); o.fillStyle = g; o.fillRect(0, 0, W, H);
+    o.fillStyle = rgba(fg, .06); o.beginPath(); o.roundRect ? o.roundRect(40, 40, W - 80, H - 80, 64) : o.rect(40, 40, W - 80, H - 80); o.fill();
+    o.drawImage(cv, 0, 0, W, H, 0, 0, W, H);
+    return out;
+  }
+  function openShareResults(kind, id) {
+    const h = kind === 'habit' ? getHabit(id) : null, p = kind === 'project' ? state.projects.find(x => x.id === id) : null, obj = h || p;
+    if (!obj) return;
+    const H = h ? [h] : p.habitIds.map(getHabit).filter(x => x && !x.archived);
+    const hasPh = h ? hPhotos(h).length > 0 : !!(p.photos && (p.photos.before || p.photos.after));
+    let rng = 'week', cf = addDays(todayKey(), -6), ct = todayKey(), withPh = hasPh && !!auth, seq = 0;
+    const make = () => { const b = srBounds(H, rng, cf, ct); return srCanvas(kind, id, rng, b.from, b.to, withPh); };
+    const preview = async w => {
+      const my = ++seq, img = $('#sr-prev', w); if (!img) return;
+      img.classList.add('busy');
+      try { const c = await make(); if (my !== seq) return; img.src = c.toDataURL('image/jpeg', .85); } catch (e) { /* sin vista previa */ }
+      img.classList.remove('busy');
+    };
+    const draw = w => {
+      $('#sr', w).innerHTML = `<div class="stack" style="gap:12px">
+        <div class="seg sr-seg" role="group" aria-label="${esc(t('rangeLabel'))}">${SR_RANGES.map(([v, k]) => `<button type="button" data-sr-r="${v}" class="${rng === v ? 'on' : ''}">${esc(t(k))}</button>`).join('')}</div>
+        ${rng === 'custom' ? `<div class="row" style="gap:8px"><label class="field grow" style="margin:0"><span>${esc(t('srFrom'))}</span><input class="input" type="date" id="sr-from" value="${cf}" max="${todayKey()}"></label><label class="field grow" style="margin:0"><span>${esc(t('srTo'))}</span><input class="input" type="date" id="sr-to" value="${ct}" max="${todayKey()}"></label></div>` : ''}
+        ${hasPh && auth ? `<label class="row" style="gap:14px"><span class="switch"><input type="checkbox" id="sr-ph" ${withPh ? 'checked' : ''}><span></span></span><span class="grow"><b>${esc(t('srWithPhotos'))}</b></span></label>` : ''}
+        <div class="sr-prev-wrap"><img id="sr-prev" alt="${esc(t('srPreview'))}"></div></div>`;
+      preview(w);
+    };
+    openModal({
+      title: `${ico('share')} ${esc(t('srTitle'))}`, cls: 'wide',
+      body: '<div id="sr"></div>',
+      foot: `<button class="btn" data-m="x">${esc(t('cancel'))}</button><button class="btn primary" data-sr-go>${ico('share')} ${esc(t('share'))}</button>`,
+      onMount: w => {
+        draw(w);
+        w.addEventListener('change', e => {
+          if (e.target.id === 'sr-from') { cf = e.target.value || cf; preview(w); }
+          if (e.target.id === 'sr-to') { ct = e.target.value || ct; preview(w); }
+          if (e.target.id === 'sr-ph') { withPh = e.target.checked; preview(w); }
+        });
+      },
+      onClick: (e, close, w) => {
+        const r = e.target.closest('[data-sr-r]');
+        if (r) { rng = r.dataset.srR; draw(w); vibrate(6); return; }
+        if (e.target.closest('[data-sr-go]')) {
+          const b = srBounds(H, rng, cf, ct);
+          shareCanvas(make, `keepgoing-${slugify(obj.name) || 'resultados'}-${b.from}_${b.to}.png`, `${obj.name} · ${t(SR_RANGES.find(x => x[0] === rng)[1])}`);
+        }
+      }
     });
   }
 
