@@ -49,6 +49,7 @@
 :root[data-style="glass"] .icon-btn,
 :root[data-style="glass"] .pill-group,
 :root[data-style="glass"] .tf-menu,
+:root[data-style="glass"] .tf-dmenu,
 :root[data-style="glass"] .calc-box {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);

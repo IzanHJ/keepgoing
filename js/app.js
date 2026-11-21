@@ -5,7 +5,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.71.0';
+  const VERSION = '1.72.0';
   const STORE_KEY = 'keepgoing.v1';
 
   /* ---------- utilidades ---------- */
@@ -1367,7 +1367,7 @@
     html += tfClockChip();
     // v1.52: en la misma fila, «Fichar entrada» (hoy, en Día) a la izquierda y deshacer, rehacer y la cuchilla a la derecha
     // v1.67: en Día, la fecha y «día N de 365» van en esta fila (antes era otra fila) para que la caja de horas tenga más alto
-    const dHead = cv === 'day' ? (rv => `<span class="grow tf-dhead"><b>${esc(fmtDate(u.d, { weekday: 'short', day: 'numeric' }).replace(',', ''))}</b><small class="muted">${esc(tfDoy(u.d) + '/' + tfDoy(u.d.slice(0, 4) + '-12-31'))}</small>${rv != null ? ` <b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b>` : ''}</span>`)(tfLayers().rates ? dayRateOf(u.d) : null) : '<span class="grow"></span>';
+    const dHead = cv === 'day' ? (rv => `<span class="grow tf-dhead" data-tf-dnum="${u.d}"><b>${esc(fmtDate(u.d, { weekday: 'short', day: 'numeric' }).replace(',', ''))}</b><small class="muted">${esc(tfDoy(u.d) + '/' + tfDoy(u.d.slice(0, 4) + '-12-31'))}</small>${rv != null ? ` <b class="rate-big" style="--rc:${rateColor(rv)}">${rv}<small>/10</small></b>` : ''}</span>`)(tfLayers().rates ? dayRateOf(u.d) : null) : '<span class="grow"></span>';
     html += `<div class="row tf-toolrow">${cv === 'day' && u.d === tk && !tfClock() ? `<button class="btn sm" data-tf="clock-in">${ico('clock')} ${esc(t('tfClockInBtn'))}</button>` : ''}${sgChip(cv, u.d)}${dHead}${tfToolsHtml(cv)}</div>`;
     let range;
     const LY = tfLayers();
@@ -3925,6 +3925,120 @@
   document.addEventListener('pointerup', e => { if (tfHold && e.pointerId === tfHold.id) tfHoldDrop(); }, true);
   document.addEventListener('pointercancel', e => { if (tfHold && e.pointerId === tfHold.id) { if (tfHold.on) tfHoldDrop(); else tfHoldEnd(); } }, true);
   document.addEventListener('contextmenu', e => { if (tfHold || (e.target.closest && e.target.closest('.tf-zoom .tf-tl-col'))) e.preventDefault(); });
+  /* ---------- v1.70: mantener pulsado el número del día (Día, Semana y Mes) ----------
+     Sale una ventana pequeña junto al dedo con «Crear rutina» (los turnos del día con sus horas y transporte, sin notas),
+     «Copiar el día» (turnos, notas y tipo de día) y «Pegar el día». Con el ratón, el botón derecho hace lo mismo. */
+  let tfDnH = null;
+  const TF_DN_SEL = '.tf-dhead[data-tf-dnum], .tf-zoom .tf-wk-d[data-tf-open], .tf-zoom .tf-cell[data-tf-day]';
+  const tfDnKey = el => el.dataset.tfDnum || el.dataset.tfOpen || el.dataset.tfDay;
+  const tfDnTarget = t0 => { const el = t0 && t0.closest && t0.closest(TF_DN_SEL); return el && !t0.closest('[data-tf-dk], [data-tf-more]') ? el : null; };
+  const tfDnOk = () => state.ui.tab === 'cal' && !TFS.quick && !TFS.cut && !tfDrag && !tfPinch && ['day', 'week', 'month'].includes(tfUi().cv);
+  const tfDnEnd = () => { if (tfDnH) clearTimeout(tfDnH.timer); tfDnH = null; };
+  document.addEventListener('pointerdown', e => {
+    if (e.target.closest && e.target.closest('.tf-dmenu')) return;
+    tfDayMenuClose();
+    if (e.button || !tfDnOk()) return;
+    const el = tfDnTarget(e.target); if (!el) return;
+    tfDnEnd();
+    const h = tfDnH = { el, id: e.pointerId, sx: e.clientX, sy: e.clientY, on: false };
+    h.timer = setTimeout(() => { if (tfDnH !== h || tfDrag || tfPinch || TFS.cut || TFS.quick) return; h.on = true; tfDnFire(h); }, 420);
+  }, true);
+  document.addEventListener('pointermove', e => { const h = tfDnH; if (h && e.pointerId === h.id && !h.on && Math.hypot(e.clientX - h.sx, e.clientY - h.sy) > 8) tfDnEnd(); }, true);
+  ['pointerup', 'pointercancel'].forEach(n => document.addEventListener(n, e => {
+    const h = tfDnH; if (!h || e.pointerId !== h.id) return;
+    if (h.on) { tfDragBlock = true; setTimeout(() => { tfDragBlock = false; }, 350); }
+    tfDnEnd();
+  }, true));
+  document.addEventListener('contextmenu', e => {
+    const el = tfDnTarget(e.target); if (!el || state.ui.tab !== 'cal') return;
+    e.preventDefault();
+    if (tfDnH && tfDnH.el === el) { if (!tfDnH.on) { clearTimeout(tfDnH.timer); tfDnH.on = true; tfDnFire(tfDnH); } return; }
+    if (tfDnOk() && !$('.tf-dmenu')) tfDayMenu(tfDnKey(el), el); // botón derecho del ratón o tecla de menú
+  });
+  function tfDnFire(h) {
+    if (!document.body.contains(h.el)) return;
+    mSw = null; vibrate(15); sfx('tap'); tfDayMenu(tfDnKey(h.el), h.el);
+  }
+  const tfDayHas = k => (state.calDays[k] || []).length || tfGaps(k).length || tfDkIds(k).length;
+  function tfDayMenuClose() { const m = $('.tf-dmenu'); if (m) m.remove(); document.removeEventListener('keydown', tfDayMenuKey, true); window.removeEventListener('scroll', tfDayMenuClose, true); }
+  function tfDayMenuKey(e) { if (e.key === 'Escape') { e.preventDefault(); tfDayMenuClose(); } }
+  function tfDayMenu(k, el) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(k || '')) return;
+    tfDayMenuClose();
+    const c = tfClip('day'), m = document.createElement('div');
+    m.className = 'tf-menu tf-dmenu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', tfLong(k));
+    m.innerHTML = `<p class="tf-dmenu-h">${esc(tfLong(k))}</p>
+      <button role="menuitem" data-tfdm="rt">${ico('layers')} ${esc(t('dmRt'))}</button>
+      <button role="menuitem" data-tfdm="copy">${ico('copy')} ${esc(t('dmCopy'))}</button>
+      <button role="menuitem" data-tfdm="paste" ${c ? '' : 'disabled'}>${ico('paste')} <span class="grow">${esc(t('dmPaste'))}${c ? `<small class="muted">${esc(c.label)}</small>` : ''}</span></button>`;
+    document.body.appendChild(m);
+    // Junto al número: debajo si cabe; si no, encima. Nunca fuera de la pantalla.
+    const r = el.getBoundingClientRect(), w = m.offsetWidth, hh = m.offsetHeight, pad = 10;
+    const left = clamp(r.left + r.width / 2 - w / 2, pad, Math.max(pad, innerWidth - w - pad));
+    const top = r.bottom + 6 + hh <= innerHeight - pad ? r.bottom + 6 : Math.max(pad, r.top - 6 - hh);
+    Object.assign(m.style, { left: left + 'px', top: top + 'px' });
+    m.addEventListener('click', e => {
+      const b = e.target.closest('[data-tfdm]'); if (!b || b.disabled) return;
+      e.stopPropagation(); tfDayMenuClose(); tfDayAct(b.dataset.tfdm, k);
+    });
+    document.addEventListener('keydown', tfDayMenuKey, true);
+    setTimeout(() => window.addEventListener('scroll', tfDayMenuClose, true), 0);
+    requestAnimationFrame(() => { const f = $('button:not([disabled])', m); if (f && !matchMedia('(pointer: coarse)').matches) f.focus(); });
+  }
+  // v1.72: un turno puntual pasa a ser un turno normal (con su nombre, icono, color, horas y lugar). Si ya hay uno con ese nombre, se usa.
+  function tfOnceToShift(e) {
+    const o = tfOnceShift(e), low = String(o.name).trim().toLowerCase();
+    const have = state.calShifts.find(x => String(x.name).trim().toLowerCase() === low && (x.start || '') === (o.start || '') && (x.end || '') === (o.end || ''));
+    if (have) return have.id;
+    if (state.calShifts.length >= TF.LIMITS.shifts) { toast(t('tfRtFull')); return null; }
+    const kind = 'work'; // como el turno puntual
+    const s = { id: TF.uid(), jobId: (state.calJobs[0] || {}).id || '', name: o.name, emoji: o.emoji || '', color: tfColor(o.color), kind, start: o.start || '', end: o.end || '', breakMin: 0, alarmMin: 0, ...(o.placeId ? { placeId: o.placeId } : {}) };
+    state.calShifts.push(s); return s.id;
+  }
+  function tfDayAct(a, k) {
+    if (a === 'rt') {
+      const isS = sid => state.calShifts.some(s => s.id === sid), name = t('dmRtName', { d: fmtDate(k, { weekday: 'long', day: 'numeric', month: 'short' }).replace(',', '') }).slice(0, 60);
+      const open = withOnce => {
+        let src = state.calDays[k] || [];
+        // «Convertir en turnos»: cada turno puntual pasa a ser un turno de tu lista (o usa uno que ya se llame igual) y la rutina lo usa
+        if (withOnce === 'convert') { src = src.map(e => { if (!e || !e.once) return e; const sid = tfOnceToShift(e); if (!sid) return e; const { once, sid: _o, ...rest } = e; return { ...rest, sid, start: '', end: '' }; }); tfSave(false); }
+        const { day } = TF.dayRoutine(src, isS, withOnce === 'yes'); if (!day.length) { toast(t('dmRtEmpty')); return; } tfEditRoutine(null, { name, kind: 'day', day });
+      };
+      const once = (state.calDays[k] || []).filter(e => e && e.once);
+      if (!once.length) { open(false); return; }
+      // v1.72: los turnos puntuales pueden ir en la rutina, pero antes se pregunta (decisión de Izan)
+      const names = once.map(e => tfOnceShift(e).name).join(', ');
+      openModal({
+        title: `${ico('layers')} ${esc(t(once.length === 1 ? 'dmRtOnceQ1' : 'dmRtOnceQN', { n: once.length }))}`, cls: 'tf-sheet',
+        body: `<p class="muted" style="margin:0">${esc(t('dmRtOnceHint', { x: names }))}</p>`,
+        foot: `<div class="stack" style="gap:8px;width:100%"><button class="btn block primary" data-tfro="yes">${ico('layers')} ${esc(t('dmRtOnceYes'))}</button><button class="btn block" data-tfro="convert">${ico('plus')} ${esc(t('dmRtOnceConv'))}</button><button class="btn block" data-tfro="no">${esc(t('dmRtOnceNo'))}</button></div>`,
+        onClick: (e, close) => { const b = e.target.closest('[data-tfro]'); if (!b) return; close(); open(b.dataset.tfro); }
+      });
+      return;
+    }
+    if (a === 'copy') {
+      if (!tfDayHas(k)) { toast(t('dmEmpty')); return; }
+      tfCopy('day', { e: state.calDays[k] || [], g: tfGaps(k), dk: tfDkIds(k) }, fmtDate(k, { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', ''));
+      return;
+    }
+    if (a !== 'paste') return;
+    const c = tfClip('day'); if (!c) return;
+    const go = mode => {
+      const out = TF.pasteDay(c.data, { e: state.calDays[k] || [], g: tfGaps(k), dk: tfDkIds(k) }, mode, () => 'o_' + uid(), TF_DK_MAX);
+      // Primero tal cual (los turnos puntuales leen su hora de aquí) y luego ordenados por hora
+      if (out.e.length) state.calDays[k] = out.e; else delete state.calDays[k];
+      tfOnceGen++; tfSetDay(k, out.e); tfSetGaps(k, out.g); tfDkSet(k, out.dk);
+      tfSave(); sfx('complete'); vibrate([10, 30, 10]); toast(t('dmPasted', { d: fmtShort(k) }));
+      requestAnimationFrame(() => tfRipple(k));
+    };
+    if (!tfDayHas(k)) { go('replace'); return; }
+    openModal({
+      title: `${ico('paste')} ${esc(t('dmPasteQ'))}`, cls: 'tf-sheet',
+      body: `<p class="muted" style="margin:0">${esc(t('dmPasteHint', { d: tfLong(k), n: c.label }))}</p>`,
+      foot: `<button class="btn" data-tfdp="add">${ico('plus')} ${esc(t('dmAdd'))}</button><button class="btn primary" data-tfdp="replace">${ico('paste')} ${esc(t('dmReplace'))}</button>`,
+      onClick: (e, close) => { const b = e.target.closest('[data-tfdp]'); if (!b) return; close(); go(b.dataset.tfdp); }
+    });
+  }
   // Franja libre desde el minuto m (sin redondear): hasta una hora después, sin pasar del siguiente turno ni de las 23:59
   function tfFreeFrom(k, m) {
     const next = tfDayItems(k).timed.filter(it => it.a > m).reduce((x, it) => Math.min(x, it.a), 1439);
@@ -3982,7 +4096,7 @@
     const rows = [];
     for (const e of list) {
       const r = e.rt && state.calRoutines.find(x => x.id === e.rt && x.kind === 'day');
-      if (r) { if (!rts.has(r.id)) { rts.add(r.id); rows.push(row(tfRtTag(r), (r.day || []).map(x => tfShift(x.sid)).filter(Boolean).map(x => x.name).join(' · '))); } continue; }
+      if (r) { if (!rts.has(r.id)) { rts.add(r.id); rows.push(row(tfRtTag(r), (r.day || []).map(tfRtS).filter(Boolean).map(x => x.name).join(' · '))); } continue; }
       const s = tfShiftE(e); if (s) rows.push(row(tfTag(s, '', undefined, e), [times(s, e), (p => p ? p.name + (p.addr ? ' (' + p.addr + ')' : '') : '')(tfPlaceOf(s, e)), (r => r ? tfTrName(r.mode) + (r.dep || r.arr ? ' ' + (r.dep || '…') + '–' + (r.arr || '…') : '') : '')(TF.entryTransport(s, e)), (r => r ? t('bkToShort', { p: tfBkToName(r.to) }) + ' · ' + tfTrName(r.mode) : '')(TF.dayLegs(list, Object.fromEntries(tfData().shifts.map(x => [x.id, x]))).find(l => l.kind === 'back' && list[l.i] === e)), e.note].filter(Boolean).join(' · ')));
     }
     for (const f of shown) for (const id of f.days[k] || []) { const s = f.shifts.find(x => x.id === id); if (s) rows.push(row(tfGhost(s, f.name), f.name)); }
@@ -4147,8 +4261,10 @@
     });
   }
   // Una rutina se ve como una sola etiqueta con los colores de sus turnos, unidos, cada uno con el suyo
+  // v1.72: en una rutina, un turno puntual va guardado dentro (e.once) y no en la lista de Turnos
+  const tfRtS = e => e && e.once ? tfOnceShift(e) : tfShift(e && e.sid);
   function tfRtTag(r, cls = '') {
-    const cs = (r.day || []).map(e => tfShift(e.sid)).filter(Boolean).map(s => tfColor(s.color));
+    const cs = (r.day || []).map(tfRtS).filter(Boolean).map(s => tfColor(s.color));
     const bg = cs.length > 1 ? `linear-gradient(90deg, ${cs.map((c, i) => `${c} ${i * 100 / cs.length}% ${(i + 1) * 100 / cs.length}%`).join(', ')})` : (cs[0] || '#888');
     return `<span class="tf-tag tf-rt ${cls}" style="--c:${cs[0] || '#888'};background:${bg};--fg-c:${tfFg(cs[0] || '#888888')}"><span class="tn">${esc(r.name)}</span></span>`;
   }
@@ -4165,7 +4281,7 @@
     sfx('tap'); tfSave();
   }
   // v1.23: los turnos de un día van de más pronto a más tarde (los que no tienen hora, al final, en su orden)
-  const tfStartMin = e => { const s = tfShift(e.sid), st = s ? TF.entryTimes(s, e).start : ''; if (!st) return 1e4; const [h, m] = st.split(':').map(Number); return h * 60 + m; };
+  const tfStartMin = e => { const s = e.once ? tfOnceShift(e) : tfShift(e.sid), st = s ? TF.entryTimes(s, e).start : ''; if (!st) return 1e4; const [h, m] = st.split(':').map(Number); return h * 60 + m; };
   const tfSorted = list => list.map((e, i) => [e, i]).sort((a, b) => tfStartMin(a[0]) - tfStartMin(b[0]) || a[1] - b[1]).map(x => x[0]);
   const tfSetDay = (k, list) => { tfOnceGen++; if (list.length) state.calDays[k] = tfSorted(list); else delete state.calDays[k]; };
   /* v1.25: capas de vista del Calendario. v1.26: botón «Vista» en el menú, para todos, y se guarda en calPrefs.view (igual en todos
@@ -4776,7 +4892,7 @@
   const tfNextAt = (k, end) => setTimeout(() => tfGapMenu(k, tfFreeFrom(k, end ? tfMin(end) : Math.min(1380, new Date().getHours() * 60 + 60)), true), 320);
   const tfNextBtn = attr => `<button class="btn" ${attr} title="${esc(t('nxHint'))}">${ico('plus')} ${esc(t('nxNext'))}</button>`;
   function tfGapMenu(k, gap, next) {
-    const a = tfHm(gap.a), b = gap.b >= 1439 ? '23:59' : tfHm(gap.b), clip = tfClip(), pasteOk = clip && clip.type !== 'trip';
+    const a = tfHm(gap.a), b = gap.b >= 1439 ? '23:59' : tfHm(gap.b), clip = tfClip(), pasteOk = clip && clip.type !== 'trip' && clip.type !== 'day';
     openModal({
       title: next ? `${ico('plus')} ${esc(t('nxTitle', { h: a }))}` : esc(`${a}–${b}`), cls: 'tf-sheet',
       body: `<div class="stack" style="gap:10px">${pasteOk ? `<button class="btn block primary" data-tfgm="paste">${ico('paste')} ${esc(t('cpPasteN', { n: clip.label || t('cpThing_' + clip.type) }))}</button>` : ''}
@@ -4820,7 +4936,7 @@
   /* Pegar lo copiado en el día k. m = minuto de inicio (null = a la misma hora que tenía). Un turno puntual se pega como otro
      turno puntual (id nuevo). Una nota que iba dentro de un turno se pega suelta. Una nota sin hora se queda sin hora. */
   function tfPaste(k, m, after) {
-    const c = tfClip(); if (!c || c.type === 'trip') return;
+    const c = tfClip(); if (!c || c.type === 'trip' || c.type === 'day') return;
     if (c.type === 'shift') {
       const e0 = { ...c.data.e }; if (e0.once) e0.sid = 'o_' + uid();
       const s = e0.once ? tfOnceShift(e0) : tfShift(e0.sid); if (!s) { toast(t('cpGone')); return; }
@@ -5520,7 +5636,7 @@
         <p class="muted small" style="margin:0">${esc(t(d.kind === 'week' ? 'tfRtWeekHint' : 'tfRtDayHint'))}</p>
         ${d.kind === 'week' ? `<div class="seg seg-sm tf-rt-wd" role="group">${W.map((n, i) => `<button type="button" data-tfr-wd="${i}" class="${wd === i ? 'on' : ''}">${esc(n)}${d.week[i].length ? ` <span class="badge-n">${d.week[i].length}</span>` : ''}</button>`).join('')}</div>` : ''}
         ${list.length ? '' : `<p class="muted" style="margin:0">${esc(t('tfNoShifts'))}</p>`}
-        ${list.map((e, i) => { const s = tfShift(e.sid); if (!s) return ''; return `<div class="tf-entry" data-i="${i}"><div class="row" style="justify-content:space-between">${tfTag(s, 'big')}<button type="button" class="icon-btn sm danger-text" data-tfr="del" aria-label="${esc(t('tfRemoveShift'))}">${ico('x')}</button></div>
+        ${list.map((e, i) => { const s = tfRtS(e); if (!s) return ''; return `<div class="tf-entry" data-i="${i}"><div class="row" style="justify-content:space-between">${tfTag(s, 'big')}<button type="button" class="icon-btn sm danger-text" data-tfr="del" aria-label="${esc(t('tfRemoveShift'))}">${ico('x')}</button></div>
           <div class="row" style="gap:8px"><input class="input grow" type="time" data-tfr-t="start" value="${esc(e.start || s.start || '')}" aria-label="${esc(t('tfStart'))}"><input class="input grow" type="time" data-tfr-t="end" value="${esc(e.end || s.end || '')}" aria-label="${esc(t('tfEnd'))}"></div>${tfRtTrHtml(e, s)}</div>`; }).join('')}
         <h3 class="section-title" style="margin:4px 0 0">${esc(t('tfAddShift'))}</h3><div class="row wrap" style="gap:6px">${state.calShifts.map(s => `<button type="button" class="tf-pal" data-tfr-add="${esc(s.id)}">${tfTag(s, 'big')}</button>`).join('')}</div>
         ${d.kind === 'week' && list.length ? `<div class="row wrap" style="gap:6px"><button type="button" class="chip sm" data-tfr="copy-wk">${ico('copy')} ${esc(t('tfRtCopyWk'))}</button><button type="button" class="chip sm" data-tfr="copy-all">${ico('copy')} ${esc(t('tfRtCopyAll'))}</button></div>` : ''}</div>`;
@@ -5548,8 +5664,9 @@
             if (f === 'bkTo') { if (v) en.bkTo = v; else delete en.bkTo; } else { if (v) en[f] = v; else delete en[f]; delete en[f + 'Dep']; delete en[f + 'Arr']; if (f === 'bk' && (!v || v === '-')) delete en.bkTo; }
             d.name = $('#tfr-name', wref).value; draw(); return; }
           const row = e.target.closest('[data-i]'); if (!row || !e.target.matches('[data-tfr-t]')) return;
-          const en = cur()[+row.dataset.i], s = en && tfShift(en.sid); if (!s) return;
-          const which = e.target.dataset.tfrT; en[which] = e.target.value === s[which] ? '' : e.target.value;
+          const en = cur()[+row.dataset.i], s = en && tfRtS(en); if (!s) return;
+          const which = e.target.dataset.tfrT;
+          if (en.once) en.once = { ...en.once, [which]: e.target.value }; else en[which] = e.target.value === s[which] ? '' : e.target.value;
           if (which === 'start') { sortCur(); draw(); }
         });
         w.addEventListener('input', e => { if (e.target.id === 'tfr-name') d.name = e.target.value; });
@@ -8179,7 +8296,7 @@
   // v1.23.3: las mejoras pequeñas (1.23.2, 1.23.3…) se juntan con su versión grande; cada parte es [versión, nº de líneas].
   // En Ajustes → Novedades se ve la versión actual entera y el historial de las anteriores.
   const SEEN_KEY = 'keepgoing.seenVersion';
-  const NEWS = [['1.71', [['1.71.0', 2]]], ['1.70', [['1.70.0', 2]]], ['1.69', [['1.69.0', 2]]], ['1.67', [['1.67.0', 6]]], ['1.65', [['1.65.0', 3]]], ['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
+  const NEWS = [['1.72', [['1.72.0', 3]]], ['1.71', [['1.71.0', 2]]], ['1.70', [['1.70.0', 2]]], ['1.69', [['1.69.0', 2]]], ['1.67', [['1.67.0', 6]]], ['1.65', [['1.65.0', 3]]], ['1.64', [['1.64.0', 3]]], ['1.63', [['1.63.0', 7], ['1.63.1', 1], ['1.63.2', 1]]], ['1.62', [['1.62.0', 2]]], ['1.61', [['1.61.0', 6]]], ['1.60', [['1.60.0', 4]]], ['1.59', [['1.59.0', 4]]], ['1.58', [['1.58.0', 6]]], ['1.57', [['1.57.0', 1]]], ['1.56', [['1.56.0', 4]]], ['1.55', [['1.55.0', 4]]], ['1.54', [['1.54.0', 4]]], ['1.53', [['1.53.0', 9]]], ['1.52', [['1.52.0', 2]]], ['1.51', [['1.51.0', 4]]], ['1.50', [['1.50.0', 4]]], ['1.49', [['1.49.0', 3]]], ['1.48', [['1.48.0', 4]]], ['1.45', [['1.45.0', 2], ['1.45.1', 1], ['1.45.2', 2]]], ['1.44', [['1.44.0', 5]]], ['1.43', [['1.43.0', 10]]], ['1.41', [['1.41.0', 6]]], ['1.40', [['1.40.0', 4]]], ['1.39', [['1.39.0', 7]]], ['1.38', [['1.38.0', 2]]], ['1.37', [['1.37.0', 4]]], ['1.36', [['1.36.0', 8]]], ['1.35', [['1.35.0', 5]]], ['1.34', [['1.34.0', 4]]], ['1.33', [['1.33.0', 4]]], ['1.31', [['1.31.0', 6]]], ['1.30', [['1.30.0', 3]]], ['1.27', [['1.27.0', 9], ['1.27.1', 1], ['1.27.2', 1]]], ['1.26', [['1.26.0', 8], ['1.26.1', 3]]], ['1.25', [['1.25.0', 11]]], ['1.24', [['1.24.0', 8]]], ['1.23', [['1.23.0', 10], ['1.23.2', 3], ['1.23.3', 3], ['1.23.4', 2], ['1.23.5', 1]]], ['1.22', [['1.22.0', 8]]], ['1.21', [['1.21.0', 5]]], ['1.20', [['1.20.0', 3]]], ['1.19', [['1.19.0', 4]]],
     ['1.18', [['1.18.0', 3]]], ['1.17', [['1.17.0', 1]]], ['1.16', [['1.16.0', 3]]], ['1.15', [['1.15.0', 3]]], ['1.14', [['1.14.0', 3]]], ['1.13', [['1.13.0', 3]]], ['1.12', [['1.12.0', 3]]], ['1.11', [['1.11.0', 3]]]];
   const seenVersion = v => { try { if (v) localStorage.setItem(SEEN_KEY, v); return localStorage.getItem(SEEN_KEY); } catch (e) { return VERSION; } };
   const vNum = v => String(v || '').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);

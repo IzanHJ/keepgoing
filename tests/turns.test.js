@@ -293,3 +293,39 @@ test('v1.63: trayectos con varios tramos (dos guaguas) y mover un trayecto', () 
   assert.deepStrictEqual([bk.bk, bk.bkDep], ['walk', '15:30']);
   assert.strictEqual(T.moveTrip(s, { sid: 'a', tr: '-' }, 'go', 5), null);
 });
+
+test('v1.70: crear rutina desde un día y copiar/pegar el día', () => {
+  const day = [
+    { sid: 'a', note: 'x', start: '08:00', end: '', tr: 'bus', trDep: '07:30', trArr: '07:55', nm: 'Otro' },
+    { sid: 'o_abcd1', once: { name: 'Médico', start: '17:00', end: '18:00' }, note: '' },
+    { sid: 'zz', note: '' },
+  ];
+  const r = T.dayRoutine(day, (id) => id !== 'zz');
+  assert.strictEqual(r.once, 1);
+  assert.deepStrictEqual(r.day, [{ sid: 'a', start: '08:00', end: '', tr: 'bus', trDep: '07:30', trArr: '07:55' }]);
+  // v1.72: con withOnce el turno puntual entra en la rutina y al aplicarla se crea uno nuevo con id propio
+  const r2 = T.dayRoutine(day, (id) => id !== 'zz', true);
+  assert.strictEqual(r2.day.length, 2);
+  assert.strictEqual(r2.day[1].once.name, 'Médico');
+  const data = { shifts: [{ id: 'a', start: '06:00', end: '14:00' }], days: {} };
+  T.applyRoutine(data, { id: 'rt1', kind: 'day', day: r2.day }, { from: '2026-11-23', to: '2026-11-24', weekdays: [] });
+  const d1 = data.days['2026-11-23'], d2 = data.days['2026-11-24'];
+  assert.strictEqual(d1.length, 2);
+  assert.ok(/^o_/.test(d1[1].sid) && d1[1].sid !== 'o_rtpl' && d1[1].sid !== d2[1].sid);
+  assert.deepStrictEqual([d1[1].once.start, d1[1].once.end, d1[1].rt], ['17:00', '18:00', 'rt1']);
+  const san = T.sanitize({ shifts: data.shifts, days: data.days });
+  assert.strictEqual(san.days['2026-11-23'].length, 2);
+
+  const clip = { e: day.slice(0, 2), g: [{ a: '17:00', b: '18:00', t: 'nota', sid: 'o_abcd1' }, { a: '', b: '', t: 'día', src: 's' }], dk: ['vac'] };
+  let n = 0; const mk = () => 'o_new' + (++n);
+  const rep = T.pasteDay(clip, { e: [{ sid: 'b', note: '' }], g: [{ a: '', b: '', t: 'vieja' }], dk: ['x'] }, 'replace', mk);
+  assert.deepStrictEqual(rep.e.map((e) => e.sid), ['a', 'o_new1']);
+  assert.strictEqual(rep.g[0].sid, 'o_new1');
+  assert.strictEqual(rep.g[1].src, undefined);
+  assert.deepStrictEqual(rep.dk, ['vac']);
+  assert.strictEqual(clip.e[1].sid, 'o_abcd1'); // lo copiado no cambia
+  const add = T.pasteDay(clip, { e: [{ sid: 'b', note: '' }], g: [{ a: '', b: '', t: 'vieja' }], dk: ['x', 'vac'] }, 'add', mk);
+  assert.deepStrictEqual(add.e.map((e) => e.sid), ['b', 'a', 'o_new2']);
+  assert.strictEqual(add.g.length, 3);
+  assert.deepStrictEqual(add.dk, ['x', 'vac']);
+});
