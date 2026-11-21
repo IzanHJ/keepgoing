@@ -3229,7 +3229,16 @@ body.tf-holding .tf-tl-body { touch-action: none; }
 .tf-gapn.tiny > span { -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; display: block; font-size: 9.5px; line-height: 11px; }
 .tf-gapn.tiny .tf-gapn-p svg.i { width: 9px; height: 9px; }
 
-/* v1.68: fotos de progreso de hábitos (serie y comparar) y compartir resultados */
+/* v1.69: gimnasio y deporte en el mismo entrenamiento */
+.mx-sp .gy-ex-h .grow { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.mx-sp .gy-ex-h .grow b { font-size: 1rem; }
+.gy-addsp { margin-top: -4px; }
+.mx-row { align-items: center; gap: 8px; }
+.mx-min { margin-top: 8px; display: inline-flex; flex-direction: column; }
+.sp-box.mx .sp-fig { max-width: min(36vw, 140px); margin: 0 auto; }
+.mx-line { margin: 4px 0 8px; display: flex; align-items: center; gap: 6px; }
+
+/* v1.70: fotos de progreso de hábitos (serie y comparar) y compartir resultados */
 .hp-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
 .hp-mini { position: relative; flex: 0 0 96px; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: var(--surface-2); border: 0; padding: 0; cursor: pointer; }
 .hp-mini img, .hp-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
